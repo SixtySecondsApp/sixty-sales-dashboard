@@ -39,6 +39,7 @@ const MeetingsWaitlist = lazyWithRetry(() => import('@/pages/platform/MeetingsWa
 const OnboardingSimulator = lazyWithRetry(() => import('@/pages/platform/OnboardingSimulator'));
 const PricingControl = lazyWithRetry(() => import('@/pages/platform/PricingControl'));
 const CostAnalysis = lazyWithRetry(() => import('@/pages/platform/CostAnalysis'));
+const LaunchChecklist = lazyWithRetry(() => import('@/pages/platform/LaunchChecklist'));
 
 // Heavy routes - lazy load with retry mechanism to handle cache issues
 const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
@@ -446,6 +447,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/dev/api-testing" element={<PlatformAdminRouteGuard><AppLayout><ApiTesting /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/dev/function-testing" element={<PlatformAdminRouteGuard><AppLayout><FunctionTesting /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/onboarding-simulator" element={<InternalRouteGuard><AppLayout><OnboardingSimulator /></AppLayout></InternalRouteGuard>} />
+                <Route path="/platform/launch-checklist" element={<PlatformAdminRouteGuard><AppLayout><LaunchChecklist /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Platform Admin - Slack Demo (for testing Slack integration events) */}
                 <Route path="/platform/slack-demo" element={<PlatformAdminRouteGuard><AppLayout><SlackDemo /></AppLayout></PlatformAdminRouteGuard>} />
 

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, CheckCircle2, RefreshCw, AlertCircle } from 'lucide-react';
+import { Loader2, CheckCircle2, RefreshCw, AlertCircle, Sparkles, Clock, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
 import { useOnboardingProgress } from '@/lib/hooks/useOnboardingProgress';
@@ -13,6 +13,8 @@ interface SyncProgressStepProps {
   onBack: () => void;
 }
 
+type SyncPhase = 'idle' | 'fast' | 'fast_complete' | 'background' | 'complete';
+
 export function SyncProgressStep({ onNext, onBack }: SyncProgressStepProps) {
   const { user } = useAuth();
   const { triggerSync, loading: fathomLoading, isConnected } = useFathomIntegration();
@@ -20,6 +22,12 @@ export function SyncProgressStep({ onNext, onBack }: SyncProgressStepProps) {
   const [meetingCount, setMeetingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncComplete, setSyncComplete] = useState(false);
+  
+  // Two-phase sync tracking
+  const [syncPhase, setSyncPhase] = useState<SyncPhase>('idle');
+  const [fastSyncCount, setFastSyncCount] = useState(0);
+  const [backgroundSyncCount, setBackgroundSyncCount] = useState(0);
+  const backgroundSyncRef = useRef<boolean>(false);
 
   // Check if Fathom is connected - use the hook's isConnected property
   const isFathomConnected = isConnected;
@@ -45,38 +53,88 @@ export function SyncProgressStep({ onNext, onBack }: SyncProgressStepProps) {
   }, [user, markFirstMeetingSynced]);
 
 
-  // Initial sync - sync 10 recent meetings
-  const handleInitialSync = async () => {
+  // Phase 1: Fast sync - Get 3 meetings quickly for instant value
+  const handleFastSync = async () => {
     try {
       setIsSyncing(true);
+      setSyncPhase('fast');
+      
       const result = await triggerSync({
-        sync_type: 'manual',
-        limit: 10
+        sync_type: 'onboarding_fast', // New sync type: only 3 meetings
+        is_onboarding: true,
       });
 
       if (result?.success) {
         const count = result.meetings_synced || 0;
-
+        setFastSyncCount(count);
+        setMeetingCount(count);
+        
         if (count > 0) {
-          setMeetingCount(count);
-          setSyncComplete(true);
+          setSyncPhase('fast_complete');
           await markFirstMeetingSynced();
-          toast.success(`Synced ${count} meeting${count !== 1 ? 's' : ''}!`);
+          toast.success(`${count} meeting${count !== 1 ? 's' : ''} ready to explore!`);
+          
+          // Start background sync automatically after a short delay
+          setTimeout(() => {
+            handleBackgroundSync();
+          }, 1500);
         } else {
           toast.info('No meetings found in your Fathom account yet.');
-          setSyncComplete(true); // Still allow continuing even with 0 meetings
+          setSyncComplete(true);
+          setSyncPhase('complete');
         }
       } else if (result?.error) {
         toast.error(`Sync issue: ${result.error}`);
+        setSyncPhase('idle');
       } else {
         toast.error('Sync failed - no response from server');
+        setSyncPhase('idle');
       }
     } catch (error) {
       toast.error(`Failed to sync: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setSyncPhase('idle');
     } finally {
       setIsSyncing(false);
     }
   };
+
+  // Phase 2: Background sync - Get rest of last 30 days
+  const handleBackgroundSync = async () => {
+    // Prevent duplicate background syncs
+    if (backgroundSyncRef.current) return;
+    backgroundSyncRef.current = true;
+    
+    try {
+      setSyncPhase('background');
+      
+      const result = await triggerSync({
+        sync_type: 'onboarding_background', // Rest of 30-day history
+        is_onboarding: true,
+      });
+
+      if (result?.success) {
+        const additionalCount = result.meetings_synced || 0;
+        setBackgroundSyncCount(additionalCount);
+        setMeetingCount(prev => prev + additionalCount);
+        
+        if (additionalCount > 0) {
+          toast.success(`${additionalCount} more meeting${additionalCount !== 1 ? 's' : ''} synced from your history!`, {
+            description: 'AI analysis will process in the background',
+          });
+        }
+      }
+      // Don't show errors for background sync - it's non-critical
+    } catch (error) {
+      console.warn('[SyncProgressStep] Background sync error:', error);
+    } finally {
+      setSyncPhase('complete');
+      setSyncComplete(true);
+      backgroundSyncRef.current = false;
+    }
+  };
+  
+  // Legacy: Initial sync for backwards compatibility
+  const handleInitialSync = handleFastSync;
 
   const hasMeetings = meetingCount > 0;
 
@@ -169,29 +227,73 @@ export function SyncProgressStep({ onNext, onBack }: SyncProgressStepProps) {
           )}
         </motion.div>
         <h1 className="text-4xl font-bold mb-4 text-white">
-          {isSyncing ? 'Syncing Your Meetings...' : syncComplete ? 'Meetings Synced!' : 'Ready to Sync'}
+          {syncPhase === 'fast' ? 'Quick Sync...' 
+            : syncPhase === 'fast_complete' ? 'Almost Ready!' 
+            : syncPhase === 'background' ? 'Syncing History...'
+            : syncComplete ? 'Meetings Ready!'
+            : 'Ready to Sync'}
         </h1>
         <p className="text-xl text-gray-400">
-          {isSyncing
-            ? 'Fetching your recent meeting recordings'
+          {syncPhase === 'fast' 
+            ? 'Getting your most recent meetings'
+            : syncPhase === 'fast_complete'
+            ? 'Starting background history sync...'
+            : syncPhase === 'background'
+            ? `${fastSyncCount} ready, syncing more...`
             : syncComplete
             ? `${meetingCount} meeting${meetingCount !== 1 ? 's' : ''} ready to analyze`
-            : 'Click sync to fetch your meetings from Fathom'}
+            : 'Get instant value with fast sync'}
         </p>
       </div>
 
       <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-800/50 p-8 mb-8">
-        {isSyncing ? (
+        {/* Phase 1: Fast sync in progress */}
+        {syncPhase === 'fast' && (
           <div className="space-y-4">
             <div className="flex items-center justify-center gap-3">
-              <Loader2 className="w-6 h-6 text-[#37bd7e] animate-spin" />
-              <span className="text-white">Syncing your recent meetings...</span>
+              <Zap className="w-6 h-6 text-amber-400 animate-pulse" />
+              <span className="text-white">Quick sync: Getting your recent meetings...</span>
             </div>
             <p className="text-center text-xs text-gray-500">
-              This may take a moment. Transcripts and AI analysis will process in the background.
+              Just a few seconds – we're grabbing your most recent meetings for instant value.
             </p>
           </div>
-        ) : syncComplete ? (
+        )}
+        
+        {/* Phase 1 complete, Phase 2 starting */}
+        {syncPhase === 'fast_complete' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-center gap-3">
+              <CheckCircle2 className="w-6 h-6 text-[#37bd7e]" />
+              <span className="text-white">{fastSyncCount} meetings ready!</span>
+            </div>
+            <p className="text-center text-xs text-gray-500">
+              Starting background sync for your full 30-day history...
+            </p>
+          </div>
+        )}
+        
+        {/* Phase 2: Background sync in progress */}
+        {syncPhase === 'background' && (
+          <div className="space-y-4">
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-[#37bd7e]" />
+                <span className="text-white">{fastSyncCount} meetings ready to explore</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-400">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Syncing more from your history...</span>
+              </div>
+            </div>
+            <p className="text-center text-xs text-gray-500">
+              You can continue to the dashboard – we'll sync the rest in the background.
+            </p>
+          </div>
+        )}
+        
+        {/* Complete */}
+        {syncPhase === 'complete' && syncComplete && (
           <div className="text-center">
             <CheckCircle2 className="w-12 h-12 text-[#37bd7e] mx-auto mb-3" />
             <p className="text-white text-lg mb-1">
@@ -199,26 +301,37 @@ export function SyncProgressStep({ onNext, onBack }: SyncProgressStepProps) {
                 ? `${meetingCount} meeting${meetingCount !== 1 ? 's' : ''} synced successfully!`
                 : 'Sync complete!'}
             </p>
+            {backgroundSyncCount > 0 && (
+              <p className="text-emerald-400 text-sm mb-2">
+                <Sparkles className="inline w-4 h-4 mr-1" />
+                Includes {backgroundSyncCount} from your 30-day history
+              </p>
+            )}
             <p className="text-gray-400 text-sm">
               {meetingCount > 0
-                ? 'You can sync more meetings from the Meetings page after completing setup.'
-                : 'No meetings found yet. You can sync more from the Meetings page later.'}
+                ? 'AI analysis is processing in the background. Start exploring!'
+                : 'No meetings found yet. Sync more from the Meetings page later.'}
             </p>
           </div>
-        ) : (
+        )}
+        
+        {/* Idle / Not started */}
+        {syncPhase === 'idle' && !syncComplete && (
           <div className="text-center">
             <p className="text-gray-400 mb-6">
-              Let's sync your <span className="text-white font-medium">10 most recent meetings</span> to get started.
+              We'll quickly sync your <span className="text-white font-medium">most recent meetings</span> first, then grab your full 30-day history in the background.
             </p>
             <Button
-              onClick={handleInitialSync}
+              onClick={handleFastSync}
               className="bg-[#37bd7e] hover:bg-[#2da76c] text-white"
+              disabled={isSyncing}
             >
-              <RefreshCw className="mr-2 w-5 h-5" />
-              Sync Recent Meetings
+              <Zap className="mr-2 w-5 h-5" />
+              Start Fast Sync
             </Button>
-            <p className="text-xs text-gray-500 mt-4">
-              This will only take a moment.
+            <p className="text-xs text-gray-500 mt-4 flex items-center justify-center gap-2">
+              <Clock className="w-3 h-3" />
+              Takes just a few seconds
             </p>
           </div>
         )}
@@ -229,16 +342,17 @@ export function SyncProgressStep({ onNext, onBack }: SyncProgressStepProps) {
           onClick={onBack}
           variant="ghost"
           className="text-gray-400 hover:text-white"
-          disabled={isSyncing}
+          disabled={isSyncing || syncPhase === 'fast'}
         >
           Back
         </Button>
-        {syncComplete && (
+        {/* Allow continuing once fast sync is done (during background or complete) */}
+        {(syncPhase === 'background' || syncPhase === 'complete' || syncComplete) && (
           <Button
             onClick={onNext}
             className="bg-[#37bd7e] hover:bg-[#2da76c] text-white px-8 py-6 text-lg"
           >
-            Continue to Dashboard
+            {syncPhase === 'background' ? 'Continue (Syncing in Background)' : 'Continue to Dashboard'}
           </Button>
         )}
       </div>

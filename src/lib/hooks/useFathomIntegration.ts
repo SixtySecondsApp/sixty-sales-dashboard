@@ -287,11 +287,26 @@ export function useFathomIntegration() {
 
   // Trigger manual sync
   const triggerSync = async (params?: {
-    sync_type?: 'initial' | 'incremental' | 'manual';
+    sync_type?: 'initial' | 'incremental' | 'manual' | 'onboarding_fast' | 'onboarding_background';
     start_date?: string;
     end_date?: string;
     limit?: number; // Optional limit for test syncs
-  }) => {
+    is_onboarding?: boolean; // Mark as onboarding sync (historical imports)
+  }): Promise<{
+    success: boolean;
+    meetings_synced?: number;
+    total_meetings_found?: number;
+    upgrade_required?: boolean;
+    limit_warning?: string;
+    limits?: {
+      is_free_tier: boolean;
+      used: number;
+      max: number;
+      remaining: number;
+      historical: number;
+    };
+    error?: string;
+  } | null> => {
     try {
       setError(null);
       setSyncInProgress(true); // Immediately show syncing state in UI
@@ -319,8 +334,16 @@ export function useFathomIntegration() {
           start_date: params?.start_date,
           end_date: params?.end_date,
           limit: params?.limit, // Pass limit to Edge Function
+          is_onboarding: params?.is_onboarding, // Mark as onboarding sync
         },
       });
+
+      // Check for upgrade required response (402)
+      if (response.data?.upgrade_required) {
+        console.log('[useFathomIntegration] Upgrade required:', response.data);
+        setSyncInProgress(false);
+        return response.data;
+      }
 
       console.log('[useFathomIntegration] Edge function response:', {
         error: response.error,

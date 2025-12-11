@@ -196,6 +196,15 @@ const platformSections: Record<string, PlatformSection[]> = {
   ],
   'Development Tools': [
     {
+      id: 'launch-checklist',
+      title: 'Launch Checklist',
+      description: 'Track MVP launch progress and task completion',
+      icon: Target,
+      href: '/platform/launch-checklist',
+      color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30',
+      badge: 'New',
+    },
+    {
       id: 'api-testing',
       title: 'API Testing',
       description: 'Test API endpoints and debug issues',

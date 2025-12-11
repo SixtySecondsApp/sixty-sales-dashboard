@@ -23,7 +23,7 @@ const corsHeaders = {
  */
 
 interface SyncRequest {
-  sync_type: 'initial' | 'incremental' | 'manual' | 'webhook' | 'all_time'
+  sync_type: 'initial' | 'incremental' | 'manual' | 'webhook' | 'all_time' | 'onboarding_fast' | 'onboarding_background'
   start_date?: string // ISO 8601
   end_date?: string
   call_id?: string // For webhook-triggered single call sync
@@ -31,6 +31,18 @@ interface SyncRequest {
   limit?: number // Optional limit for test syncs (e.g., only sync last 5 calls)
   webhook_payload?: any // For webhook calls that pass the complete Fathom payload
   skip_thumbnails?: boolean // Skip thumbnail generation for faster syncs
+  is_onboarding?: boolean // Flag to mark meetings as historical imports
+}
+
+interface MeetingLimits {
+  is_free_tier: boolean
+  max_meetings_per_month: number
+  new_meetings_used: number
+  historical_meetings: number
+  total_meetings: number
+  meetings_remaining: number
+  can_sync_new: boolean
+  historical_cutoff_date: string | null
 }
 
 interface FathomCall {
@@ -136,6 +148,80 @@ async function refreshAccessToken(supabase: any, integration: any): Promise<stri
     throw new Error(`Failed to update refreshed tokens: ${updateError.message}`)
   }
   return tokenData.access_token
+}
+
+/**
+ * Helper: Check meeting limits for an organization
+ * Returns limit info and whether sync is allowed
+ */
+async function checkMeetingLimits(supabase: any, orgId: string): Promise<MeetingLimits | null> {
+  try {
+    const { data, error } = await supabase.rpc('check_meeting_limits', { p_org_id: orgId })
+    
+    if (error) {
+      console.error('[fathom-sync] Error checking meeting limits:', error)
+      return null
+    }
+    
+    if (!data || data.length === 0) {
+      // No subscription found - treat as free tier with defaults
+      return {
+        is_free_tier: true,
+        max_meetings_per_month: 15,
+        new_meetings_used: 0,
+        historical_meetings: 0,
+        total_meetings: 0,
+        meetings_remaining: 15,
+        can_sync_new: true,
+        historical_cutoff_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+      }
+    }
+    
+    return data[0] as MeetingLimits
+  } catch (err) {
+    console.error('[fathom-sync] Exception checking meeting limits:', err)
+    return null
+  }
+}
+
+/**
+ * Helper: Enforce free tier date limit
+ * Returns adjusted start date for free tier users
+ */
+function enforceFreeTierDateLimit(
+  requestedStartDate: string | undefined,
+  limits: MeetingLimits | null,
+  syncType: string
+): { startDate: string | undefined; upgradeRequired: boolean; reason?: string } {
+  // Skip limit enforcement for paid users
+  if (!limits?.is_free_tier) {
+    return { startDate: requestedStartDate, upgradeRequired: false }
+  }
+  
+  // Calculate 30 days ago
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  
+  // If no start date specified, use defaults based on sync type
+  if (!requestedStartDate) {
+    // For most sync types, default to 30 days
+    return { 
+      startDate: thirtyDaysAgo.toISOString(), 
+      upgradeRequired: false 
+    }
+  }
+  
+  // Check if requested date is older than 30 days
+  const requestedDate = new Date(requestedStartDate)
+  if (requestedDate < thirtyDaysAgo) {
+    console.log(`[fathom-sync] Free tier: Requested ${requestedStartDate} but limiting to ${thirtyDaysAgo.toISOString()}`)
+    return {
+      startDate: thirtyDaysAgo.toISOString(),
+      upgradeRequired: true,
+      reason: 'Free tier is limited to meetings from the last 30 days. Upgrade to access your full history.',
+    }
+  }
+  
+  return { startDate: requestedStartDate, upgradeRequired: false }
 }
 
 /**
@@ -426,6 +512,49 @@ serve(async (req) => {
     const userOrgId: string | null = membership?.org_id || null
     console.log(`[fathom-sync] User ${userId} org_id: ${userOrgId}`)
 
+    // ========================================================================
+    // FREE TIER ENFORCEMENT: Check meeting limits before syncing
+    // ========================================================================
+    let meetingLimits: MeetingLimits | null = null
+    let upgradeRequired = false
+    let limitWarning: string | undefined
+    const isOnboardingSync = sync_type === 'onboarding_fast' || sync_type === 'onboarding_background' || body.is_onboarding
+    
+    if (userOrgId) {
+      meetingLimits = await checkMeetingLimits(supabase, userOrgId)
+      
+      if (meetingLimits) {
+        console.log(`[fathom-sync] Meeting limits for org ${userOrgId}:`, {
+          is_free_tier: meetingLimits.is_free_tier,
+          new_meetings_used: meetingLimits.new_meetings_used,
+          max_meetings: meetingLimits.max_meetings_per_month,
+          can_sync_new: meetingLimits.can_sync_new,
+          meetings_remaining: meetingLimits.meetings_remaining,
+        })
+        
+        // Check if free tier can sync new meetings (skip for onboarding syncs which are historical)
+        if (meetingLimits.is_free_tier && !meetingLimits.can_sync_new && !isOnboardingSync) {
+          // Return early with upgrade required response
+          return new Response(
+            JSON.stringify({
+              success: false,
+              upgrade_required: true,
+              error: `You've reached your free tier limit of ${meetingLimits.max_meetings_per_month} meetings. Upgrade to sync more meetings.`,
+              limits: {
+                used: meetingLimits.new_meetings_used,
+                max: meetingLimits.max_meetings_per_month,
+                remaining: 0,
+              },
+            }),
+            {
+              status: 402, // Payment Required
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            }
+          )
+        }
+      }
+    }
+
     // Update sync state to 'syncing'
     await supabase
       .from('fathom_sync_state')
@@ -446,7 +575,8 @@ serve(async (req) => {
     if (sync_type === 'webhook') {
       // If webhook_payload is provided, use it directly
       if (webhook_payload) {
-        const result = await syncSingleCall(supabase, userId, userOrgId, integration, webhook_payload, skip_thumbnails)
+        // Webhook syncs are for new meetings (not historical)
+        const result = await syncSingleCall(supabase, userId, userOrgId, integration, webhook_payload, skip_thumbnails, false)
 
         if (result.success) {
           meetingsSynced = 1
@@ -456,8 +586,8 @@ serve(async (req) => {
           errors.push({ call_id: recordingId, error: result.error || 'Unknown error' })
         }
       } else if (call_id) {
-        // Legacy: fetch single call by ID
-        const result = await syncSingleCall(supabase, userId, userOrgId, integration, call_id, skip_thumbnails)
+        // Legacy: fetch single call by ID (not historical)
+        const result = await syncSingleCall(supabase, userId, userOrgId, integration, call_id, skip_thumbnails, false)
 
         if (result.success) {
           meetingsSynced = 1
@@ -469,9 +599,15 @@ serve(async (req) => {
         errors.push({ call_id: 'unknown', error: 'Webhook sync requires either webhook_payload or call_id' })
       }
     } else {
-      // Bulk sync (initial, incremental, manual)
+      // Bulk sync (initial, incremental, manual, onboarding_fast, onboarding_background)
       let apiStartDate = start_date
       let apiEndDate = end_date
+      let syncLimit = limit
+      
+      // For onboarding syncs, set specific behaviors
+      const isOnboardingFast = sync_type === 'onboarding_fast'
+      const isOnboardingBackground = sync_type === 'onboarding_background'
+      const markAsHistorical = isOnboardingFast || isOnboardingBackground || body.is_onboarding
 
       // Default date ranges based on sync type
       if (!apiStartDate) {
@@ -483,9 +619,34 @@ serve(async (req) => {
             apiEndDate = now.toISOString()
             break
           case 'all_time':
-            // All time - no start date filter (Fathom API will return all historical calls)
-            apiStartDate = undefined
+            // All time - BUT enforce free tier limit
+            if (meetingLimits?.is_free_tier) {
+              // Free tier: limit to 30 days
+              apiStartDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+              upgradeRequired = true
+              limitWarning = 'Free tier is limited to meetings from the last 30 days. Upgrade to access your full history.'
+            } else {
+              apiStartDate = undefined
+            }
             apiEndDate = now.toISOString()
+            break
+          case 'onboarding_fast':
+            // Phase 1: Just 3 most recent meetings for instant value
+            apiStartDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+            apiEndDate = now.toISOString()
+            syncLimit = 3 // Only sync 3 meetings
+            console.log('[fathom-sync] Onboarding fast sync: limiting to 3 most recent meetings')
+            break
+          case 'onboarding_background':
+            // Phase 2: Rest of last 30 days (for free tier)
+            if (meetingLimits?.is_free_tier) {
+              apiStartDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+            } else {
+              // Paid: can sync more history
+              apiStartDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
+            }
+            apiEndDate = now.toISOString()
+            console.log('[fathom-sync] Onboarding background sync: syncing remaining meetings from', apiStartDate)
             break
           case 'initial':
           case 'manual':
@@ -497,13 +658,13 @@ serve(async (req) => {
       }
       // Fetch calls from Fathom API with cursor-based pagination
       let cursor: string | undefined = undefined
-      const apiLimit = limit || 100 // Use provided limit or default to 100
+      const apiLimit = syncLimit || limit || 100 // Use syncLimit (from onboarding types) or provided limit or default
       let hasMore = true
       let pageCount = 0
       const maxPages = 100 // Safety limit to prevent infinite loops
 
-      // If user specified a limit, we only fetch one batch
-      const isLimitedSync = !!limit
+      // If user specified a limit or we set one for onboarding, only fetch one batch
+      const isLimitedSync = !!syncLimit || !!limit
 
       while (hasMore && pageCount < maxPages) {
         pageCount++
@@ -520,7 +681,8 @@ serve(async (req) => {
         // Process each call
         for (const call of calls) {
           try {
-            const result = await syncSingleCall(supabase, userId, userOrgId, integration, call, skip_thumbnails)
+            // Pass markAsHistorical flag for onboarding syncs
+            const result = await syncSingleCall(supabase, userId, userOrgId, integration, call, skip_thumbnails, markAsHistorical)
 
             if (result.success) {
               meetingsSynced++
@@ -554,7 +716,8 @@ serve(async (req) => {
         if (retryCalls.length > 0) {
           for (const call of retryCalls) {
             try {
-              const result = await syncSingleCall(supabase, userId, userOrgId, integration, call, skip_thumbnails)
+              // Fallback retries also use markAsHistorical flag
+              const result = await syncSingleCall(supabase, userId, userOrgId, integration, call, skip_thumbnails, markAsHistorical)
               if (result.success) meetingsSynced++
             } catch (error) {
             }
@@ -612,6 +775,16 @@ serve(async (req) => {
         meetings_synced: meetingsSynced,
         total_meetings_found: totalMeetingsFound,
         errors: errors.length > 0 ? errors : undefined,
+        // Free tier limit info
+        upgrade_required: upgradeRequired,
+        limit_warning: limitWarning,
+        limits: meetingLimits ? {
+          is_free_tier: meetingLimits.is_free_tier,
+          used: meetingLimits.new_meetings_used + meetingsSynced, // Include newly synced
+          max: meetingLimits.max_meetings_per_month,
+          remaining: Math.max(0, meetingLimits.meetings_remaining - meetingsSynced),
+          historical: meetingLimits.historical_meetings,
+        } : undefined,
       }),
       {
         status: 200,
@@ -1165,7 +1338,8 @@ async function syncSingleCall(
   orgId: string | null,
   integration: any,
   call: any, // Directly receive the call object from bulk API
-  skipThumbnails: boolean = false
+  skipThumbnails: boolean = false,
+  markAsHistorical: boolean = false // Mark as historical import (doesn't count toward new meeting limit)
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Call object already contains all necessary data from bulk API
@@ -1287,6 +1461,8 @@ async function syncSingleCall(
       ),
       last_synced_at: new Date().toISOString(),
       sync_status: 'synced',
+      // Free tier enforcement: mark historical imports
+      is_historical_import: markAsHistorical,
     }
 
     if (summaryText) {

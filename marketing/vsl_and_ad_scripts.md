@@ -211,21 +211,7 @@ Click the button now.
 
 ---
 
-### FULL SCRIPT
-
-**[HOOK - 0:00-0:20]**
-
-It's 2025.
-
-You're still typing meeting notes by hand? Still manually updating your CRM after every call? Still writing proposals from scratch, copying and pasting from the last one?
-
-That's like using a flip phone in the smartphone era. It works. But everyone with an iPhone is moving faster than you.
-
-**[AGITATE - 0:20-0:50]**
-
-Here's what nobody's telling you.
-
-The reps who are crushing quota right now aren't working harder. They're not staying later. They're not some special breed of sales superhuman.
+Sales Reps who are crushing quota right now aren't working harder. They're not staying later. They're not some special breed of sales superhuman.
 
 They're using AI to eliminate the fifty percent of their job that isn't actually selling.
 
