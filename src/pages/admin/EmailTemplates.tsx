@@ -32,6 +32,12 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 
 export default function EmailTemplates() {
   const { user } = useAuth();
+  
+  // Debug: Log when component mounts
+  useEffect(() => {
+    console.log('[EmailTemplates] Component mounted, pathname:', window.location.pathname);
+  }, []);
+  
   const [templates, setTemplates] = useState<EnchargeEmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<EnchargeEmailTemplate | null>(null);

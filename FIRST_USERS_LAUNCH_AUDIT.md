@@ -36,12 +36,12 @@ The core product functionality is well-built with a solid technical foundation. 
 2. ~~**No Platform Admin activation dashboard**~~ ✅ **COMPLETE** - Visualize user activation funnel at `/platform/activation`
 3. ~~**Usage limit warning emails**~~ ✅ **COMPLETE** - Sends warning at 80% usage (12/15 meetings)
 
-### Nice-to-Haves (Can Launch Without)
-- Error monitoring (Sentry/similar)
-- Usage analytics (PostHog/Mixpanel)
-- Improved upgrade prompts
+### Nice-to-Haves (Can Launch Without) - ✅ MANY COMPLETED
+- ~~Error monitoring (Sentry/similar)~~ ✅ **DONE** - Sentry SDK integrated
+- ~~Usage analytics~~ ✅ **DONE** - Basic analytics service with page tracking
+- ~~Improved upgrade prompts~~ ✅ **DONE** - MeetingUsageIndicator in sidebar
 - Mobile-optimized onboarding
-- Cohort analysis and at-risk user alerts
+- ~~Cohort analysis and at-risk user alerts~~ ✅ **DONE** - Added to Activation Dashboard
 
 ### Estimated Effort to Launch
 | Priority | Item | Effort | Status |
@@ -1524,16 +1524,17 @@ Add to `src/pages/platform/PlatformDashboard.tsx`:
 | 10 | Test upgrade checkout flow | 2h | QA | Free → Paid |
 | 11 | Add remaining meetings counter to UI | 2h | Dev | Show "X of 15 used" |
 
-### P2 - Nice to Have (Post-Launch)
+### P2 - Nice to Have (Post-Launch) - ✅ MOSTLY COMPLETE
 
 | # | Task | Effort | Owner | Notes |
 |---|------|--------|-------|-------|
-| 12 | Add Sentry error monitoring | 2h | Dev | |
-| 13 | Add basic analytics | 4h | Dev | Page views, key actions |
+| 12 | ~~Add Sentry error monitoring~~ | 2h | Dev | ✅ DONE - Dec 11 |
+| 13 | ~~Add basic analytics~~ | 4h | Dev | ✅ DONE - Page views, key actions |
 | 14 | Create help docs / FAQ | 8h | Content | |
 | 15 | Add product tour | 8h | Dev | |
-| 16 | Activation cohort analysis | 4h | Dev | Weekly cohort breakdowns |
-| 17 | At-risk user alerts | 4h | Dev | Users not activating in 24h |
+| 16 | ~~Activation cohort analysis~~ | 4h | Dev | ✅ DONE - Weekly cohorts in dashboard |
+| 17 | ~~At-risk user alerts~~ | 4h | Dev | ✅ DONE - At-risk view in dashboard |
+| 18 | ~~Meeting usage indicator~~ | 2h | Dev | ✅ DONE - Sidebar shows X/15 used |
 
 ---
 

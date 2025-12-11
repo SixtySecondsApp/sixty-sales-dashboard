@@ -12,6 +12,8 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUserPermissions } from '@/contexts/UserPermissionsContext';
+import { useAuth } from '@/lib/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 // Extended route access type for 3-tier system
 export type RouteAccess =
@@ -64,16 +66,28 @@ export function RouteGuard({
   fallbackRoute,
 }: RouteGuardProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const {
+    isLoading: isPermissionsLoading,
     effectiveUserType,
     isAdmin,
     isPlatformAdmin,
     isOrgAdmin,
     getRedirectForUnauthorized,
   } = useUserPermissions();
+  
+  // Wait for user to be loaded AND permissions to be loaded before checking
+  const isUserLoading = !user;
+  const isFullyLoaded = !isUserLoading && !isPermissionsLoading;
 
   // Determine if user has access based on 3-tier model
   const hasAccess = React.useMemo(() => {
+    // Wait for everything to load before checking permissions
+    // During loading, we don't know yet - return undefined
+    if (!isFullyLoaded) {
+      return undefined; // Still loading
+    }
+
     const access = (() => {
       switch (requiredAccess) {
         case 'any':
@@ -109,20 +123,34 @@ export function RouteGuard({
         effectiveUserType,
         isAdmin,
         hasAccess: access,
+        isUserLoading,
+        isPermissionsLoading,
+        isFullyLoaded,
+        pathname: window.location.pathname,
       });
     }
 
     return access;
-  }, [requiredAccess, effectiveUserType, isPlatformAdmin, isOrgAdmin, isAdmin]);
+  }, [requiredAccess, effectiveUserType, isPlatformAdmin, isOrgAdmin, isAdmin, isUserLoading, isPermissionsLoading, isFullyLoaded]);
 
-  // Redirect if no access
+  // Redirect if no access (only after fully loaded)
   useEffect(() => {
-    if (!hasAccess) {
+    if (hasAccess === false) {
       const redirectTo = fallbackRoute || getRedirectForUnauthorized();
       // Use replace to avoid adding to history (user can't "back" into restricted page)
       navigate(redirectTo, { replace: true });
     }
   }, [hasAccess, fallbackRoute, getRedirectForUnauthorized, navigate]);
+
+  // Show loading spinner while permissions are loading
+  if (hasAccess === undefined) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.25),transparent)] pointer-events-none" />
+        <Loader2 className="w-8 h-8 text-[#37bd7e] animate-spin" />
+      </div>
+    );
+  }
 
   // Don't render children while redirecting
   if (!hasAccess) {

@@ -20,6 +20,10 @@ import {
   Sparkles,
   Target,
   CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
+  BarChart3,
+  Mail,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { Button } from '@/components/ui/button';
@@ -52,12 +56,47 @@ interface RecentEvent {
   user_email?: string;
 }
 
+interface CohortData {
+  cohort_week: string;
+  week_label: string;
+  total_users: number;
+  fathom_connected: number;
+  first_meeting_synced: number;
+  first_summary_viewed: number;
+  fully_activated: number;
+  activation_rate: number;
+}
+
+interface AtRiskUser {
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  signup_date: string;
+  hours_since_signup: number;
+  fathom_connected: boolean;
+  first_meeting_synced: boolean;
+  first_summary_viewed: boolean;
+  risk_level: 'high' | 'medium' | 'low';
+  suggested_action: string;
+  org_name: string | null;
+}
+
+interface AtRiskSummary {
+  risk_level: string;
+  user_count: number;
+  percentage: number;
+}
+
 export default function ActivationDashboard() {
   const [metrics, setMetrics] = useState<ActivationMetrics | null>(null);
   const [funnelData, setFunnelData] = useState<FunnelStep[]>([]);
   const [recentEvents, setRecentEvents] = useState<RecentEvent[]>([]);
+  const [cohortData, setCohortData] = useState<CohortData[]>([]);
+  const [atRiskUsers, setAtRiskUsers] = useState<AtRiskUser[]>([]);
+  const [atRiskSummary, setAtRiskSummary] = useState<AtRiskSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('30d');
+  const [activeTab, setActiveTab] = useState<'funnel' | 'cohorts' | 'at-risk'>('funnel');
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -100,6 +139,33 @@ export default function ActivationDashboard() {
 
       if (eventsData) {
         setRecentEvents(eventsData);
+      }
+
+      // Load cohort data
+      const weeks = dateRange === '7d' ? 4 : dateRange === '30d' ? 8 : 12;
+      const { data: cohortResult } = await supabase.rpc('get_cohort_analysis', {
+        p_weeks: weeks,
+      });
+
+      if (cohortResult) {
+        setCohortData(cohortResult);
+      }
+
+      // Load at-risk users
+      const { data: atRiskResult } = await supabase.rpc('get_at_risk_users', {
+        p_risk_level: 'all',
+        p_limit: 20,
+      });
+
+      if (atRiskResult) {
+        setAtRiskUsers(atRiskResult);
+      }
+
+      // Load at-risk summary
+      const { data: summaryResult } = await supabase.rpc('get_at_risk_summary');
+
+      if (summaryResult) {
+        setAtRiskSummary(summaryResult);
       }
     } catch (err) {
       console.error('[ActivationDashboard] Error loading data:', err);
@@ -432,6 +498,222 @@ export default function ActivationDashboard() {
             <div className="text-sm text-gray-500 dark:text-gray-400">activation events</div>
           </motion.div>
         </div>
+
+        {/* Tab Navigation */}
+        <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
+          <button
+            onClick={() => setActiveTab('cohorts')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'cohorts'
+                ? 'text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-500'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 inline mr-2" />
+            Weekly Cohorts
+          </button>
+          <button
+            onClick={() => setActiveTab('at-risk')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'at-risk'
+                ? 'text-amber-600 dark:text-amber-400 border-b-2 border-amber-500'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            <AlertTriangle className="w-4 h-4 inline mr-2" />
+            At-Risk Users ({atRiskUsers.length})
+          </button>
+        </div>
+
+        {/* Cohorts Tab */}
+        {activeTab === 'cohorts' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-6"
+          >
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-emerald-500" />
+              Weekly Cohort Analysis
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-700">
+                    <th className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Cohort</th>
+                    <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Users</th>
+                    <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Fathom</th>
+                    <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Meeting</th>
+                    <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Summary ⭐</th>
+                    <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Activated</th>
+                    <th className="text-right py-3 px-4 text-gray-500 dark:text-gray-400 font-medium">Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cohortData.map((cohort, index) => (
+                    <tr 
+                      key={cohort.cohort_week} 
+                      className={index % 2 === 0 ? 'bg-gray-50 dark:bg-gray-800/30' : ''}
+                    >
+                      <td className="py-3 px-4 text-gray-900 dark:text-white font-medium">
+                        {cohort.week_label}
+                      </td>
+                      <td className="text-right py-3 px-4 text-gray-700 dark:text-gray-300">
+                        {cohort.total_users}
+                      </td>
+                      <td className="text-right py-3 px-4 text-gray-700 dark:text-gray-300">
+                        {cohort.fathom_connected}
+                      </td>
+                      <td className="text-right py-3 px-4 text-gray-700 dark:text-gray-300">
+                        {cohort.first_meeting_synced}
+                      </td>
+                      <td className="text-right py-3 px-4 text-yellow-600 dark:text-yellow-400 font-medium">
+                        {cohort.first_summary_viewed}
+                      </td>
+                      <td className="text-right py-3 px-4 text-emerald-600 dark:text-emerald-400 font-medium">
+                        {cohort.fully_activated}
+                      </td>
+                      <td className="text-right py-3 px-4">
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                          cohort.activation_rate >= 30 
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                            : cohort.activation_rate >= 15
+                            ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                            : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        }`}>
+                          {cohort.activation_rate}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {cohortData.length === 0 && (
+                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                  No cohort data available yet
+                </p>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* At-Risk Users Tab */}
+        {activeTab === 'at-risk' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            {/* At-Risk Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {['high', 'medium', 'low'].map((level) => {
+                const summary = atRiskSummary.find(s => s.risk_level === level);
+                const colors = {
+                  high: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-500', icon: AlertCircle },
+                  medium: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-500', icon: AlertTriangle },
+                  low: { bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', text: 'text-yellow-500', icon: AlertTriangle },
+                };
+                const c = colors[level as keyof typeof colors];
+                const Icon = c.icon;
+
+                return (
+                  <div
+                    key={level}
+                    className={`${c.bg} border ${c.border} rounded-xl p-4`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Icon className={`w-5 h-5 ${c.text}`} />
+                      <span className={`text-sm font-medium ${c.text} capitalize`}>
+                        {level} Risk
+                      </span>
+                    </div>
+                    <div className={`text-3xl font-bold ${c.text}`}>
+                      {summary?.user_count || 0}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {summary?.percentage || 0}% of at-risk users
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* At-Risk User List */}
+            <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-6">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                Users Needing Attention
+              </h3>
+              <div className="space-y-3">
+                {atRiskUsers.map((user) => {
+                  const riskColors = {
+                    high: 'border-red-500/30 bg-red-500/5',
+                    medium: 'border-amber-500/30 bg-amber-500/5',
+                    low: 'border-yellow-500/30 bg-yellow-500/5',
+                  };
+
+                  return (
+                    <div
+                      key={user.user_id}
+                      className={`p-4 rounded-lg border ${riskColors[user.risk_level]}`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white">
+                            {user.full_name || user.email}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {user.email}
+                          </div>
+                          <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                            Signed up {Math.round(user.hours_since_signup)} hours ago
+                            {user.org_name && ` • ${user.org_name}`}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                            user.risk_level === 'high' 
+                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                              : user.risk_level === 'medium'
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                              : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                          }`}>
+                            {user.risk_level.toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex items-center gap-4 text-xs">
+                        <div className={`flex items-center gap-1 ${user.fathom_connected ? 'text-emerald-500' : 'text-gray-400'}`}>
+                          {user.fathom_connected ? <CheckCircle2 className="w-3 h-3" /> : <Zap className="w-3 h-3" />}
+                          Fathom
+                        </div>
+                        <div className={`flex items-center gap-1 ${user.first_meeting_synced ? 'text-emerald-500' : 'text-gray-400'}`}>
+                          {user.first_meeting_synced ? <CheckCircle2 className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                          Meeting
+                        </div>
+                        <div className={`flex items-center gap-1 ${user.first_summary_viewed ? 'text-emerald-500' : 'text-gray-400'}`}>
+                          {user.first_summary_viewed ? <CheckCircle2 className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
+                          Summary
+                        </div>
+                      </div>
+                      <div className="mt-3 flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          {user.suggested_action}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {atRiskUsers.length === 0 && (
+                  <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                    🎉 No at-risk users! Everyone is on track.
+                  </p>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
       </div>
     </div>
   );

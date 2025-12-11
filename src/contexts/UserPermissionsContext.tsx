@@ -57,6 +57,9 @@ import {
 // =====================================================
 
 interface UserPermissionsContextType {
+  // Loading state - true until internal users whitelist is loaded
+  isLoading: boolean;
+
   // User type
   userType: UserType;
   isInternal: boolean;
@@ -265,6 +268,9 @@ export function UserPermissionsProvider({ children }: UserPermissionsProviderPro
   // Build context value
   const value: UserPermissionsContextType = useMemo(
     () => ({
+      // Loading state - permissions are loading until whitelist is loaded
+      isLoading: !usersLoaded,
+
       // User type
       userType: actualUserType,
       isInternal: actualUserType === 'internal',
@@ -302,6 +308,7 @@ export function UserPermissionsProvider({ children }: UserPermissionsProviderPro
       hasMinimumTier: checkHasMinimumTier,
     }),
     [
+      usersLoaded,
       actualUserType,
       viewMode,
       effectiveUserType,
@@ -405,6 +412,13 @@ export function useToggleExternalView(): () => void {
  */
 export function useCanAccessRoute(pathname: string): boolean {
   return useUserPermissions().canAccessRoute(pathname);
+}
+
+/**
+ * Check if permissions are still loading (internal users whitelist not yet loaded)
+ */
+export function usePermissionsLoading(): boolean {
+  return useUserPermissions().isLoading;
 }
 
 // =====================================================

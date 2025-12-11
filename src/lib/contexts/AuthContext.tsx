@@ -5,6 +5,8 @@ import { authLogger } from '../services/authLogger';
 import { toast } from 'sonner';
 import { getAuthRedirectUrl } from '@/lib/utils/siteUrl';
 import logger from '@/lib/utils/logger';
+import { setSentryUser, clearSentryUser } from '@/lib/sentry';
+import { initAnalytics, identify, reset as resetAnalytics } from '@/lib/analytics';
 
 // Check if Clerk auth is enabled via feature flag
 const USE_CLERK_AUTH = import.meta.env.VITE_USE_CLERK_AUTH === 'true';
@@ -193,12 +195,26 @@ const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               // Invalidate all queries to refetch with new auth context
               queryClient.invalidateQueries();
               
-              // Log auth event
+              // Log auth event and set Sentry user context
               if (session?.user) {
                 authLogger.logAuthEvent({
                   event_type: 'SIGNED_IN',
                   user_id: session.user.id,
                   email: session.user.email,
+                });
+                
+                // Set Sentry user context for error tracking
+                setSentryUser({
+                  id: session.user.id,
+                  email: session.user.email || undefined,
+                  name: session.user.user_metadata?.full_name,
+                });
+                
+                // Initialize analytics with user context
+                initAnalytics(session.user.id);
+                identify(session.user.id, {
+                  email: session.user.email,
+                  name: session.user.user_metadata?.full_name,
                 });
               }
               break;
@@ -208,6 +224,9 @@ const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               // Clear all cached data
               queryClient.clear();
               authUtils.clearAuthStorage();
+              // Clear Sentry user context and reset analytics
+              clearSentryUser();
+              resetAnalytics();
               // Note: We don't log SIGNED_OUT since we won't have session data
               break;
               

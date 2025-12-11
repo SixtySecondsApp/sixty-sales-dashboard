@@ -14,6 +14,7 @@ import { CopilotProvider } from '@/lib/contexts/CopilotContext';
 import { useInitializeAuditSession } from '@/lib/hooks/useAuditSession';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { InternalRouteGuard, OrgAdminRouteGuard, PlatformAdminRouteGuard } from '@/components/RouteGuard';
+import { RouteDebug } from '@/components/RouteDebug';
 import { usePerformanceOptimization } from '@/lib/hooks/usePerformanceOptimization';
 import { IntelligentPreloader } from '@/components/LazyComponents';
 import { webVitalsOptimizer } from '@/lib/utils/webVitals';
@@ -372,6 +373,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         {/* All other routes wrapped in ProtectedRoute */}
         <Route path="/*" element={
           <ProtectedRoute>
+            <RouteDebug />
             <Suspense fallback={<RouteLoader />}>
               <Routes>
                 <Route path="/onboarding" element={<Onboarding />} />
@@ -430,6 +432,10 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
 
                 {/* Tier 3: Platform Admin Routes (Internal + is_admin only) */}
                 {/* Platform Admin - All specific routes MUST come before /platform route */}
+                {/* DEBUG: Test route to verify routing works */}
+                <Route path="/platform/test-route" element={<div style={{padding: '50px', color: 'white', background: 'green'}}>TEST ROUTE WORKS! Path: /platform/test-route</div>} />
+                {/* DEBUG: Unguarded email templates to test if guards are the issue */}
+                <Route path="/platform/email-templates-test" element={<AppLayout><EmailTemplates /></AppLayout>} />
                 {/* Platform Admin - Email Templates */}
                 <Route path="/platform/email-templates" element={<PlatformAdminRouteGuard><AppLayout><EmailTemplates /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Platform Admin - Customer Management */}

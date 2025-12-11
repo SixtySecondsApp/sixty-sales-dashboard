@@ -1,4 +1,8 @@
-// Suppress Supabase logs FIRST, before any other imports
+// Initialize Sentry FIRST for error monitoring
+import { initSentry } from './lib/sentry';
+initSentry();
+
+// Suppress Supabase logs before other imports
 import { suppressSupabaseLogs } from './lib/utils/suppressSupabaseLogs';
 suppressSupabaseLogs();
 
