@@ -3,6 +3,7 @@ import { calendarService, CalendarSyncStatus } from '@/lib/services/calendarServ
 import { CalendarEvent } from '@/pages/Calendar';
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
+import { useAuth } from '@/lib/contexts/AuthContext';
 
 // Query keys for calendar data
 export const CALENDAR_DB_QUERY_KEYS = {
@@ -183,29 +184,35 @@ export function useAutoLinkEventsToContacts() {
 /**
  * Hook to subscribe to real-time calendar event changes
  * This allows for real-time updates when events are modified
+ *
+ * PERFORMANCE: Filters by user_id to only receive events for the current user
+ * instead of listening to all calendar events across all users.
  */
 export function useCalendarEventSubscription(
   enabled = true,
   onEventUpdate?: (event: CalendarEvent) => void
 ) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   useEffect(() => {
-    if (!enabled) return;
+    // Don't subscribe if disabled or no user
+    if (!enabled || !user?.id) return;
 
     const subscription = supabase
-      .channel('calendar-events-changes')
+      .channel(`calendar-events-changes-${user.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'calendar_events',
+          filter: `user_id=eq.${user.id}`, // Only listen to current user's events
         },
         (payload) => {
           // Invalidate the calendar events cache
           queryClient.invalidateQueries({ queryKey: ['calendar', 'db', 'events'] });
-          
+
           // Call the callback if provided
           if (onEventUpdate && payload.new) {
             // Transform the database event to CalendarEvent format
@@ -230,5 +237,5 @@ export function useCalendarEventSubscription(
     return () => {
       subscription.unsubscribe();
     };
-  }, [enabled, queryClient, onEventUpdate]);
+  }, [enabled, user?.id, queryClient, onEventUpdate]);
 }

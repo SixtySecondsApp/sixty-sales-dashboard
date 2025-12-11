@@ -237,7 +237,7 @@ export function PricingSectionV4() {
           )}
         </div>
 
-        {/* Enterprise Banner */}
+{/* Enterprise Banner - Hidden for now
         {enterprisePlan && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -246,21 +246,15 @@ export function PricingSectionV4() {
             className="mb-16"
           >
             <div className="relative overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700/50 p-8 md:p-12">
-              {/* Light mode background */}
               <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:opacity-0 transition-opacity duration-300" />
-              {/* Dark mode background */}
               <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-950 opacity-0 dark:opacity-100 transition-opacity duration-300" />
-              {/* Background decoration - Light */}
               <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-blue-400/10 via-blue-300/5 to-transparent dark:opacity-0" />
               <div className="absolute bottom-0 left-0 w-1/3 h-2/3 bg-gradient-to-tr from-emerald-400/10 to-transparent dark:opacity-0" />
-              {/* Background decoration - Dark */}
               <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-blue-500/20 via-blue-500/10 to-transparent opacity-0 dark:opacity-100" />
               <div className="absolute bottom-0 left-0 w-1/3 h-2/3 bg-gradient-to-tr from-emerald-500/15 to-transparent opacity-0 dark:opacity-100" />
-              {/* Pattern overlay */}
               <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAyNHYySDI0di0yaDEyeiIvPjwvZz48L2c+PC9zdmc+')] opacity-50" />
 
               <div className="relative flex flex-col lg:flex-row items-center justify-between gap-8">
-                {/* Left side - Text content */}
                 <div className="flex-1 text-center lg:text-left">
                   <div className="flex items-center justify-center lg:justify-start gap-3 mb-4">
                     <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-500/20 backdrop-blur-sm">
@@ -274,7 +268,6 @@ export function PricingSectionV4() {
                     For organisations with custom needs. Custom integrations, custom functions, and custom features tailored to your workflow.
                   </p>
 
-                  {/* Custom features grid */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200">
                       <Shield className="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
@@ -295,7 +288,6 @@ export function PricingSectionV4() {
                   </div>
                 </div>
 
-                {/* Right side - CTA */}
                 <div className="flex flex-col items-center lg:items-end gap-4">
                   <div className="text-center lg:text-right">
                     <p className="text-3xl font-bold text-gray-900 dark:text-white mb-1">Let's Talk</p>
@@ -314,8 +306,9 @@ export function PricingSectionV4() {
             </div>
           </motion.div>
         )}
+        */}
 
-        {/* ROI Calculator */}
+        {/* ROI Calculator - Hidden for now
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -332,7 +325,6 @@ export function PricingSectionV4() {
             </p>
 
             <div className="space-y-6">
-              {/* Input */}
               <div>
                 <label htmlFor="reps" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {getTranslation('roi.inputLabel', 'Number of sales reps')}
@@ -348,7 +340,6 @@ export function PricingSectionV4() {
                 />
               </div>
 
-              {/* Results */}
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{getTranslation('roi.results.timeSaved', 'Time saved per month')}</p>
@@ -364,7 +355,6 @@ export function PricingSectionV4() {
                 </div>
               </div>
 
-              {/* Explanation */}
               <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
                 <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                   <strong>{getTranslation('roi.explanation.title', 'How we calculate:')}</strong> {ready ? t('roi.explanation.description', {
@@ -374,7 +364,6 @@ export function PricingSectionV4() {
                 </p>
               </div>
 
-              {/* CTA */}
               <div className="text-center">
                 <Button
                   onClick={() => navigate('/waitlist')}
@@ -389,6 +378,7 @@ export function PricingSectionV4() {
             </div>
           </div>
         </motion.div>
+        */}
       </div>
     </section>
   );

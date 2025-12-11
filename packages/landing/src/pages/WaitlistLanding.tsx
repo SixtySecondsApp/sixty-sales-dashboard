@@ -5,10 +5,11 @@ import { WaitlistHeroV2 } from './components/WaitlistHeroV2';
  *
  * Simplified single-page hero with integrated waitlist form
  * No additional sections - focused conversion page
+ * Supports both light and dark mode via design system
  */
 export default function WaitlistLanding() {
   return (
-    <div className="min-h-screen bg-[#0a0d14]">
+    <div className="min-h-screen bg-white dark:bg-gray-950 transition-colors duration-300">
       <WaitlistHeroV2 />
     </div>
   );

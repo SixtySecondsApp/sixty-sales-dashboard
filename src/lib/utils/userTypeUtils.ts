@@ -29,9 +29,12 @@ export async function loadInternalUsers(): Promise<Set<string>> {
 
   // Return cached value if valid
   if (cachedInternalUsers && (now - cacheTimestamp) < CACHE_TTL) {
+    console.log('[Internal Users] Using cached whitelist:', Array.from(cachedInternalUsers));
     return cachedInternalUsers;
   }
 
+  console.log('[Internal Users] Loading whitelist from database...');
+  
   try {
     const { data, error } = await supabase
       .from('internal_users')
@@ -39,22 +42,26 @@ export async function loadInternalUsers(): Promise<Set<string>> {
       .eq('is_active', true);
 
     if (error) {
-      console.warn('Failed to load internal users from database:', error);
+      console.error('[Internal Users] Failed to load from database:', error);
       return cachedInternalUsers || new Set();
     }
+
+    console.log('[Internal Users] Raw data from database:', data);
 
     if (data && data.length > 0) {
       cachedInternalUsers = new Set(data.map(d => d.email.toLowerCase()));
       cacheTimestamp = now;
+      console.log('[Internal Users] Loaded whitelist:', Array.from(cachedInternalUsers));
       return cachedInternalUsers;
     }
 
     // Empty whitelist = everyone is external
+    console.warn('[Internal Users] No active users found in database!');
     cachedInternalUsers = new Set();
     cacheTimestamp = now;
     return cachedInternalUsers;
   } catch (error) {
-    console.warn('Error loading internal users:', error);
+    console.error('[Internal Users] Exception loading users:', error);
     return cachedInternalUsers || new Set();
   }
 }
@@ -89,8 +96,11 @@ export function getUserTypeFromEmail(email: string | null | undefined): UserType
 
   const normalizedEmail = email.toLowerCase();
   const internalUsers = getCachedInternalUsers();
+  const isInternal = internalUsers.has(normalizedEmail);
+  
+  console.log('[Internal Users] Checking email:', normalizedEmail, '| In whitelist:', isInternal, '| Whitelist size:', internalUsers.size);
 
-  return internalUsers.has(normalizedEmail) ? 'internal' : 'external';
+  return isInternal ? 'internal' : 'external';
 }
 
 /**

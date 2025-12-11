@@ -108,14 +108,14 @@ export default function WaitlistManagement() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
+    <div className="min-h-screen bg-white dark:bg-gray-950 p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
             Waitlist Management
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
+          <p className="text-gray-700 dark:text-gray-300 mt-2">
             Manage Meeting Intelligence waitlist entries, grant access, and track referrals
           </p>
         </div>

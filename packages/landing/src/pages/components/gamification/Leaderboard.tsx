@@ -130,16 +130,10 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
   if (loading) {
     return (
       <div
-        className="rounded-xl overflow-hidden flex flex-col h-full max-h-[600px]"
-        style={{
-          background: 'rgba(17, 24, 39, 0.8)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          border: '1px solid rgba(55, 65, 81, 0.5)'
-        }}
+        className="rounded-xl overflow-hidden flex flex-col h-full max-h-[600px] bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none transition-colors duration-300"
       >
         <div className="p-5 text-center">
-          <div className="animate-pulse text-gray-400 text-sm">Loading leaderboard...</div>
+          <div className="animate-pulse text-gray-500 dark:text-gray-400 text-sm">Loading leaderboard...</div>
         </div>
       </div>
     );
@@ -154,17 +148,11 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 1.2, duration: 0.8 }}
-      className="rounded-xl overflow-hidden flex flex-col h-full max-h-[600px]"
-      style={{
-        background: 'rgba(17, 24, 39, 0.8)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border: '1px solid rgba(55, 65, 81, 0.5)'
-      }}
+      className="rounded-xl overflow-hidden flex flex-col h-full max-h-[600px] bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none transition-colors duration-300"
     >
       {/* Header */}
-      <div className="p-5 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
-        <h3 className="font-semibold text-gray-100 flex items-center gap-2">
+      <div className="p-5 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
+        <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
           <Trophy className="w-4 h-4 text-yellow-500" />
           Top Referrers
         </h3>
@@ -190,8 +178,8 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
               className={`
                 flex items-center justify-between p-3 rounded-lg transition-colors group
                 ${isCurrentUser
-                  ? 'bg-blue-900/20 border-2 border-blue-500/50 relative overflow-hidden shadow-lg shadow-blue-500/20'
-                  : 'hover:bg-gray-800/50'
+                  ? 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500/50 relative overflow-hidden shadow-lg shadow-blue-500/20'
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-800/50'
                 }
               `}
             >
@@ -218,20 +206,20 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
                       ? 'bg-orange-600 text-white'
                       : isCurrentUser
                       ? 'bg-blue-500 text-white'
-                      : 'bg-gray-700 text-gray-300'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                     }
                   `}>
                     {index + 1}
                   </div>
                 </div>
                 <div className="flex-1">
-                  <div className={`text-sm font-medium ${isCurrentUser ? 'text-blue-100' : 'text-gray-200'}`}>
+                  <div className={`text-sm font-medium ${isCurrentUser ? 'text-blue-700 dark:text-blue-100' : 'text-gray-800 dark:text-gray-200'}`}>
                     {anonymizeName(leader.full_name)}
                     {isCurrentUser && (
-                      <span className="ml-2 text-xs text-blue-300 font-bold">(You)</span>
+                      <span className="ml-2 text-xs text-blue-600 dark:text-blue-300 font-bold">(You)</span>
                     )}
                   </div>
-                  <div className={`text-xs flex items-center gap-1 ${isCurrentUser ? 'text-blue-300/70' : 'text-gray-500'}`}>
+                  <div className={`text-xs flex items-center gap-1 ${isCurrentUser ? 'text-blue-500/70 dark:text-blue-300/70' : 'text-gray-500'}`}>
                     {index === 0 && <Crown className="w-3 h-3 text-yellow-500/50" />}
                     {tier.name}
                   </div>
@@ -251,12 +239,12 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
                   <div className="text-xs text-gray-500">
                     {(leader.linkedin_boost_claimed ? 1 : 0) + (leader.twitter_boost_claimed ? 1 : 0)} shares
                   </div>
-                  <div className="text-gray-600">•</div>
+                  <div className="text-gray-400 dark:text-gray-600">•</div>
                   <div className="text-xs text-gray-500">
                     {leader.referral_count} referrals
                   </div>
                 </div>
-                <div className={`text-lg font-bold ${isCurrentUser ? 'text-blue-400' : 'text-emerald-400'}`}>
+                <div className={`text-lg font-bold ${isCurrentUser ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                   {leader.total_points} pts
                 </div>
               </div>
@@ -269,9 +257,9 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
           <>
             {/* Separator */}
             <div className="flex items-center gap-2 py-2">
-              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent"></div>
+              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-700 to-transparent"></div>
               <span className="text-xs text-gray-500 font-medium">Your Position</span>
-              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent"></div>
+              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-700 to-transparent"></div>
             </div>
 
             {/* Current User Card */}
@@ -279,7 +267,7 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 1.8, duration: 0.5, type: 'spring' }}
-              className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-blue-900/30 to-blue-800/20 border-2 border-blue-500/50 relative overflow-hidden shadow-lg shadow-blue-500/20"
+              className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-blue-100 dark:from-blue-900/30 to-blue-50 dark:to-blue-800/20 border-2 border-blue-500/50 relative overflow-hidden shadow-lg shadow-blue-500/20"
             >
               {/* Animated Gradient Overlay */}
               <motion.div
@@ -316,16 +304,16 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
                     {currentUserEntry.full_name.split(' ').map(n => n[0]).join('')}
                   </motion.div>
                   {/* Position Badge */}
-                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-gray-900">
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-white dark:ring-gray-900">
                     #{currentUserEntry.effective_position}
                   </div>
                 </div>
                 <div className="flex-1">
-                  <div className="text-sm font-medium text-blue-100">
+                  <div className="text-sm font-medium text-blue-700 dark:text-blue-100">
                     {anonymizeName(currentUserEntry.full_name)}
-                    <span className="ml-2 text-xs text-blue-300 font-bold">(You)</span>
+                    <span className="ml-2 text-xs text-blue-600 dark:text-blue-300 font-bold">(You)</span>
                   </div>
-                  <div className="text-xs text-blue-300/70 flex items-center gap-1">
+                  <div className="text-xs text-blue-500/70 dark:text-blue-300/70 flex items-center gap-1">
                     {getTierForPosition(currentUserEntry.effective_position).name}
                   </div>
                 </div>
@@ -334,15 +322,15 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
               {/* Stats */}
               <div className="text-right relative z-10 space-y-1">
                 <div className="flex items-center justify-end gap-2">
-                  <div className="text-xs text-blue-300/70">
+                  <div className="text-xs text-blue-500/70 dark:text-blue-300/70">
                     {(currentUserEntry.linkedin_boost_claimed ? 1 : 0) + (currentUserEntry.twitter_boost_claimed ? 1 : 0)} shares
                   </div>
                   <div className="text-blue-400/50">•</div>
-                  <div className="text-xs text-blue-300/70">
+                  <div className="text-xs text-blue-500/70 dark:text-blue-300/70">
                     {currentUserEntry.referral_count} referrals
                   </div>
                 </div>
-                <div className="text-lg font-bold text-blue-400">
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
                   {currentUserEntry.total_points} pts
                 </div>
               </div>
@@ -352,7 +340,7 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
       </div>
 
       {/* Footer Message with Disclaimer */}
-      <div className="p-3 border-t border-gray-800 bg-gray-900/30 space-y-2">
+      <div className="p-3 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/30 space-y-2">
         <p className="text-xs text-gray-500 text-center">Keep referring to climb the leaderboard</p>
         <div className="flex items-start gap-2 justify-center">
           <div className="flex-shrink-0 w-1 h-1 bg-yellow-500 rounded-full mt-1"></div>

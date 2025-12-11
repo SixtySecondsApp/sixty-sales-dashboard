@@ -72,14 +72,6 @@ const platformSections: Record<string, PlatformSection[]> = {
       color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30',
     },
     {
-      id: 'plans',
-      title: 'Subscription Plans',
-      description: 'Configure pricing tiers, features, and usage limits',
-      icon: CreditCard,
-      href: '/platform/plans',
-      color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30',
-    },
-    {
       id: 'pricing',
       title: 'Pricing Control',
       description: 'Manage pricing page, free tier, and Stripe integration',

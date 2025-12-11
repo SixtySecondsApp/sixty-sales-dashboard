@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/lib/contexts/AuthContext';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface TaskNotification {
   id: string;
@@ -25,6 +27,8 @@ export function useTaskNotifications() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   const fetchNotifications = async () => {
     try {
@@ -97,76 +101,77 @@ export function useTaskNotifications() {
     });
   };
 
+  // Fetch notifications on mount
   useEffect(() => {
     fetchNotifications();
+  }, []);
 
-    // Subscribe to real-time notifications
-    const setupRealtimeSubscription = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+  // Subscribe to real-time notifications
+  // PERFORMANCE FIX: Using ref to ensure proper cleanup even with async subscription setup
+  useEffect(() => {
+    if (!user?.id) return;
 
-      if (!user) return null;
+    // Clean up any existing channel first
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
 
-      const channel = supabase
-        .channel('task_notifications')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'task_notifications',
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
-            const newNotification = payload.new as TaskNotification;
+    const channel = supabase
+      .channel(`task_notifications_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'task_notifications',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          const newNotification = payload.new as TaskNotification;
 
-            // Add to list
-            setNotifications(prev => [newNotification, ...prev]);
-            setUnreadCount(prev => prev + 1);
+          // Add to list
+          setNotifications(prev => [newNotification, ...prev]);
+          setUnreadCount(prev => prev + 1);
 
-            // Show toast
-            showNotificationToast(newNotification);
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'task_notifications',
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
-            const updatedNotification = payload.new as TaskNotification;
+          // Show toast
+          showNotificationToast(newNotification);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'task_notifications',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          const updatedNotification = payload.new as TaskNotification;
 
-            // Update notification in list
-            setNotifications(prev =>
-              prev.map(n => (n.id === updatedNotification.id ? updatedNotification : n))
-            );
+          // Update notification in list
+          setNotifications(prev =>
+            prev.map(n => (n.id === updatedNotification.id ? updatedNotification : n))
+          );
 
-            // Recalculate unread count
-            setNotifications(prev => {
-              setUnreadCount(prev.filter(n => !n.read).length);
-              return prev;
-            });
-          }
-        )
-        .subscribe();
+          // Recalculate unread count
+          setNotifications(prev => {
+            setUnreadCount(prev.filter(n => !n.read).length);
+            return prev;
+          });
+        }
+      )
+      .subscribe();
 
-      return channel;
-    };
-
-    let channel: any = null;
-
-    setupRealtimeSubscription().then(ch => {
-      channel = ch;
-    });
+    channelRef.current = channel;
 
     return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
     };
-  }, []);
+  }, [user?.id]);
 
   return {
     notifications,

@@ -48,6 +48,36 @@
       })();
     </script>
 
+    <!-- Encharge.io Tracking Script -->
+    <script type="text/javascript">
+      !function(){
+        if(!window.EncTracking||!window.EncTracking.started){
+          window.EncTracking=Object.assign({}, window.EncTracking, {
+            queue:window.EncTracking&&window.EncTracking.queue?window.EncTracking.queue:[],
+            track:function(t){this.queue.push({type:"track",props:t})},
+            identify:function(t){this.queue.push({type:"identify",props:t})},
+            started:!0
+          });
+          var t=window.EncTracking;
+          t.writeKey="UY95xBh931HqCJ5xhx6YsBbM4";
+          t.hasOptedIn=true;
+          t.shouldGetConsent=true;
+          t.hasOptedIn&&(t.shouldGetConsent=!1);
+          t.optIn=function(){t.hasOptedIn=!0,t&&t.init&&t.init()};
+          t.optOut=function(){t.hasOptedIn=!1,t&&t.setOptOut&&t.setOptOut(!0)};
+          var n=function(t){
+            var n=document.createElement("script");
+            n.type="text/javascript";
+            n.async=void 0===t||t;
+            n.src="https://resources-app.encharge.io/encharge-tracking.min.js";
+            var e=document.getElementsByTagName("script")[0];
+            e.parentNode.insertBefore(n,e)
+          };
+          "complete"===document.readyState?n():window.attachEvent?window.attachEvent("onload",n):window.addEventListener("load",n,!1)
+        }
+      }();
+    </script>
+
     <!-- Critical CSS will be inlined here by build process -->
     <style id="critical-css">
       /* Critical above-the-fold styles - theme-aware */

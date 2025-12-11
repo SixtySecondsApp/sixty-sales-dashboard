@@ -1,0 +1,27 @@
+-- Migration: Fix function_search_path_mutable security warnings
+-- Sets search_path = '' for all user-owned functions to prevent search path hijacking
+-- This addresses ~270 WARN-level security linter issues
+-- 
+-- NOTE: Extension functions (citext, pg_trgm) are owned by supabase_admin
+-- and cannot be modified - these remain with warnings but are low risk
+-- as they are maintained by Supabase
+--
+-- Generated dynamically from:
+-- SELECT 'ALTER FUNCTION ' || n.nspname || '.' || p.proname || '(' || 
+--        pg_get_function_identity_arguments(p.oid) || ') SET search_path = '''';'
+-- FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid
+-- WHERE n.nspname = 'public' AND p.prokind = 'f'
+--   AND (p.proconfig IS NULL OR NOT p.proconfig @> ARRAY['search_path='])
+-- ORDER BY p.proname;
+--
+-- Applied: 2025-12-10
+-- Result: 270 functions fixed, 76 extension functions skipped (owned by supabase_admin)
+
+-- This file documents the migration that was applied directly via psql
+-- The actual ALTER FUNCTION statements were generated dynamically from the database
+-- to ensure exact function signatures matched
+
+-- Summary:
+-- - Total public schema functions: ~346
+-- - User-owned functions fixed: 270
+-- - Extension functions (unfixable): 76 (citext, pg_trgm)

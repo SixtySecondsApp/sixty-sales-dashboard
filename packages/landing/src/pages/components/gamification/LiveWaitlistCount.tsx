@@ -79,21 +79,21 @@ export function LiveWaitlistCount() {
             <img
               src={profileUrl}
               alt="Profile"
-              className="w-10 h-10 rounded-full object-cover border-2 border-[#0a0d14]"
+              className="w-10 h-10 rounded-full object-cover border-2 border-white dark:border-gray-950"
             />
           </motion.div>
         ))}
       </div>
 
       {/* Count Display */}
-      <div className="text-sm text-gray-400">
+      <div className="text-sm text-gray-600 dark:text-gray-400">
         <Users className="w-4 h-4 inline mr-1" />
         <motion.span
           key={count}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
-          className="text-white font-semibold"
+          className="text-gray-900 dark:text-white font-semibold"
         >
           {count.toLocaleString()}+
         </motion.span>{' '}

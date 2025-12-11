@@ -50,21 +50,15 @@ export function LeaderboardRewards() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.3, duration: 0.6 }}
-      className="relative overflow-hidden rounded-2xl"
-      style={{
-        background: 'rgba(17, 24, 39, 0.8)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border: '1px solid rgba(55, 65, 81, 0.5)'
-      }}
+      className="relative overflow-hidden rounded-2xl bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none transition-colors duration-300"
     >
       {/* Header */}
-      <div className="p-4 border-b border-gray-800 bg-gradient-to-r from-yellow-500/10 via-purple-500/10 to-blue-500/10">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-yellow-500/10 via-purple-500/10 to-blue-500/10">
         <div className="flex items-center gap-2 mb-1">
           <Sparkles className="w-5 h-5 text-yellow-500" />
-          <h3 className="text-lg font-bold text-gray-100">Top 9 Rewards</h3>
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Top 9 Rewards</h3>
         </div>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-600 dark:text-gray-400">
           Climb the leaderboard to win amazing prizes!
         </p>
       </div>
@@ -82,7 +76,7 @@ export function LeaderboardRewards() {
               className="relative group"
             >
               <div
-                className={`p-3 rounded-xl bg-gradient-to-r ${reward.gradient} bg-opacity-10 border border-white/10 hover:border-white/20 transition-all duration-300`}
+                className={`p-3 rounded-xl bg-gradient-to-r ${reward.gradient} bg-opacity-10 border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 transition-all duration-300`}
               >
                 <div className="flex items-center gap-3">
                   {/* Position Badge */}
@@ -93,12 +87,12 @@ export function LeaderboardRewards() {
                   {/* Reward Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <Icon className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                      <h4 className="text-sm font-bold text-gray-100 truncate">
+                      <Icon className="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                      <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
                         {reward.title}
                       </h4>
                     </div>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-600 dark:text-gray-500">
                       {reward.subtitle}
                     </p>
                   </div>
@@ -110,11 +104,11 @@ export function LeaderboardRewards() {
       </div>
 
       {/* Disclaimer */}
-      <div className="p-4 border-t border-gray-800 bg-gray-900/30">
+      <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/30">
         <div className="flex items-start gap-2">
           <div className="flex-shrink-0 w-1 h-1 bg-yellow-500 rounded-full mt-1.5"></div>
-          <p className="text-[10px] text-gray-500 leading-relaxed">
-            <span className="text-yellow-500 font-semibold">Important:</span> Shares and referrals will be verified before awarding prizes.
+          <p className="text-[10px] text-gray-600 dark:text-gray-500 leading-relaxed">
+            <span className="text-yellow-600 dark:text-yellow-500 font-semibold">Important:</span> Shares and referrals will be verified before awarding prizes.
             Winners must have genuine engagement and active referrals to qualify.
           </p>
         </div>

@@ -1,33 +1,50 @@
 import { useState } from 'react';
-import { Check, X, Download, Trash2 } from 'lucide-react';
+import { Check, Trash2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { WaitlistEntry } from '@/lib/types/waitlist';
+import { useWaitlistAdmin } from '@/lib/hooks/useWaitlistAdmin';
 
 interface WaitlistTableProps {
   entries: WaitlistEntry[];
   isLoading: boolean;
-  onRelease: (id: string, notes?: string) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
-  onExport: () => Promise<void>;
+  onRefresh: () => void;
+  adminUserId: string;
 }
 
-export function WaitlistTable({ entries, isLoading, onRelease, onDelete, onExport }: WaitlistTableProps) {
+export function WaitlistTable({ entries, isLoading, onRefresh, adminUserId }: WaitlistTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const adminHook = useWaitlistAdmin(adminUserId);
 
   // Filter entries based on search
   const filteredEntries = entries.filter(entry =>
     entry.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     entry.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    entry.company_name.toLowerCase().includes(searchTerm.toLowerCase())
+    (entry.company_name && entry.company_name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  const handleRelease = async (id: string) => {
+    const success = await adminHook.releaseUser(id);
+    if (success) {
+      onRefresh();
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm('Are you sure you want to delete this entry?')) {
+      const success = await adminHook.deleteEntry(id);
+      if (success) {
+        onRefresh();
+      }
+    }
+  };
 
   if (isLoading) {
     return (
-      <div className="bg-white/5 border border-white/10 rounded-lg p-6">
+      <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-6 shadow-sm dark:shadow-none">
         <div className="animate-pulse space-y-4">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-16 bg-white/10 rounded" />
+            <div key={i} className="h-16 bg-gray-200 dark:bg-gray-800 rounded-lg" />
           ))}
         </div>
       </div>
@@ -35,24 +52,17 @@ export function WaitlistTable({ entries, isLoading, onRelease, onDelete, onExpor
   }
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-lg overflow-hidden">
-      {/* Header */}
-      <div className="p-4 border-b border-white/10">
-        <div className="flex items-center justify-between gap-4">
+    <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl overflow-hidden shadow-sm dark:shadow-none">
+      {/* Header with Search */}
+      <div className="p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
             placeholder="Search by name, email, or company..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-md bg-white/5 border-white/10 text-white"
+            className="pl-10"
           />
-          <Button
-            onClick={onExport}
-            variant="outline"
-            className="border-white/10 hover:bg-white/10"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export CSV
-          </Button>
         </div>
       </div>
 
@@ -60,51 +70,51 @@ export function WaitlistTable({ entries, isLoading, onRelease, onDelete, onExpor
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-white/10 text-left">
-              <th className="px-4 py-3 text-sm font-medium text-gray-400">#</th>
-              <th className="px-4 py-3 text-sm font-medium text-gray-400">Name</th>
-              <th className="px-4 py-3 text-sm font-medium text-gray-400">Email</th>
-              <th className="px-4 py-3 text-sm font-medium text-gray-400">Company</th>
-              <th className="px-4 py-3 text-sm font-medium text-gray-400">Tools</th>
-              <th className="px-4 py-3 text-sm font-medium text-gray-400">Referrals</th>
-              <th className="px-4 py-3 text-sm font-medium text-gray-400">Status</th>
-              <th className="px-4 py-3 text-sm font-medium text-gray-400">Actions</th>
+            <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">#</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Name</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Email</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Company</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Tools</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Referrals</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
             {filteredEntries.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   No entries found
                 </td>
               </tr>
             ) : (
               filteredEntries.map((entry) => (
-                <tr key={entry.id} className="border-b border-white/10 hover:bg-white/5">
-                  <td className="px-4 py-3 text-sm text-white font-medium">
-                    #{entry.effective_position}
+                <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
+                    #{entry.effective_position || entry.signup_position}
                   </td>
-                  <td className="px-4 py-3 text-sm text-white">{entry.full_name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-400">{entry.email}</td>
-                  <td className="px-4 py-3 text-sm text-gray-400">{entry.company_name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-400">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{entry.full_name}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{entry.email}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{entry.company_name}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
                     <div className="text-xs space-y-1">
                       {entry.dialer_tool && <div>📞 {entry.dialer_tool}</div>}
                       {entry.meeting_recorder_tool && <div>🎙️ {entry.meeting_recorder_tool}</div>}
                       {entry.crm_tool && <div>📊 {entry.crm_tool}</div>}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-white font-medium">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
                     {entry.referral_count}
                   </td>
                   <td className="px-4 py-3 text-sm">
                     <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                         entry.status === 'pending'
-                          ? 'bg-yellow-500/10 text-yellow-400'
+                          ? 'bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-500/20'
                           : entry.status === 'released'
-                          ? 'bg-emerald-500/10 text-emerald-400'
-                          : 'bg-gray-500/10 text-gray-400'
+                          ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20'
+                          : 'bg-gray-50 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400 border border-gray-200 dark:border-gray-500/20'
                       }`}
                     >
                       {entry.status}
@@ -114,23 +124,19 @@ export function WaitlistTable({ entries, isLoading, onRelease, onDelete, onExpor
                     <div className="flex items-center gap-2">
                       {entry.status === 'pending' && (
                         <Button
-                          onClick={() => onRelease(entry.id)}
+                          onClick={() => handleRelease(entry.id)}
                           size="sm"
                           variant="ghost"
-                          className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                          className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
                         >
                           <Check className="w-4 h-4" />
                         </Button>
                       )}
                       <Button
-                        onClick={() => {
-                          if (confirm('Are you sure you want to delete this entry?')) {
-                            onDelete(entry.id);
-                          }
-                        }}
+                        onClick={() => handleDelete(entry.id)}
                         size="sm"
                         variant="ghost"
-                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                        className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>

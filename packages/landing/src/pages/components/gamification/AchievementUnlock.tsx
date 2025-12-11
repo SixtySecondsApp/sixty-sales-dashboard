@@ -134,11 +134,11 @@ export function AchievementUnlock({
       className="space-y-4"
     >
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-          <Award className="w-5 h-5 text-purple-400" />
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <Award className="w-5 h-5 text-purple-500 dark:text-purple-400" />
           Achievements
         </h3>
-        <span className="text-sm font-semibold text-purple-400">
+        <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
           {unlockedCount} / {achievements.length}
         </span>
       </div>
@@ -157,7 +157,7 @@ export function AchievementUnlock({
                 hover:scale-105 group
                 ${achievement.unlocked
                   ? `bg-gradient-to-br ${achievement.color} shadow-lg shadow-${achievement.color}/20 border-2 border-white/30`
-                  : 'bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20'
+                  : 'bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/10 hover:border-gray-300 dark:hover:border-white/20'
                 }
               `}
             >
@@ -166,7 +166,7 @@ export function AchievementUnlock({
                 w-12 h-12 mx-auto mb-2 rounded-full flex items-center justify-center transition-transform
                 ${achievement.unlocked
                   ? 'bg-white/20 text-white'
-                  : 'bg-white/10 text-gray-500 relative'
+                  : 'bg-gray-200 dark:bg-white/10 text-gray-500 relative'
                 }
                 ${!achievement.unlocked && 'group-hover:scale-110'}
               `}>
@@ -183,19 +183,19 @@ export function AchievementUnlock({
               </div>
 
               {/* Title */}
-              <h4 className={`font-bold text-sm mb-1 ${achievement.unlocked ? 'text-white' : 'text-gray-300'}`}>
+              <h4 className={`font-bold text-sm mb-1 ${achievement.unlocked ? 'text-white' : 'text-gray-700 dark:text-gray-300'}`}>
                 {achievement.title}
               </h4>
 
               {/* Description or Call to Action */}
-              <p className={`text-xs mb-2 ${achievement.unlocked ? 'text-white/90' : 'text-gray-400'}`}>
+              <p className={`text-xs mb-2 ${achievement.unlocked ? 'text-white/90' : 'text-gray-500 dark:text-gray-400'}`}>
                 {achievement.unlocked ? achievement.description : achievement.callToAction}
               </p>
 
               {/* Progress Bar */}
               {!achievement.unlocked && achievement.progress > 0 && (
                 <div className="mt-2">
-                  <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${achievement.progress}%` }}
@@ -203,7 +203,7 @@ export function AchievementUnlock({
                       className={`h-full bg-gradient-to-r ${achievement.color}`}
                     />
                   </div>
-                  <p className="text-xs text-gray-400 mt-1 font-semibold">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-semibold">
                     {achievement.progressText}
                   </p>
                 </div>
@@ -244,12 +244,12 @@ export function AchievementUnlock({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 2.5 }}
-          className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-lg p-3 text-center"
+          className="bg-gradient-to-r from-purple-100 dark:from-purple-500/10 to-pink-100 dark:to-pink-500/10 border border-purple-200 dark:border-purple-500/20 rounded-lg p-3 text-center"
         >
-          <p className="text-sm text-purple-300 font-semibold">
+          <p className="text-sm text-purple-600 dark:text-purple-300 font-semibold">
             🎯 {achievements.length - unlockedCount} achievements remaining!
           </p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
             Share on social media and refer friends to unlock them all
           </p>
         </motion.div>
@@ -261,13 +261,13 @@ export function AchievementUnlock({
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 2.5 }}
-          className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/40 rounded-lg p-4 text-center"
+          className="bg-gradient-to-r from-yellow-100 dark:from-yellow-500/20 to-orange-100 dark:to-orange-500/20 border-2 border-yellow-400 dark:border-yellow-500/40 rounded-lg p-4 text-center"
         >
-          <Crown className="w-8 h-8 mx-auto mb-2 text-yellow-400" />
-          <p className="text-lg font-bold text-yellow-300">
+          <Crown className="w-8 h-8 mx-auto mb-2 text-yellow-500 dark:text-yellow-400" />
+          <p className="text-lg font-bold text-yellow-600 dark:text-yellow-300">
             🎉 All Achievements Unlocked!
           </p>
-          <p className="text-sm text-gray-300 mt-1">
+          <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
             You're a true waitlist champion! {totalPoints} points earned.
           </p>
         </motion.div>

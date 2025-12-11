@@ -260,8 +260,9 @@ export async function getWaitlistEntries(
 
   const { data, error } = await query;
 
-  // If the view doesn't exist (42P01 error code), fall back to the raw table
-  if (error && error.code === '42P01') {
+  // If the view doesn't exist (42P01 = relation doesn't exist, PGRST205 = not in schema cache), 
+  // fall back to the raw table
+  if (error && (error.code === '42P01' || error.code === 'PGRST205')) {
     console.warn('waitlist_with_rank view not found, falling back to meetings_waitlist table. Run migrations to fix position ties.');
 
     // Fallback query using the raw table

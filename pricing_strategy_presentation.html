@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sixty Seconds AI - Pricing Strategy 2025</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    
+    [data-theme="dark"] {
+      background-color: #030712;
+    }
+    
+    .slide {
+      min-height: 100vh;
+      display: none;
+    }
+    
+    .slide.active {
+      display: flex;
+    }
+    
+    .glassmorphism {
+      background: rgba(17, 24, 39, 0.8);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(55, 65, 81, 0.5);
+    }
+    
+    .glassmorphism-card {
+      background: rgba(20, 28, 36, 0.6);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(45, 62, 78, 0.4);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+    
+    .gradient-text {
+      background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .gradient-border {
+      position: relative;
+      background: rgba(17, 24, 39, 0.9);
+    }
+    
+    .gradient-border::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(135deg, #3b82f6, #10b981);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+    }
+    
+    .price-card-popular {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    
+    .metric-card {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+    
+    .success-gradient {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(52, 211, 153, 0.05) 100%);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    
+    .warning-gradient {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(251, 191, 36, 0.05) 100%);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    
+    .slide-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .slide-indicator.active {
+      background: linear-gradient(135deg, #3b82f6, #10b981);
+      width: 24px;
+      border-radius: 4px;
+    }
+    
+    .fade-in {
+      animation: fadeIn 0.5s ease-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .pulse-glow {
+      animation: pulseGlow 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
+      50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.5); }
+    }
+    
+    .number-highlight {
+      font-variant-numeric: tabular-nums;
+    }
+    
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #111827;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #374151;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 overflow-x-hidden">
+  
+  <!-- Navigation -->
+  <nav class="fixed top-0 left-0 right-0 z-50 glassmorphism py-4 px-8">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center">
+        <img 
+          src="https://www.sixtyseconds.ai/images/logo.png" 
+          alt="Sixty Seconds AI" 
+          class="h-10 w-auto"
+        />
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-sm text-gray-400">Pricing Strategy 2025</span>
+        <div class="w-px h-4 bg-gray-700 mx-2"></div>
+        <span id="currentSlide" class="text-sm font-semibold text-blue-400">1</span>
+        <span class="text-sm text-gray-500">/</span>
+        <span class="text-sm text-gray-400">6</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Slide Indicators -->
+  <div class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex gap-2">
+    <div class="slide-indicator active" data-slide="0"></div>
+    <div class="slide-indicator" data-slide="1"></div>
+    <div class="slide-indicator" data-slide="2"></div>
+    <div class="slide-indicator" data-slide="3"></div>
+    <div class="slide-indicator" data-slide="4"></div>
+    <div class="slide-indicator" data-slide="5"></div>
+  </div>
+
+  <!-- Keyboard Navigation Hint -->
+  <div class="fixed bottom-8 right-8 z-50 text-sm text-gray-500 flex items-center gap-2">
+    <kbd class="px-2 py-1 rounded bg-gray-800 border border-gray-700 text-xs">←</kbd>
+    <kbd class="px-2 py-1 rounded bg-gray-800 border border-gray-700 text-xs">→</kbd>
+    <span>to navigate</span>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 1: TITLE & EXECUTIVE SUMMARY -->
+  <!-- ============================================================ -->
+  <section id="slide-0" class="slide active flex-col items-center justify-center px-8 py-24 relative overflow-hidden">
+    <!-- Background Effects -->
+    <div class="absolute inset-0 pointer-events-none">
+      <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl"></div>
+      <div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl"></div>
+    </div>
+    
+    <div class="relative z-10 max-w-5xl mx-auto text-center fade-in">
+      <!-- Badge -->
+      <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full glassmorphism-card mb-8">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span class="text-sm font-medium text-gray-300">Board Presentation • December 2024</span>
+      </div>
+      
+      <!-- Main Title -->
+      <h1 class="text-5xl md:text-7xl font-bold mb-6">
+        <span class="text-white">Pricing Strategy</span>
+        <br>
+        <span class="gradient-text">That Wins</span>
+      </h1>
+      
+      <p class="text-xl md:text-2xl text-gray-400 max-w-3xl mx-auto mb-12">
+        From waitlist to revenue: A data-driven approach to freemium conversion and sustainable growth
+      </p>
+      
+      <!-- Key Metrics Preview -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto mb-12">
+        <div class="glassmorphism-card rounded-2xl p-6">
+          <p class="text-3xl font-bold text-white number-highlight">15</p>
+          <p class="text-sm text-gray-400">Free Meetings</p>
+        </div>
+        <div class="glassmorphism-card rounded-2xl p-6">
+          <p class="text-3xl font-bold gradient-text number-highlight">84%</p>
+          <p class="text-sm text-gray-400">Gross Margin</p>
+        </div>
+        <div class="glassmorphism-card rounded-2xl p-6">
+          <p class="text-3xl font-bold text-emerald-400 number-highlight">£121</p>
+          <p class="text-sm text-gray-400">Target CAC</p>
+        </div>
+        <div class="glassmorphism-card rounded-2xl p-6">
+          <p class="text-3xl font-bold text-blue-400 number-highlight">£4K</p>
+          <p class="text-sm text-gray-400">Monthly Budget</p>
+        </div>
+      </div>
+      
+      <!-- CTA -->
+      <div class="flex items-center justify-center gap-4">
+        <button onclick="goToSlide(1)" class="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-600 text-white font-semibold hover:from-blue-500 hover:to-emerald-500 transition-all shadow-lg shadow-blue-500/25">
+          View Strategy →
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 2: PRICING TIERS -->
+  <!-- ============================================================ -->
+  <section id="slide-1" class="slide flex-col items-center justify-center px-8 py-24">
+    <div class="max-w-6xl mx-auto w-full fade-in">
+      <div class="text-center mb-12">
+        <h2 class="text-4xl md:text-5xl font-bold text-white mb-4">Recommended Pricing Structure</h2>
+        <p class="text-lg text-gray-400">Optimized for 70%+ gross margins with clear upgrade paths</p>
+      </div>
+      
+      <!-- Pricing Cards -->
+      <div class="grid md:grid-cols-4 gap-6">
+        <!-- FREE -->
+        <div class="glassmorphism-card rounded-2xl p-6 flex flex-col">
+          <div class="mb-6">
+            <span class="px-3 py-1 rounded-full bg-gray-700/50 text-gray-300 text-xs font-semibold">FREEMIUM</span>
+          </div>
+          <h3 class="text-2xl font-bold text-white mb-2">Free</h3>
+          <div class="flex items-baseline gap-1 mb-4">
+            <span class="text-4xl font-bold text-white">£0</span>
+            <span class="text-gray-400">/forever</span>
+          </div>
+          <p class="text-sm text-gray-400 mb-6">Experience real-time value</p>
+          <ul class="space-y-3 text-sm text-gray-300 flex-grow">
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              Import last 30 days
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              <strong class="text-white">15 new meetings</strong>
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              Full AI features
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              30-day data retention
+            </li>
+          </ul>
+          <div class="mt-6 pt-4 border-t border-gray-700/50">
+            <div class="text-xs text-gray-500">Cost to serve: <span class="text-white">£0.50-1.00</span></div>
+          </div>
+        </div>
+        
+        <!-- SOLO -->
+        <div class="glassmorphism-card rounded-2xl p-6 flex flex-col">
+          <div class="mb-6">
+            <span class="px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-xs font-semibold border border-blue-500/20">INDIVIDUALS</span>
+          </div>
+          <h3 class="text-2xl font-bold text-white mb-2">Solo</h3>
+          <div class="flex items-baseline gap-1 mb-4">
+            <span class="text-4xl font-bold text-white">£29</span>
+            <span class="text-gray-400">/month</span>
+          </div>
+          <p class="text-sm text-gray-400 mb-6">Power users ready to pay</p>
+          <ul class="space-y-3 text-sm text-gray-300 flex-grow">
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              100 meetings/month
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              5 proposals/month
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              6-month retention
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              Basic CRM
+            </li>
+          </ul>
+          <div class="mt-6 pt-4 border-t border-gray-700/50">
+            <div class="text-xs text-gray-500">Cost: <span class="text-white">£4.50</span> • Margin: <span class="text-emerald-400 font-semibold">84.5%</span></div>
+          </div>
+        </div>
+        
+        <!-- PRO - POPULAR -->
+        <div class="price-card-popular rounded-2xl p-6 flex flex-col relative pulse-glow">
+          <div class="absolute -top-3 left-1/2 -translate-x-1/2">
+            <span class="px-4 py-1 rounded-full bg-gradient-to-r from-blue-600 to-emerald-600 text-white text-xs font-semibold shadow-lg">MOST POPULAR</span>
+          </div>
+          <div class="mb-6 mt-2">
+            <span class="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-semibold border border-emerald-500/20">POWER USERS</span>
+          </div>
+          <h3 class="text-2xl font-bold text-white mb-2">Pro</h3>
+          <div class="flex items-baseline gap-1 mb-4">
+            <span class="text-4xl font-bold gradient-text">£49</span>
+            <span class="text-gray-400">/month</span>
+          </div>
+          <p class="text-sm text-gray-400 mb-6">Unlimited everything</p>
+          <ul class="space-y-3 text-sm text-gray-300 flex-grow">
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              <strong class="text-white">Unlimited</strong> meetings
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              <strong class="text-white">Unlimited</strong> proposals
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              Unlimited retention
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              API access
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              Priority support
+            </li>
+          </ul>
+          <div class="mt-6 pt-4 border-t border-blue-500/20">
+            <div class="text-xs text-gray-500">Cost: <span class="text-white">£8.00</span> • Margin: <span class="text-emerald-400 font-semibold">83.7%</span></div>
+          </div>
+        </div>
+        
+        <!-- TEAM -->
+        <div class="glassmorphism-card rounded-2xl p-6 flex flex-col">
+          <div class="mb-6">
+            <span class="px-3 py-1 rounded-full bg-purple-500/10 text-purple-400 text-xs font-semibold border border-purple-500/20">TEAMS</span>
+          </div>
+          <h3 class="text-2xl font-bold text-white mb-2">Team</h3>
+          <div class="flex items-baseline gap-1 mb-4">
+            <span class="text-4xl font-bold text-white">£79</span>
+            <span class="text-gray-400">/user/mo</span>
+          </div>
+          <p class="text-sm text-gray-400 mb-6">Collaboration at scale</p>
+          <ul class="space-y-3 text-sm text-gray-300 flex-grow">
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              Everything in Pro
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              Team workspaces
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              Manager dashboard
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              SSO / SAML
+            </li>
+          </ul>
+          <div class="mt-6 pt-4 border-t border-gray-700/50">
+            <div class="text-xs text-gray-500">Cost: <span class="text-white">£12</span> • Margin: <span class="text-emerald-400 font-semibold">84.8%</span></div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Annual Discount Note -->
+      <div class="mt-8 text-center">
+        <div class="inline-flex items-center gap-3 px-6 py-3 rounded-xl glassmorphism-card">
+          <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span class="text-gray-300"><strong class="text-emerald-400">20% discount</strong> on annual plans — improves cash flow & reduces churn by 50%</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 3: ACQUISITION FUNNEL -->
+  <!-- ============================================================ -->
+  <section id="slide-2" class="slide flex-col items-center justify-center px-8 py-24">
+    <div class="max-w-6xl mx-auto w-full fade-in">
+      <div class="text-center mb-12">
+        <h2 class="text-4xl md:text-5xl font-bold text-white mb-4">Acquisition Economics</h2>
+        <p class="text-lg text-gray-400">Channel allocation optimized for CAC efficiency</p>
+      </div>
+      
+      <div class="grid lg:grid-cols-2 gap-8">
+        <!-- Channel Strategy -->
+        <div class="glassmorphism-card rounded-2xl p-8">
+          <h3 class="text-xl font-bold text-white mb-2">Single Channel Strategy</h3>
+          <p class="text-sm text-gray-400 mb-6">£4K/month • Test one channel at a time</p>
+          
+          <!-- Phase 1: Meta -->
+          <div class="mb-6 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <span class="text-blue-400 font-bold">M</span>
+                </div>
+                <div>
+                  <p class="text-white font-semibold">Phase 1: Meta Ads</p>
+                  <p class="text-xs text-emerald-400 font-medium">RECOMMENDED START</p>
+                </div>
+              </div>
+              <div class="text-right">
+                <p class="text-white font-semibold number-highlight">33 paid</p>
+                <p class="text-xs text-gray-400">CAC: £121</p>
+              </div>
+            </div>
+            <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+              <div class="h-full w-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full"></div>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">667 waitlist → 333 trials → 33 paid (Month 1-2)</p>
+          </div>
+          
+          <!-- Phase 2: Google -->
+          <div class="mb-6 p-4 rounded-xl bg-gray-800/50">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                  <span class="text-emerald-400 font-bold">G</span>
+                </div>
+                <div>
+                  <p class="text-white font-semibold">Phase 2: Google Ads</p>
+                  <p class="text-xs text-gray-500">High intent traffic</p>
+                </div>
+              </div>
+              <div class="text-right">
+                <p class="text-white font-semibold number-highlight">19 paid</p>
+                <p class="text-xs text-gray-400">CAC: £211</p>
+              </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">286 waitlist → 157 trials → 19 paid (Month 3-4)</p>
+          </div>
+          
+          <!-- Phase 3: LinkedIn -->
+          <div class="mb-6 p-4 rounded-xl bg-gray-800/50">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-sky-500/20 flex items-center justify-center">
+                  <span class="text-sky-400 font-bold">in</span>
+                </div>
+                <div>
+                  <p class="text-white font-semibold">Phase 3: LinkedIn Ads</p>
+                  <p class="text-xs text-gray-500">Premium B2B leads</p>
+                </div>
+              </div>
+              <div class="text-right">
+                <p class="text-white font-semibold number-highlight">16 paid</p>
+                <p class="text-xs text-gray-400">CAC: £250</p>
+              </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">182 waitlist → 109 trials → 16 paid (Month 5-6)</p>
+          </div>
+          
+          <!-- Summary -->
+          <div class="pt-4 border-t border-gray-700/50">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-gray-400">Start with Meta</p>
+                <p class="text-xs text-gray-500">Lowest CAC, highest volume</p>
+              </div>
+              <div class="text-right">
+                <p class="text-2xl font-bold gradient-text number-highlight">£121</p>
+                <p class="text-xs text-gray-400">best CAC</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Funnel Visualization -->
+        <div class="glassmorphism-card rounded-2xl p-8">
+          <h3 class="text-xl font-bold text-white mb-2">Meta Ads Funnel (Phase 1)</h3>
+          <p class="text-sm text-gray-400 mb-6">£4K/month single channel focus</p>
+          
+          <div class="space-y-4">
+            <!-- Step 1 -->
+            <div class="relative">
+              <div class="flex items-center gap-4">
+                <div class="w-16 h-16 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0">
+                  <span class="text-2xl font-bold text-blue-400 number-highlight">667</span>
+                </div>
+                <div class="flex-grow">
+                  <div class="h-12 bg-gradient-to-r from-blue-500/30 to-blue-500/10 rounded-lg flex items-center px-4">
+                    <span class="text-white font-medium">Waitlist Signups</span>
+                  </div>
+                </div>
+              </div>
+              <div class="absolute left-8 top-full h-4 w-px bg-gradient-to-b from-blue-500 to-emerald-500"></div>
+            </div>
+            
+            <!-- Arrow -->
+            <div class="flex items-center gap-4 py-2">
+              <div class="w-16 flex justify-center">
+                <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+              </div>
+              <div class="text-sm text-gray-400 italic">50% start free</div>
+            </div>
+            
+            <!-- Step 2 -->
+            <div class="relative">
+              <div class="flex items-center gap-4">
+                <div class="w-16 h-16 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
+                  <span class="text-2xl font-bold text-emerald-400 number-highlight">333</span>
+                </div>
+                <div class="flex-grow">
+                  <div class="h-12 bg-gradient-to-r from-emerald-500/30 to-emerald-500/10 rounded-lg flex items-center px-4" style="width: 55%">
+                    <span class="text-white font-medium">Free Users (15 meetings)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Arrow -->
+            <div class="flex items-center gap-4 py-2">
+              <div class="w-16 flex justify-center">
+                <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+              </div>
+              <div class="text-sm text-gray-400 italic">10% convert (target)</div>
+            </div>
+            
+            <!-- Step 3 -->
+            <div class="relative">
+              <div class="flex items-center gap-4">
+                <div class="w-16 h-16 rounded-xl bg-purple-500/20 flex items-center justify-center shrink-0">
+                  <span class="text-2xl font-bold text-purple-400 number-highlight">33</span>
+                </div>
+                <div class="flex-grow">
+                  <div class="h-12 bg-gradient-to-r from-purple-500/30 to-purple-500/10 rounded-lg flex items-center px-4" style="width: 12%">
+                    <span class="text-white font-medium">Paying Customers</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Meta CAC -->
+          <div class="mt-8 p-4 rounded-xl success-gradient">
+            <div class="flex items-center justify-between">
+              <span class="text-emerald-400 font-semibold">Meta Ads CAC</span>
+              <span class="text-2xl font-bold text-white number-highlight">£121</span>
+            </div>
+            <div class="flex items-center justify-between mt-2">
+              <span class="text-gray-400 text-sm">CAC:LTV Ratio</span>
+              <span class="text-lg font-semibold text-emerald-400">1:4.9 ✓</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 4: NORTH STAR METRIC -->
+  <!-- ============================================================ -->
+  <section id="slide-3" class="slide flex-col items-center justify-center px-8 py-24">
+    <div class="max-w-6xl mx-auto w-full fade-in">
+      <div class="text-center mb-12">
+        <h2 class="text-4xl md:text-5xl font-bold text-white mb-4">North Star Metric</h2>
+        <p class="text-lg text-gray-400">The activation moment that drives retention and upgrades</p>
+      </div>
+      
+      <!-- Main Metric Card -->
+      <div class="gradient-border rounded-3xl p-8 md:p-12 mb-8">
+        <div class="text-center mb-8">
+          <div class="inline-flex items-center gap-3 mb-6">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center">
+              <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+            </div>
+          </div>
+          <h3 class="text-3xl md:text-4xl font-bold text-white mb-4">Time to First Valuable Insight</h3>
+          <p class="text-xl text-gray-400 max-w-2xl mx-auto">User reviews their first AI-generated meeting summary</p>
+        </div>
+        
+        <div class="grid md:grid-cols-3 gap-6">
+          <div class="metric-card rounded-xl p-6 text-center">
+            <p class="text-4xl font-bold text-blue-400 mb-2">< 2 hrs</p>
+            <p class="text-sm text-gray-400">Target time post-meeting</p>
+          </div>
+          <div class="metric-card rounded-xl p-6 text-center">
+            <p class="text-4xl font-bold text-emerald-400 mb-2">3x</p>
+            <p class="text-sm text-gray-400">Better retention when achieved in 24h</p>
+          </div>
+          <div class="metric-card rounded-xl p-6 text-center">
+            <p class="text-4xl font-bold text-purple-400 mb-2">15 min</p>
+            <p class="text-sm text-gray-400">Time saved per meeting shown</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Activation Journey -->
+      <div class="glassmorphism-card rounded-2xl p-8">
+        <h3 class="text-xl font-bold text-white mb-6">Activation Milestones</h3>
+        
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <!-- Step 1 -->
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold">1</div>
+            <div>
+              <p class="text-white font-medium">Account Created</p>
+              <p class="text-xs text-gray-400">T+0</p>
+            </div>
+          </div>
+          
+          <svg class="w-6 h-6 text-gray-600 hidden md:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+          
+          <!-- Step 2 -->
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold">2</div>
+            <div>
+              <p class="text-white font-medium">Fathom Connected</p>
+              <p class="text-xs text-gray-400">T+15 min</p>
+            </div>
+          </div>
+          
+          <svg class="w-6 h-6 text-gray-600 hidden md:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+          
+          <!-- Step 3 -->
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 font-bold">3</div>
+            <div>
+              <p class="text-white font-medium">First Meeting</p>
+              <p class="text-xs text-gray-400">T+24 hrs</p>
+            </div>
+          </div>
+          
+          <svg class="w-6 h-6 text-gray-600 hidden md:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+          
+          <!-- Step 4 - NORTH STAR -->
+          <div class="flex items-center gap-3 p-3 -m-3 rounded-xl bg-gradient-to-r from-blue-500/20 to-emerald-500/20 border border-blue-500/30">
+            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center text-white font-bold">★</div>
+            <div>
+              <p class="text-white font-medium">Summary Reviewed</p>
+              <p class="text-xs text-emerald-400 font-semibold">NORTH STAR</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 5: PROMOTION REQUIREMENTS -->
+  <!-- ============================================================ -->
+  <section id="slide-4" class="slide flex-col items-center justify-center px-8 py-24">
+    <div class="max-w-6xl mx-auto w-full fade-in">
+      <div class="text-center mb-12">
+        <h2 class="text-4xl md:text-5xl font-bold text-white mb-4">What We Need to Achieve</h2>
+        <p class="text-lg text-gray-400">Critical success metrics for our promotional strategy</p>
+      </div>
+      
+      <div class="grid md:grid-cols-2 gap-8">
+        <!-- Acquisition Targets -->
+        <div class="glassmorphism-card rounded-2xl p-8">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+              <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+            </div>
+            <h3 class="text-xl font-bold text-white">Acquisition Targets</h3>
+          </div>
+          
+          <div class="space-y-4">
+            <div class="flex items-center justify-between p-4 rounded-xl bg-gray-800/50">
+              <span class="text-gray-300">Monthly Waitlist Signups</span>
+              <span class="text-xl font-bold text-blue-400 number-highlight">1,000+</span>
+            </div>
+            <div class="flex items-center justify-between p-4 rounded-xl bg-gray-800/50">
+              <span class="text-gray-300">Waitlist → Free CVR</span>
+              <span class="text-xl font-bold text-emerald-400 number-highlight">55%+</span>
+            </div>
+            <div class="flex items-center justify-between p-4 rounded-xl bg-gray-800/50">
+              <span class="text-gray-300">Free → Paid CVR (12mo)</span>
+              <span class="text-xl font-bold text-purple-400 number-highlight">12%+</span>
+            </div>
+            <div class="flex items-center justify-between p-4 rounded-xl success-gradient">
+              <span class="text-emerald-400 font-semibold">Target CAC</span>
+              <span class="text-xl font-bold text-white number-highlight">< £200</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Activation Targets -->
+        <div class="glassmorphism-card rounded-2xl p-8">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+              <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <h3 class="text-xl font-bold text-white">Activation Targets</h3>
+          </div>
+          
+          <div class="space-y-4">
+            <div class="flex items-center justify-between p-4 rounded-xl bg-gray-800/50">
+              <span class="text-gray-300">Fathom connected (Day 1)</span>
+              <span class="text-xl font-bold text-blue-400 number-highlight">80%+</span>
+            </div>
+            <div class="flex items-center justify-between p-4 rounded-xl bg-gray-800/50">
+              <span class="text-gray-300">First summary viewed (Week 1)</span>
+              <span class="text-xl font-bold text-emerald-400 number-highlight">70%+</span>
+            </div>
+            <div class="flex items-center justify-between p-4 rounded-xl bg-gray-800/50">
+              <span class="text-gray-300">Time to First Insight</span>
+              <span class="text-xl font-bold text-purple-400 number-highlight">< 48 hrs</span>
+            </div>
+            <div class="flex items-center justify-between p-4 rounded-xl success-gradient">
+              <span class="text-emerald-400 font-semibold">30-Day Retention</span>
+              <span class="text-xl font-bold text-white number-highlight">60%+</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Revenue Targets -->
+        <div class="glassmorphism-card rounded-2xl p-8">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
+              <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <h3 class="text-xl font-bold text-white">Revenue Milestones</h3>
+          </div>
+          
+          <div class="space-y-4">
+            <div class="flex items-center justify-between p-4 rounded-xl bg-gray-800/50">
+              <span class="text-gray-300">Month 3 MRR</span>
+              <span class="text-xl font-bold text-blue-400 number-highlight">£5K+</span>
+            </div>
+            <div class="flex items-center justify-between p-4 rounded-xl bg-gray-800/50">
+              <span class="text-gray-300">Month 6 MRR</span>
+              <span class="text-xl font-bold text-emerald-400 number-highlight">£15K+</span>
+            </div>
+            <div class="flex items-center justify-between p-4 rounded-xl bg-gray-800/50">
+              <span class="text-gray-300">Month 12 MRR</span>
+              <span class="text-xl font-bold text-purple-400 number-highlight">£50K+</span>
+            </div>
+            <div class="flex items-center justify-between p-4 rounded-xl success-gradient">
+              <span class="text-emerald-400 font-semibold">Break-even Customers</span>
+              <span class="text-xl font-bold text-white number-highlight">292</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Key Actions -->
+        <div class="glassmorphism-card rounded-2xl p-8">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
+              <svg class="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            </div>
+            <h3 class="text-xl font-bold text-white">Critical Actions</h3>
+          </div>
+          
+          <div class="space-y-3">
+            <div class="flex items-start gap-3 p-3 rounded-lg bg-gray-800/50">
+              <svg class="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span class="text-gray-300 text-sm">Implement usage tracking for free tier limits</span>
+            </div>
+            <div class="flex items-start gap-3 p-3 rounded-lg bg-gray-800/50">
+              <svg class="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span class="text-gray-300 text-sm">Build upgrade prompts at 80% usage</span>
+            </div>
+            <div class="flex items-start gap-3 p-3 rounded-lg bg-gray-800/50">
+              <svg class="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span class="text-gray-300 text-sm">Launch onboarding email sequence</span>
+            </div>
+            <div class="flex items-start gap-3 p-3 rounded-lg bg-gray-800/50">
+              <svg class="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span class="text-gray-300 text-sm">A/B test pricing page designs</span>
+            </div>
+            <div class="flex items-start gap-3 p-3 rounded-lg bg-gray-800/50">
+              <svg class="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span class="text-gray-300 text-sm">Implement referral program</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 6: SUMMARY & NEXT STEPS -->
+  <!-- ============================================================ -->
+  <section id="slide-5" class="slide flex-col items-center justify-center px-8 py-24 relative overflow-hidden">
+    <!-- Background Effects -->
+    <div class="absolute inset-0 pointer-events-none">
+      <div class="absolute top-1/3 left-1/4 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl"></div>
+      <div class="absolute bottom-1/3 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl"></div>
+    </div>
+    
+    <div class="relative z-10 max-w-5xl mx-auto w-full fade-in">
+      <div class="text-center mb-12">
+        <h2 class="text-4xl md:text-5xl font-bold text-white mb-4">Ready to Execute</h2>
+        <p class="text-lg text-gray-400">Summary of our pricing strategy and immediate next steps</p>
+      </div>
+      
+      <!-- Key Numbers Summary -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+        <div class="glassmorphism-card rounded-2xl p-6 text-center">
+          <p class="text-3xl font-bold gradient-text number-highlight">£29-79</p>
+          <p class="text-sm text-gray-400">Price Range</p>
+        </div>
+        <div class="glassmorphism-card rounded-2xl p-6 text-center">
+          <p class="text-3xl font-bold text-emerald-400 number-highlight">84%</p>
+          <p class="text-sm text-gray-400">Gross Margin</p>
+        </div>
+        <div class="glassmorphism-card rounded-2xl p-6 text-center">
+          <p class="text-3xl font-bold text-blue-400 number-highlight">£121</p>
+          <p class="text-sm text-gray-400">Meta CAC</p>
+        </div>
+        <div class="glassmorphism-card rounded-2xl p-6 text-center">
+          <p class="text-3xl font-bold text-purple-400 number-highlight">£4K</p>
+          <p class="text-sm text-gray-400">Monthly Budget</p>
+        </div>
+      </div>
+      
+      <!-- Strategy Summary -->
+      <div class="gradient-border rounded-3xl p-8 md:p-10 mb-12">
+        <h3 class="text-2xl font-bold text-white mb-6 text-center">The Strategy in One Sentence</h3>
+        <p class="text-xl md:text-2xl text-center text-gray-300 leading-relaxed">
+          <span class="text-blue-400">Acquire users</span> through a generous 30-meeting free tier,
+          <span class="text-emerald-400">activate them</span> by getting them to their first AI summary within 48 hours,
+          and <span class="text-purple-400">convert them</span> at natural usage limits with seamless upgrade flows.
+        </p>
+      </div>
+      
+      <!-- Next Steps -->
+      <div class="grid md:grid-cols-3 gap-6">
+        <div class="glassmorphism-card rounded-2xl p-6">
+          <div class="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center mb-4">
+            <span class="text-xl font-bold text-blue-400">1</span>
+          </div>
+          <h4 class="text-lg font-bold text-white mb-2">This Week</h4>
+          <ul class="space-y-2 text-sm text-gray-400">
+            <li>• Finalize tier limits in database</li>
+            <li>• Update subscription_plans table</li>
+            <li>• Create upgrade prompt components</li>
+          </ul>
+        </div>
+        
+        <div class="glassmorphism-card rounded-2xl p-6">
+          <div class="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center mb-4">
+            <span class="text-xl font-bold text-emerald-400">2</span>
+          </div>
+          <h4 class="text-lg font-bold text-white mb-2">This Month</h4>
+          <ul class="space-y-2 text-sm text-gray-400">
+            <li>• Launch soft/hard limit enforcement</li>
+            <li>• Build in-app upgrade flows</li>
+            <li>• Deploy onboarding emails</li>
+          </ul>
+        </div>
+        
+        <div class="glassmorphism-card rounded-2xl p-6">
+          <div class="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center mb-4">
+            <span class="text-xl font-bold text-purple-400">3</span>
+          </div>
+          <h4 class="text-lg font-bold text-white mb-2">Next Quarter</h4>
+          <ul class="space-y-2 text-sm text-gray-400">
+            <li>• Launch paid acquisition</li>
+            <li>• Implement referral program</li>
+            <li>• A/B test pricing variations</li>
+          </ul>
+        </div>
+      </div>
+      
+      <!-- CTA -->
+      <div class="mt-12 text-center">
+        <p class="text-gray-400 mb-4">Questions or feedback?</p>
+        <div class="inline-flex items-center gap-4">
+          <a href="pricing_analysis_report.md" class="px-6 py-3 rounded-xl glassmorphism-card text-white font-semibold hover:bg-gray-800/80 transition-all">
+            📄 View Full Report
+          </a>
+          <button class="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-600 text-white font-semibold hover:from-blue-500 hover:to-emerald-500 transition-all shadow-lg shadow-blue-500/25">
+            Let's Discuss →
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    let currentSlide = 0;
+    const totalSlides = 6;
+    
+    function showSlide(index) {
+      // Hide all slides
+      document.querySelectorAll('.slide').forEach(slide => {
+        slide.classList.remove('active');
+      });
+      
+      // Show target slide
+      const targetSlide = document.getElementById(`slide-${index}`);
+      if (targetSlide) {
+        targetSlide.classList.add('active');
+        currentSlide = index;
+        
+        // Update counter
+        document.getElementById('currentSlide').textContent = index + 1;
+        
+        // Update indicators
+        document.querySelectorAll('.slide-indicator').forEach((indicator, i) => {
+          indicator.classList.toggle('active', i === index);
+        });
+        
+        // Add fade-in animation
+        targetSlide.querySelectorAll('.fade-in').forEach(el => {
+          el.style.animation = 'none';
+          el.offsetHeight; // Trigger reflow
+          el.style.animation = null;
+        });
+      }
+    }
+    
+    function goToSlide(index) {
+      if (index >= 0 && index < totalSlides) {
+        showSlide(index);
+      }
+    }
+    
+    function nextSlide() {
+      goToSlide((currentSlide + 1) % totalSlides);
+    }
+    
+    function prevSlide() {
+      goToSlide((currentSlide - 1 + totalSlides) % totalSlides);
+    }
+    
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        e.preventDefault();
+        nextSlide();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        prevSlide();
+      } else if (e.key >= '1' && e.key <= '6') {
+        goToSlide(parseInt(e.key) - 1);
+      }
+    });
+    
+    // Click on indicators
+    document.querySelectorAll('.slide-indicator').forEach(indicator => {
+      indicator.addEventListener('click', () => {
+        goToSlide(parseInt(indicator.dataset.slide));
+      });
+    });
+    
+    // Touch/swipe support
+    let touchStartX = 0;
+    let touchEndX = 0;
+    
+    document.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    });
+    
+    document.addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      const diff = touchStartX - touchEndX;
+      
+      if (Math.abs(diff) > 50) {
+        if (diff > 0) {
+          nextSlide();
+        } else {
+          prevSlide();
+        }
+      }
+    });
+    
+    // Initialize
+    showSlide(0);
+  </script>
+</body>
+</html>

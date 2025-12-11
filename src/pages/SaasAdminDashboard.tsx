@@ -9,13 +9,11 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users,
-  CreditCard,
   BarChart3,
   Settings2,
   TrendingUp,
   Building2,
   Zap,
-  HardDrive,
   DollarSign,
   AlertCircle,
   ChevronRight,
@@ -37,12 +35,11 @@ import type {
   SubscriptionPlan,
 } from '@/lib/types/saasAdmin';
 import { CustomerList } from '@/components/saas-admin/CustomerList';
-import { SubscriptionPlansManager } from '@/components/saas-admin/SubscriptionPlansManager';
 import { UsageOverview } from '@/components/saas-admin/UsageOverview';
 import { FeatureFlagsManager } from '@/components/saas-admin/FeatureFlagsManager';
 import { toast } from 'sonner';
 
-type TabId = 'overview' | 'customers' | 'plans' | 'usage' | 'features';
+type TabId = 'overview' | 'customers' | 'usage' | 'features';
 
 interface Tab {
   id: TabId;
@@ -63,12 +60,6 @@ const tabs: Tab[] = [
     label: 'Customers',
     icon: Building2,
     description: 'Manage organizations and subscriptions',
-  },
-  {
-    id: 'plans',
-    label: 'Plans',
-    icon: CreditCard,
-    description: 'Configure subscription plans',
   },
   {
     id: 'usage',
@@ -218,22 +209,6 @@ export function SaasAdminDashboard() {
               </div>
               <CustomerList
                 customers={filteredCustomers}
-                plans={plans}
-                isLoading={isLoading}
-                onRefresh={loadData}
-              />
-            </motion.div>
-          )}
-
-          {activeTab === 'plans' && (
-            <motion.div
-              key="plans"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              <SubscriptionPlansManager
                 plans={plans}
                 isLoading={isLoading}
                 onRefresh={loadData}

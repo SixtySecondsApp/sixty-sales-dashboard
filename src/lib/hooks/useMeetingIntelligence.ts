@@ -370,21 +370,24 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
   }, [fetchIndexStatus, selectedUserId]);
 
   // Initial fetch and subscribe to updates
+  // PERFORMANCE: Added user_id filters to reduce realtime overhead
+  // Previously listened to ALL changes across all users
   useEffect(() => {
     if (!user) {
       setIsLoadingStatus(false);
       return;
     }
 
-    // Subscribe to index updates (listen to all changes for team view)
+    // Subscribe to index updates - filtered by user_id
     const indexSubscription = supabase
-      .channel('meeting_file_search_index_changes')
+      .channel(`meeting_file_search_index_changes_${user.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'meeting_file_search_index',
+          filter: `user_id=eq.${user.id}`, // Only listen to current user's index changes
         },
         () => {
           fetchIndexStatus();
@@ -392,31 +395,34 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
       )
       .subscribe();
 
-    // Subscribe to org store updates
-    const storeSubscription = supabase
-      .channel('org_file_search_stores_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'org_file_search_stores',
-        },
-        () => {
-          fetchIndexStatus();
-        }
-      )
-      .subscribe();
-
-    // Subscribe to queue updates
+    // Subscribe to queue updates - filtered by user_id
     const queueSubscription = supabase
-      .channel('meeting_index_queue_changes')
+      .channel(`meeting_index_queue_changes_${user.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'meeting_index_queue',
+          filter: `user_id=eq.${user.id}`, // Only listen to current user's queue changes
+        },
+        () => {
+          fetchIndexStatus();
+        }
+      )
+      .subscribe();
+
+    // Note: org_file_search_stores is org-wide and doesn't have user_id
+    // This subscription remains unfiltered but is low-volume (one record per org)
+    // and updates are infrequent. Could be filtered by org_id if we had it synchronously.
+    const storeSubscription = supabase
+      .channel(`org_file_search_stores_changes_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'org_file_search_stores',
         },
         () => {
           fetchIndexStatus();

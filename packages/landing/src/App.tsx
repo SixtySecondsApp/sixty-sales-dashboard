@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { MeetingsLandingV4 } from './pages/MeetingsLandingV4';
 import  WaitlistLanding  from './pages/WaitlistLanding';
 import EarlyAccessLanding from './pages/EarlyAccessLanding';
+import LeaderboardLookup from './pages/LeaderboardLookup';
 import { PricingPage } from './pages/PricingPage';
 
 // Initialize i18next for internationalization
@@ -14,6 +15,8 @@ function App() {
       <Routes>
         <Route path="/landing" element={<MeetingsLandingV4 />} />
         <Route path="/waitlist" element={<EarlyAccessLanding />} />
+        <Route path="/waitlist/leaderboard" element={<LeaderboardLookup />} />
+        <Route path="/leaderboard" element={<LeaderboardLookup />} />
         <Route path="/waitlist-hero" element={<WaitlistLanding />} />
         <Route path="/pricing" element={<PricingPage />} />
         {/* Redirect auth routes to app domain */}
