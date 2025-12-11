@@ -63,7 +63,7 @@ import { useTaskNotifications } from '@/lib/hooks/useTaskNotifications';
 import { SmartSearch } from '@/components/SmartSearch';
 import { useCopilot } from '@/lib/contexts/CopilotContext';
 import { useNavigate } from 'react-router-dom';
-import { MeetingUsageIndicator } from '@/components/MeetingUsageIndicator';
+// MeetingUsageIndicator moved to MeetingsList page
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -720,18 +720,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               ))}
             </nav>
           </div>
-          
-          {/* Meeting Usage Indicator for Free Tier Users */}
-          {!isCollapsed && (
-            <div className="px-2 pb-4">
-              <MeetingUsageIndicator compact={false} showUpgradeButton={true} />
-            </div>
-          )}
-          {isCollapsed && (
-            <div className="flex justify-center pb-4">
-              <MeetingUsageIndicator compact={true} />
-            </div>
-          )}
           
           {/* Settings and Logout at bottom */}
           <div className="mt-auto pt-6 border-t border-[#E2E8F0] dark:border-gray-800/50">
