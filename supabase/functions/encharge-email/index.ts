@@ -18,6 +18,7 @@ import { serve } from 'https://deno.land/std@0.190.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const ENCHARGE_API_KEY = Deno.env.get('ENCHARGE_API_KEY');
+const ENCHARGE_WRITE_KEY = Deno.env.get('ENCHARGE_WRITE_KEY');
 const ENCHARGE_SITE_ID = Deno.env.get('ENCHARGE_SITE_ID');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -47,6 +48,10 @@ interface EmailRequest {
   to_name?: string;
   user_id?: string;
   
+  // Note: send_transactional is deprecated - use event-based flows instead
+  // Events trigger automation flows in Encharge which send emails
+  send_transactional?: boolean; // Deprecated - kept for backwards compatibility
+  
   // Type-specific data
   data?: {
     // waitlist_invite
@@ -58,6 +63,8 @@ interface EmailRequest {
     meeting_count?: number;
     meetings_used?: number;
     meetings_limit?: number;
+    meetings_remaining?: number;
+    usage_percent?: number;
     
     // Trial related
     trial_days_left?: number;
@@ -72,6 +79,9 @@ interface EmailRequest {
     
     // Tags for Encharge automation
     tags?: string[];
+    
+    // Liquid template variables for Encharge templates
+    template_variables?: Record<string, any>;
   };
 }
 
@@ -87,22 +97,32 @@ interface EnchargeEvent {
 }
 
 /**
- * Send event to Encharge - triggers automation flows
+ * Send event to Encharge via Ingest API - triggers automation flows
+ * This works on all Encharge plans (Growth, Premium, etc.)
+ * The automation flows in Encharge will send the actual emails
  */
 async function sendEnchargeEvent(event: EnchargeEvent): Promise<{ success: boolean; error?: string }> {
-  if (!ENCHARGE_API_KEY) {
-    console.error('[encharge-email] Missing ENCHARGE_API_KEY');
+  // Use WRITE_KEY for Ingest API (more reliable than API_KEY)
+  const token = ENCHARGE_WRITE_KEY || ENCHARGE_API_KEY;
+  
+  if (!token) {
+    console.error('[encharge-email] Missing ENCHARGE_WRITE_KEY or ENCHARGE_API_KEY');
     return { success: false, error: 'Missing Encharge API configuration' };
   }
 
   try {
-    const response = await fetch('https://api.encharge.io/v1/events', {
+    // Use Ingest API endpoint (works on all plans)
+    const response = await fetch('https://ingest.encharge.io/v1/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Encharge-Token': ENCHARGE_API_KEY,
+        'X-Encharge-Token': token,
       },
-      body: JSON.stringify(event),
+      body: JSON.stringify({
+        name: event.name,
+        user: event.user,
+        properties: event.properties,
+      }),
     });
 
     if (!response.ok) {
@@ -211,6 +231,18 @@ function getTagsForEmailType(emailType: EmailType): string[] {
   return tagMap[emailType] || [];
 }
 
+/**
+ * NOTE: Transactional Email API requires Encharge Premium plan ($649/month)
+ * This implementation uses event-based automation flows instead.
+ * 
+ * To send emails:
+ * 1. Send events via Ingest API (this function)
+ * 2. Configure automation flows in Encharge dashboard
+ * 3. Flows trigger emails based on events
+ * 
+ * This works on all Encharge plans (Growth, Premium, etc.)
+ */
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -254,6 +286,8 @@ serve(async (req) => {
         // Add relevant custom fields based on email type
         ...(request.data?.meetings_used !== undefined && { meetingsUsed: request.data.meetings_used }),
         ...(request.data?.meetings_limit !== undefined && { meetingsLimit: request.data.meetings_limit }),
+        ...(request.data?.meetings_remaining !== undefined && { meetingsRemaining: request.data.meetings_remaining }),
+        ...(request.data?.usage_percent !== undefined && { usagePercent: request.data.usage_percent }),
         ...(request.data?.trial_days_left !== undefined && { trialDaysLeft: request.data.trial_days_left }),
         ...(request.data?.plan_name && { planName: request.data.plan_name }),
       },
@@ -264,6 +298,7 @@ serve(async (req) => {
     }
 
     // 2. Send event to trigger automation in Encharge
+    // This works on all plans - automation flows in Encharge will send the emails
     const eventName = getEventNameForEmailType(request.email_type);
     const eventResult = await sendEnchargeEvent({
       name: eventName,
@@ -277,19 +312,24 @@ serve(async (req) => {
         emailType: request.email_type,
         ...request.data,
         sentAt: new Date().toISOString(),
+        // Include template ID if provided (for flow routing)
+        ...(request.template_id && { templateId: request.template_id }),
       },
     });
 
-    // 3. Log to database for tracking
+    // 4. Log to database for tracking
     try {
       await supabase.from('email_logs').insert({
         email_type: request.email_type,
         to_email: request.to_email,
         user_id: request.user_id,
-        status: eventResult.success ? 'sent' : 'failed',
-        error: eventResult.error,
-        metadata: request.data,
-        sent_via: 'encharge',
+        status: transactionalResult?.success || eventResult.success ? 'sent' : 'failed',
+        error: transactionalResult?.error || eventResult.error,
+        metadata: {
+          ...request.data,
+          sent_via: 'encharge_event', // Events trigger automation flows
+        },
+        sent_via: 'encharge_event',
       });
     } catch (logError) {
       console.warn('[encharge-email] Failed to log email:', logError);
@@ -302,6 +342,8 @@ serve(async (req) => {
         email_type: request.email_type,
         event_name: eventName,
         tags_applied: allTags,
+        event_sent: eventResult.success,
+        note: 'Email will be sent via Encharge automation flow triggered by this event',
         error: eventResult.error,
       }),
       {

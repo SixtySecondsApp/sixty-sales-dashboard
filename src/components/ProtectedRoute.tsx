@@ -37,7 +37,8 @@ const onboardingExemptRoutes = [
   '/auth',
   '/debug',
   '/oauth',
-  '/platform/onboarding-simulator'
+  '/platform/onboarding-simulator',
+  '/platform/email-templates' // Allow access to email templates during onboarding
 ];
 
 export function ProtectedRoute({ children, redirectTo = '/auth/login' }: ProtectedRouteProps) {

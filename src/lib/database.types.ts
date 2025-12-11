@@ -7,9 +7,12 @@ export type Json =
   | Json[]
 
 // Database type definitions for Supabase
-// Includes: meetings, meeting_contacts, meeting_action_items, proposal_templates, proposals, system_config, tasks
-// Updated: 2025-01-XX - Added missing table definitions
+// Includes: meetings, meeting_contacts, meeting_action_items, meeting_attendees, proposal_templates, proposals, system_config, tasks, user_onboarding_progress, contacts, companies
+// Updated: 2025-12-11 - Added user_onboarding_progress, meeting_attendees, contacts, companies table definitions
 export interface Database {
+  __InternalSupabase: {
+    PostgrestVersion: "12"
+  }
   public: {
     Tables: {
       deals: {
@@ -721,6 +724,7 @@ export interface Database {
           transcript_doc_url: string | null
           transcript_text: string | null
           sentiment_score: number | null
+          sentiment_reasoning: string | null
           coach_rating: number | null
           coach_summary: string | null
           talk_time_rep_pct: number | null
@@ -733,6 +737,8 @@ export interface Database {
           calendar_invitees_type: 'all_internal' | 'one_or_more_external' | null
           fathom_user_id: string | null
           thumbnail_url: string | null
+          meeting_type: 'discovery' | 'demo' | 'negotiation' | 'closing' | 'follow_up' | 'general' | null
+          classification_confidence: number | null
           created_at: string
           updated_at: string
         }
@@ -754,6 +760,7 @@ export interface Database {
           transcript_doc_url?: string | null
           transcript_text?: string | null
           sentiment_score?: number | null
+          sentiment_reasoning?: string | null
           coach_rating?: number | null
           coach_summary?: string | null
           talk_time_rep_pct?: number | null
@@ -766,6 +773,8 @@ export interface Database {
           calendar_invitees_type?: 'all_internal' | 'one_or_more_external' | null
           fathom_user_id?: string | null
           thumbnail_url?: string | null
+          meeting_type?: 'discovery' | 'demo' | 'negotiation' | 'closing' | 'follow_up' | 'general' | null
+          classification_confidence?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -787,6 +796,7 @@ export interface Database {
           transcript_doc_url?: string | null
           transcript_text?: string | null
           sentiment_score?: number | null
+          sentiment_reasoning?: string | null
           coach_rating?: number | null
           coach_summary?: string | null
           talk_time_rep_pct?: number | null
@@ -799,6 +809,8 @@ export interface Database {
           calendar_invitees_type?: 'all_internal' | 'one_or_more_external' | null
           fathom_user_id?: string | null
           thumbnail_url?: string | null
+          meeting_type?: 'discovery' | 'demo' | 'negotiation' | 'closing' | 'follow_up' | 'general' | null
+          classification_confidence?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -874,11 +886,12 @@ export interface Database {
           category: string | null
           deadline_at: string | null
           completed: boolean
-          ai_generated: boolean
+          ai_generated: boolean | null
+          ai_confidence: number | null
           timestamp_seconds: number | null
           playback_url: string | null
           task_id: string | null
-          synced_to_task: boolean
+          synced_to_task: boolean | null
           sync_status: 'pending' | 'synced' | 'failed' | 'excluded' | null
           sync_error: string | null
           synced_at: string | null
@@ -895,11 +908,12 @@ export interface Database {
           category?: string | null
           deadline_at?: string | null
           completed?: boolean
-          ai_generated?: boolean
+          ai_generated?: boolean | null
+          ai_confidence?: number | null
           timestamp_seconds?: number | null
           playback_url?: string | null
           task_id?: string | null
-          synced_to_task?: boolean
+          synced_to_task?: boolean | null
           sync_status?: 'pending' | 'synced' | 'failed' | 'excluded' | null
           sync_error?: string | null
           synced_at?: string | null
@@ -916,11 +930,12 @@ export interface Database {
           category?: string | null
           deadline_at?: string | null
           completed?: boolean
-          ai_generated?: boolean
+          ai_generated?: boolean | null
+          ai_confidence?: number | null
           timestamp_seconds?: number | null
           playback_url?: string | null
           task_id?: string | null
-          synced_to_task?: boolean
+          synced_to_task?: boolean | null
           sync_status?: 'pending' | 'synced' | 'failed' | 'excluded' | null
           sync_error?: string | null
           synced_at?: string | null
@@ -1183,6 +1198,247 @@ export interface Database {
             foreignKeyName: "tasks_meeting_action_item_id_fkey"
             columns: ["meeting_action_item_id"]
             referencedRelation: "meeting_action_items"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      user_onboarding_progress: {
+        Row: {
+          id: string
+          user_id: string
+          onboarding_step: 'welcome' | 'org_setup' | 'team_invite' | 'fathom_connect' | 'sync' | 'complete'
+          onboarding_completed_at: string | null
+          skipped_onboarding: boolean
+          fathom_connected: boolean
+          first_meeting_synced: boolean
+          first_proposal_generated: boolean
+          first_summary_viewed: boolean
+          first_summary_viewed_at: string | null
+          activation_completed_at: string | null
+          features_discovered: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          onboarding_step?: 'welcome' | 'org_setup' | 'team_invite' | 'fathom_connect' | 'sync' | 'complete'
+          onboarding_completed_at?: string | null
+          skipped_onboarding?: boolean
+          fathom_connected?: boolean
+          first_meeting_synced?: boolean
+          first_proposal_generated?: boolean
+          first_summary_viewed?: boolean
+          first_summary_viewed_at?: string | null
+          activation_completed_at?: string | null
+          features_discovered?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          onboarding_step?: 'welcome' | 'org_setup' | 'team_invite' | 'fathom_connect' | 'sync' | 'complete'
+          onboarding_completed_at?: string | null
+          skipped_onboarding?: boolean
+          fathom_connected?: boolean
+          first_meeting_synced?: boolean
+          first_proposal_generated?: boolean
+          first_summary_viewed?: boolean
+          first_summary_viewed_at?: string | null
+          activation_completed_at?: string | null
+          features_discovered?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_onboarding_progress_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      meeting_attendees: {
+        Row: {
+          id: string
+          meeting_id: string
+          name: string
+          email: string | null
+          is_external: boolean
+          role: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          meeting_id: string
+          name: string
+          email?: string | null
+          is_external?: boolean
+          role?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          meeting_id?: string
+          name?: string
+          email?: string | null
+          is_external?: boolean
+          role?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_attendees_meeting_id_fkey"
+            columns: ["meeting_id"]
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      contacts: {
+        Row: {
+          id: string
+          email: string
+          first_name: string | null
+          last_name: string | null
+          full_name: string | null
+          phone: string | null
+          title: string | null
+          company: string | null
+          company_id: string | null
+          owner_id: string | null
+          linkedin_url: string | null
+          source: string | null
+          is_primary: boolean | null
+          engagement_level: string | null
+          health_score: number | null
+          first_seen_at: string | null
+          last_interaction_at: string | null
+          last_ai_analysis: string | null
+          total_meetings_count: number | null
+          clerk_org_id: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          email: string
+          first_name?: string | null
+          last_name?: string | null
+          full_name?: string | null
+          phone?: string | null
+          title?: string | null
+          company?: string | null
+          company_id?: string | null
+          owner_id?: string | null
+          linkedin_url?: string | null
+          source?: string | null
+          is_primary?: boolean | null
+          engagement_level?: string | null
+          health_score?: number | null
+          first_seen_at?: string | null
+          last_interaction_at?: string | null
+          last_ai_analysis?: string | null
+          total_meetings_count?: number | null
+          clerk_org_id?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          email?: string
+          first_name?: string | null
+          last_name?: string | null
+          full_name?: string | null
+          phone?: string | null
+          title?: string | null
+          company?: string | null
+          company_id?: string | null
+          owner_id?: string | null
+          linkedin_url?: string | null
+          source?: string | null
+          is_primary?: boolean | null
+          engagement_level?: string | null
+          health_score?: number | null
+          first_seen_at?: string | null
+          last_interaction_at?: string | null
+          last_ai_analysis?: string | null
+          total_meetings_count?: number | null
+          clerk_org_id?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_contacts_company_id"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      companies: {
+        Row: {
+          id: string
+          name: string
+          owner_id: string
+          domain: string | null
+          website: string | null
+          phone: string | null
+          address: string | null
+          industry: string | null
+          size: string | null
+          description: string | null
+          linkedin_url: string | null
+          source: string | null
+          first_seen_at: string | null
+          clerk_org_id: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          owner_id: string
+          domain?: string | null
+          website?: string | null
+          phone?: string | null
+          address?: string | null
+          industry?: string | null
+          size?: string | null
+          description?: string | null
+          linkedin_url?: string | null
+          source?: string | null
+          first_seen_at?: string | null
+          clerk_org_id?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          owner_id?: string
+          domain?: string | null
+          website?: string | null
+          phone?: string | null
+          address?: string | null
+          industry?: string | null
+          size?: string | null
+          description?: string | null
+          linkedin_url?: string | null
+          source?: string | null
+          first_seen_at?: string | null
+          clerk_org_id?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "companies_owner_id_fkey"
+            columns: ["owner_id"]
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           }
         ]

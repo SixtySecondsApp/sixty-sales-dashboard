@@ -20,6 +20,8 @@ import { toast } from 'sonner';
 import { ProposalWizard } from '@/components/proposals/ProposalWizard';
 import { TalkTimeChart } from '@/components/meetings/analytics/TalkTimeChart';
 import { CoachingInsights } from '@/components/meetings/analytics/CoachingInsights';
+import { useActivationTracking } from '@/lib/hooks/useActivationTracking';
+import { useOnboardingProgress } from '@/lib/hooks/useOnboardingProgress';
 
 interface Meeting {
   id: string;
@@ -148,6 +150,11 @@ export function MeetingDetail() {
   const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [createTaskModalOpen, setCreateTaskModalOpen] = useState(false);
+  const [summaryViewTracked, setSummaryViewTracked] = useState(false);
+
+  // Activation tracking for North Star metric
+  const { trackFirstSummaryViewed } = useActivationTracking();
+  const { progress } = useOnboardingProgress();
 
   const primaryExternal = attendees.find(a => a.is_external);
 
@@ -240,16 +247,18 @@ export function MeetingDetail() {
         setMeeting(meetingData);
 
         // Fetch attendees - combine internal (meeting_attendees) and external (meeting_contacts via contacts)
-        const { data: internalAttendeesData, error: internalError } = await supabase
-          .from('meeting_attendees')
+        // Note: Type assertion used here until database types are regenerated
+        const { data: internalAttendeesData, error: internalError } = await (supabase
+          .from('meeting_attendees') as any)
           .select('*')
           .eq('meeting_id', id);
 
         if (internalError) throw internalError;
 
         // Fetch external contacts via meeting_contacts junction
-        const { data: externalContactsData, error: externalError } = await supabase
-          .from('meeting_contacts')
+        // Note: Type assertion used here until database types are regenerated
+        const { data: externalContactsData, error: externalError } = await (supabase
+          .from('meeting_contacts') as any)
           .select(`
             contact_id,
             is_primary,
@@ -268,17 +277,17 @@ export function MeetingDetail() {
 
         // Combine both internal and external attendees
         const combinedAttendees: MeetingAttendee[] = [
-          ...(internalAttendeesData || []).map(a => ({
+          ...((internalAttendeesData || []) as any[]).map((a: any) => ({
             id: a.id,
             name: a.name,
             email: a.email,
             is_external: false,
             role: a.role
           })),
-          ...(externalContactsData || [])
-            .filter(mc => mc.contacts) // Filter out null contacts
-            .map(mc => {
-              const c = mc.contacts as any;
+          ...((externalContactsData || []) as any[])
+            .filter((mc: any) => mc.contacts) // Filter out null contacts
+            .map((mc: any) => {
+              const c = mc.contacts;
               return {
                 id: c.id,
                 name: c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email,
@@ -309,6 +318,23 @@ export function MeetingDetail() {
 
     fetchMeetingDetails();
   }, [id]);
+
+  // NORTH STAR METRIC: Track first summary viewed
+  useEffect(() => {
+    // Only track if:
+    // 1. Meeting is loaded with a summary
+    // 2. User hasn't already viewed their first summary (per onboarding progress)
+    // 3. We haven't already tracked this view in this session
+    if (
+      meeting?.summary && 
+      progress?.first_summary_viewed === false && 
+      !summaryViewTracked
+    ) {
+      console.log('[MeetingDetail] Tracking NORTH STAR: First Summary Viewed');
+      trackFirstSummaryViewed(meeting.id);
+      setSummaryViewTracked(true);
+    }
+  }, [meeting, progress?.first_summary_viewed, summaryViewTracked, trackFirstSummaryViewed]);
 
   // Ensure thumbnail exists for this meeting
   useEffect(() => {
@@ -359,8 +385,9 @@ export function MeetingDetail() {
         }
 
         // Update meeting record (best effort; RLS must allow owner updates)
-        await supabase
-          .from('meetings')
+        // Note: Type assertion used here until database types are regenerated
+        await (supabase
+          .from('meetings') as any)
           .update({ thumbnail_url: thumbnailUrl })
           .eq('id', meeting.id);
 
@@ -391,8 +418,9 @@ export function MeetingDetail() {
       // Optimistic update
       setActionItems(prev => prev.map(ai => ai.id === id ? { ...ai, completed: !completed } : ai));
 
-      const { error } = await supabase
-        .from('meeting_action_items')
+      // Note: Type assertion used here until database types are regenerated
+      const { error } = await (supabase
+        .from('meeting_action_items') as any)
         .update({ completed: !completed, updated_at: new Date().toISOString() })
         .eq('id', id);
 
@@ -623,19 +651,25 @@ export function MeetingDetail() {
         taskData.contact_email = actionItem.assignee_email || user.email;
       }
 
-      const { data: newTask, error: taskError } = await supabase
-        .from('tasks')
+      // Note: Type assertion used here until database types are regenerated
+      const { data: newTask, error: taskError } = await (supabase
+        .from('tasks') as any)
         .insert(taskData)
         .select()
-        .single();
+        .single() as { data: { id: string } | null; error: any };
 
       if (taskError) {
         throw taskError;
       }
 
+      if (!newTask) {
+        throw new Error('Failed to create task - no data returned');
+      }
+
       // Update action item with task link
-      const { error: updateError } = await supabase
-        .from('meeting_action_items')
+      // Note: Type assertion used here until database types are regenerated
+      const { error: updateError } = await (supabase
+        .from('meeting_action_items') as any)
         .update({
           task_id: newTask.id,
           synced_to_task: true,
@@ -649,7 +683,7 @@ export function MeetingDetail() {
       // Step 3: Update action items state
       setActionItems(prev => prev.map(item =>
         item.id === actionItem.id
-          ? { ...item, task_id: newTask.id, synced_to_task: true, sync_status: 'synced' }
+          ? { ...item, task_id: newTask.id, synced_to_task: true, sync_status: 'synced' as const }
           : item
       ));
 
@@ -690,8 +724,9 @@ export function MeetingDetail() {
       if (deleteError) throw deleteError;
 
       // Update action item to remove task link
-      const { error: updateError } = await supabase
-        .from('meeting_action_items')
+      // Note: Type assertion used here until database types are regenerated
+      const { error: updateError } = await (supabase
+        .from('meeting_action_items') as any)
         .update({
           task_id: null,
           synced_to_task: false,

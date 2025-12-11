@@ -8,12 +8,17 @@ import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { TrialTimeline } from '@/components/platform/simulator/TrialTimeline';
 import { EmailPreview } from '@/components/platform/simulator/EmailPreview';
 import { LivePreview } from '@/components/platform/simulator/LivePreview';
 import { getDefaultTemplate, type EmailTemplate } from '@/lib/services/emailTemplateService';
+import { simulateJourneyDay } from '@/lib/services/enchargeJourneyService';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import type { TrialTimelineData, TrialStatus } from '@/components/platform/simulator/types';
-import { RotateCcw, Calendar, Mail, Eye } from 'lucide-react';
+import { RotateCcw, Calendar, Mail, Eye, Send, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 // Sample subscription data for simulation
 const TRIAL_DAYS = 14;
@@ -193,10 +198,15 @@ function generateTimelineData(): TrialTimelineData {
 }
 
 export default function OnboardingSimulator() {
+  const { user } = useAuth();
   const [currentDay, setCurrentDay] = useState<number>(0);
   const [timelineData] = useState<TrialTimelineData>(() => generateTimelineData());
   const [selectedEmailTemplate, setSelectedEmailTemplate] = useState<EmailTemplate | null>(null);
   const [isLoadingEmail, setIsLoadingEmail] = useState(false);
+  const [testEmail, setTestEmail] = useState<string>('');
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<{ success: boolean; message?: string } | null>(null);
+  const [showTestEmailDialog, setShowTestEmailDialog] = useState(false);
 
   // Get email template for current day
   useEffect(() => {
@@ -254,6 +264,57 @@ export default function OnboardingSimulator() {
 
   const resetToDay = (day: number) => {
     setCurrentDay(day);
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!testEmail || !user) {
+      setTestEmailResult({ success: false, message: 'Please enter a test email address' });
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(testEmail)) {
+      setTestEmailResult({ success: false, message: 'Please enter a valid email address' });
+      return;
+    }
+
+    setIsSendingTestEmail(true);
+    setTestEmailResult(null);
+
+    try {
+      const result = await simulateJourneyDay(
+        currentDay,
+        user.id,
+        testEmail,
+        user.email?.split('@')[0] || 'Test User'
+      );
+
+      if (result.sent > 0) {
+        setTestEmailResult({
+          success: true,
+          message: `Successfully sent ${result.sent} email(s) for Day ${currentDay}. ${result.failed > 0 ? `${result.failed} failed.` : ''}`,
+        });
+      } else if (result.failed > 0) {
+        setTestEmailResult({
+          success: false,
+          message: `Failed to send emails: ${result.errors.join(', ')}`,
+        });
+      } else {
+        setTestEmailResult({
+          success: false,
+          message: `No emails configured for Day ${currentDay}`,
+        });
+      }
+    } catch (error) {
+      console.error('Error sending test email:', error);
+      setTestEmailResult({
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+      });
+    } finally {
+      setIsSendingTestEmail(false);
+    }
   };
 
   return (
@@ -358,11 +419,99 @@ export default function OnboardingSimulator() {
                       </CardContent>
                     </Card>
                   ) : (
-                    <EmailPreview
-                      template={selectedEmailTemplate}
-                      variables={emailVariables}
-                      day={currentDay}
-                    />
+                    <div className="space-y-4">
+                      <EmailPreview
+                        template={selectedEmailTemplate}
+                        variables={emailVariables}
+                        day={currentDay}
+                      />
+                      
+                      {/* Test Email Button */}
+                      <Dialog open={showTestEmailDialog} onOpenChange={setShowTestEmailDialog}>
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            disabled={!user}
+                          >
+                            <Send className="w-4 h-4 mr-2" />
+                            Send Test Email for Day {currentDay}
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Send Test Email</DialogTitle>
+                            <DialogDescription>
+                              Send the email(s) configured for Day {currentDay} to a test email address.
+                              This will trigger the actual Encharge email journey.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="test-email">Test Email Address</Label>
+                              <Input
+                                id="test-email"
+                                type="email"
+                                placeholder="test@example.com"
+                                value={testEmail}
+                                onChange={(e) => setTestEmail(e.target.value)}
+                                disabled={isSendingTestEmail}
+                              />
+                            </div>
+                            
+                            {testEmailResult && (
+                              <div className={`p-3 rounded-lg flex items-start gap-2 ${
+                                testEmailResult.success
+                                  ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                                  : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                              }`}>
+                                {testEmailResult.success ? (
+                                  <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                                ) : (
+                                  <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                                )}
+                                <p className={`text-sm ${
+                                  testEmailResult.success
+                                    ? 'text-green-800 dark:text-green-200'
+                                    : 'text-red-800 dark:text-red-200'
+                                }`}>
+                                  {testEmailResult.message}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          <DialogFooter>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setShowTestEmailDialog(false);
+                                setTestEmailResult(null);
+                                setTestEmail('');
+                              }}
+                              disabled={isSendingTestEmail}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              onClick={handleSendTestEmail}
+                              disabled={isSendingTestEmail || !testEmail}
+                            >
+                              {isSendingTestEmail ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Sending...
+                                </>
+                              ) : (
+                                <>
+                                  <Send className="w-4 h-4 mr-2" />
+                                  Send Email
+                                </>
+                              )}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
                   )}
                 </TabsContent>
               </Tabs>

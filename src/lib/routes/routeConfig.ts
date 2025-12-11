@@ -408,6 +408,15 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     navSection: 'platform',
     order: 23,
   },
+  {
+    path: '/platform/email-templates',
+    access: 'platformAdmin',
+    label: 'Email Templates',
+    icon: Mail,
+    showInNav: false,
+    navSection: 'platform',
+    order: 24,
+  },
   // Meetings Waitlist (now embedded in Platform Settings)
   {
     path: '/platform/meetings-waitlist',

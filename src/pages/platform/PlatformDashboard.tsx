@@ -35,6 +35,7 @@ import {
   LayoutDashboard,
   PieChart,
   MessageSquare,
+  Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -63,6 +64,15 @@ interface PlatformSection {
 
 const platformSections: Record<string, PlatformSection[]> = {
   'Customer Management': [
+    {
+      id: 'activation',
+      title: 'Activation Dashboard',
+      description: 'Track user activation funnel and North Star metric',
+      icon: Target,
+      href: '/platform/activation',
+      color: 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30',
+      badge: 'North Star',
+    },
     {
       id: 'customers',
       title: 'Customers',
@@ -174,6 +184,17 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: Tag,
       href: '/platform/integrations/booking-sources',
       color: 'text-cyan-600 bg-cyan-100 dark:bg-cyan-900/30',
+    },
+  ],
+  'Email & Communications': [
+    {
+      id: 'email-templates',
+      title: 'Email Templates',
+      description: 'Manage Encharge email templates programmatically',
+      icon: Mail,
+      href: '/platform/email-templates',
+      color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30',
+      badge: 'New',
     },
   ],
   'Security & Audit': [

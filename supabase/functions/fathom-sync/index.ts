@@ -738,6 +738,71 @@ serve(async (req) => {
       })
       .eq('user_id', userId)
 
+    // USAGE LIMIT WARNING: Check if user is approaching their limit (80%) and send email
+    if (meetingLimits && meetingLimits.is_free_tier && meetingsSynced > 0) {
+      const newUsed = meetingLimits.new_meetings_used + meetingsSynced
+      const usagePercent = (newUsed / meetingLimits.max_meetings_per_month) * 100
+      
+      // Send warning at 80% usage (12 out of 15 meetings)
+      if (usagePercent >= 80 && usagePercent < 100) {
+        console.log(`⚠️ User approaching limit: ${newUsed}/${meetingLimits.max_meetings_per_month} (${usagePercent.toFixed(0)}%)`)
+        
+        // Check if we've already sent a warning email (to avoid spam)
+        try {
+          const { data: existingWarning } = await supabase
+            .from('email_logs')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('email_type', 'meeting_limit_warning')
+            .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Last 7 days
+            .limit(1)
+          
+          if (!existingWarning || existingWarning.length === 0) {
+            // Get user email
+            const { data: userData } = await supabase.auth.admin.getUserById(userId)
+            
+            if (userData?.user?.email) {
+              // Fire-and-forget: Send warning email via encharge-email function
+              fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/encharge-email`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  email_type: 'meeting_limit_warning',
+                  to_email: userData.user.email,
+                  to_name: userData.user.user_metadata?.full_name || userData.user.email.split('@')[0],
+                  user_id: userId,
+                  data: {
+                    meetings_used: newUsed,
+                    meetings_limit: meetingLimits.max_meetings_per_month,
+                    meetings_remaining: meetingLimits.max_meetings_per_month - newUsed,
+                    usage_percent: usagePercent,
+                  },
+                }),
+              }).then(response => {
+                if (response.ok) {
+                  console.log(`✅ Usage limit warning email sent to ${userData.user?.email}`)
+                } else {
+                  console.warn(`⚠️ Failed to send usage limit warning email: ${response.status}`)
+                }
+              }).catch(err => {
+                console.error(`⚠️ Error sending usage limit warning email:`, err)
+              })
+            }
+          } else {
+            console.log(`📧 Usage limit warning already sent recently, skipping`)
+          }
+        } catch (emailError) {
+          console.error(`⚠️ Error checking/sending usage limit warning:`, emailError)
+        }
+        
+        // Set the limit warning message
+        limitWarning = `You're using ${newUsed} of ${meetingLimits.max_meetings_per_month} meetings. Upgrade to get unlimited meetings.`
+      }
+    }
+
     // AUTO-INDEX: Trigger queue processor to index newly synced meetings
     // This runs asynchronously in the background after sync completes
     if (meetingsSynced > 0) {

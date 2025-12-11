@@ -13,6 +13,10 @@ export interface OnboardingProgress {
   fathom_connected: boolean;
   first_meeting_synced: boolean;
   first_proposal_generated: boolean;
+  // North Star Metric
+  first_summary_viewed: boolean;
+  first_summary_viewed_at: string | null;
+  activation_completed_at: string | null;
   features_discovered: Record<string, any>;
   created_at: string;
   updated_at: string;
@@ -72,14 +76,18 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
             fathom_connected: false,
             first_meeting_synced: false,
             first_proposal_generated: false,
+            first_summary_viewed: false,
+            first_summary_viewed_at: null,
+            activation_completed_at: null,
             features_discovered: {},
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
 
           // Try to create the record using upsert to handle conflicts
-          const { data: newProgress, error: createError } = await supabase
-            .from('user_onboarding_progress')
+          // Note: Type assertion used here until database types are regenerated
+          const { data: newProgress, error: createError } = await (supabase
+            .from('user_onboarding_progress') as any)
             .upsert({
               user_id: user.id,
               onboarding_step: 'welcome',
@@ -97,8 +105,9 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
           }
         } else if (!data) {
           // No record exists, create one
-          const { data: newProgress, error: createError } = await supabase
-            .from('user_onboarding_progress')
+          // Note: Type assertion used here until database types are regenerated
+          const { data: newProgress, error: createError } = await (supabase
+            .from('user_onboarding_progress') as any)
             .upsert({
               user_id: user.id,
               onboarding_step: 'welcome',
@@ -120,6 +129,9 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
               fathom_connected: false,
               first_meeting_synced: false,
               first_proposal_generated: false,
+              first_summary_viewed: false,
+              first_summary_viewed_at: null,
+              activation_completed_at: null,
               features_discovered: {},
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
@@ -142,6 +154,9 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
           fathom_connected: false,
           first_meeting_synced: false,
           first_proposal_generated: false,
+          first_summary_viewed: false,
+          first_summary_viewed_at: null,
+          activation_completed_at: null,
           features_discovered: {},
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -197,8 +212,9 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
         }
 
         // Use upsert to handle case where progress record might not exist
-        const { data, error: updateError } = await supabase
-          .from('user_onboarding_progress')
+        // Note: Type assertion used here until database types are regenerated
+        const { data, error: updateError } = await (supabase
+          .from('user_onboarding_progress') as any)
           .upsert({
             user_id: user.id,
             ...updates,
@@ -229,8 +245,9 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
       setError(null);
 
       // Use upsert to handle case where record doesn't exist yet
-      const { data, error: upsertError } = await supabase
-        .from('user_onboarding_progress')
+      // Note: Type assertion used here until database types are regenerated
+      const { data, error: upsertError } = await (supabase
+        .from('user_onboarding_progress') as any)
         .upsert({
           user_id: user.id,
           skipped_onboarding: true,
@@ -260,8 +277,9 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
     try {
       setError(null);
 
-      const { data, error: updateError } = await supabase
-        .from('user_onboarding_progress')
+      // Note: Type assertion used here until database types are regenerated
+      const { data, error: updateError } = await (supabase
+        .from('user_onboarding_progress') as any)
         .update({
           onboarding_step: 'welcome',
           onboarding_completed_at: null,
@@ -269,6 +287,9 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
           fathom_connected: false,
           first_meeting_synced: false,
           first_proposal_generated: false,
+          first_summary_viewed: false,
+          first_summary_viewed_at: null,
+          activation_completed_at: null,
           features_discovered: {},
         })
         .eq('user_id', user.id)
@@ -299,8 +320,9 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
           [feature]: discovered,
         };
 
-        const { data, error: updateError } = await supabase
-          .from('user_onboarding_progress')
+        // Note: Type assertion used here until database types are regenerated
+        const { data, error: updateError } = await (supabase
+          .from('user_onboarding_progress') as any)
           .update({
             features_discovered: updatedFeatures,
           })
@@ -327,8 +349,9 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
     try {
       setError(null);
 
-      const { data, error: updateError } = await supabase
-        .from('user_onboarding_progress')
+      // Note: Type assertion used here until database types are regenerated
+      const { data, error: updateError } = await (supabase
+        .from('user_onboarding_progress') as any)
         .update({
           fathom_connected: true,
         })
@@ -353,8 +376,9 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
     try {
       setError(null);
 
-      const { data, error: updateError } = await supabase
-        .from('user_onboarding_progress')
+      // Note: Type assertion used here until database types are regenerated
+      const { data, error: updateError } = await (supabase
+        .from('user_onboarding_progress') as any)
         .update({
           first_meeting_synced: true,
         })
@@ -379,8 +403,9 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
     try {
       setError(null);
 
-      const { data, error: updateError } = await supabase
-        .from('user_onboarding_progress')
+      // Note: Type assertion used here until database types are regenerated
+      const { data, error: updateError } = await (supabase
+        .from('user_onboarding_progress') as any)
         .update({
           first_proposal_generated: true,
         })

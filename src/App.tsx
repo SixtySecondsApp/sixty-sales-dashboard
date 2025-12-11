@@ -40,6 +40,7 @@ const OnboardingSimulator = lazyWithRetry(() => import('@/pages/platform/Onboard
 const PricingControl = lazyWithRetry(() => import('@/pages/platform/PricingControl'));
 const CostAnalysis = lazyWithRetry(() => import('@/pages/platform/CostAnalysis'));
 const LaunchChecklist = lazyWithRetry(() => import('@/pages/platform/LaunchChecklist'));
+const ActivationDashboard = lazyWithRetry(() => import('@/pages/platform/ActivationDashboard'));
 
 // Heavy routes - lazy load with retry mechanism to handle cache issues
 const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
@@ -54,6 +55,13 @@ const PipelineSettings = lazyWithRetry(() => import('@/pages/admin/PipelineSetti
 const AuditLogs = lazyWithRetry(() => import('@/pages/admin/AuditLogs'));
 const SmartTasksAdmin = lazyWithRetry(() => import('@/pages/SmartTasksAdmin'));
 const PipelineAutomationAdmin = lazyWithRetry(() => import('@/pages/PipelineAutomationAdmin'));
+const EmailTemplates = lazyWithRetry(() => 
+  import('@/pages/admin/EmailTemplates').catch((err) => {
+    console.error('Failed to load EmailTemplates:', err);
+    // Return a fallback component
+    return { default: () => <div>Error loading Email Templates. Check console.</div> };
+  })
+);
 // ApiTesting already imported below
 const FunctionTesting = lazyWithRetry(() => import('@/pages/admin/FunctionTesting'));
 // WorkflowsTestSuite and WorkflowsE2ETestSuite - REMOVED (specialized test pages, keeping only API + Function testing)
@@ -93,6 +101,7 @@ const MeetingSentimentAnalytics = lazyWithRetry(() => import('@/pages/MeetingSen
 const FreepikFlow = lazyWithRetry(() => import('@/components/workflows/FreepikFlow'));
 const MeetingDetail = lazyWithRetry(() => import('@/pages/MeetingDetail').then(m => ({ default: m.MeetingDetail })));
 const DebugAuth = lazyWithRetry(() => import('@/pages/DebugAuth'));
+const AuthDebug = lazyWithRetry(() => import('@/pages/debug/AuthDebug'));
 const DebugPermissions = lazyWithRetry(() => import('@/pages/DebugPermissions'));
 const DebugMeetings = lazyWithRetry(() => import('@/pages/DebugMeetings'));
 const ApiTesting = lazyWithRetry(() => import('@/pages/ApiTesting'));
@@ -367,6 +376,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
               <Routes>
                 <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/debug-auth" element={<DebugAuth />} />
+                <Route path="/debug/auth" element={<AuthDebug />} />
                 <Route path="/debug-permissions" element={<DebugPermissions />} />
                 {/* Home route - shows Activity Dashboard for internal users, Meeting Analytics for external */}
                 <Route path="/" element={<InternalRouteGuard><AppLayout><Dashboard /></AppLayout></InternalRouteGuard>} />
@@ -419,7 +429,9 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/org/billing/cancel" element={<Navigate to="/team/billing/cancel" replace />} />
 
                 {/* Tier 3: Platform Admin Routes (Internal + is_admin only) */}
-                <Route path="/platform" element={<PlatformAdminRouteGuard><AppLayout><PlatformDashboard /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* Platform Admin - All specific routes MUST come before /platform route */}
+                {/* Platform Admin - Email Templates */}
+                <Route path="/platform/email-templates" element={<PlatformAdminRouteGuard><AppLayout><EmailTemplates /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Platform Admin - Customer Management */}
                 <Route path="/platform/customers" element={<PlatformAdminRouteGuard><AppLayout><SaasAdminDashboard /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/plans" element={<Navigate to="/platform/pricing" replace />} />
@@ -443,13 +455,15 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* Platform Admin - Security & Audit */}
                 <Route path="/platform/audit" element={<PlatformAdminRouteGuard><AppLayout><AuditLogs /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/usage" element={<PlatformAdminRouteGuard><AppLayout><SaasAdminDashboard /></AppLayout></PlatformAdminRouteGuard>} />
-                {/* Platform Admin - Development Tools (API + Function testing only) */}
+                {/* Platform Admin - Development Tools */}
                 <Route path="/platform/dev/api-testing" element={<PlatformAdminRouteGuard><AppLayout><ApiTesting /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/dev/function-testing" element={<PlatformAdminRouteGuard><AppLayout><FunctionTesting /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/onboarding-simulator" element={<InternalRouteGuard><AppLayout><OnboardingSimulator /></AppLayout></InternalRouteGuard>} />
                 <Route path="/platform/launch-checklist" element={<PlatformAdminRouteGuard><AppLayout><LaunchChecklist /></AppLayout></PlatformAdminRouteGuard>} />
-                {/* Platform Admin - Slack Demo (for testing Slack integration events) */}
+                <Route path="/platform/activation" element={<PlatformAdminRouteGuard><AppLayout><ActivationDashboard /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/slack-demo" element={<PlatformAdminRouteGuard><AppLayout><SlackDemo /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* Platform Dashboard - MUST be last (catch-all for /platform) */}
+                <Route path="/platform" element={<PlatformAdminRouteGuard><AppLayout><PlatformDashboard /></AppLayout></PlatformAdminRouteGuard>} />
 
                 {/* Internal-only tools */}
                 <Route path="/workflows" element={<InternalRouteGuard><AppLayout><Workflows /></AppLayout></InternalRouteGuard>} />

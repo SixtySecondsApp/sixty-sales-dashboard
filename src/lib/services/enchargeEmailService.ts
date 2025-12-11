@@ -25,6 +25,11 @@ interface SendEmailParams {
   to_email: string;
   to_name?: string;
   user_id?: string;
+  send_transactional?: boolean; // Deprecated - events trigger flows (works on all plans)
+  template_id?: string | number; // Passed as property for flow routing in Encharge
+  subject?: string; // Not used (emails sent via flows)
+  html?: string; // Not used (emails sent via flows)
+  text?: string; // Not used (emails sent via flows)
   data?: Record<string, any>;
 }
 
@@ -33,6 +38,8 @@ interface SendEmailResponse {
   email_type: string;
   event_name?: string;
   tags_applied?: string[];
+  transactional_sent?: boolean;
+  message_id?: string;
   error?: string;
 }
 
@@ -152,6 +159,8 @@ export async function sendMeetingLimitWarning(params: {
   userId: string;
   meetingsUsed: number;
   meetingsLimit: number;
+  meetingsRemaining?: number;
+  usagePercent?: number;
 }): Promise<SendEmailResponse> {
   return sendEmail({
     email_type: 'meeting_limit_warning',
@@ -161,6 +170,8 @@ export async function sendMeetingLimitWarning(params: {
     data: {
       meetings_used: params.meetingsUsed,
       meetings_limit: params.meetingsLimit,
+      meetings_remaining: params.meetingsRemaining ?? (params.meetingsLimit - params.meetingsUsed),
+      usage_percent: params.usagePercent ?? Math.round((params.meetingsUsed / params.meetingsLimit) * 100),
     },
   });
 }

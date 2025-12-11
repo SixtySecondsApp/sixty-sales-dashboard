@@ -1,49 +1,38 @@
--- Update Launch Checklist - Mark P0 items as completed (Pending QA)
--- Run this in the Supabase SQL Editor
+-- Update P1 Launch Checklist Items to Pending QA
+-- Run this in Supabase SQL Editor
+-- Date: December 11, 2025
 
--- Mark P0 items as completed
-UPDATE launch_checklist_items 
+-- Update P1 items that are now complete and pending QA testing
+UPDATE launch_checklist_items
 SET 
-  status = 'completed', 
-  completed_at = NOW(),
-  notes = 'Deployed Dec 11, 2025 - Pending QA'
-WHERE task_id IN (
-  'p0-free-tier-enforcement',
-  'p0-upgrade-gate-history', 
-  'p0-stripe-webhooks',
-  'p0-encharge-email-integration'
-);
+  status = 'pending_qa',
+  notes = CASE 
+    WHEN title ILIKE '%North Star%' THEN 'Database migration, useActivationTracking hook, MeetingDetail integration - Dec 11'
+    WHEN title ILIKE '%activation dashboard%' THEN 'Built at /platform/activation with glassmorphic design - Dec 11'
+    WHEN title ILIKE '%usage limit%' OR title ILIKE '%warning email%' THEN 'Triggers at 80% usage, sends via Encharge, deployed to fathom-sync - Dec 11'
+    WHEN title ILIKE '%trial%' AND title ILIKE '%upgrade%' THEN 'TRIAL_UPGRADE_TESTING.md checklist created - Dec 11'
+    ELSE notes
+  END,
+  updated_at = NOW()
+WHERE 
+  title ILIKE '%North Star%' 
+  OR title ILIKE '%activation dashboard%'
+  OR title ILIKE '%usage limit%'
+  OR title ILIKE '%warning email%'
+  OR (title ILIKE '%trial%' AND title ILIKE '%upgrade%');
 
--- Add the new completed items
-INSERT INTO launch_checklist_items (task_id, category, title, description, effort_hours, status, completed_at, order_index, notes, subtasks)
-VALUES
-('p0-fast-onboarding-sync', 'completed', 'Fast Time-to-Value Onboarding Sync', 
- 'Two-phase sync: 3 meetings fast → rest in background. User can continue immediately. Updated SyncProgressStep.tsx with new UI.', 
- '4h', 'completed', NOW(), 10, 'Deployed Dec 11, 2025 - Pending QA', '[]'::jsonb),
- 
-('p0-encharge-edge-function', 'completed', 'Encharge.io Email Edge Function', 
- 'Created encharge-email Edge Function for transactional emails via Encharge API. Supports 10 email types. Created enchargeEmailService.ts frontend service.', 
- '4h', 'completed', NOW(), 11, 'Deployed Dec 11, 2025 - Pending QA', '[]'::jsonb),
-
-('p0-free-tier-db-enforcement', 'completed', 'Free Tier Database Enforcement', 
- 'Added is_historical_import column to meetings, check_meeting_limits() and mark_onboarding_complete() functions. Updated fathom-sync Edge Function.', 
- '4h', 'completed', NOW(), 12, 'Deployed & Tested Dec 11, 2025 - Pending QA', '[]'::jsonb),
-
-('p0-historical-upgrade-gate-ui', 'completed', 'Historical Meeting Upgrade Gate UI', 
- 'Created HistoricalUpgradeGate modal component. Updated useFathomIntegration hook to return limit info and support new sync types.', 
- '2h', 'completed', NOW(), 13, 'Deployed Dec 11, 2025 - Pending QA', '[]'::jsonb),
-
-('p0-stripe-webhook-checklist', 'completed', 'Stripe Webhook Verification Checklist', 
- 'Created comprehensive STRIPE_WEBHOOK_TESTING.md with test procedures for all webhook events.', 
- '1h', 'completed', NOW(), 14, 'Completed Dec 11, 2025', '[]'::jsonb)
-
-ON CONFLICT (task_id) DO UPDATE SET
-  status = 'completed',
-  completed_at = NOW(),
-  notes = EXCLUDED.notes;
+-- Also update any items that reference these P1 features
+UPDATE launch_checklist_items
+SET 
+  status = 'pending_qa',
+  notes = 'Edge function deployed with usage limit warning - Dec 11',
+  updated_at = NOW()
+WHERE 
+  title ILIKE '%fathom%sync%'
+  AND status = 'completed';
 
 -- Verify the updates
-SELECT task_id, title, status, completed_at, notes 
+SELECT id, title, status, notes, updated_at 
 FROM launch_checklist_items 
-WHERE status = 'completed'
-ORDER BY completed_at DESC;
+WHERE status = 'pending_qa'
+ORDER BY updated_at DESC;
