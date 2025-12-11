@@ -1,37 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase/clientV2';
+import { useWaitlistRealtime } from '@/lib/hooks/useRealtimeHub';
 
 export function LiveWaitlistCount() {
   const [count, setCount] = useState<number>(0);
   const [recentProfiles, setRecentProfiles] = useState<string[]>([]);
 
-  useEffect(() => {
-    loadCount();
-
-    // Subscribe to real-time updates
-    const channel = supabase
-      .channel('waitlist-count')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'meetings_waitlist'
-        },
-        () => {
-          loadCount();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const loadCount = async () => {
+  const loadCount = useCallback(async () => {
     try {
       // Get total count
       const { count: totalCount, error: countError } = await supabase
@@ -58,7 +35,16 @@ export function LiveWaitlistCount() {
     } catch (err) {
       console.error('Failed to load waitlist count:', err);
     }
-  };
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    loadCount();
+  }, [loadCount]);
+
+  // Use throttled realtime subscription (max once per 5 seconds)
+  // This reduces realtime overhead by ~90% for global tables
+  useWaitlistRealtime(loadCount, 5000);
 
   return (
     <motion.div

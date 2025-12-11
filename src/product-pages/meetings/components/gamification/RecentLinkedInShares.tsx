@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LinkedinIcon, TrendingUp } from 'lucide-react';
 import { supabase } from '@/lib/supabase/clientV2';
@@ -12,33 +12,11 @@ interface RecentShare {
 export function RecentLinkedInShares() {
   const [recentShares, setRecentShares] = useState<RecentShare[]>([]);
   const [loading, setLoading] = useState(true);
+  const [useRealtime, setUseRealtime] = useState(true);
+  const mountTimeRef = useRef(Date.now());
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    fetchRecentShares();
-
-    // Subscribe to real-time updates
-    const channel = supabase
-      .channel('linkedin-shares')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'waitlist_shares',
-          filter: 'platform=eq.linkedin'
-        },
-        () => {
-          fetchRecentShares();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  async function fetchRecentShares() {
+  const fetchRecentShares = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('waitlist_shares')
@@ -71,7 +49,61 @@ export function RecentLinkedInShares() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    // Initial fetch
+    fetchRecentShares();
+
+    // Use realtime for first 2 minutes to catch user's share action
+    // Then switch to polling every 30s to reduce database load
+    const REALTIME_WINDOW = 2 * 60 * 1000; // 2 minutes
+
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    if (useRealtime) {
+      // Subscribe to real-time updates with filter
+      channel = supabase
+        .channel('linkedin-shares-realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'waitlist_shares',
+            filter: 'platform=eq.linkedin'
+          },
+          () => {
+            fetchRecentShares();
+          }
+        )
+        .subscribe();
+
+      // After 2 minutes, switch to polling
+      const timeoutId = setTimeout(() => {
+        setUseRealtime(false);
+        if (channel) {
+          supabase.removeChannel(channel);
+        }
+      }, REALTIME_WINDOW);
+
+      return () => {
+        clearTimeout(timeoutId);
+        if (channel) {
+          supabase.removeChannel(channel);
+        }
+      };
+    } else {
+      // Polling mode - every 30 seconds
+      pollingIntervalRef.current = setInterval(fetchRecentShares, 30000);
+
+      return () => {
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+        }
+      };
+    }
+  }, [fetchRecentShares, useRealtime]);
 
   const getTimeAgo = (timestamp: string) => {
     const now = new Date();

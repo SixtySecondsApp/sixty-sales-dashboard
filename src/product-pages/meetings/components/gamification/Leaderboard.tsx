@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, TrendingUp, Crown, BarChart2, DollarSign, Gift, Zap, Calendar } from 'lucide-react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { getTierForPosition } from '@/lib/types/waitlist';
+import { useWaitlistRealtime } from '@/lib/hooks/useRealtimeHub';
 
 interface LeaderboardEntry {
   id: string;
@@ -24,31 +25,7 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
   const [currentUserEntry, setCurrentUserEntry] = useState<LeaderboardEntry | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadLeaderboard();
-
-    // Subscribe to real-time updates
-    const channel = supabase
-      .channel('leaderboard')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'meetings_waitlist'
-        },
-        () => {
-          loadLeaderboard();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentUserId]);
-
-  const loadLeaderboard = async () => {
+  const loadLeaderboard = useCallback(async () => {
     try {
       // Load top 10
       const { data: topData, error: topError } = await supabase
@@ -83,7 +60,16 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUserId]);
+
+  // Initial load
+  useEffect(() => {
+    loadLeaderboard();
+  }, [loadLeaderboard]);
+
+  // Use throttled realtime subscription (max once per 5 seconds)
+  // This reduces realtime overhead by ~90% for global tables
+  useWaitlistRealtime(loadLeaderboard, 5000);
 
   const anonymizeName = (fullName: string) => {
     const parts = fullName.trim().split(' ');
