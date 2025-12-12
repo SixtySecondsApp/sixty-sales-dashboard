@@ -98,12 +98,47 @@ export function FathomTokenTest() {
             </div>
           )}
 
+          {/* Fathom Account Info */}
+          {result.fathom_account && (
+            <div className="mb-3 space-y-1 text-sm">
+              <p className="font-semibold text-blue-700 dark:text-blue-300">Fathom Account:</p>
+              <p><strong>Email:</strong> {result.fathom_account.email || 'Unknown'}</p>
+              {result.fathom_account.name && <p><strong>Name:</strong> {result.fathom_account.name}</p>}
+              {result.fathom_account.team_name && <p><strong>Team:</strong> {result.fathom_account.team_name}</p>}
+              {result.fathom_account.role && <p><strong>Role:</strong> {result.fathom_account.role}</p>}
+            </div>
+          )}
+
+          {/* Account Error */}
+          {result.fathom_account_error && (
+            <div className="mb-3 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
+              <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                <strong>⚠️ Could not fetch Fathom account info:</strong> {result.fathom_account_error}
+              </p>
+            </div>
+          )}
+
           {/* API Test Results */}
           {result.api_test && (
             <div className="mb-3 space-y-1 text-sm">
               <p><strong>Status:</strong> {result.api_test.status}</p>
               <p><strong>Meetings Found:</strong> {result.api_test.meetings_count}</p>
-              <p><strong>Has More:</strong> {result.api_test.has_cursor ? 'Yes' : 'No'}</p>
+              <p><strong>Has More:</strong> {result.api_test.has_more ? 'Yes' : 'No'}</p>
+              {result.api_test.first_meeting && (
+                <p><strong>Most Recent:</strong> {result.api_test.first_meeting.title} ({new Date(result.api_test.first_meeting.date).toLocaleDateString()})</p>
+              )}
+            </div>
+          )}
+
+          {/* Diagnostic Warning */}
+          {result.diagnostic && (
+            <div className="mb-3 p-3 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200 dark:border-orange-800">
+              <p className="text-sm font-semibold text-orange-800 dark:text-orange-200">
+                ⚠️ {result.diagnostic.warning}
+              </p>
+              <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">
+                💡 {result.diagnostic.suggestion}
+              </p>
             </div>
           )}
 

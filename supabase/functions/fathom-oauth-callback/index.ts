@@ -137,11 +137,15 @@ serve(async (req) => {
     }
 
     const tokenData = await tokenResponse.json()
-    // Get Fathom user info
+    // Get Fathom user info - try multiple endpoints and methods
     let fathomUserId: string | null = null
     let fathomUserEmail: string | null = null
+    let fathomTeamId: string | null = null
+    let fathomTeamName: string | null = null
 
     try {
+      console.log('[fathom-oauth] Fetching user info from /me endpoint...')
+
       // OAuth tokens may use Bearer authentication instead of X-Api-Key
       // Try Bearer first (standard OAuth), then fallback to X-Api-Key
       let userInfoResponse = await fetch('https://api.fathom.ai/external/v1/me', {
@@ -151,6 +155,7 @@ serve(async (req) => {
       })
 
       if (!userInfoResponse.ok) {
+        console.log('[fathom-oauth] Bearer auth failed, trying X-Api-Key...')
         // Try with X-Api-Key instead
         userInfoResponse = await fetch('https://api.fathom.ai/external/v1/me', {
           headers: {
@@ -161,13 +166,54 @@ serve(async (req) => {
 
       if (userInfoResponse.ok) {
         const userInfo = await userInfoResponse.json()
-        fathomUserId = userInfo.id
-        fathomUserEmail = userInfo.email
+        console.log('[fathom-oauth] User info response:', JSON.stringify(userInfo))
+
+        fathomUserId = userInfo.id || userInfo.user_id || null
+        fathomUserEmail = userInfo.email || userInfo.user_email || null
+
+        // Extract team info if available
+        if (userInfo.team) {
+          fathomTeamId = userInfo.team.id || userInfo.team_id || null
+          fathomTeamName = userInfo.team.name || userInfo.team_name || null
+        } else {
+          fathomTeamId = userInfo.team_id || null
+          fathomTeamName = userInfo.team_name || null
+        }
+
+        console.log(`[fathom-oauth] Extracted: userId=${fathomUserId}, email=${fathomUserEmail}, teamId=${fathomTeamId}, teamName=${fathomTeamName}`)
       } else {
         const errorText = await userInfoResponse.text()
+        console.error(`[fathom-oauth] /me endpoint failed: ${userInfoResponse.status} - ${errorText}`)
       }
     } catch (error) {
+      console.error('[fathom-oauth] Error fetching user info:', error)
       // Continue anyway - this is not critical
+    }
+
+    // If we still don't have user email, try fetching from meetings to extract it
+    if (!fathomUserEmail) {
+      try {
+        console.log('[fathom-oauth] Email not found, trying to extract from meetings...')
+        const meetingsResponse = await fetch('https://api.fathom.ai/external/v1/meetings?limit=1', {
+          headers: {
+            'Authorization': `Bearer ${tokenData.access_token}`,
+          },
+        })
+
+        if (meetingsResponse.ok) {
+          const meetingsData = await meetingsResponse.json()
+          const meetings = meetingsData.items || meetingsData.meetings || meetingsData.data || (Array.isArray(meetingsData) ? meetingsData : [])
+
+          if (meetings.length > 0) {
+            const firstMeeting = meetings[0]
+            // Try to get email from host or recorded_by
+            fathomUserEmail = firstMeeting.recorded_by?.email || firstMeeting.host_email || firstMeeting.host?.email || null
+            console.log(`[fathom-oauth] Extracted email from meeting: ${fathomUserEmail}`)
+          }
+        }
+      } catch (e) {
+        console.error('[fathom-oauth] Error extracting email from meetings:', e)
+      }
     }
 
     // Calculate token expiry

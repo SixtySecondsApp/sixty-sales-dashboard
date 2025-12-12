@@ -138,7 +138,13 @@ export function FathomSettings() {
               <div className="grid grid-cols-2 gap-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 p-4">
                 <div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">Connected As</div>
-                  <div className="font-medium text-gray-900 dark:text-white">{integration.fathom_user_email || 'Unknown'}</div>
+                  <div className="font-medium text-gray-900 dark:text-white">
+                    {integration.fathom_user_email || (
+                      <span className="text-orange-600 dark:text-orange-400">
+                        Unknown - Run diagnostics below
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">Permissions</div>

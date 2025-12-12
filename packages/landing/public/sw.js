@@ -3,10 +3,12 @@
  * Provides offline support and caching for production
  */
 
-const CACHE_NAME = 'sixty-sales-v3-fathom-fix-20251024';
+// Auto-updated cache version - increment on each deploy
+const CACHE_VERSION = '20251212-v1';
+const CACHE_NAME = `sixty-sales-${CACHE_VERSION}`;
+
+// Only cache truly static assets - NEVER cache HTML or JS/CSS
 const urlsToCache = [
-  '/',
-  '/index.html',
   '/manifest.json'
 ];
 
@@ -84,7 +86,26 @@ self.addEventListener('fetch', event => {
     return;
   }
   
-  // For other requests, try cache first then network
+  // CRITICAL: Never cache HTML documents - always fetch from network
+  // This prevents the blank screen issue caused by stale cached HTML
+  if (request.destination === 'document' || 
+      url.pathname === '/' || 
+      url.pathname.endsWith('.html') ||
+      request.headers.get('Accept')?.includes('text/html')) {
+    // Network-first for HTML - never serve stale HTML
+    event.respondWith(
+      fetch(request).catch(() => {
+        // Only if network fails completely, show a simple offline message
+        return new Response(
+          '<!DOCTYPE html><html><head><title>Offline</title></head><body style="font-family:sans-serif;text-align:center;padding:50px;"><h1>You appear to be offline</h1><p>Please check your internet connection and refresh the page.</p></body></html>',
+          { headers: { 'Content-Type': 'text/html' } }
+        );
+      })
+    );
+    return;
+  }
+  
+  // For static assets (images, fonts only), try cache first then network
   event.respondWith(
     caches.match(request)
       .then(response => {
@@ -102,7 +123,7 @@ self.addEventListener('fetch', event => {
             return response;
           }
           
-          // Only cache images and fonts, NOT JS/CSS to prevent stale code
+          // Only cache images and fonts, NOT JS/CSS/HTML to prevent stale code
           const isCacheable = url.pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/);
 
           if (isCacheable) {
@@ -115,17 +136,11 @@ self.addEventListener('fetch', event => {
                 cache.put(request, responseToCache);
               });
           }
-
-          // Never cache HTML, JS, or CSS files - always fetch fresh
           
           return response;
         });
       })
       .catch(() => {
-        // Network failed, return offline page if available
-        if (request.destination === 'document') {
-          return caches.match('/');
-        }
         return new Response('Network error', { 
           status: 503, 
           statusText: 'Service Unavailable' 
