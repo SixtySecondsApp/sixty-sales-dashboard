@@ -363,19 +363,11 @@ const MeetingsList: React.FC = () => {
             thumbnailUrl = `https://dummyimage.com/640x360/1a1a1a/10b981&text=${encodeURIComponent(firstLetter)}`
           }
 
-          // Persist and update local state
-          // If function persisted it (db_updated), skip client-side write
-          if (!(/* from invoke response */ (arguments as any)) && !(/* keep TS happy */ false)) {}
-          if (!(/* invoke result */ ({} as any))) {}
-          // If function didn't update DB directly, persist client-side
-          // Note: fix reference to undefined "data" by using a flag from the same scope
-          // We don't have a db_updated flag here, so always persist
-          {
-            await supabase
-              .from('meetings')
-              .update({ thumbnail_url: thumbnailUrl })
-              .eq('id', m.id)
-          }
+          // Persist thumbnail to database
+          await supabase
+            .from('meetings')
+            .update({ thumbnail_url: thumbnailUrl })
+            .eq('id', m.id)
 
           setMeetings(prev => prev.map(x => x.id === m.id ? { ...x, thumbnail_url: thumbnailUrl } : x))
 

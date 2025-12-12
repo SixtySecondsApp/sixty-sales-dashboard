@@ -4,11 +4,13 @@
  * Sends emails via AWS SES using templates stored in Supabase
  * Tracks events in Encharge for analytics and segmentation
  * No Encharge UI required - everything managed programmatically
+ * 
+ * Uses AWS SES v2 REST API directly (no SDK) for Deno compatibility
  */
 
 import { serve } from 'https://deno.land/std@0.190.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { SESClient, SendEmailCommand } from 'https://esm.sh/@aws-sdk/client-ses@3';
+import { crypto } from 'https://deno.land/std@0.190.0/crypto/mod.ts';
 
 const ENCHARGE_WRITE_KEY = Deno.env.get('ENCHARGE_WRITE_KEY');
 const AWS_REGION = Deno.env.get('AWS_REGION') || 'eu-west-2';
@@ -41,6 +43,232 @@ function processTemplate(template: string, variables: Record<string, any>): stri
     processed = processed.replace(regex, String(value || ''));
   }
   return processed;
+}
+
+/**
+ * Create HMAC-SHA256 signature
+ */
+async function hmacSha256(key: Uint8Array, data: string): Promise<Uint8Array> {
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    key,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign(
+    'HMAC',
+    cryptoKey,
+    new TextEncoder().encode(data)
+  );
+  return new Uint8Array(signature);
+}
+
+/**
+ * Create SHA-256 hash
+ */
+async function sha256(data: string): Promise<string> {
+  const hash = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(data)
+  );
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Convert bytes to hex string
+ */
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * AWS Signature V4 signing
+ */
+async function signAWSRequest(
+  method: string,
+  url: URL,
+  body: string,
+  region: string,
+  service: string,
+  accessKeyId: string,
+  secretAccessKey: string
+): Promise<Headers> {
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  const dateStamp = amzDate.slice(0, 8);
+  
+  const host = url.host;
+  const canonicalUri = url.pathname;
+  const canonicalQueryString = '';
+  
+  const payloadHash = await sha256(body);
+  
+  const canonicalHeaders = 
+    `content-type:application/x-www-form-urlencoded\n` +
+    `host:${host}\n` +
+    `x-amz-date:${amzDate}\n`;
+  
+  const signedHeaders = 'content-type;host;x-amz-date';
+  
+  const canonicalRequest = 
+    `${method}\n` +
+    `${canonicalUri}\n` +
+    `${canonicalQueryString}\n` +
+    `${canonicalHeaders}\n` +
+    `${signedHeaders}\n` +
+    `${payloadHash}`;
+  
+  const algorithm = 'AWS4-HMAC-SHA256';
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+  
+  const stringToSign = 
+    `${algorithm}\n` +
+    `${amzDate}\n` +
+    `${credentialScope}\n` +
+    `${await sha256(canonicalRequest)}`;
+  
+  // Create signing key
+  const kDate = await hmacSha256(
+    new TextEncoder().encode('AWS4' + secretAccessKey),
+    dateStamp
+  );
+  const kRegion = await hmacSha256(kDate, region);
+  const kService = await hmacSha256(kRegion, service);
+  const kSigning = await hmacSha256(kService, 'aws4_request');
+  
+  // Create signature
+  const signature = toHex(await hmacSha256(kSigning, stringToSign));
+  
+  const authorizationHeader = 
+    `${algorithm} ` +
+    `Credential=${accessKeyId}/${credentialScope}, ` +
+    `SignedHeaders=${signedHeaders}, ` +
+    `Signature=${signature}`;
+  
+  const headers = new Headers();
+  headers.set('Content-Type', 'application/x-www-form-urlencoded');
+  headers.set('Host', host);
+  headers.set('X-Amz-Date', amzDate);
+  headers.set('Authorization', authorizationHeader);
+  
+  return headers;
+}
+
+/**
+ * Build a MIME email message
+ */
+function buildMimeMessage(
+  toEmail: string,
+  fromEmail: string,
+  subject: string,
+  htmlBody: string,
+  textBody?: string
+): string {
+  const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  
+  let message = '';
+  message += `From: ${fromEmail}\r\n`;
+  message += `To: ${toEmail}\r\n`;
+  message += `Subject: ${subject}\r\n`;
+  message += `MIME-Version: 1.0\r\n`;
+  message += `Content-Type: multipart/alternative; boundary="${boundary}"\r\n`;
+  message += `\r\n`;
+  
+  // Plain text part
+  if (textBody) {
+    message += `--${boundary}\r\n`;
+    message += `Content-Type: text/plain; charset=UTF-8\r\n`;
+    message += `Content-Transfer-Encoding: quoted-printable\r\n`;
+    message += `\r\n`;
+    message += `${textBody}\r\n`;
+  }
+  
+  // HTML part
+  message += `--${boundary}\r\n`;
+  message += `Content-Type: text/html; charset=UTF-8\r\n`;
+  message += `Content-Transfer-Encoding: quoted-printable\r\n`;
+  message += `\r\n`;
+  message += `${htmlBody}\r\n`;
+  
+  message += `--${boundary}--\r\n`;
+  
+  return message;
+}
+
+/**
+ * Base64 encode for AWS
+ */
+function base64Encode(str: string): string {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+/**
+ * Send email via AWS SES using the SendRawEmail API action
+ * This is more reliable and has fewer configuration requirements
+ */
+async function sendEmailViaSES(
+  toEmail: string,
+  fromEmail: string,
+  subject: string,
+  htmlBody: string,
+  textBody?: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
+    return { success: false, error: 'AWS credentials not configured' };
+  }
+
+  const url = new URL(`https://email.${AWS_REGION}.amazonaws.com/`);
+  
+  // Build raw MIME message
+  const rawMessage = buildMimeMessage(toEmail, fromEmail, subject, htmlBody, textBody);
+  const encodedMessage = base64Encode(rawMessage);
+  
+  // Build the form body for SendRawEmail
+  const params = new URLSearchParams();
+  params.set('Action', 'SendRawEmail');
+  params.set('Version', '2010-12-01');
+  params.set('RawMessage.Data', encodedMessage);
+  
+  const body = params.toString();
+  
+  const headers = await signAWSRequest(
+    'POST',
+    url,
+    body,
+    AWS_REGION,
+    'ses',
+    AWS_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY
+  );
+  
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers,
+      body,
+    });
+    
+    const responseText = await response.text();
+    
+    if (!response.ok) {
+      console.error('[encharge-send-email] SES error response:', responseText);
+      return { success: false, error: `SES error: ${response.status} - ${responseText}` };
+    }
+    
+    // Parse message ID from XML response
+    const messageIdMatch = responseText.match(/<MessageId>([^<]+)<\/MessageId>/);
+    const messageId = messageIdMatch ? messageIdMatch[1] : undefined;
+    
+    return { success: true, messageId };
+  } catch (error) {
+    console.error('[encharge-send-email] SES fetch error:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Fetch failed' };
+  }
 }
 
 /**
@@ -85,9 +313,95 @@ async function trackEnchargeEvent(
   }
 }
 
+/**
+ * Test SES connection and get account status
+ */
+async function testSESConnection(): Promise<{ success: boolean; message: string; data?: any }> {
+  if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
+    return { success: false, message: 'AWS credentials not configured' };
+  }
+
+  const url = new URL(`https://email.${AWS_REGION}.amazonaws.com/`);
+  
+  const params = new URLSearchParams();
+  params.set('Action', 'GetSendQuota');
+  params.set('Version', '2010-12-01');
+  
+  const body = params.toString();
+  
+  const headers = await signAWSRequest(
+    'POST',
+    url,
+    body,
+    AWS_REGION,
+    'ses',
+    AWS_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY
+  );
+  
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers,
+      body,
+    });
+    
+    const responseText = await response.text();
+    
+    if (!response.ok) {
+      return { 
+        success: false, 
+        message: `SES API Error (${response.status}): ${responseText.substring(0, 500)}`,
+        data: { status: response.status, response: responseText }
+      };
+    }
+    
+    // Parse XML response
+    const max24HourSendMatch = responseText.match(/<Max24HourSend>([^<]+)<\/Max24HourSend>/);
+    const maxSendRateMatch = responseText.match(/<MaxSendRate>([^<]+)<\/MaxSendRate>/);
+    const sentLast24HoursMatch = responseText.match(/<SentLast24Hours>([^<]+)<\/SentLast24Hours>/);
+    
+    const quota = {
+      max24HourSend: max24HourSendMatch ? max24HourSendMatch[1] : 'unknown',
+      maxSendRate: maxSendRateMatch ? maxSendRateMatch[1] : 'unknown',
+      sentLast24Hours: sentLast24HoursMatch ? sentLast24HoursMatch[1] : 'unknown',
+    };
+    
+    return { 
+      success: true, 
+      message: 'SES connection successful',
+      data: quota
+    };
+  } catch (error) {
+    return { 
+      success: false, 
+      message: `Failed to connect to SES: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      data: { error: error instanceof Error ? error.message : 'Unknown error' }
+    };
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
+  }
+
+  // Handle test endpoint
+  const url = new URL(req.url);
+  if (url.searchParams.get('test') === 'ses' || (req.method === 'GET' && url.pathname.includes('test'))) {
+    const testResult = await testSESConnection();
+    return new Response(
+      JSON.stringify({
+        success: testResult.success,
+        message: testResult.message,
+        data: testResult.data,
+        timestamp: new Date().toISOString(),
+      }),
+      {
+        status: testResult.success ? 200 : 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
 
   try {
@@ -131,52 +445,24 @@ serve(async (req) => {
     const htmlBody = processTemplate(template.html_body, variables);
     const textBody = template.text_body ? processTemplate(template.text_body, variables) : undefined;
 
-    // 3. Send email via AWS SES
-    if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
+    // 3. Send email via AWS SES (using REST API directly, not SDK)
+    const sesResult = await sendEmailViaSES(
+      request.to_email,
+      'Sixty Seconds <workflows@sixtyseconds.ai>',
+      subject,
+      htmlBody,
+      textBody
+    );
+
+    if (!sesResult.success) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'AWS credentials not configured',
+          error: sesResult.error,
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const sesClient = new SESClient({
-      region: AWS_REGION,
-      credentials: {
-        accessKeyId: AWS_ACCESS_KEY_ID,
-        secretAccessKey: AWS_SECRET_ACCESS_KEY,
-      },
-    });
-
-    const sendEmailCommand = new SendEmailCommand({
-      Source: 'Sixty Seconds <workflows@sixtyseconds.ai>',
-      Destination: {
-        ToAddresses: [request.to_email],
-      },
-      Message: {
-        Subject: {
-          Data: subject,
-          Charset: 'UTF-8',
-        },
-        Body: {
-          Html: {
-            Data: htmlBody,
-            Charset: 'UTF-8',
-          },
-          ...(textBody && {
-            Text: {
-              Data: textBody,
-              Charset: 'UTF-8',
-            },
-          }),
-        },
-      },
-    });
-
-    const sesResult = await sesClient.send(sendEmailCommand);
-    const messageId = sesResult.MessageId;
 
     // 4. Track event in Encharge
     const eventNameMap: Record<string, string> = {
@@ -211,7 +497,7 @@ serve(async (req) => {
         metadata: {
           template_id: template.id,
           template_name: template.template_name,
-          message_id: messageId,
+          message_id: sesResult.messageId,
           variables,
         },
         sent_via: 'aws_ses',
@@ -223,7 +509,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message_id: messageId,
+        message_id: sesResult.messageId,
         template_type: request.template_type,
         template_name: template.template_name,
         event_tracked: eventName,

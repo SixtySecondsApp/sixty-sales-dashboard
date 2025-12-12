@@ -248,7 +248,7 @@ export default function OnboardingSimulator() {
     user_email: 'sarah@acmecorp.com',
     company_name: 'Acme Corp',
     referral_code: 'SARAHJ-2024',
-    waitlist_position: '42',
+    waitlist_position: 42,
     magic_link: '#preview',
     admin_name: 'Support Team',
     current_date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
