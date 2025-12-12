@@ -160,7 +160,7 @@ async function signAWSRequest(
 }
 
 /**
- * Build a MIME email message
+ * Build a MIME email message with proper encoding
  */
 function buildMimeMessage(
   toEmail: string,
@@ -171,6 +171,9 @@ function buildMimeMessage(
 ): string {
   const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   
+  // Base64 encode HTML for reliable delivery
+  const htmlEncoded = base64Encode(htmlBody);
+  
   let message = '';
   message += `From: ${fromEmail}\r\n`;
   message += `To: ${toEmail}\r\n`;
@@ -179,21 +182,24 @@ function buildMimeMessage(
   message += `Content-Type: multipart/alternative; boundary="${boundary}"\r\n`;
   message += `\r\n`;
   
-  // Plain text part
+  // Plain text part (if provided)
   if (textBody) {
     message += `--${boundary}\r\n`;
     message += `Content-Type: text/plain; charset=UTF-8\r\n`;
-    message += `Content-Transfer-Encoding: quoted-printable\r\n`;
+    message += `Content-Transfer-Encoding: 7bit\r\n`;
     message += `\r\n`;
     message += `${textBody}\r\n`;
   }
   
-  // HTML part
+  // HTML part (base64 encoded for reliability)
   message += `--${boundary}\r\n`;
   message += `Content-Type: text/html; charset=UTF-8\r\n`;
-  message += `Content-Transfer-Encoding: quoted-printable\r\n`;
+  message += `Content-Transfer-Encoding: base64\r\n`;
   message += `\r\n`;
-  message += `${htmlBody}\r\n`;
+  // Base64 encoded content should be split into 76-character lines per RFC 2045
+  const htmlLines = htmlEncoded.match(/.{1,76}/g) || [htmlEncoded];
+  message += htmlLines.join('\r\n');
+  message += `\r\n`;
   
   message += `--${boundary}--\r\n`;
   
