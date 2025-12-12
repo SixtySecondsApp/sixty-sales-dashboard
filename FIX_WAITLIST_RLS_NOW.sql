@@ -69,3 +69,4 @@ SELECT
   qual
 FROM pg_policies 
 WHERE tablename = 'meetings_waitlist';
+

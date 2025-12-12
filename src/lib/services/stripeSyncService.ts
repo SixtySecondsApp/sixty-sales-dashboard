@@ -209,12 +209,38 @@ export async function validateStripeIds(plan: SubscriptionPlan): Promise<{
     if (plan.price_yearly > 0 && !plan.stripe_price_id_yearly) {
       errors.push('Missing yearly price ID');
     }
+    
+    // Team plan needs a seat price ID for additional seats
+    if (plan.slug === 'team' && plan.per_seat_price > 0 && !plan.stripe_seat_price_id) {
+      errors.push('Missing per-seat price ID (required for Team plan)');
+    }
   }
 
   return {
     valid: errors.length === 0,
     errors,
   };
+}
+
+/**
+ * Check if a plan can accept payments (has valid Stripe configuration)
+ */
+export function canAcceptPayments(plan: SubscriptionPlan): boolean {
+  // Free tier doesn't need payment
+  if (plan.is_free_tier) {
+    return false;
+  }
+
+  // Must have Stripe product ID
+  if (!plan.stripe_product_id) {
+    return false;
+  }
+
+  // Must have at least one price ID configured
+  const hasMonthlyPrice = plan.price_monthly > 0 && !!plan.stripe_price_id_monthly;
+  const hasYearlyPrice = plan.price_yearly > 0 && !!plan.stripe_price_id_yearly;
+
+  return hasMonthlyPrice || hasYearlyPrice;
 }
 
 /**
@@ -278,22 +304,6 @@ export async function getFreeTierPlan(): Promise<SubscriptionPlan | null> {
   }
 
   return data as SubscriptionPlan | null;
-}
-
-/**
- * Check if a plan can accept payments (has valid Stripe configuration)
- */
-export function canAcceptPayments(plan: SubscriptionPlan): boolean {
-  // Free tier doesn't need payments
-  if (plan.is_free_tier) {
-    return true;
-  }
-
-  // Must have Stripe product and at least one price
-  return !!(
-    plan.stripe_product_id &&
-    (plan.stripe_price_id_monthly || plan.stripe_price_id_yearly)
-  );
 }
 
 // ============================================================================

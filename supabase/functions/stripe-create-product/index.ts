@@ -89,10 +89,14 @@ serve(async (req: Request) => {
     // Initialize Stripe
     const stripe = getStripeClient();
 
-    // Create the product
+    // Create the product with tax code for software/SaaS
+    // Tax code for Software as a Service (SaaS): txcd_10103000
     const product = await stripe.products.create({
       name: plan.name,
       description: plan.description || undefined,
+      // Tax code for SaaS/Software subscriptions
+      // This ensures correct VAT treatment across different jurisdictions
+      tax_code: "txcd_10103000",
       metadata: {
         plan_id: plan.id,
         plan_slug: plan.slug,
@@ -101,8 +105,11 @@ serve(async (req: Request) => {
 
     let monthlyPriceId: string | null = null;
     let yearlyPriceId: string | null = null;
+    let seatPriceId: string | null = null;
 
     // Create monthly price if applicable
+    // Tax behavior: "exclusive" means VAT is added on top of this price
+    // Use "inclusive" if your displayed prices already include VAT
     if (plan.price_monthly > 0) {
       const monthlyPrice = await stripe.prices.create({
         product: product.id,
@@ -111,6 +118,8 @@ serve(async (req: Request) => {
         recurring: {
           interval: "month",
         },
+        // VAT/Tax will be calculated and added on top of this price
+        tax_behavior: "exclusive",
         metadata: {
           plan_id: plan.id,
           billing_cycle: "monthly",
@@ -128,12 +137,34 @@ serve(async (req: Request) => {
         recurring: {
           interval: "year",
         },
+        // VAT/Tax will be calculated and added on top of this price
+        tax_behavior: "exclusive",
         metadata: {
           plan_id: plan.id,
           billing_cycle: "yearly",
         },
       });
       yearlyPriceId = yearlyPrice.id;
+    }
+
+    // Create per-seat price for Team plans (additional seats beyond included)
+    if (plan.per_seat_price > 0 && plan.slug === "team") {
+      const seatPrice = await stripe.prices.create({
+        product: product.id,
+        unit_amount: plan.per_seat_price,
+        currency: plan.currency.toLowerCase(),
+        recurring: {
+          interval: "month",
+        },
+        // VAT/Tax will be calculated and added on top of this price
+        tax_behavior: "exclusive",
+        nickname: "Additional Seat",
+        metadata: {
+          plan_id: plan.id,
+          price_type: "per_seat",
+        },
+      });
+      seatPriceId = seatPrice.id;
     }
 
     // Update the plan with Stripe IDs
@@ -143,6 +174,7 @@ serve(async (req: Request) => {
         stripe_product_id: product.id,
         stripe_price_id_monthly: monthlyPriceId,
         stripe_price_id_yearly: yearlyPriceId,
+        stripe_seat_price_id: seatPriceId,
         stripe_synced_at: new Date().toISOString(),
         stripe_sync_error: null,
         updated_at: new Date().toISOString(),
@@ -162,6 +194,7 @@ serve(async (req: Request) => {
         stripe_product_id: product.id,
         stripe_price_id_monthly: monthlyPriceId,
         stripe_price_id_yearly: yearlyPriceId,
+        stripe_seat_price_id: seatPriceId,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

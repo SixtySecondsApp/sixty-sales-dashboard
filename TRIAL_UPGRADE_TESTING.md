@@ -257,3 +257,4 @@ Verify these flows are configured in Encharge.io:
 - Use Stripe CLI for local webhook testing: `stripe listen --forward-to localhost:54321/functions/v1/stripe-webhook`
 - Check Supabase logs for any errors
 - Test on both desktop and mobile browsers
+

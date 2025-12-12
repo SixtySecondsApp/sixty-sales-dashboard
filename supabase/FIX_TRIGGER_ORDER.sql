@@ -56,3 +56,4 @@ FROM meetings_waitlist
 ORDER BY effective_position ASC
 LIMIT 20;
 
+

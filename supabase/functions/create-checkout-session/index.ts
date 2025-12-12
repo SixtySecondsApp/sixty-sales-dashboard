@@ -178,8 +178,27 @@ serve(async (req) => {
       allow_promotion_codes: true,
       // Customer email for receipts
       customer_email: customer.email ?? user.email ?? undefined,
-      // Billing address collection
+      // Billing address collection - required for tax calculation
       billing_address_collection: "required",
+      // ============================================================================
+      // VAT/TAX CONFIGURATION
+      // ============================================================================
+      // Enable automatic tax calculation using Stripe Tax
+      // Requires Stripe Tax to be enabled in Dashboard: Settings → Tax
+      automatic_tax: {
+        enabled: true,
+      },
+      // Collect tax ID (VAT number) from business customers
+      // This allows B2B reverse charge for EU/UK customers with valid VAT numbers
+      tax_id_collection: {
+        enabled: true,
+      },
+      // Set customer tax exempt status based on their location and VAT number
+      // Options: 'auto' (Stripe determines), 'exempt', 'none', 'reverse'
+      customer_update: {
+        address: "auto",
+        name: "auto",
+      },
     };
 
     // Create checkout session

@@ -142,11 +142,15 @@ export function PricingSection() {
       }, {} as Record<string, string>),
     });
 
-    // Team members
+    // Team members (with seat-based pricing for Team plan)
     features.push({
       name: 'Team members',
       values: corePlans.reduce((acc, p) => {
-        if (p.max_users) {
+        if (p.slug === 'team' && p.included_seats && p.per_seat_price > 0) {
+          // Team plan with seat-based pricing
+          const perSeatDisplay = formatPrice(p.per_seat_price);
+          acc[p.slug] = `${p.included_seats} included (+${perSeatDisplay}/seat)`;
+        } else if (p.max_users) {
           acc[p.slug] = p.max_users === 1 ? '1 user' : `${p.max_users} users`;
         } else {
           acc[p.slug] = 'Unlimited';

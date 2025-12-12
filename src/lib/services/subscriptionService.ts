@@ -280,6 +280,54 @@ export async function createCheckoutSession(
 }
 
 /**
+ * Create a test checkout session for admin testing
+ * Uses the current user's org to test the checkout flow
+ */
+export async function createTestCheckoutSession(
+  planId: string,
+  billingCycle: BillingCycle = 'monthly'
+): Promise<CreateCheckoutSessionResponse> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token || !session.user) {
+    throw new Error('Not authenticated');
+  }
+
+  // Get the user's organization (first one they're a member of)
+  const { data: membership, error: membershipError } = await supabase
+    .from('organization_memberships')
+    .select('org_id')
+    .eq('user_id', session.user.id)
+    .limit(1)
+    .single();
+
+  if (membershipError || !membership) {
+    throw new Error('No organization found for test. Create an organization first.');
+  }
+
+  // Create checkout session for testing
+  const response = await supabase.functions.invoke('create-checkout-session', {
+    body: {
+      org_id: membership.org_id,
+      plan_id: planId,
+      billing_cycle: billingCycle,
+      // Return to the pricing control page after test
+      success_url: `${window.location.origin}/platform/pricing-control?test_checkout=success`,
+      cancel_url: `${window.location.origin}/platform/pricing-control?test_checkout=cancelled`,
+    },
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+    },
+  });
+
+  if (response.error) {
+    console.error('Test checkout session error:', response.error);
+    throw new Error(response.error.message || 'Failed to create test checkout session');
+  }
+
+  return response.data as CreateCheckoutSessionResponse;
+}
+
+/**
  * Create a Stripe Customer Portal session
  */
 export async function createPortalSession(

@@ -27,6 +27,7 @@ import {
   CheckCircle,
   Zap,
   ArrowLeft,
+  ShoppingCart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -66,7 +67,9 @@ import {
   syncFromStripe,
   validateStripeIds,
   updatePlanOrder,
+  canAcceptPayments,
 } from '@/lib/services/stripeSyncService';
+import { createTestCheckoutSession } from '@/lib/services/subscriptionService';
 import type { SubscriptionPlan, PlanFeatures, CreatePlanInput } from '@/lib/types/subscription';
 import { formatCurrency } from '@/lib/types/subscription';
 
@@ -89,6 +92,7 @@ export default function PricingControl() {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [syncingPlanId, setSyncingPlanId] = useState<string | null>(null);
+  const [testingCheckoutPlanId, setTestingCheckoutPlanId] = useState<string | null>(null);
 
   // Load plans
   useEffect(() => {
@@ -243,6 +247,26 @@ export default function PricingControl() {
     }
   };
 
+  const handleTestCheckout = async (plan: SubscriptionPlan) => {
+    setTestingCheckoutPlanId(plan.id);
+    try {
+      const result = await createTestCheckoutSession(plan.id);
+      if (result.url) {
+        // Open Stripe Checkout in a new tab for testing
+        window.open(result.url, '_blank');
+        toast.success('Test checkout opened in new tab. Use card 4242 4242 4242 4242 to test.');
+      } else {
+        toast.error('Failed to create test checkout session');
+      }
+    } catch (error) {
+      console.error('Error creating test checkout:', error);
+      const message = error instanceof Error ? error.message : 'Failed to create test checkout';
+      toast.error(message);
+    } finally {
+      setTestingCheckoutPlanId(null);
+    }
+  };
+
   // Sort plans by display order
   const sortedPlans = [...plans].sort((a, b) => a.display_order - b.display_order);
   const freeTierPlan = sortedPlans.find((p) => p.is_free_tier);
@@ -354,7 +378,9 @@ export default function PricingControl() {
                 onStripeCreate={() => handleStripeCreate(plan)}
                 onStripeSync={() => handleStripeSync(plan)}
                 onStripeUpdate={() => handleStripeUpdate(plan)}
+                onTestCheckout={() => handleTestCheckout(plan)}
                 isSyncing={syncingPlanId === plan.id}
+                isTestingCheckout={testingCheckoutPlanId === plan.id}
               />
             ))}
           </div>
@@ -386,7 +412,9 @@ interface PlanCardProps {
   onStripeCreate: () => void;
   onStripeSync: () => void;
   onStripeUpdate: () => void;
+  onTestCheckout: () => void;
   isSyncing: boolean;
+  isTestingCheckout: boolean;
 }
 
 function PlanCard({
@@ -398,10 +426,13 @@ function PlanCard({
   onStripeCreate,
   onStripeSync,
   onStripeUpdate,
+  onTestCheckout,
   isSyncing,
+  isTestingCheckout,
 }: PlanCardProps) {
   const hasStripe = !!plan.stripe_product_id;
   const stripeValidation = validateStripeIds(plan);
+  const canTest = canAcceptPayments(plan) && !plan.is_free_tier;
 
   return (
     <Card className={cn(!plan.is_active && 'opacity-60')}>
@@ -530,6 +561,24 @@ function PlanCard({
                 </>
               )}
             </div>
+
+            {/* Test Checkout Button */}
+            {canTest && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={onTestCheckout}
+                disabled={isTestingCheckout}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                {isTestingCheckout ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <ShoppingCart className="h-4 w-4 mr-1" />
+                )}
+                Test Checkout
+              </Button>
+            )}
 
             {/* Toggles */}
             <div className="flex items-center gap-4 text-xs">

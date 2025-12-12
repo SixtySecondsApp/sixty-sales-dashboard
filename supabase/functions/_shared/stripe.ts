@@ -178,14 +178,46 @@ export async function getOrCreateStripeCustomer(
     }
   }
 
-  // Create a new customer
+  // Create a new customer with tax settings
+  // Tax exempt status will be determined automatically by Stripe Tax
+  // based on customer location and VAT number (if provided)
   const customer = await stripe.customers.create({
     email,
     name,
     metadata: {
       org_id: orgId,
     },
+    // Let Stripe automatically determine tax exempt status
+    // This will be updated when customer provides address/VAT number at checkout
+    tax_exempt: "none",
   });
 
   return customer;
+}
+
+// Update customer with VAT number (for B2B sales)
+export async function updateCustomerTaxId(
+  stripe: Stripe,
+  customerId: string,
+  taxIdType: "gb_vat" | "eu_vat",
+  taxIdValue: string,
+): Promise<Stripe.TaxId> {
+  // Create tax ID for the customer
+  // For UK VAT: type = "gb_vat", value = "GB123456789"
+  // For EU VAT: type = "eu_vat", value = "DE123456789" (country code + number)
+  const taxId = await stripe.customers.createTaxId(customerId, {
+    type: taxIdType,
+    value: taxIdValue,
+  });
+
+  return taxId;
+}
+
+// Get customer's tax IDs
+export async function getCustomerTaxIds(
+  stripe: Stripe,
+  customerId: string,
+): Promise<Stripe.TaxId[]> {
+  const taxIds = await stripe.customers.listTaxIds(customerId);
+  return taxIds.data;
 }

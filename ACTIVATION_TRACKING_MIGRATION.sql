@@ -241,3 +241,4 @@ WHERE title ILIKE '%North Star%' OR title ILIKE '%activation dashboard%';
 -- Done! 
 -- ============================================================================
 SELECT 'Activation tracking migration complete!' as status;
+

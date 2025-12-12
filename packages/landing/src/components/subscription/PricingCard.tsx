@@ -6,6 +6,16 @@ import { motion } from 'framer-motion';
 import { Check, Sparkles, Zap, Users, Building2, Clock } from 'lucide-react';
 import type { SubscriptionPlan, BillingCycle } from '../../lib/types/subscription';
 
+// Helper to format currency for seat pricing
+function formatSeatPrice(priceInPence: number, currency: string = 'GBP'): string {
+  return new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(priceInPence / 100);
+}
+
 interface PricingCardProps {
   plan: SubscriptionPlan;
   billingCycle: BillingCycle;
@@ -269,9 +279,14 @@ export function PricingCard({
 
       {/* Per-seat pricing note for Team plan */}
       {plan.slug === 'team' && plan.per_seat_price > 0 && (
-        <p className="mt-4 text-xs text-gray-500 dark:text-gray-500 text-center">
-          Includes {plan.included_seats} seats. Additional seats available.
-        </p>
+        <div className="mt-4 text-center">
+          <p className="text-xs text-blue-400 font-medium">
+            Includes {plan.included_seats} seats
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            +{formatSeatPrice(plan.per_seat_price, plan.currency)}/seat for additional users
+          </p>
+        </div>
       )}
     </motion.div>
   );
@@ -282,6 +297,7 @@ export function PricingCard({
  */
 function getPlanIcon(slug: string) {
   switch (slug) {
+    case 'solo':
     case 'starter':
       return Zap;
     case 'pro':

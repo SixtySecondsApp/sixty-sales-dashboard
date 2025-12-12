@@ -45,3 +45,4 @@ BEGIN
   RAISE NOTICE 'internal_users table now has % RLS policies ✓', v_count;
 END;
 $$;
+

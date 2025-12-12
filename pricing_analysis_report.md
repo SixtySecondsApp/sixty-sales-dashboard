@@ -16,7 +16,7 @@ Sixty Seconds AI is a meeting intelligence platform that automates sales call an
 2. **North Star Metric**: "First AI-generated summary reviewed" within 24 hours of signup
 3. **Primary Monetization**: Usage-based (meeting count) with per-seat overlay for teams
 4. **Target Margin**: 70%+ gross margin on all paid tiers
-5. **Recommended Pricing**: Solo £29/mo, Pro £49/mo, Team £79/user/mo
+5. **Recommended Pricing**: Solo £29/mo, Pro £49/mo, Team £78/mo (2 seats included, £39/seat after)
 
 ---
 
@@ -133,7 +133,7 @@ A simple count-based limit (e.g., "30 meetings total") allows users to exhaust t
 
 **Recommended Free Tier Limits:**
 
-| Feature | Free Tier | Solo (£29/mo) | Pro (£49/mo) | Team (£79/user/mo) |
+| Feature | Free Tier | Solo (£29/mo) | Pro (£49/mo) | Team (£39/user/mo)* |
 |---------|-----------|---------------|--------------|---------------------|
 | **Historical Import** | Last 30 days (free) | Unlimited | Unlimited | Unlimited |
 | **New Live Meetings** | 15 total | 100/month | Unlimited | Unlimited |
@@ -250,7 +250,7 @@ Based on your `costAnalysisService.ts` and `costAnalysis.ts`:
 | **Free (15 new meetings)** | £0 | £0.50-1.00 (one-time) | -£0.50-1.00 | N/A |
 | **Solo (100/mo)** | £29/mo | £4.50 | £24.50 | **84.5%** |
 | **Pro (Unlimited)** | £49/mo | £8.00 | £41.00 | **83.7%** |
-| **Team (per seat)** | £79/seat/mo | £12.00 | £67.00 | **84.8%** |
+| **Team (per seat)** | £39/seat/mo | £8.00 | £31.00 | **79.5%** |
 
 *Note: Free tier includes 30-day historical import (free) + 15 new meeting credits. Cost covers ~15 meeting summaries + historical import processing.*
 
@@ -290,8 +290,8 @@ Based on cost analysis and competitive positioning:
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │   FREE          SOLO           PRO            TEAM              │
-│   £0            £29/mo         £49/mo         £79/user/mo       │
-│                 (£290/yr)      (£470/yr)      (£790/user/yr)    │
+│   £0            £29/mo         £49/mo         £78/mo (2 seats)  │
+│                 (£290/yr)      (£470/yr)      +£39/extra seat   │
 │                                                                 │
 │   30 meetings   100/month      Unlimited      Unlimited         │
 │   lifetime      6mo retention  Unlimited      Unlimited         │
@@ -307,7 +307,7 @@ Based on cost analysis and competitive positioning:
 
 ### 4.3 Detailed Feature Matrix
 
-| Feature | Free | Solo (£29) | Pro (£49) | Team (£79/u) |
+| Feature | Free | Solo (£29) | Pro (£49) | Team (£39/u) |
 |---------|------|------------|-----------|--------------|
 | **Core Features** | | | | |
 | AI Meeting Summaries | ✓ | ✓ | ✓ | ✓ |
@@ -337,13 +337,16 @@ Based on cost analysis and competitive positioning:
 | Support Level | Community | Email | Priority | Dedicated CSM |
 | Onboarding | Self-serve | Guided | 1:1 Call | White-glove |
 
+*Team plan starts at £78/mo with 2 seats included. Additional seats are £39/user/mo.*
+
 ### 4.4 Annual vs Monthly Pricing
 
 | Tier | Monthly | Annual (mo equiv) | Discount | Annual Total |
 |------|---------|-------------------|----------|--------------|
 | Solo | £29 | £24 | 17% | £290 |
 | Pro | £49 | £39 | 20% | £470 |
-| Team | £79/seat | £66/seat | 17% | £790/seat |
+| Team (2 seats) | £78 | £62 | 20% | £749 |
+| Team (extra seat) | £39 | £31 | 20% | £374 |
 
 **Annual Prepay Benefits:**
 - Lower CAC payback period
@@ -361,7 +364,7 @@ Based on cost analysis and competitive positioning:
 | **Otter.ai** | $16.99/mo | $40/mo | Transcription focused |
 | **Fathom** | Free-$39/mo | $39+/mo | Direct competitor |
 | **Avoma** | $49/mo | $79/mo | Similar positioning |
-| **Sixty (Proposed)** | £29/mo | £79/seat/mo | AI-native sales intelligence |
+| **Sixty (Proposed)** | £29/mo | £39/seat/mo | AI-native sales intelligence |
 
 **Positioning:** Sixty is positioned as the **premium individual/SMB solution** with AI depth superior to Fireflies/Otter at similar pricing, while being significantly more accessible than Gong/Chorus.
 

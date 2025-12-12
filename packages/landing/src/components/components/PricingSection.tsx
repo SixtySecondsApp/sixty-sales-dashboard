@@ -11,15 +11,16 @@ import { BillingToggle } from '@/components/subscription/BillingToggle';
 import { CurrencySelector } from '@/components/subscription/CurrencySelector';
 import type { SubscriptionPlan, BillingCycle } from '@/lib/types/subscription';
 
-// Base prices in USD cents
+// Base prices in USD cents (converted from GBP at ~1.27 rate)
 const BASE_PRICES_USD: Record<string, number> = {
-  starter: 4900,   // $49
-  pro: 7900,       // $79
-  team: 12900,     // $129
+  solo: 3700,      // ~$37 (£29)
+  starter: 3700,   // ~$37 (£29) - alias for solo
+  pro: 6200,       // ~$62 (£49)
+  team: 9900,      // ~$99 (£78 for 2 seats)
 };
 
-// Plans we want to display
-const ALLOWED_PLAN_SLUGS = ['starter', 'pro', 'team'];
+// Plans we want to display (solo is the new name for starter)
+const ALLOWED_PLAN_SLUGS = ['solo', 'starter', 'pro', 'team'];
 
 // Enterprise plan placeholder
 const ENTERPRISE_PLAN: SubscriptionPlan = {
@@ -68,22 +69,22 @@ const ENTERPRISE_PLAN: SubscriptionPlan = {
   updated_at: new Date().toISOString(),
 };
 
-// Feature comparison data
+// Feature comparison data (updated for new pricing structure)
 const COMPARISON_FEATURES = [
-  { name: 'Monthly calls', starter: '30', pro: '100', team: 'Unlimited', enterprise: 'Unlimited' },
-  { name: 'Data retention', starter: '6 months', pro: '12 months', team: '2 years', enterprise: 'Unlimited' },
-  { name: 'Team members', starter: '1', pro: '1', team: '5 (add more)', enterprise: 'Unlimited' },
-  { name: 'AI summaries', starter: true, pro: true, team: true, enterprise: true },
-  { name: 'Meeting transcripts', starter: true, pro: true, team: true, enterprise: true },
-  { name: 'Action item tracking', starter: true, pro: true, team: true, enterprise: true },
-  { name: 'CRM integrations', starter: false, pro: true, team: true, enterprise: true },
-  { name: 'Advanced analytics', starter: false, pro: true, team: true, enterprise: true },
-  { name: 'Team insights', starter: false, pro: false, team: true, enterprise: true },
-  { name: 'API access', starter: false, pro: false, team: true, enterprise: true },
-  { name: 'Custom branding', starter: false, pro: false, team: false, enterprise: true },
-  { name: 'SSO / SAML', starter: false, pro: false, team: false, enterprise: true },
-  { name: 'Dedicated support', starter: false, pro: false, team: false, enterprise: true },
-  { name: 'Custom SLA', starter: false, pro: false, team: false, enterprise: true },
+  { name: 'Monthly meetings', solo: '100', pro: 'Unlimited', team: 'Unlimited', enterprise: 'Unlimited' },
+  { name: 'Data retention', solo: '6 months', pro: 'Unlimited', team: 'Unlimited', enterprise: 'Unlimited' },
+  { name: 'Team members', solo: '1', pro: '1', team: '2 included (+£39/seat)', enterprise: 'Unlimited' },
+  { name: 'AI summaries', solo: true, pro: true, team: true, enterprise: true },
+  { name: 'Proposals', solo: '5/month', pro: 'Unlimited', team: 'Unlimited', enterprise: 'Unlimited' },
+  { name: 'Meeting transcripts', solo: true, pro: true, team: true, enterprise: true },
+  { name: 'Action item tracking', solo: true, pro: true, team: true, enterprise: true },
+  { name: 'CRM integrations', solo: 'Basic', pro: 'Full', team: 'Full + Custom', enterprise: 'Custom' },
+  { name: 'Team workspaces', solo: false, pro: false, team: true, enterprise: true },
+  { name: 'Manager dashboard', solo: false, pro: false, team: true, enterprise: true },
+  { name: 'API access', solo: false, pro: true, team: true, enterprise: true },
+  { name: 'SSO / SAML', solo: false, pro: false, team: true, enterprise: true },
+  { name: 'Priority support', solo: false, pro: true, team: true, enterprise: true },
+  { name: 'Dedicated support', solo: false, pro: false, team: false, enterprise: true },
 ];
 
 function FeatureValue({ value, highlight = false }: { value: string | boolean; highlight?: boolean }) {
