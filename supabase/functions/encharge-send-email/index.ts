@@ -448,7 +448,7 @@ serve(async (req) => {
     // 3. Send email via AWS SES (using REST API directly, not SDK)
     const sesResult = await sendEmailViaSES(
       request.to_email,
-      'Sixty Seconds <workflows@sixtyseconds.ai>',
+      'Sixty Seconds <app@use60.com>',
       subject,
       htmlBody,
       textBody

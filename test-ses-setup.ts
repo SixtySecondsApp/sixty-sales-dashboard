@@ -293,7 +293,7 @@ async function main() {
   
   // Test 3: Verify sender email
   console.log('\n3️⃣ Checking Sender Email Verification...');
-  const senderEmail = 'workflows@sixtyseconds.ai';
+  const senderEmail = 'app@use60.com';
   const verifyTest = await testVerifyEmailAddress(senderEmail);
   console.log(verifyTest.message);
   
