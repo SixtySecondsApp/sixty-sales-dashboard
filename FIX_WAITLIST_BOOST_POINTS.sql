@@ -187,3 +187,5 @@ WHERE tgname = 'calculate_points_trigger';
 
 SELECT 'SUCCESS: Boost points trigger installed!' as status;
 
+
+

@@ -1,0 +1,623 @@
+/**
+ * Meeting Generate Scorecard Edge Function
+ *
+ * Generates coaching scorecards for meetings based on configurable templates:
+ * - Talk-to-listen ratio analysis
+ * - Discovery questions detection
+ * - Monologue detection
+ * - Checklist evaluation
+ * - Script adherence scoring
+ * - AI-generated coaching feedback
+ */
+
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { corsHeaders } from '../_shared/cors.ts';
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
+
+interface RequestBody {
+  meetingId: string;
+  templateId?: string;
+}
+
+interface MetricConfig {
+  id: string;
+  name: string;
+  weight: number;
+  enabled: boolean;
+  ideal_range?: { min: number; max: number };
+  description?: string;
+}
+
+interface ChecklistItem {
+  id: string;
+  question: string;
+  required: boolean;
+  category?: string;
+  order: number;
+}
+
+interface ScriptStep {
+  step_number: number;
+  step_name: string;
+  expected_topics: string[];
+  required: boolean;
+  max_duration_minutes?: number;
+}
+
+interface ScorecardTemplate {
+  id: string;
+  org_id: string;
+  name: string;
+  meeting_type: string;
+  metrics: MetricConfig[];
+  checklist_items: ChecklistItem[];
+  script_flow: ScriptStep[];
+  passing_score: number;
+  excellence_score: number;
+}
+
+interface ScorecardAnalysis {
+  talk_time_analysis: {
+    rep_pct: number;
+    customer_pct: number;
+    monologue_instances: Array<{
+      start_seconds: number;
+      duration_seconds: number;
+      transcript_snippet: string;
+    }>;
+  };
+  discovery_questions: {
+    count: number;
+    examples: string[];
+  };
+  next_steps: {
+    established: boolean;
+    details: string;
+  };
+  checklist_results: Record<string, {
+    covered: boolean;
+    timestamp_seconds?: number;
+    quote?: string;
+    notes?: string;
+  }>;
+  script_adherence: {
+    steps_covered: string[];
+    steps_missed: string[];
+    order_followed: boolean;
+    score: number;
+  };
+  strengths: string[];
+  improvements: string[];
+  specific_feedback: string;
+  coaching_tips: string[];
+  key_moments: Array<{
+    timestamp_seconds: number;
+    type: 'positive' | 'negative' | 'coaching';
+    description: string;
+    quote?: string;
+  }>;
+  overall_score: number;
+  detected_meeting_type: string;
+}
+
+const DEFAULT_METRICS: MetricConfig[] = [
+  {
+    id: 'talk_ratio',
+    name: 'Talk-to-Listen Ratio',
+    weight: 25,
+    enabled: true,
+    ideal_range: { min: 30, max: 45 },
+    description: 'Percentage of time rep speaks vs prospect (ideal: 30-45%)',
+  },
+  {
+    id: 'discovery_questions',
+    name: 'Discovery Questions',
+    weight: 25,
+    enabled: true,
+    ideal_range: { min: 5, max: 15 },
+    description: 'Number of open-ended questions asked',
+  },
+  {
+    id: 'next_steps',
+    name: 'Next Steps Established',
+    weight: 25,
+    enabled: true,
+    description: 'Whether clear next steps were agreed upon',
+  },
+  {
+    id: 'monologue_detection',
+    name: 'Monologue Avoidance',
+    weight: 25,
+    enabled: true,
+    ideal_range: { min: 0, max: 2 },
+    description: 'Number of times rep spoke for over 60 seconds',
+  },
+];
+
+/**
+ * Build scorecard analysis prompt
+ */
+function buildAnalysisPrompt(
+  transcript: string,
+  template: ScorecardTemplate | null,
+  meetingTitle: string,
+  existingTalkTimeData: { rep_pct: number | null; customer_pct: number | null }
+): string {
+  const checklistSection = template?.checklist_items?.length
+    ? `
+CHECKLIST TO EVALUATE:
+${template.checklist_items.map(item => `- [${item.id}] ${item.question} (${item.required ? 'Required' : 'Optional'})`).join('\n')}
+`
+    : '';
+
+  const scriptSection = template?.script_flow?.length
+    ? `
+EXPECTED SCRIPT FLOW:
+${template.script_flow.map(step => `${step.step_number}. ${step.step_name}: Topics to cover: ${step.expected_topics.join(', ')}`).join('\n')}
+`
+    : '';
+
+  return `You are a sales coaching analyst. Analyze this sales call transcript and generate a detailed coaching scorecard.
+
+MEETING: ${meetingTitle}
+${existingTalkTimeData.rep_pct ? `EXISTING TALK TIME DATA: Rep ${existingTalkTimeData.rep_pct}%, Customer ${existingTalkTimeData.customer_pct}%` : ''}
+${checklistSection}
+${scriptSection}
+
+TRANSCRIPT:
+${transcript}
+
+Analyze the call and return JSON with this structure:
+{
+  "talk_time_analysis": {
+    "rep_pct": number (0-100, use existing data if provided, otherwise estimate),
+    "customer_pct": number (0-100),
+    "monologue_instances": [
+      {"start_seconds": number, "duration_seconds": number, "transcript_snippet": "string (50-100 chars)"}
+    ]
+  },
+  "discovery_questions": {
+    "count": number,
+    "examples": ["array of actual questions the rep asked (max 5)"]
+  },
+  "next_steps": {
+    "established": boolean,
+    "details": "string describing what was agreed"
+  },
+  "checklist_results": {
+    "checklist_item_id": {
+      "covered": boolean,
+      "timestamp_seconds": number or null,
+      "quote": "relevant quote if covered",
+      "notes": "optional notes"
+    }
+  },
+  "script_adherence": {
+    "steps_covered": ["step names that were covered"],
+    "steps_missed": ["step names that were missed"],
+    "order_followed": boolean,
+    "score": number (0-100)
+  },
+  "strengths": ["3-5 specific things the rep did well"],
+  "improvements": ["3-5 specific areas for improvement"],
+  "specific_feedback": "2-3 sentence personalized coaching feedback",
+  "coaching_tips": ["2-3 actionable tips for the rep"],
+  "key_moments": [
+    {
+      "timestamp_seconds": number,
+      "type": "positive|negative|coaching",
+      "description": "what happened",
+      "quote": "optional relevant quote"
+    }
+  ],
+  "overall_score": number (0-100),
+  "detected_meeting_type": "discovery|demo|negotiation|closing|follow_up|general"
+}
+
+SCORING GUIDELINES:
+- Talk ratio: Ideal is 30-45% rep talk time. Score lower if rep talks too much (>50%) or too little (<20%)
+- Discovery questions: Look for open-ended questions like "What...", "How...", "Tell me about...", "Can you describe..."
+- Monologue: Flag any instance where the rep speaks continuously for more than 60 seconds
+- Next steps: Should be specific, time-bound, and mutually agreed
+- Overall score: Weight based on template metrics if provided, otherwise use equal weights
+
+Return ONLY valid JSON.`;
+}
+
+/**
+ * Calculate metric score based on value and config
+ */
+function calculateMetricScore(value: number | boolean, config: MetricConfig): number {
+  if (!config.enabled) return 0;
+
+  if (typeof value === 'boolean') {
+    return value ? 100 : 0;
+  }
+
+  if (config.ideal_range) {
+    const { min, max } = config.ideal_range;
+    if (value >= min && value <= max) {
+      return 100;
+    } else if (value < min) {
+      // Score decreases as value goes below min
+      return Math.max(0, 100 - ((min - value) / min) * 100);
+    } else {
+      // Score decreases as value goes above max
+      return Math.max(0, 100 - ((value - max) / max) * 100);
+    }
+  }
+
+  return value;
+}
+
+/**
+ * Calculate grade from score
+ */
+function calculateGrade(score: number): 'A' | 'B' | 'C' | 'D' | 'F' {
+  if (score >= 90) return 'A';
+  if (score >= 80) return 'B';
+  if (score >= 70) return 'C';
+  if (score >= 60) return 'D';
+  return 'F';
+}
+
+/**
+ * Get template for meeting type
+ */
+async function getTemplateForMeeting(
+  supabase: ReturnType<typeof createClient>,
+  orgId: string,
+  templateId?: string,
+  meetingType?: string
+): Promise<ScorecardTemplate | null> {
+  // If specific template requested
+  if (templateId) {
+    const { data } = await supabase
+      .from('coaching_scorecard_templates')
+      .select('*')
+      .eq('id', templateId)
+      .eq('org_id', orgId)
+      .eq('is_active', true)
+      .single();
+    return data;
+  }
+
+  // Otherwise find template for meeting type
+  if (meetingType) {
+    const { data } = await supabase
+      .from('coaching_scorecard_templates')
+      .select('*')
+      .eq('org_id', orgId)
+      .eq('meeting_type', meetingType)
+      .eq('is_active', true)
+      .order('is_default', { ascending: false })
+      .limit(1)
+      .single();
+    return data;
+  }
+
+  // Fall back to general template
+  const { data } = await supabase
+    .from('coaching_scorecard_templates')
+    .select('*')
+    .eq('org_id', orgId)
+    .eq('meeting_type', 'general')
+    .eq('is_active', true)
+    .limit(1)
+    .single();
+
+  return data;
+}
+
+/**
+ * Analyze transcript with Claude
+ */
+async function analyzeTranscript(
+  transcript: string,
+  template: ScorecardTemplate | null,
+  meetingTitle: string,
+  existingTalkTimeData: { rep_pct: number | null; customer_pct: number | null }
+): Promise<{ analysis: ScorecardAnalysis; tokensUsed: number }> {
+  if (!anthropicApiKey) {
+    throw new Error('ANTHROPIC_API_KEY not configured');
+  }
+
+  // Truncate transcript if too long
+  const maxLength = 40000;
+  const truncatedTranscript = transcript.length > maxLength
+    ? transcript.substring(0, maxLength) + '\n\n[Truncated...]'
+    : transcript;
+
+  const prompt = buildAnalysisPrompt(
+    truncatedTranscript,
+    template,
+    meetingTitle,
+    existingTalkTimeData
+  );
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': anthropicApiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      temperature: 0.1,
+      system: 'You are a sales coaching analyst. Analyze calls and generate detailed scorecards. Return only valid JSON.',
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Claude API error: ${response.status} - ${errorText}`);
+  }
+
+  const result = await response.json();
+  const content = result.content[0]?.text;
+  const tokensUsed = (result.usage?.input_tokens || 0) + (result.usage?.output_tokens || 0);
+
+  // Parse JSON
+  let analysis: ScorecardAnalysis;
+  try {
+    let jsonContent = content.trim();
+    if (jsonContent.startsWith('```json')) jsonContent = jsonContent.slice(7);
+    else if (jsonContent.startsWith('```')) jsonContent = jsonContent.slice(3);
+    if (jsonContent.endsWith('```')) jsonContent = jsonContent.slice(0, -3);
+    analysis = JSON.parse(jsonContent.trim());
+  } catch (parseError) {
+    console.error('Failed to parse Claude response:', content);
+    throw new Error('Failed to parse AI response as JSON');
+  }
+
+  return { analysis, tokensUsed };
+}
+
+/**
+ * Calculate final scorecard metrics
+ */
+function calculateScorecard(
+  analysis: ScorecardAnalysis,
+  template: ScorecardTemplate | null
+): {
+  metricScores: Record<string, { score: number; raw_value: any; feedback?: string; weight: number }>;
+  overallScore: number;
+} {
+  const metrics = template?.metrics || DEFAULT_METRICS;
+  const metricScores: Record<string, { score: number; raw_value: any; feedback?: string; weight: number }> = {};
+  let totalWeight = 0;
+  let weightedSum = 0;
+
+  for (const metric of metrics) {
+    if (!metric.enabled) continue;
+
+    let rawValue: any;
+    let score: number;
+
+    switch (metric.id) {
+      case 'talk_ratio':
+        rawValue = analysis.talk_time_analysis.rep_pct;
+        score = calculateMetricScore(rawValue, metric);
+        break;
+      case 'discovery_questions':
+        rawValue = analysis.discovery_questions.count;
+        score = calculateMetricScore(rawValue, metric);
+        break;
+      case 'next_steps':
+        rawValue = analysis.next_steps.established;
+        score = rawValue ? 100 : 0;
+        break;
+      case 'monologue_detection':
+        rawValue = analysis.talk_time_analysis.monologue_instances.length;
+        // Inverse - fewer monologues = higher score
+        score = metric.ideal_range
+          ? calculateMetricScore(rawValue, metric)
+          : Math.max(0, 100 - rawValue * 25);
+        break;
+      default:
+        rawValue = 0;
+        score = 0;
+    }
+
+    metricScores[metric.id] = {
+      score: Math.round(score),
+      raw_value: rawValue,
+      weight: metric.weight,
+    };
+
+    totalWeight += metric.weight;
+    weightedSum += score * metric.weight;
+  }
+
+  const overallScore = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : analysis.overall_score;
+
+  return { metricScores, overallScore };
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    const { meetingId, templateId }: RequestBody = await req.json();
+
+    if (!meetingId) {
+      return new Response(
+        JSON.stringify({ error: 'Missing meetingId' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get meeting data
+    const { data: meeting, error: meetingError } = await supabase
+      .from('meetings')
+      .select(`
+        id,
+        title,
+        transcript_text,
+        owner_user_id,
+        talk_time_rep_pct,
+        talk_time_customer_pct
+      `)
+      .eq('id', meetingId)
+      .single();
+
+    if (meetingError || !meeting) {
+      return new Response(
+        JSON.stringify({ error: 'Meeting not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!meeting.transcript_text || meeting.transcript_text.length < 100) {
+      return new Response(
+        JSON.stringify({ error: 'Meeting has no transcript or transcript too short' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get user's org
+    const { data: membership } = await supabase
+      .from('organization_memberships')
+      .select('org_id')
+      .eq('user_id', meeting.owner_user_id)
+      .limit(1)
+      .single();
+
+    if (!membership?.org_id) {
+      return new Response(
+        JSON.stringify({ error: 'User not in an organization' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const orgId = membership.org_id;
+
+    // Get structured summary to determine meeting type
+    const { data: structuredSummary } = await supabase
+      .from('meeting_structured_summaries')
+      .select('stage_indicators')
+      .eq('meeting_id', meetingId)
+      .single();
+
+    const detectedType = structuredSummary?.stage_indicators?.detected_stage || 'general';
+
+    // Get appropriate template
+    const template = await getTemplateForMeeting(supabase, orgId, templateId, detectedType);
+
+    // Analyze transcript
+    const startTime = Date.now();
+    const { analysis, tokensUsed } = await analyzeTranscript(
+      meeting.transcript_text,
+      template,
+      meeting.title,
+      {
+        rep_pct: meeting.talk_time_rep_pct,
+        customer_pct: meeting.talk_time_customer_pct,
+      }
+    );
+    const processingTimeMs = Date.now() - startTime;
+
+    // Calculate final scores
+    const { metricScores, overallScore } = calculateScorecard(analysis, template);
+    const grade = calculateGrade(overallScore);
+
+    // Calculate checklist completion
+    const checklistItems = template?.checklist_items || [];
+    const checklistResultsCount = Object.values(analysis.checklist_results).filter(r => r.covered).length;
+    const checklistCompletionPct = checklistItems.length > 0
+      ? Math.round((checklistResultsCount / checklistItems.length) * 100)
+      : 0;
+    const requiredItems = checklistItems.filter(i => i.required);
+    const requiredCovered = requiredItems.filter(
+      i => analysis.checklist_results[i.id]?.covered
+    ).length;
+    const checklistRequiredCompletionPct = requiredItems.length > 0
+      ? Math.round((requiredCovered / requiredItems.length) * 100)
+      : 100;
+
+    // Save scorecard
+    const scorecard = {
+      meeting_id: meetingId,
+      template_id: template?.id || null,
+      org_id: orgId,
+      rep_user_id: meeting.owner_user_id,
+      overall_score: overallScore,
+      grade,
+      metric_scores: metricScores,
+      talk_time_rep_pct: analysis.talk_time_analysis.rep_pct,
+      talk_time_customer_pct: analysis.talk_time_analysis.customer_pct,
+      discovery_questions_count: analysis.discovery_questions.count,
+      discovery_questions_examples: analysis.discovery_questions.examples,
+      next_steps_established: analysis.next_steps.established,
+      next_steps_details: analysis.next_steps.details,
+      monologue_instances: analysis.talk_time_analysis.monologue_instances,
+      monologue_count: analysis.talk_time_analysis.monologue_instances.length,
+      checklist_results: analysis.checklist_results,
+      checklist_completion_pct: checklistCompletionPct,
+      checklist_required_completion_pct: checklistRequiredCompletionPct,
+      script_adherence_score: analysis.script_adherence.score,
+      script_flow_analysis: {
+        steps_covered: analysis.script_adherence.steps_covered,
+        steps_missed: analysis.script_adherence.steps_missed,
+        order_followed: analysis.script_adherence.order_followed,
+        deviations: [],
+      },
+      strengths: analysis.strengths,
+      areas_for_improvement: analysis.improvements,
+      specific_feedback: analysis.specific_feedback,
+      coaching_tips: analysis.coaching_tips,
+      key_moments: analysis.key_moments,
+      detected_meeting_type: analysis.detected_meeting_type,
+      ai_model_used: 'claude-sonnet-4-20250514',
+      tokens_used: tokensUsed,
+      processing_time_ms: processingTimeMs,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error: saveError } = await supabase
+      .from('meeting_scorecards')
+      .upsert(scorecard, { onConflict: 'meeting_id' });
+
+    if (saveError) {
+      throw new Error(`Failed to save scorecard: ${saveError.message}`);
+    }
+
+    console.log(`Generated scorecard for meeting ${meetingId}: Score ${overallScore} (${grade})`);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        meeting_id: meetingId,
+        scorecard: {
+          overall_score: overallScore,
+          grade,
+          metric_scores: metricScores,
+          strengths: analysis.strengths,
+          improvements: analysis.improvements,
+          coaching_tips: analysis.coaching_tips,
+        },
+        tokens_used: tokensUsed,
+        processing_time_ms: processingTimeMs,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Error in meeting-generate-scorecard:', error);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});

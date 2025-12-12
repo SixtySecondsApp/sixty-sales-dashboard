@@ -56,3 +56,5 @@ COMMENT ON TRIGGER aa_set_signup_position_trigger ON meetings_waitlist IS
   'Runs first (aa_ prefix) to ensure signup_position is set before effective_position is calculated';
 
 
+
+

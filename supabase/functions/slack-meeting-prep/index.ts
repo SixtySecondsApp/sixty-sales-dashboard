@@ -167,6 +167,194 @@ async function getLastMeetingNotes(
 }
 
 /**
+ * Get full meeting history with structured summaries
+ */
+async function getMeetingHistory(
+  supabase: ReturnType<typeof createClient>,
+  companyName: string,
+  userId: string,
+  limit: number = 5
+): Promise<Array<{ date: string; title: string; outcome?: 'positive' | 'neutral' | 'negative'; keyTopics?: string[] }>> {
+  const { data: meetings } = await supabase
+    .from('meetings')
+    .select(`
+      id,
+      title,
+      start_time,
+      meeting_structured_summaries (
+        outcome_signals,
+        topics_discussed
+      ),
+      meeting_classifications (
+        outcome
+      )
+    `)
+    .ilike('title', `%${companyName}%`)
+    .eq('owner_user_id', userId)
+    .order('start_time', { ascending: false })
+    .limit(limit);
+
+  if (!meetings || meetings.length === 0) return [];
+
+  return meetings.map((m: any) => {
+    const summary = m.meeting_structured_summaries?.[0];
+    const classification = m.meeting_classifications?.[0];
+
+    return {
+      date: new Date(m.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      title: m.title,
+      outcome: classification?.outcome || (summary?.outcome_signals?.overall_sentiment > 60 ? 'positive' : summary?.outcome_signals?.overall_sentiment < 40 ? 'negative' : 'neutral'),
+      keyTopics: summary?.topics_discussed?.slice(0, 3) || [],
+    };
+  });
+}
+
+/**
+ * Get deal risk signals
+ */
+async function getDealRiskSignals(
+  supabase: ReturnType<typeof createClient>,
+  dealId: string
+): Promise<Array<{ type: string; severity: 'low' | 'medium' | 'high' | 'critical'; description: string }>> {
+  const { data } = await supabase
+    .from('deal_risk_signals')
+    .select('signal_type, severity, title, description')
+    .eq('deal_id', dealId)
+    .eq('status', 'active')
+    .order('severity', { ascending: false })
+    .limit(5);
+
+  if (!data || data.length === 0) return [];
+
+  return data.map((signal: any) => ({
+    type: signal.signal_type,
+    severity: signal.severity,
+    description: signal.title || signal.description,
+  }));
+}
+
+/**
+ * Get previous objections from structured summaries
+ */
+async function getPreviousObjections(
+  supabase: ReturnType<typeof createClient>,
+  companyName: string,
+  userId: string
+): Promise<Array<{ objection: string; resolution?: string; resolved: boolean }>> {
+  const { data: meetings } = await supabase
+    .from('meetings')
+    .select(`
+      meeting_structured_summaries (
+        objections_raised
+      )
+    `)
+    .ilike('title', `%${companyName}%`)
+    .eq('owner_user_id', userId)
+    .order('start_time', { ascending: false })
+    .limit(10);
+
+  if (!meetings) return [];
+
+  const objections: Array<{ objection: string; resolution?: string; resolved: boolean }> = [];
+  const seenObjections = new Set<string>();
+
+  for (const meeting of meetings) {
+    const summary = (meeting as any).meeting_structured_summaries?.[0];
+    if (summary?.objections_raised) {
+      for (const obj of summary.objections_raised) {
+        const key = obj.objection?.toLowerCase() || '';
+        if (key && !seenObjections.has(key)) {
+          seenObjections.add(key);
+          objections.push({
+            objection: obj.objection,
+            resolution: obj.response || obj.resolution,
+            resolved: !!obj.resolved || !!obj.response,
+          });
+        }
+      }
+    }
+  }
+
+  return objections.slice(0, 5);
+}
+
+/**
+ * Get scorecard template for meeting type
+ */
+async function getScorecardTemplate(
+  supabase: ReturnType<typeof createClient>,
+  orgId: string,
+  dealStage: string | null
+): Promise<{ checklistItems: string[]; scriptSteps: Array<{ stepName: string; topics: string[] }> } | null> {
+  // Map deal stage to meeting type
+  const meetingTypeMap: Record<string, string> = {
+    sql: 'discovery',
+    opportunity: 'demo',
+    verbal: 'negotiation',
+    signed: 'closing',
+  };
+
+  const meetingType = dealStage ? meetingTypeMap[dealStage.toLowerCase()] || 'general' : 'general';
+
+  const { data } = await supabase
+    .from('coaching_scorecard_templates')
+    .select('checklist_items, script_flow')
+    .eq('org_id', orgId)
+    .eq('meeting_type', meetingType)
+    .eq('is_active', true)
+    .limit(1)
+    .single();
+
+  if (!data) return null;
+
+  return {
+    checklistItems: data.checklist_items?.map((item: any) => item.question) || [],
+    scriptSteps: data.script_flow?.map((step: any) => ({
+      stepName: step.step_name,
+      topics: step.expected_topics || [],
+    })) || [],
+  };
+}
+
+/**
+ * Get stage-appropriate questions
+ */
+function getStageQuestions(dealStage: string | null): string[] {
+  const stageQuestions: Record<string, string[]> = {
+    sql: [
+      'What specific challenges are you trying to solve?',
+      'Who else is involved in this decision?',
+      'What does your timeline look like?',
+      'What happens if you don\'t solve this problem?',
+    ],
+    opportunity: [
+      'What feedback do you have on the proposal?',
+      'Are there any concerns we haven\'t addressed?',
+      'What would success look like for your team?',
+      'Who else needs to see this before you can move forward?',
+    ],
+    verbal: [
+      'What\'s the process for getting final approval?',
+      'Are there any remaining blockers we should address?',
+      'What does your implementation timeline look like?',
+      'Is there anything that could delay the contract?',
+    ],
+    closing: [
+      'When can we expect the signed agreement?',
+      'Do you need anything else from us before signing?',
+      'What are the next steps for onboarding?',
+      'Who should we connect with for implementation?',
+    ],
+  };
+
+  return stageQuestions[dealStage?.toLowerCase() || ''] || [
+    'What are your main priorities for this call?',
+    'What questions do you have for us?',
+    'What would make this meeting successful for you?',
+  ];
+}
+
+/**
  * Get recent activities
  */
 async function getRecentActivities(
@@ -192,14 +380,16 @@ async function getRecentActivities(
 }
 
 /**
- * Generate talking points with AI
+ * Generate talking points with AI (enhanced with risk signals and objections)
  */
 async function generateTalkingPoints(
   meetingTitle: string,
   company: Company | null,
   deal: Deal | null,
   lastMeetingNotes: string | null,
-  attendees: string[]
+  attendees: string[],
+  riskSignals: Array<{ type: string; severity: string; description: string }> = [],
+  previousObjections: Array<{ objection: string; resolution?: string; resolved: boolean }> = []
 ): Promise<string[]> {
   if (!anthropicApiKey) {
     return [
@@ -210,6 +400,18 @@ async function generateTalkingPoints(
   }
 
   try {
+    // Build enhanced context
+    const riskContext = riskSignals.length > 0
+      ? `\nRISK SIGNALS TO ADDRESS:\n${riskSignals.slice(0, 3).map(r => `- [${r.severity.toUpperCase()}] ${r.description}`).join('\n')}`
+      : '';
+
+    const objectionContext = previousObjections.length > 0
+      ? `\nPREVIOUS OBJECTIONS:\n${previousObjections.slice(0, 3).map(o => {
+          const status = o.resolved ? '(resolved)' : '(UNRESOLVED)';
+          return `- ${status} ${o.objection}${o.resolution ? ` - Response: ${o.resolution}` : ''}`;
+        }).join('\n')}`
+      : '';
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -221,7 +423,7 @@ async function generateTalkingPoints(
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 512,
         temperature: 0.5,
-        system: 'You are a sales preparation assistant. Generate 3 specific talking points for an upcoming meeting. Return ONLY valid JSON.',
+        system: 'You are a sales preparation assistant. Generate 3-4 specific, actionable talking points for an upcoming meeting. Consider any deal risks and previous objections when crafting your recommendations. Return ONLY valid JSON.',
         messages: [{
           role: 'user',
           content: `Generate meeting prep talking points:
@@ -229,11 +431,17 @@ async function generateTalkingPoints(
 MEETING: ${meetingTitle}
 COMPANY: ${company?.name || 'Unknown'}
 ${company?.industry ? `Industry: ${company.industry}` : ''}
-${deal ? `DEAL: ${deal.title} - ${deal.stage} - $${deal.value?.toLocaleString()}` : ''}
+${deal ? `DEAL: ${deal.title} - Stage: ${deal.stage} - Value: $${deal.value?.toLocaleString()}` : ''}
 ATTENDEES: ${attendees.join(', ')}
-${lastMeetingNotes ? `PREVIOUS MEETING: ${lastMeetingNotes}` : ''}
+${lastMeetingNotes ? `PREVIOUS MEETING NOTES: ${lastMeetingNotes}` : ''}${riskContext}${objectionContext}
 
-Return JSON: { "talkingPoints": ["point1", "point2", "point3"] }`
+Generate specific talking points that:
+1. Address any identified risks proactively
+2. Handle or prevent unresolved objections
+3. Move the deal forward based on current stage
+4. Build on previous conversations
+
+Return JSON: { "talkingPoints": ["point1", "point2", "point3", "point4"] }`
         }],
       }),
     });
@@ -248,11 +456,19 @@ Return JSON: { "talkingPoints": ["point1", "point2", "point3"] }`
     return parsed.talkingPoints || [];
   } catch (error) {
     console.error('Error generating talking points:', error);
-    return [
+    // Provide more contextual fallback based on available data
+    const fallbackPoints = [
       'Review any previous discussions and follow up on open items',
       'Understand their current priorities and challenges',
       'Identify next steps to move the conversation forward',
     ];
+
+    // Add risk-specific fallback if risks exist
+    if (riskSignals.some(r => r.severity === 'high' || r.severity === 'critical')) {
+      fallbackPoints.unshift('Address any timeline or budget concerns directly');
+    }
+
+    return fallbackPoints.slice(0, 4);
   }
 }
 
@@ -436,7 +652,7 @@ async function processMeetingPrep(
       deal = await getDealForCompany(supabase, company.name, event.user_id);
     }
 
-    // Get last meeting notes
+    // Get last meeting notes (fallback)
     let lastMeetingData: { notes: string; date: string } | null = null;
     if (company) {
       lastMeetingData = await getLastMeetingNotes(supabase, company.name, event.user_id);
@@ -448,13 +664,51 @@ async function processMeetingPrep(
       recentActivities = await getRecentActivities(supabase, company.name, event.user_id);
     }
 
-    // Generate talking points
+    // ==========================================
+    // ENHANCED DATA: Meeting History, Risks, Objections, Templates
+    // ==========================================
+
+    // Get full meeting history with structured summaries
+    let meetingHistory: Array<{ date: string; title: string; outcome?: 'positive' | 'neutral' | 'negative'; keyTopics?: string[] }> = [];
+    if (company) {
+      meetingHistory = await getMeetingHistory(supabase, company.name, event.user_id, 5);
+    }
+
+    // Get deal risk signals
+    let riskSignals: Array<{ type: string; severity: 'low' | 'medium' | 'high' | 'critical'; description: string }> = [];
+    if (deal) {
+      riskSignals = await getDealRiskSignals(supabase, deal.id);
+    }
+
+    // Get previous objections
+    let previousObjections: Array<{ objection: string; resolution?: string; resolved: boolean }> = [];
+    if (company) {
+      previousObjections = await getPreviousObjections(supabase, company.name, event.user_id);
+    }
+
+    // Get scorecard template for checklist/script reminders
+    let checklistReminders: string[] = [];
+    let scriptSteps: Array<{ stepName: string; topics: string[] }> = [];
+    const template = await getScorecardTemplate(supabase, event.org_id, deal?.stage || null);
+    if (template) {
+      checklistReminders = template.checklistItems;
+      scriptSteps = template.scriptSteps;
+    }
+
+    // Get stage-appropriate questions
+    const stageQuestions = getStageQuestions(deal?.stage || null);
+
+    // ==========================================
+
+    // Generate talking points with enhanced context
     const talkingPoints = await generateTalkingPoints(
       event.title,
       company,
       deal,
       lastMeetingData?.notes || null,
-      contacts.map(c => c.full_name || `${c.first_name} ${c.last_name}`.trim() || c.email || 'Unknown')
+      contacts.map(c => c.full_name || `${c.first_name} ${c.last_name}`.trim() || c.email || 'Unknown'),
+      riskSignals,
+      previousObjections
     );
 
     // Calculate days in pipeline
@@ -463,7 +717,7 @@ async function processMeetingPrep(
       daysInPipeline = Math.ceil((Date.now() - new Date(deal.created_at).getTime()) / (1000 * 60 * 60 * 24));
     }
 
-    // Build prep data
+    // Build prep data with enhanced fields
     const prepData: MeetingPrepData = {
       meetingTitle: event.title,
       meetingId: event.id,
@@ -488,6 +742,13 @@ async function processMeetingPrep(
       talkingPoints,
       meetingUrl: event.meeting_url || undefined,
       appUrl,
+      // Enhanced data
+      meetingHistory: meetingHistory.length > 0 ? meetingHistory : undefined,
+      riskSignals: riskSignals.length > 0 ? riskSignals : undefined,
+      previousObjections: previousObjections.length > 0 ? previousObjections : undefined,
+      stageQuestions: stageQuestions.length > 0 ? stageQuestions : undefined,
+      checklistReminders: checklistReminders.length > 0 ? checklistReminders : undefined,
+      scriptSteps: scriptSteps.length > 0 ? scriptSteps : undefined,
     };
 
     // Build and send message

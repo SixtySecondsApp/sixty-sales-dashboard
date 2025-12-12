@@ -38,11 +38,19 @@ interface CoachingInsights {
   }[]
 }
 
+export interface CallTypeClassification {
+  callTypeId: string | null
+  callTypeName: string | null
+  confidence: number
+  reasoning: string
+}
+
 export interface TranscriptAnalysis {
   actionItems: ActionItem[]
   talkTime: TalkTimeAnalysis
   sentiment: SentimentAnalysis
   coaching: CoachingInsights
+  callType?: CallTypeClassification
 }
 
 interface Meeting {
@@ -53,18 +61,182 @@ interface Meeting {
 }
 
 /**
+ * Classify call type using Claude AI based on org-configured call types
+ */
+async function classifyCallType(
+  transcript: string,
+  meeting: Meeting,
+  orgCallTypes: any[],
+  supabaseClient: any
+): Promise<CallTypeClassification> {
+  const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
+  if (!anthropicApiKey) {
+    throw new Error('ANTHROPIC_API_KEY not configured')
+  }
+
+  if (!orgCallTypes || orgCallTypes.length === 0) {
+    return {
+      callTypeId: null,
+      callTypeName: null,
+      confidence: 0,
+      reasoning: 'No call types configured for organization',
+    }
+  }
+
+  // Filter to active call types only
+  const activeCallTypes = orgCallTypes.filter((ct: any) => ct.is_active)
+
+  if (activeCallTypes.length === 0) {
+    return {
+      callTypeId: null,
+      callTypeName: null,
+      confidence: 0,
+      reasoning: 'No active call types configured',
+    }
+  }
+
+  // Build call types context for prompt
+  const callTypesContext = activeCallTypes.map((ct: any) => ({
+    id: ct.id,
+    name: ct.name,
+    description: ct.description || '',
+    keywords: ct.keywords || [],
+  }))
+
+  const model = Deno.env.get('CLAUDE_MODEL') || 'claude-haiku-4-5-20251001'
+  const prompt = `Analyze this meeting transcript and classify it into one of the configured call types.
+
+MEETING CONTEXT:
+- Title: ${meeting.title}
+- Meeting Date: ${new Date(meeting.meeting_start).toISOString().split('T')[0]}
+
+AVAILABLE CALL TYPES:
+${callTypesContext.map((ct: any) => `- ${ct.name} (ID: ${ct.id})
+  Description: ${ct.description}
+  Keywords: ${ct.keywords.join(', ')}`).join('\n\n')}
+
+TRANSCRIPT:
+${transcript.substring(0, 8000)}${transcript.length > 8000 ? '...' : ''}
+
+Based on the transcript content, meeting title, and keywords, classify this call into the most appropriate call type.
+
+Return ONLY valid JSON in this exact format:
+{
+  "callTypeId": "uuid-of-selected-call-type",
+  "callTypeName": "Name of selected call type",
+  "confidence": 0.85,
+  "reasoning": "Brief explanation of why this call type was selected, referencing specific keywords or content from the transcript"
+}
+
+IMPORTANT:
+- Return ONLY the JSON, no other text
+- Confidence should be between 0.0 and 1.0
+- If no call type matches well (confidence < 0.5), set callTypeId to null and explain why
+- Reference specific keywords or phrases from the transcript in your reasoning`
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicApiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 512,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Claude API error: ${response.status} - ${errorText}`)
+    }
+
+    const data = await response.json()
+    const content = data.content[0]?.text || ''
+
+    // Parse JSON response
+    let jsonText = content.trim()
+    if (jsonText.startsWith('```json')) {
+      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?$/g, '')
+    } else if (jsonText.startsWith('```')) {
+      jsonText = jsonText.replace(/```\n?/g, '').replace(/```\n?$/g, '')
+    }
+
+    const parsed = JSON.parse(jsonText)
+
+    // Validate the call type ID exists
+    if (parsed.callTypeId) {
+      const callTypeExists = activeCallTypes.some((ct: any) => ct.id === parsed.callTypeId)
+      if (!callTypeExists) {
+        console.warn(`Call type ID ${parsed.callTypeId} not found in active call types`)
+        return {
+          callTypeId: null,
+          callTypeName: null,
+          confidence: 0,
+          reasoning: `Selected call type ID not found in active call types`,
+        }
+      }
+    }
+
+    return {
+      callTypeId: parsed.callTypeId || null,
+      callTypeName: parsed.callTypeName || null,
+      confidence: Math.max(0, Math.min(1, parsed.confidence || 0)),
+      reasoning: parsed.reasoning || 'No reasoning provided',
+    }
+  } catch (error) {
+    console.error('Error classifying call type:', error)
+    return {
+      callTypeId: null,
+      callTypeName: null,
+      confidence: 0,
+      reasoning: `Classification error: ${error instanceof Error ? error.message : String(error)}`,
+    }
+  }
+}
+
+/**
  * Analyze transcript using Claude Haiku 4.5
  * Also applies custom extraction rules if userId provided (Phase 6.3)
+ * Now includes call type classification if orgId provided
  */
 export async function analyzeTranscriptWithClaude(
   transcript: string,
   meeting: Meeting,
   supabaseClient?: any,
-  userId?: string
+  userId?: string,
+  orgId?: string
 ): Promise<TranscriptAnalysis> {
   const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
   if (!anthropicApiKey) {
     throw new Error('ANTHROPIC_API_KEY not configured')
+  }
+
+  // Fetch org call types for classification
+  let orgCallTypes: any[] = []
+  if (orgId && supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('org_call_types')
+        .select('*')
+        .eq('org_id', orgId)
+        .eq('is_active', true)
+        .order('display_order', { ascending: true })
+
+      if (!error && data) {
+        orgCallTypes = data
+      }
+    } catch (error) {
+      console.warn('Failed to fetch org call types:', error instanceof Error ? error.message : String(error))
+    }
   }
 
   // Fetch user coaching preferences if available
@@ -195,6 +367,22 @@ export async function analyzeTranscriptWithClaude(
     // Merge rule-based action items with AI-extracted items (prioritize rules)
     if (ruleBasedActionItems.length > 0) {
       analysis.actionItems = mergeActionItems(ruleBasedActionItems, analysis.actionItems)
+    }
+
+    // Classify call type if org call types are available
+    if (orgCallTypes.length > 0 && supabaseClient) {
+      try {
+        const callTypeClassification = await classifyCallType(
+          transcript,
+          meeting,
+          orgCallTypes,
+          supabaseClient
+        )
+        analysis.callType = callTypeClassification
+      } catch (error) {
+        console.warn('Failed to classify call type:', error instanceof Error ? error.message : String(error))
+        // Non-fatal - continue without call type classification
+      }
     }
 
     return analysis

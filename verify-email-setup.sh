@@ -91,3 +91,5 @@ echo "   - Check bounce/complaint rates in AWS SES dashboard"
 echo "   - Monitor sending statistics"
 echo "   - Ensure email content follows best practices"
 echo "   - Warm up domain gradually (start with low volume)"
+
+

@@ -520,3 +520,5 @@ Test these opening hooks across all scripts to find the highest-performing versi
 
 *Scripts created for 60 waitlist campaign. Test multiple hooks. Measure watch time and conversion. Iterate.*
 
+
+

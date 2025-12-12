@@ -245,3 +245,5 @@ COMMENT ON VIEW activation_funnel_metrics IS 'Aggregated activation funnel metri
 COMMENT ON FUNCTION record_activation_event(UUID, TEXT, JSONB) IS 'Record an activation event and update onboarding progress accordingly';
 COMMENT ON FUNCTION get_activation_funnel(DATE, DATE) IS 'Get activation funnel metrics for a date range';
 
+
+

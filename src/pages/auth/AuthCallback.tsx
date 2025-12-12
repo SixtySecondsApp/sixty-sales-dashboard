@@ -59,6 +59,25 @@ export default function AuthCallback() {
           const { error: codeError } = await supabase.auth.exchangeCodeForSession(code);
           if (codeError) {
             console.error('Error exchanging code for session:', codeError);
+            
+            // PKCE Error: "both auth code and code verifier should be non-empty"
+            // This happens when user clicks email link in different browser/device
+            // The code_verifier was stored in localStorage during signup but isn't available here
+            const isPKCEError = codeError.message?.includes('code verifier') || 
+                               codeError.message?.includes('pkce') ||
+                               codeError.message?.includes('non-empty');
+            
+            if (isPKCEError) {
+              console.log('PKCE verification failed - user likely opened link in different browser');
+              // Provide helpful error message for cross-browser/device scenario
+              setError(
+                'Please open this confirmation link in the same browser where you signed up. ' +
+                'If you signed up on a different device, please sign in with your email and password instead.'
+              );
+              setIsProcessing(false);
+              return;
+            }
+            
             // Check if user is now logged in despite the error (code may have been used already)
             const { data: { session: retrySession } } = await supabase.auth.getSession();
             if (retrySession?.user?.email_confirmed_at) {
@@ -169,6 +188,9 @@ export default function AuthCallback() {
     handleCallback();
   }, [navigate, searchParams]);
 
+  // Check if this is a PKCE/cross-browser error
+  const isPKCEError = error?.includes('code verifier') || error?.includes('same browser');
+
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
@@ -183,6 +205,11 @@ export default function AuthCallback() {
             >
               Go to Login
             </button>
+            {isPKCEError && (
+              <p className="text-xs text-gray-500 mt-2">
+                Tip: If you signed up on this device, try clearing your browser cache and signing up again.
+              </p>
+            )}
             <button
               onClick={() => navigate('/auth/signup')}
               className="text-[#37bd7e] hover:text-[#2da76c] text-sm"

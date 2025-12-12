@@ -54,3 +54,5 @@ ALTER TABLE meetings_waitlist ENABLE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT ON meetings_waitlist TO anon;
 GRANT ALL ON meetings_waitlist TO authenticated;
 
+
+

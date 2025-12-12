@@ -1300,6 +1300,10 @@ async function autoFetchTranscriptAndAnalyze(
     }
 
     console.log(`🤖 Starting AI analysis for meeting ${meeting.id} (transcript length: ${transcript.length} chars)`)
+    
+    // Get org_id from meeting for call type classification
+    const meetingOrgId = meeting.org_id || null
+    
     const analysis: TranscriptAnalysis = await analyzeTranscriptWithClaude(
       transcript,
       {
@@ -1309,27 +1313,39 @@ async function autoFetchTranscriptAndAnalyze(
         owner_email: meeting.owner_email,
       },
       supabase,
-      meeting.owner_user_id || userId
+      meeting.owner_user_id || userId,
+      meetingOrgId // Pass orgId for call type classification
     )
     console.log(`✅ AI analysis completed for meeting ${meeting.id}`)
 
-    // Update meeting with AI metrics including coaching insights
+    // Build update object with AI metrics including coaching insights
+    const updateData: Record<string, any> = {
+      talk_time_rep_pct: analysis.talkTime.repPct,
+      talk_time_customer_pct: analysis.talkTime.customerPct,
+      talk_time_judgement: analysis.talkTime.assessment,
+      sentiment_score: analysis.sentiment.score,
+      sentiment_reasoning: analysis.sentiment.reasoning,
+      coach_rating: analysis.coaching.rating,
+      coach_summary: JSON.stringify({
+        summary: analysis.coaching.summary,
+        strengths: analysis.coaching.strengths,
+        improvements: analysis.coaching.improvements,
+        evaluationBreakdown: analysis.coaching.evaluationBreakdown,
+      }),
+    }
+
+    // Add call type classification if available
+    if (analysis.callType) {
+      updateData.call_type_id = analysis.callType.callTypeId
+      updateData.call_type_confidence = analysis.callType.confidence
+      updateData.call_type_reasoning = analysis.callType.reasoning
+      console.log(`📋 Call type classified: ${analysis.callType.callTypeName} (confidence: ${(analysis.callType.confidence * 100).toFixed(1)}%)`)
+    }
+
+    // Update meeting with AI metrics including coaching insights and call type
     const { data: updateResult, error: updateError } = await supabase
       .from('meetings')
-      .update({
-        talk_time_rep_pct: analysis.talkTime.repPct,
-        talk_time_customer_pct: analysis.talkTime.customerPct,
-        talk_time_judgement: analysis.talkTime.assessment,
-        sentiment_score: analysis.sentiment.score,
-        sentiment_reasoning: analysis.sentiment.reasoning,
-        coach_rating: analysis.coaching.rating,
-        coach_summary: JSON.stringify({
-          summary: analysis.coaching.summary,
-          strengths: analysis.coaching.strengths,
-          improvements: analysis.coaching.improvements,
-          evaluationBreakdown: analysis.coaching.evaluationBreakdown,
-        }),
-      })
+      .update(updateData)
       .eq('id', meeting.id)
       .select() // CRITICAL: Add .select() to get confirmation of what was updated
 
@@ -1547,6 +1563,34 @@ async function syncSingleCall(
 
     if (meetingError) {
       throw new Error(`Failed to upsert meeting: ${meetingError.message}`)
+    }
+
+    // Seed default call types for org on first sync (if org exists and has no call types)
+    if (orgId) {
+      try {
+        const { data: existingCallTypes, error: checkError } = await supabase
+          .from('org_call_types')
+          .select('id')
+          .eq('org_id', orgId)
+          .limit(1)
+
+        if (!checkError && (!existingCallTypes || existingCallTypes.length === 0)) {
+          // Seed default call types for this org
+          console.log(`🌱 Seeding default call types for org ${orgId}`)
+          const { error: seedError } = await supabase.rpc('seed_default_call_types', {
+            p_org_id: orgId,
+          })
+
+          if (seedError) {
+            console.warn(`⚠️  Failed to seed default call types: ${seedError.message}`)
+          } else {
+            console.log(`✅ Default call types seeded for org ${orgId}`)
+          }
+        }
+      } catch (error) {
+        // Non-fatal - continue with sync even if seeding fails
+        console.warn(`⚠️  Error checking/seeding call types: ${error instanceof Error ? error.message : String(error)}`)
+      }
     }
     
     // If thumbnail wasn't generated or is a placeholder, try again now that we have meeting.id

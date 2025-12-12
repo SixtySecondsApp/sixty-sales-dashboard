@@ -258,3 +258,5 @@ Verify these flows are configured in Encharge.io:
 - Check Supabase logs for any errors
 - Test on both desktop and mobile browsers
 
+
+

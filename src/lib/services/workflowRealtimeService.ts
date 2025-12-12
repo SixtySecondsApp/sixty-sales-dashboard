@@ -82,7 +82,7 @@ export class WorkflowRealtimeService {
    * Manually trigger workflow execution for testing
    */
   async triggerWorkflow(
-    triggerType: 'activity_created' | 'stage_changed' | 'deal_created' | 'task_completed' | 'manual',
+    triggerType: 'activity_created' | 'stage_changed' | 'deal_created' | 'task_completed' | 'call_type_classified' | 'manual',
     triggerData: Record<string, any>,
     userId?: string
   ): Promise<any> {

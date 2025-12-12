@@ -103,6 +103,29 @@ export interface MeetingPrepData {
   talkingPoints: string[];
   meetingUrl?: string;
   appUrl: string;
+  // Enhanced meeting prep data
+  meetingHistory?: Array<{
+    date: string;
+    title: string;
+    outcome?: 'positive' | 'neutral' | 'negative';
+    keyTopics?: string[];
+  }>;
+  riskSignals?: Array<{
+    type: string;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    description: string;
+  }>;
+  previousObjections?: Array<{
+    objection: string;
+    resolution?: string;
+    resolved: boolean;
+  }>;
+  stageQuestions?: string[];
+  checklistReminders?: string[];
+  scriptSteps?: Array<{
+    stepName: string;
+    topics: string[];
+  }>;
 }
 
 export interface DealRoomData {
@@ -514,6 +537,19 @@ export const buildMeetingPrepMessage = (data: MeetingPrepData): SlackMessage => 
 
   blocks.push(divider());
 
+  // Risk Alert (if any high/critical risks)
+  const criticalRisks = data.riskSignals?.filter(r => r.severity === 'critical' || r.severity === 'high') || [];
+  if (criticalRisks.length > 0) {
+    const riskEmoji = criticalRisks.some(r => r.severity === 'critical') ? '🚨' : '⚠️';
+    blocks.push(section(`${riskEmoji} *DEAL RISK ALERTS*`));
+    const riskLines = criticalRisks.slice(0, 3).map(r => {
+      const severityBadge = r.severity === 'critical' ? '🔴' : '🟠';
+      return `${severityBadge} ${r.description}`;
+    });
+    blocks.push(section(riskLines.join('\n')));
+    blocks.push(divider());
+  }
+
   // Attendees
   if (data.attendees.length > 0) {
     blocks.push(section('*👥 ATTENDEES*'));
@@ -561,8 +597,21 @@ export const buildMeetingPrepMessage = (data: MeetingPrepData): SlackMessage => 
 
   blocks.push(divider());
 
-  // Last Meeting Notes
-  if (data.lastMeetingNotes) {
+  // Meeting History (if available)
+  if (data.meetingHistory && data.meetingHistory.length > 0) {
+    blocks.push(section(`*📜 MEETING HISTORY* (${data.meetingHistory.length} previous)`));
+    const historyLines = data.meetingHistory.slice(0, 3).map(m => {
+      const outcomeEmoji = m.outcome === 'positive' ? '✅' : m.outcome === 'negative' ? '⚠️' : '➖';
+      const topics = m.keyTopics?.slice(0, 2).join(', ') || '';
+      return `${outcomeEmoji} *${m.date}*: ${m.title}${topics ? `\n      _Topics: ${topics}_` : ''}`;
+    });
+    blocks.push(section(historyLines.join('\n')));
+    if (data.meetingHistory.length > 3) {
+      blocks.push(context([`+ ${data.meetingHistory.length - 3} more meetings...`]));
+    }
+    blocks.push(divider());
+  } else if (data.lastMeetingNotes) {
+    // Fall back to simple last meeting notes
     blocks.push(section([
       `*💬 FROM LAST MEETING${data.lastMeetingDate ? ` (${data.lastMeetingDate})` : ''}*`,
       `_"${data.lastMeetingNotes}"_`,
@@ -570,7 +619,53 @@ export const buildMeetingPrepMessage = (data: MeetingPrepData): SlackMessage => 
     blocks.push(divider());
   }
 
-  // Talking Points
+  // Previous Objections (if any unresolved)
+  const unresolvedObjections = data.previousObjections?.filter(o => !o.resolved) || [];
+  if (unresolvedObjections.length > 0) {
+    blocks.push(section('*🔴 UNRESOLVED OBJECTIONS*'));
+    const objectionLines = unresolvedObjections.slice(0, 3).map(o => `• ${o.objection}`);
+    blocks.push(section(objectionLines.join('\n')));
+    blocks.push(divider());
+  }
+
+  // Resolved Objections (for reference)
+  const resolvedObjections = data.previousObjections?.filter(o => o.resolved && o.resolution) || [];
+  if (resolvedObjections.length > 0) {
+    blocks.push(section('*✅ PREVIOUSLY RESOLVED*'));
+    const resolvedLines = resolvedObjections.slice(0, 2).map(o =>
+      `• _"${o.objection}"_\n   → ${o.resolution}`
+    );
+    blocks.push(section(resolvedLines.join('\n')));
+    blocks.push(divider());
+  }
+
+  // Script Flow / Checklist Reminders (if template exists)
+  if (data.scriptSteps && data.scriptSteps.length > 0) {
+    blocks.push(section('*📋 CALL SCRIPT FLOW*'));
+    const scriptLines = data.scriptSteps.map((step, i) => {
+      const topics = step.topics.slice(0, 3).join(', ');
+      return `${i + 1}. *${step.stepName}* - ${topics}`;
+    });
+    blocks.push(section(scriptLines.join('\n')));
+    blocks.push(divider());
+  }
+
+  if (data.checklistReminders && data.checklistReminders.length > 0) {
+    blocks.push(section('*☑️ KEY ITEMS TO COVER*'));
+    const checklistLines = data.checklistReminders.slice(0, 5).map(item => `☐ ${item}`);
+    blocks.push(section(checklistLines.join('\n')));
+    blocks.push(divider());
+  }
+
+  // Stage-Appropriate Questions
+  if (data.stageQuestions && data.stageQuestions.length > 0) {
+    blocks.push(section(`*❓ QUESTIONS FOR ${data.deal?.stage?.toUpperCase() || 'THIS'} STAGE*`));
+    const questionLines = data.stageQuestions.slice(0, 4).map((q, i) => `${i + 1}. ${q}`);
+    blocks.push(section(questionLines.join('\n')));
+    blocks.push(divider());
+  }
+
+  // Talking Points (AI-generated)
   if (data.talkingPoints.length > 0) {
     blocks.push(section('*🎯 SUGGESTED TALKING POINTS*'));
     const talkingPointLines = data.talkingPoints.map((tp, i) => `${i + 1}. ${tp}`);

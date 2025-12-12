@@ -77,3 +77,5 @@ WHERE tablename = 'waitlist_email_invites';
 -- Verify table structure
 SELECT 'SUCCESS: waitlist_email_invites RLS policies configured!' as status;
 
+
+

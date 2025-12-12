@@ -148,6 +148,7 @@ const EmailSyncPage = lazyWithRetry(() => import('@/pages/settings/EmailSyncPage
 const TaskSyncPage = lazyWithRetry(() => import('@/pages/settings/TaskSyncPage'));
 const MeetingSyncPage = lazyWithRetry(() => import('@/pages/settings/MeetingSyncPage'));
 const TeamMembersPage = lazyWithRetry(() => import('@/pages/settings/TeamMembersPage'));
+const CallTypeSettings = lazyWithRetry(() => import('@/pages/settings/CallTypeSettings'));
 const OrganizationSettingsPage = lazyWithRetry(() => import('@/pages/settings/OrganizationSettingsPage'));
 const TeamAnalytics = lazyWithRetry(() => import('@/pages/insights/TeamAnalytics'));
 const ContentTopics = lazyWithRetry(() => import('@/pages/insights/ContentTopics'));
@@ -539,6 +540,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/settings/ai" element={<AppLayout><AISettings /></AppLayout>} />
                 <Route path="/settings/extraction-rules" element={<Navigate to="/settings/task-sync" replace />} />
                 <Route path="/settings/task-sync" element={<AppLayout><TaskSyncSettings /></AppLayout>} />
+                <Route path="/settings/call-types" element={<AppLayout><CallTypeSettings /></AppLayout>} />
                 <Route path="/settings/coaching" element={<AppLayout><CoachingPreferences /></AppLayout>} />
                 <Route path="/insights/team" element={<AppLayout><TeamAnalytics /></AppLayout>} />
                 <Route path="/insights/content-topics" element={<AppLayout><ContentTopics /></AppLayout>} />

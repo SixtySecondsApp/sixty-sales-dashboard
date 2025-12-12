@@ -163,3 +163,5 @@ COMMENT ON COLUMN subscription_plans.included_seats IS 'Number of seats included
 COMMENT ON COLUMN subscription_plans.per_seat_price IS 'Price in pence for each additional seat beyond included_seats';
 COMMENT ON COLUMN subscription_plans.stripe_seat_price_id IS 'Stripe price ID for additional seat billing';
 
+
+

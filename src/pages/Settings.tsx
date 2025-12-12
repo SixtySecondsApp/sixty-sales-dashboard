@@ -31,6 +31,7 @@ import {
   Users,
   Building2,
   Video,
+  Phone,
 } from 'lucide-react';
 
 interface SettingsSection {
@@ -103,6 +104,14 @@ export default function Settings() {
       icon: Video,
       description: 'Auto-log meetings from Fathom, Fireflies, and other integrations',
       path: '/settings/meeting-sync',
+    },
+    {
+      id: 'call-types',
+      label: 'Call Types',
+      icon: Phone,
+      description: 'Configure call types for AI-powered meeting classification',
+      path: '/settings/call-types',
+      requiresOrgAdmin: true,
     },
     {
       id: 'email-sync',
