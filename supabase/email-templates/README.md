@@ -60,7 +60,7 @@ Supabase automatically replaces these placeholders:
 
 The logo is hosted on Cloudinary:
 ```
-https://res.cloudinary.com/sixty-seconds/image/upload/v1761311652/sixtyseconds-Icon_1_2_cybz4p.png
+https://res.cloudinary.com/sixty-seconds/image/upload/sixtyseconds-Icon_1_2_cybz4p.png
 ```
 
 If you need to change the logo:
