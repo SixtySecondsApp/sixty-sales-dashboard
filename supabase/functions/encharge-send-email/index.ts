@@ -160,7 +160,15 @@ async function signAWSRequest(
 }
 
 /**
+ * Base64 encode for AWS (moved before buildMimeMessage)
+ */
+function base64Encode(str: string): string {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+/**
  * Build a MIME email message with proper encoding
+ * Uses multipart/alternative structure for maximum compatibility
  */
 function buildMimeMessage(
   toEmail: string,
@@ -171,9 +179,17 @@ function buildMimeMessage(
 ): string {
   const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   
-  // Base64 encode HTML for reliable delivery
-  const htmlEncoded = base64Encode(htmlBody);
+  // Ensure HTML is complete and valid
+  let htmlContent = htmlBody.trim();
+  if (!htmlContent.includes('<!DOCTYPE') && !htmlContent.includes('<html')) {
+    // Wrap in HTML structure if not already wrapped
+    htmlContent = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${htmlContent}</body></html>`;
+  }
   
+  // Base64 encode HTML for reliable delivery
+  const htmlEncoded = base64Encode(htmlContent);
+  
+  // Build email headers
   let message = '';
   message += `From: ${fromEmail}\r\n`;
   message += `To: ${toEmail}\r\n`;
@@ -182,35 +198,29 @@ function buildMimeMessage(
   message += `Content-Type: multipart/alternative; boundary="${boundary}"\r\n`;
   message += `\r\n`;
   
-  // Plain text part (if provided)
-  if (textBody) {
-    message += `--${boundary}\r\n`;
-    message += `Content-Type: text/plain; charset=UTF-8\r\n`;
-    message += `Content-Transfer-Encoding: 7bit\r\n`;
-    message += `\r\n`;
-    message += `${textBody}\r\n`;
-  }
+  // Plain text part (always include for better deliverability)
+  const plainText = textBody || htmlContent.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  message += `--${boundary}\r\n`;
+  message += `Content-Type: text/plain; charset=UTF-8\r\n`;
+  message += `Content-Transfer-Encoding: 7bit\r\n`;
+  message += `\r\n`;
+  message += `${plainText}\r\n`;
+  message += `\r\n`;
   
-  // HTML part (base64 encoded for reliability)
+  // HTML part (base64 encoded)
   message += `--${boundary}\r\n`;
   message += `Content-Type: text/html; charset=UTF-8\r\n`;
   message += `Content-Transfer-Encoding: base64\r\n`;
   message += `\r\n`;
-  // Base64 encoded content should be split into 76-character lines per RFC 2045
+  // Split base64 into 76-character lines per RFC 2045
   const htmlLines = htmlEncoded.match(/.{1,76}/g) || [htmlEncoded];
   message += htmlLines.join('\r\n');
   message += `\r\n`;
   
+  // Close boundary
   message += `--${boundary}--\r\n`;
   
   return message;
-}
-
-/**
- * Base64 encode for AWS
- */
-function base64Encode(str: string): string {
-  return btoa(unescape(encodeURIComponent(str)));
 }
 
 /**
