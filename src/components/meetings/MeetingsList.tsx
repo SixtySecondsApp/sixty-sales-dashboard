@@ -33,7 +33,9 @@ import {
   Calendar,
   ExternalLink,
   Play,
-  Lightbulb
+  Lightbulb,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 import { MeetingUsageBar } from '@/components/MeetingUsageIndicator'
 
@@ -254,6 +256,8 @@ const MeetingsListSkeleton: React.FC<{ view: 'list' | 'grid' }> = ({ view }) => 
   </div>
 )
 
+const ITEMS_PER_PAGE = 30
+
 const MeetingsList: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -263,6 +267,8 @@ const MeetingsList: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [scope, setScope] = useState<'me' | 'team'>('me')
   const [view, setView] = useState<'list' | 'grid'>('grid')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
   const [stats, setStats] = useState({
     meetingsThisMonth: 0,
     avgDuration: 0,
@@ -273,9 +279,16 @@ const MeetingsList: React.FC = () => {
   const [thumbnailsEnsured, setThumbnailsEnsured] = useState(false)
   const autoSyncAttemptedRef = useRef(false)
 
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
+
+  // Reset to page 1 when scope or org changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [scope, activeOrgId])
+
   useEffect(() => {
     fetchMeetings()
-  }, [scope, user, activeOrgId])
+  }, [scope, user, activeOrgId, currentPage])
 
   // Auto-sync when user arrives with Fathom connected but no meetings
   // This handles users coming from onboarding who skipped the sync step
@@ -384,9 +397,28 @@ const MeetingsList: React.FC = () => {
 
   const fetchMeetings = async () => {
     if (!user) return
-    
+
     setLoading(true)
     try {
+      // First get total count for pagination
+      let countQuery = supabase
+        .from('meetings')
+        .select('*', { count: 'exact', head: true })
+
+      if (activeOrgId) {
+        countQuery = countQuery.eq('org_id', activeOrgId)
+      }
+      if (scope === 'me' || !activeOrgId) {
+        countQuery = countQuery.or(`owner_user_id.eq.${user.id},owner_email.eq.${user.email}`)
+      }
+
+      const { count } = await countQuery
+      setTotalCount(count || 0)
+
+      // Now fetch paginated data
+      const from = (currentPage - 1) * ITEMS_PER_PAGE
+      const to = from + ITEMS_PER_PAGE - 1
+
       let query = supabase
         .from('meetings')
         .select(`
@@ -396,7 +428,8 @@ const MeetingsList: React.FC = () => {
           tasks(status)
         `)
         .order('meeting_start', { ascending: false })
-      
+        .range(from, to)
+
       // Apply org scoping if we have an active org
       if (activeOrgId) {
         query = query.eq('org_id', activeOrgId)
@@ -417,8 +450,12 @@ const MeetingsList: React.FC = () => {
       setMeetings(data || [])
       // Reset to allow ensureThumbnails to run for the new list
       setThumbnailsEnsured(false)
-      calculateStats(data || [])
+      // Only calculate stats on first page to avoid recalculating on every page
+      if (currentPage === 1) {
+        calculateStats(data || [])
+      }
     } catch (error) {
+      console.error('Error fetching meetings:', error)
     } finally {
       setLoading(false)
     }
@@ -800,9 +837,86 @@ const MeetingsList: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* Pagination Controls */}
+      {totalCount > ITEMS_PER_PAGE && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-between bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl p-4 border border-gray-200/50 dark:border-gray-700/30 shadow-sm"
+        >
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} of {totalCount.toLocaleString()} meetings
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="gap-1"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <div className="flex items-center gap-1">
+              {/* Show page numbers */}
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum: number
+                if (totalPages <= 5) {
+                  pageNum = i + 1
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i
+                } else {
+                  pageNum = currentPage - 2 + i
+                }
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={currentPage === pageNum ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={cn(
+                      'w-9 h-9',
+                      currentPage === pageNum && 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    )}
+                  >
+                    {pageNum}
+                  </Button>
+                )
+              })}
+              {totalPages > 5 && currentPage < totalPages - 2 && (
+                <>
+                  <span className="text-gray-400 px-1">...</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(totalPages)}
+                    className="w-9 h-9"
+                  >
+                    {totalPages}
+                  </Button>
+                </>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="gap-1"
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </motion.div>
+      )}
+
       {/* Empty State */}
       {meetings.length === 0 && !loading && (
-        <MeetingsEmptyState 
+        <MeetingsEmptyState
           meetingCount={meetings.length}
           isSyncing={syncState?.sync_status === 'syncing'}
         />

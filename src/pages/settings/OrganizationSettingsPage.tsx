@@ -1,13 +1,19 @@
 import SettingsPageWrapper from '@/components/SettingsPageWrapper';
 import { useState, useEffect } from 'react';
-import { Building2, Check, X, Loader2, AlertCircle } from 'lucide-react';
+import { Building2, Check, X, Loader2, AlertCircle, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useOrg } from '@/lib/contexts/OrgContext';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export default function OrganizationSettingsPage() {
-  const { activeOrgId, activeOrg, permissions, refreshOrgs } = useOrg();
+  const { activeOrgId, activeOrg, organizations, permissions, refreshOrgs, switchOrg } = useOrg();
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedOrgName, setEditedOrgName] = useState(activeOrg?.name || '');
   const [isSavingName, setIsSavingName] = useState(false);
@@ -87,6 +93,45 @@ export default function OrganizationSettingsPage() {
       description="Manage your organization details"
     >
       <div className="space-y-6">
+        {/* Organization Switcher - only show if user has multiple orgs */}
+        {organizations.length > 1 && (
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-[#37bd7e]" />
+              Switch Organization
+            </h2>
+            <div className="border border-gray-200 dark:border-gray-800 rounded-xl p-6">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    <span className="truncate">{activeOrg?.name || 'Select organization'}</span>
+                    <ChevronDown className="w-4 h-4 ml-2 flex-shrink-0" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-[300px]">
+                  {organizations.map((org) => (
+                    <DropdownMenuItem
+                      key={org.id}
+                      onClick={() => {
+                        switchOrg(org.id);
+                        toast.success(`Switched to ${org.name}`);
+                      }}
+                      className={org.id === activeOrgId ? 'bg-[#37bd7e]/10 text-[#37bd7e]' : ''}
+                    >
+                      <Building2 className="w-4 h-4 mr-2" />
+                      <span className="truncate">{org.name}</span>
+                      {org.id === activeOrgId && <Check className="w-4 h-4 ml-auto" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
+                You have access to {organizations.length} organizations. Switching will reload data for the selected organization.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Organization Name Section */}
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
