@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>use60 Email Template Preview</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f0f;
+      color: #e5e5e5;
+      min-height: 100vh;
+    }
+    .header {
+      background: linear-gradient(135deg, #111111 0%, #1a1a1a 100%);
+      border-bottom: 1px solid #2a2a2a;
+      padding: 24px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo-section {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .logo-section img {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+    }
+    .logo-section h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    .logo-section span {
+      font-size: 13px;
+      color: #6b7280;
+      font-weight: 500;
+    }
+    .badge {
+      background: #37bd7e;
+      color: #fff;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      padding: 16px 32px;
+      background: #111111;
+      border-bottom: 1px solid #222;
+      flex-wrap: wrap;
+    }
+    .tab {
+      padding: 10px 20px;
+      background: transparent;
+      border: 1px solid #333;
+      color: #999;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .tab:hover {
+      background: #1a1a1a;
+      color: #fff;
+      border-color: #444;
+    }
+    .tab.active {
+      background: #37bd7e;
+      color: #fff;
+      border-color: #37bd7e;
+    }
+    .preview-container {
+      display: flex;
+      gap: 24px;
+      padding: 32px;
+      flex-wrap: wrap;
+    }
+    .preview-panel {
+      flex: 1;
+      min-width: 320px;
+      background: #1a1a1a;
+      border-radius: 16px;
+      border: 1px solid #2a2a2a;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 16px 20px;
+      background: #222;
+      border-bottom: 1px solid #333;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .panel-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .mode-toggle {
+      display: flex;
+      gap: 4px;
+      background: #333;
+      padding: 4px;
+      border-radius: 6px;
+    }
+    .mode-btn {
+      padding: 6px 12px;
+      border: none;
+      background: transparent;
+      color: #888;
+      font-size: 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .mode-btn.active {
+      background: #444;
+      color: #fff;
+    }
+    .iframe-container {
+      height: 700px;
+      position: relative;
+    }
+    .iframe-container.light-mode {
+      background: #f5f5f5;
+    }
+    .iframe-container.dark-mode {
+      background: #111111;
+    }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    .info-section {
+      padding: 32px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .info-card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .info-card h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .info-card ul {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+    }
+    .info-card li {
+      font-size: 14px;
+      color: #9ca3af;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .check {
+      color: #37bd7e;
+      font-weight: bold;
+    }
+    .logo-test {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: #222;
+      border-radius: 8px;
+      margin-top: 16px;
+    }
+    .logo-test img {
+      width: 64px;
+      height: 64px;
+      border-radius: 14px;
+      background: #18181b;
+    }
+    .logo-test-info {
+      flex: 1;
+    }
+    .logo-test-info h4 {
+      font-size: 14px;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    .logo-test-info p {
+      font-size: 12px;
+      color: #6b7280;
+      word-break: break-all;
+    }
+    .logo-status {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .logo-status.loading {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .logo-status.loaded {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .logo-status.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="logo-section">
+      <img src="https://res.cloudinary.com/sixty-seconds/image/upload/v1761311652/sixtyseconds-Icon_1_2_cybz4p.png" alt="use60" id="headerLogo" />
+      <div>
+        <h1>use60</h1>
+        <span>Email Template Preview</span>
+      </div>
+    </div>
+    <div class="badge">Supabase Auth Templates</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="loadTemplate('confirmation.html', this)">✉️ Confirmation</button>
+    <button class="tab" onclick="loadTemplate('magic-link.html', this)">🔗 Magic Link</button>
+    <button class="tab" onclick="loadTemplate('invite.html', this)">👋 Invite</button>
+    <button class="tab" onclick="loadTemplate('reset-password.html', this)">🔒 Reset Password</button>
+    <button class="tab" onclick="loadTemplate('change-email.html', this)">📧 Change Email</button>
+  </div>
+
+  <div class="preview-container">
+    <div class="preview-panel">
+      <div class="panel-header">
+        <span class="panel-title">Dark Mode Preview</span>
+      </div>
+      <div class="iframe-container dark-mode">
+        <iframe id="darkFrame" src="confirmation.html"></iframe>
+      </div>
+    </div>
+    <div class="preview-panel">
+      <div class="panel-header">
+        <span class="panel-title">Light Mode Preview</span>
+      </div>
+      <div class="iframe-container light-mode">
+        <iframe id="lightFrame" src="confirmation.html"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <div class="info-card">
+      <h3>🖼️ Logo Loading Test</h3>
+      <div class="logo-test">
+        <img src="https://res.cloudinary.com/sixty-seconds/image/upload/v1761311652/sixtyseconds-Icon_1_2_cybz4p.png" 
+             alt="use60 Logo" 
+             id="logoTest"
+             onload="updateLogoStatus('loaded')"
+             onerror="updateLogoStatus('error')" />
+        <div class="logo-test-info">
+          <h4>Cloudinary Logo URL</h4>
+          <p>https://res.cloudinary.com/sixty-seconds/image/upload/v1761311652/sixtyseconds-Icon_1_2_cybz4p.png</p>
+        </div>
+        <span class="logo-status loading" id="logoStatus">Loading...</span>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <h3>✅ Design Features</h3>
+      <ul>
+        <li><span class="check">✓</span> Dark outer background (#111111) for consistent appearance</li>
+        <li><span class="check">✓</span> White card (#ffffff) provides maximum contrast</li>
+        <li><span class="check">✓</span> Works perfectly in both light and dark email clients</li>
+        <li><span class="check">✓</span> Green accent bar (#37bd7e) for brand recognition</li>
+        <li><span class="check">✓</span> Solid background colors (no transparency issues)</li>
+        <li><span class="check">✓</span> VML fallbacks for Outlook compatibility</li>
+        <li><span class="check">✓</span> Logo has background-color fallback if image fails</li>
+        <li><span class="check">✓</span> Mobile-responsive table-based layout</li>
+        <li><span class="check">✓</span> Proper alt text for accessibility</li>
+        <li><span class="check">✓</span> 2025 copyright date</li>
+      </ul>
+    </div>
+
+    <div class="info-card">
+      <h3>📋 Supabase Setup Instructions</h3>
+      <ul>
+        <li><span class="check">1.</span> Go to Supabase Dashboard → Authentication → Email Templates</li>
+        <li><span class="check">2.</span> Select each template type (Confirm, Magic Link, etc.)</li>
+        <li><span class="check">3.</span> Copy the corresponding HTML file content</li>
+        <li><span class="check">4.</span> Paste into the "Body" field</li>
+        <li><span class="check">5.</span> Update the subject line as needed</li>
+        <li><span class="check">6.</span> Click "Save" to apply changes</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    function loadTemplate(file, btn) {
+      document.getElementById('darkFrame').src = file;
+      document.getElementById('lightFrame').src = file;
+      
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    function updateLogoStatus(status) {
+      const el = document.getElementById('logoStatus');
+      el.className = 'logo-status ' + status;
+      if (status === 'loaded') {
+        el.textContent = '✓ Loaded';
+      } else if (status === 'error') {
+        el.textContent = '✗ Failed';
+      }
+    }
+
+    // Check logo on page load
+    window.onload = function() {
+      const img = document.getElementById('logoTest');
+      if (img.complete) {
+        if (img.naturalHeight !== 0) {
+          updateLogoStatus('loaded');
+        } else {
+          updateLogoStatus('error');
+        }
+      }
+    };
+  </script>
+
+</body>
+</html>
