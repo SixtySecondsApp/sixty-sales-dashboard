@@ -48,8 +48,15 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
   // Check for matching organizations by domain
   useEffect(() => {
     const findMatchingOrgs = async () => {
-      // Skip if user already has an org, is using personal email, or no domain
-      if (activeOrg || isPersonalEmail || !userDomain || !user?.id) {
+      // Skip if user already has an org
+      if (activeOrg) {
+        setSelectedOption(null); // User already has org
+        return;
+      }
+
+      // For personal emails or no domain, skip to create
+      if (isPersonalEmail || !userDomain || !user?.id) {
+        setSelectedOption('create');
         return;
       }
 
@@ -61,7 +68,8 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
 
         if (searchError) {
           console.warn('Error finding matching orgs:', searchError);
-          // If RPC doesn't exist, fall back to no matches
+          // If RPC doesn't exist or fails, fall back to create mode
+          setSelectedOption('create');
           return;
         }
 
@@ -81,7 +89,7 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
       }
     };
 
-    if (hasCheckedOrg && !activeOrg) {
+    if (hasCheckedOrg) {
       findMatchingOrgs();
     }
   }, [hasCheckedOrg, activeOrg, userDomain, isPersonalEmail, user?.id]);
