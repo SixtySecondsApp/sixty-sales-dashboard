@@ -30,6 +30,25 @@ interface RequestBody {
   meetingId?: string;
   dealId?: string;
   forceReanalyze?: boolean;
+  processForwardMovement?: boolean; // Also check for forward movement signals
+}
+
+interface ForwardMovementSignal {
+  type: string;
+  confidence: number;
+  evidence: string;
+}
+
+interface PipelineAutomationRule {
+  id: string;
+  org_id: string;
+  name: string;
+  trigger_type: string;
+  action_type: string;
+  action_config: Record<string, any>;
+  min_confidence: number;
+  cooldown_hours: number;
+  is_active: boolean;
 }
 
 type RiskSignalType =
@@ -751,6 +770,442 @@ async function recalculateRiskAggregate(
 }
 
 /**
+ * Get forward movement signals from meeting workflow results
+ */
+async function getForwardMovementSignals(
+  supabase: ReturnType<typeof createClient>,
+  dealId: string,
+  orgId: string
+): Promise<{ signals: ForwardMovementSignal[]; meetingId: string | null }> {
+  // Get deal's company_id
+  const { data: deal } = await supabase
+    .from('deals')
+    .select('company_id')
+    .eq('id', dealId)
+    .single();
+
+  if (!deal?.company_id) {
+    return { signals: [], meetingId: null };
+  }
+
+  // Get recent meeting workflow results with forward movement signals
+  const { data: meetings } = await supabase
+    .from('meetings')
+    .select('id')
+    .eq('company_id', deal.company_id)
+    .order('start_time', { ascending: false })
+    .limit(5);
+
+  if (!meetings || meetings.length === 0) {
+    return { signals: [], meetingId: null };
+  }
+
+  const meetingIds = meetings.map(m => m.id);
+
+  // Get workflow results with forward movement signals
+  const { data: workflowResults } = await supabase
+    .from('meeting_workflow_results')
+    .select('meeting_id, forward_movement_signals, created_at')
+    .in('meeting_id', meetingIds)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (!workflowResults || workflowResults.length === 0) {
+    return { signals: [], meetingId: null };
+  }
+
+  const result = workflowResults[0];
+  const signals = (result.forward_movement_signals || []) as ForwardMovementSignal[];
+
+  return {
+    signals: signals.filter(s => s.confidence >= 0.5), // Only return high-confidence signals
+    meetingId: result.meeting_id,
+  };
+}
+
+/**
+ * Get applicable automation rules for a trigger type
+ */
+async function getApplicableRules(
+  supabase: ReturnType<typeof createClient>,
+  orgId: string,
+  triggerType: string,
+  minConfidence: number
+): Promise<PipelineAutomationRule[]> {
+  const { data: rules, error } = await supabase
+    .from('pipeline_automation_rules')
+    .select('*')
+    .eq('org_id', orgId)
+    .eq('trigger_type', triggerType)
+    .eq('is_active', true)
+    .lte('min_confidence', minConfidence);
+
+  if (error) {
+    console.error('Error fetching automation rules:', error);
+    return [];
+  }
+
+  return rules || [];
+}
+
+/**
+ * Check if rule is within cooldown period for a deal
+ */
+async function isRuleInCooldown(
+  supabase: ReturnType<typeof createClient>,
+  ruleId: string,
+  dealId: string,
+  cooldownHours: number
+): Promise<boolean> {
+  const cooldownTime = new Date(Date.now() - cooldownHours * 60 * 60 * 1000).toISOString();
+
+  const { data: recentLogs } = await supabase
+    .from('pipeline_automation_log')
+    .select('id')
+    .eq('rule_id', ruleId)
+    .eq('deal_id', dealId)
+    .eq('status', 'success')
+    .gte('created_at', cooldownTime)
+    .limit(1);
+
+  return (recentLogs?.length || 0) > 0;
+}
+
+/**
+ * Execute pipeline automation action
+ */
+async function executeAutomationAction(
+  supabase: ReturnType<typeof createClient>,
+  rule: PipelineAutomationRule,
+  dealId: string,
+  meetingId: string | null,
+  signal: ForwardMovementSignal
+): Promise<{ success: boolean; result: any; error?: string }> {
+  try {
+    switch (rule.action_type) {
+      case 'advance_stage': {
+        // Get current deal with stage info
+        const { data: deal } = await supabase
+          .from('deals')
+          .select('id, stage_id, deal_stages(id, name, position)')
+          .eq('id', dealId)
+          .single();
+
+        if (!deal) {
+          return { success: false, result: null, error: 'Deal not found' };
+        }
+
+        const currentStage = deal.deal_stages as any;
+        let targetStageId: string | null = null;
+
+        if (rule.action_config.advance_to_next) {
+          // Find next stage by position
+          const { data: nextStage } = await supabase
+            .from('deal_stages')
+            .select('id, name')
+            .eq('org_id', rule.org_id)
+            .gt('position', currentStage?.position || 0)
+            .order('position', { ascending: true })
+            .limit(1)
+            .single();
+
+          targetStageId = nextStage?.id || null;
+        } else if (rule.action_config.target_stage_id) {
+          targetStageId = rule.action_config.target_stage_id;
+        }
+
+        if (!targetStageId) {
+          return { success: false, result: null, error: 'No target stage found' };
+        }
+
+        // Update deal stage
+        const { error: updateError } = await supabase
+          .from('deals')
+          .update({ stage_id: targetStageId })
+          .eq('id', dealId);
+
+        if (updateError) {
+          return { success: false, result: null, error: updateError.message };
+        }
+
+        return {
+          success: true,
+          result: {
+            action: 'stage_advanced',
+            from_stage_id: deal.stage_id,
+            to_stage_id: targetStageId,
+            deal_id: dealId,
+          },
+        };
+      }
+
+      case 'create_task': {
+        // Get deal name for template
+        const { data: deal } = await supabase
+          .from('deals')
+          .select('id, name, owner_id')
+          .eq('id', dealId)
+          .single();
+
+        if (!deal) {
+          return { success: false, result: null, error: 'Deal not found' };
+        }
+
+        // Process title template
+        let title = rule.action_config.title_template || 'Follow up task';
+        title = title.replace('{{deal_name}}', deal.name || 'Unknown Deal');
+        title = title.replace('{{signal_type}}', signal.type);
+
+        // Calculate due date
+        const dueDays = rule.action_config.due_days || 3;
+        const dueDate = new Date(Date.now() + dueDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        // Create task
+        const { data: task, error: taskError } = await supabase
+          .from('tasks')
+          .insert({
+            title,
+            description: `Auto-created task based on ${signal.type} detected in call. Evidence: ${signal.evidence}`,
+            deal_id: dealId,
+            user_id: deal.owner_id,
+            due_date: dueDate,
+            priority: rule.action_config.priority || 'medium',
+            status: 'pending',
+            is_auto_generated: true,
+            auto_generation_source: 'pipeline_automation',
+          })
+          .select('id')
+          .single();
+
+        if (taskError) {
+          return { success: false, result: null, error: taskError.message };
+        }
+
+        return {
+          success: true,
+          result: {
+            action: 'task_created',
+            task_id: task?.id,
+            title,
+            due_date: dueDate,
+          },
+        };
+      }
+
+      case 'send_notification': {
+        // Get deal info
+        const { data: deal } = await supabase
+          .from('deals')
+          .select('id, name, owner_id')
+          .eq('id', dealId)
+          .single();
+
+        if (!deal) {
+          return { success: false, result: null, error: 'Deal not found' };
+        }
+
+        const channels = rule.action_config.channels || ['in_app'];
+        let messageTemplate = rule.action_config.message_template || 'Forward movement detected: {{signal_type}}';
+        messageTemplate = messageTemplate.replace('{{deal_name}}', deal.name || 'Unknown Deal');
+        messageTemplate = messageTemplate.replace('{{signal_type}}', signal.type);
+        messageTemplate = messageTemplate.replace('{{evidence}}', signal.evidence);
+
+        // Create in-app notification
+        if (channels.includes('in_app')) {
+          await supabase.from('notifications').insert({
+            user_id: deal.owner_id,
+            title: 'Pipeline Update',
+            message: messageTemplate,
+            type: 'pipeline_automation',
+            metadata: {
+              deal_id: dealId,
+              meeting_id: meetingId,
+              signal_type: signal.type,
+            },
+            is_read: false,
+          });
+        }
+
+        // Note: Email and Slack notifications would be handled by separate edge functions
+        // For now, we just log them as pending
+        return {
+          success: true,
+          result: {
+            action: 'notification_sent',
+            channels,
+            message: messageTemplate,
+          },
+        };
+      }
+
+      case 'update_deal_field': {
+        const field = rule.action_config.field;
+        let value = rule.action_config.value_template || rule.action_config.value;
+
+        if (typeof value === 'string') {
+          value = value.replace('{{signal_type}}', signal.type);
+          value = value.replace('{{evidence}}', signal.evidence);
+        }
+
+        // Update the deal field
+        const { error: updateError } = await supabase
+          .from('deals')
+          .update({ [field]: value })
+          .eq('id', dealId);
+
+        if (updateError) {
+          return { success: false, result: null, error: updateError.message };
+        }
+
+        return {
+          success: true,
+          result: {
+            action: 'deal_field_updated',
+            field,
+            value,
+          },
+        };
+      }
+
+      default:
+        return { success: false, result: null, error: `Unknown action type: ${rule.action_type}` };
+    }
+  } catch (error) {
+    return { success: false, result: null, error: (error as Error).message };
+  }
+}
+
+/**
+ * Log automation action to pipeline_automation_log
+ */
+async function logAutomationAction(
+  supabase: ReturnType<typeof createClient>,
+  orgId: string,
+  ruleId: string,
+  meetingId: string | null,
+  dealId: string,
+  triggerType: string,
+  signal: ForwardMovementSignal,
+  actionType: string,
+  result: any,
+  status: 'success' | 'failed' | 'skipped',
+  errorMessage?: string
+): Promise<void> {
+  await supabase.from('pipeline_automation_log').insert({
+    org_id: orgId,
+    rule_id: ruleId,
+    meeting_id: meetingId,
+    deal_id: dealId,
+    trigger_type: triggerType,
+    trigger_signal: signal,
+    action_type: actionType,
+    action_result: result,
+    status,
+    error_message: errorMessage,
+  });
+}
+
+/**
+ * Process forward movement signals and execute automation rules
+ */
+async function processForwardMovementAutomation(
+  supabase: ReturnType<typeof createClient>,
+  dealId: string,
+  orgId: string
+): Promise<{ executed: number; skipped: number; failed: number; actions: any[] }> {
+  const result = { executed: 0, skipped: 0, failed: 0, actions: [] as any[] };
+
+  // Get forward movement signals for this deal
+  const { signals, meetingId } = await getForwardMovementSignals(supabase, dealId, orgId);
+
+  if (signals.length === 0) {
+    return result;
+  }
+
+  // Process each signal
+  for (const signal of signals) {
+    // Map signal type to trigger type
+    const triggerType = signal.type === 'proposal_requested' ? 'proposal_requested'
+      : signal.type === 'pricing_discussed' ? 'pricing_discussed'
+      : signal.type === 'verbal_commitment' ? 'verbal_commitment'
+      : signal.type === 'next_meeting_scheduled' ? 'next_meeting_scheduled'
+      : signal.type === 'decision_maker_engaged' ? 'decision_maker_engaged'
+      : signal.type === 'timeline_confirmed' ? 'timeline_confirmed'
+      : 'forward_movement_detected';
+
+    // Get applicable rules for this signal
+    const rules = await getApplicableRules(supabase, orgId, triggerType, signal.confidence);
+
+    // Also get general forward movement rules
+    if (triggerType !== 'forward_movement_detected') {
+      const generalRules = await getApplicableRules(supabase, orgId, 'forward_movement_detected', signal.confidence);
+      rules.push(...generalRules);
+    }
+
+    // Execute each rule
+    for (const rule of rules) {
+      // Check cooldown
+      const inCooldown = await isRuleInCooldown(supabase, rule.id, dealId, rule.cooldown_hours);
+
+      if (inCooldown) {
+        result.skipped++;
+        await logAutomationAction(
+          supabase,
+          orgId,
+          rule.id,
+          meetingId,
+          dealId,
+          triggerType,
+          signal,
+          rule.action_type,
+          null,
+          'skipped',
+          'Rule is within cooldown period'
+        );
+        continue;
+      }
+
+      // Execute the action
+      const { success, result: actionResult, error } = await executeAutomationAction(
+        supabase,
+        rule,
+        dealId,
+        meetingId,
+        signal
+      );
+
+      if (success) {
+        result.executed++;
+        result.actions.push({
+          rule_name: rule.name,
+          action_type: rule.action_type,
+          result: actionResult,
+        });
+      } else {
+        result.failed++;
+      }
+
+      // Log the action
+      await logAutomationAction(
+        supabase,
+        orgId,
+        rule.id,
+        meetingId,
+        dealId,
+        triggerType,
+        signal,
+        rule.action_type,
+        actionResult,
+        success ? 'success' : 'failed',
+        error
+      );
+    }
+  }
+
+  return result;
+}
+
+/**
  * Generate human-readable risk summary
  */
 function generateRiskSummary(signals: any[], riskLevel: RiskSeverity, riskScore: number): string {
@@ -792,7 +1247,7 @@ serve(async (req) => {
   }
 
   try {
-    const { meetingId, dealId, forceReanalyze = false }: RequestBody = await req.json();
+    const { meetingId, dealId, forceReanalyze = false, processForwardMovement = false }: RequestBody = await req.json();
 
     if (!meetingId && !dealId) {
       return new Response(
@@ -951,6 +1406,32 @@ serve(async (req) => {
       aggregates.push(aggregate);
     }
 
+    // Process forward movement automation if requested
+    let automationResults: any = null;
+    if (processForwardMovement && dealsToProcess.length > 0 && orgId) {
+      automationResults = {
+        total_executed: 0,
+        total_skipped: 0,
+        total_failed: 0,
+        deal_actions: [] as any[],
+      };
+
+      for (const id of dealsToProcess) {
+        const result = await processForwardMovementAutomation(supabase, id, orgId);
+        automationResults.total_executed += result.executed;
+        automationResults.total_skipped += result.skipped;
+        automationResults.total_failed += result.failed;
+        if (result.actions.length > 0) {
+          automationResults.deal_actions.push({
+            deal_id: id,
+            actions: result.actions,
+          });
+        }
+      }
+
+      console.log(`Pipeline automation: ${automationResults.total_executed} executed, ${automationResults.total_skipped} skipped, ${automationResults.total_failed} failed`);
+    }
+
     console.log(`Analyzed risk signals for ${dealsToProcess.length} deal(s), found ${allDetectedSignals.length} signal(s)`);
 
     return new Response(
@@ -960,6 +1441,7 @@ serve(async (req) => {
         signals_detected: allDetectedSignals.length,
         signals: allDetectedSignals,
         aggregates,
+        automation: automationResults,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

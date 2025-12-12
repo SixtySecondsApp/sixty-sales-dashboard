@@ -19,14 +19,14 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  GripVertical, 
-  X, 
-  Save, 
-  AlertCircle, 
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  GripVertical,
+  X,
+  Save,
+  AlertCircle,
   CheckCircle2,
   Loader2,
   Sparkles,
@@ -40,11 +40,14 @@ import {
   Calendar,
   Palette,
   Tag,
+  Settings,
 } from 'lucide-react';
 import { CallTypeService, type OrgCallType, type CreateCallTypeInput, type UpdateCallTypeInput } from '@/lib/services/callTypeService';
 import { useOrgId, useOrgPermissions } from '@/lib/contexts/OrgContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { CallTypeWorkflowEditor } from '@/components/admin/CallTypeWorkflowEditor';
+import { useOrgCallTypes } from '@/lib/hooks/useWorkflowResults';
 
 // Icon options for call types
 const ICON_OPTIONS = [
@@ -79,6 +82,10 @@ export default function CallTypeSettings() {
   const [showNewForm, setShowNewForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [workflowEditorCallTypeId, setWorkflowEditorCallTypeId] = useState<string | null>(null);
+
+  // Use the workflow results hook for workflow config updates
+  const { updateWorkflowConfig, updateCoachingEnabled } = useOrgCallTypes();
 
   useEffect(() => {
     if (orgId) {
@@ -306,11 +313,40 @@ export default function CallTypeSettings() {
                 onSave={(input) => handleUpdate(callType.id, input)}
                 onDelete={() => handleDelete(callType.id)}
                 onToggleActive={() => handleToggleActive(callType)}
+                onConfigureWorkflow={() => setWorkflowEditorCallTypeId(callType.id)}
                 saving={saving}
               />
             ))}
           </div>
         )}
+
+        {/* Workflow Editor Dialog */}
+        {workflowEditorCallTypeId && (() => {
+          const selectedCallType = callTypes.find(ct => ct.id === workflowEditorCallTypeId);
+          if (!selectedCallType) return null;
+
+          return (
+            <CallTypeWorkflowEditor
+              callTypeId={workflowEditorCallTypeId}
+              callTypeName={selectedCallType.name}
+              currentConfig={selectedCallType.workflow_config}
+              enableCoaching={selectedCallType.enable_coaching ?? true}
+              open={!!workflowEditorCallTypeId}
+              onOpenChange={(open) => {
+                if (!open) setWorkflowEditorCallTypeId(null);
+              }}
+              onSave={async (config, enableCoaching) => {
+                try {
+                  await updateWorkflowConfig(workflowEditorCallTypeId, config);
+                  await updateCoachingEnabled(workflowEditorCallTypeId, enableCoaching);
+                  loadCallTypes(); // Refresh the list
+                } catch (error) {
+                  // Error toast is handled by the hook
+                }
+              }}
+            />
+          );
+        })()}
       </div>
     </div>
   );
@@ -528,6 +564,7 @@ function CallTypeCard({
   onSave,
   onDelete,
   onToggleActive,
+  onConfigureWorkflow,
   saving,
 }: {
   callType: OrgCallType;
@@ -538,6 +575,7 @@ function CallTypeCard({
   onSave: (input: UpdateCallTypeInput) => void;
   onDelete: () => void;
   onToggleActive: () => void;
+  onConfigureWorkflow: () => void;
   saving: boolean;
 }) {
   const iconOption = ICON_OPTIONS.find(opt => opt.value === callType.icon);
@@ -569,13 +607,24 @@ function CallTypeCard({
               />
             </div>
             <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <h3 className="font-semibold text-lg">{callType.name}</h3>
                 {callType.is_system && (
                   <Badge variant="secondary" className="text-xs">System</Badge>
                 )}
                 {!callType.is_active && (
                   <Badge variant="outline" className="text-xs">Inactive</Badge>
+                )}
+                {callType.enable_coaching === false && (
+                  <Badge variant="outline" className="text-xs text-orange-600 dark:text-orange-400 border-orange-300">
+                    Coaching Off
+                  </Badge>
+                )}
+                {callType.workflow_config?.checklist_items?.length > 0 && (
+                  <Badge variant="outline" className="text-xs text-green-600 dark:text-green-400 border-green-300">
+                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                    {callType.workflow_config.checklist_items.length} checklist items
+                  </Badge>
                 )}
               </div>
               {callType.description && (
@@ -606,8 +655,18 @@ function CallTypeCard({
             <Button
               variant="ghost"
               size="icon"
+              onClick={onConfigureWorkflow}
+              disabled={saving}
+              title="Configure Workflow"
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={onEdit}
               disabled={saving}
+              title="Edit Call Type"
             >
               <Edit2 className="w-4 h-4" />
             </Button>
@@ -617,6 +676,7 @@ function CallTypeCard({
                 size="icon"
                 onClick={onDelete}
                 disabled={saving || isDeleting}
+                title="Delete Call Type"
               >
                 {isDeleting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

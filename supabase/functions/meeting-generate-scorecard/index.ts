@@ -8,6 +8,8 @@
  * - Checklist evaluation
  * - Script adherence scoring
  * - AI-generated coaching feedback
+ * - Call type workflow checklist processing
+ * - Forward movement signal detection
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -21,6 +23,54 @@ const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
 interface RequestBody {
   meetingId: string;
   templateId?: string;
+  skipWorkflow?: boolean; // Option to skip workflow processing
+}
+
+interface OrgCallType {
+  id: string;
+  org_id: string;
+  name: string;
+  enable_coaching: boolean;
+  workflow_config: WorkflowConfig | null;
+}
+
+interface WorkflowConfig {
+  checklist_items?: WorkflowChecklistItem[];
+  notifications?: {
+    on_missing_required?: {
+      enabled: boolean;
+      channels: ('in_app' | 'email' | 'slack')[];
+      delay_minutes: number;
+    };
+  };
+  automations?: {
+    update_pipeline_on_forward_movement?: boolean;
+    create_follow_up_task?: boolean;
+  };
+}
+
+interface WorkflowChecklistItem {
+  id: string;
+  label: string;
+  required: boolean;
+  category?: string;
+  keywords: string[];
+}
+
+interface WorkflowChecklistResult {
+  item_id: string;
+  label: string;
+  category?: string;
+  required: boolean;
+  covered: boolean;
+  timestamp?: string;
+  evidence_quote?: string;
+}
+
+interface ForwardMovementSignal {
+  type: string;
+  confidence: number;
+  evidence: string;
 }
 
 interface MetricConfig {
@@ -266,12 +316,32 @@ function calculateGrade(score: number): 'A' | 'B' | 'C' | 'D' | 'F' {
 }
 
 /**
- * Get template for meeting type
+ * Get call type for meeting
+ */
+async function getCallTypeForMeeting(
+  supabase: ReturnType<typeof createClient>,
+  callTypeId?: string
+): Promise<OrgCallType | null> {
+  if (!callTypeId) return null;
+
+  const { data, error } = await supabase
+    .from('org_call_types')
+    .select('id, org_id, name, enable_coaching, workflow_config')
+    .eq('id', callTypeId)
+    .single();
+
+  if (error || !data) return null;
+  return data as OrgCallType;
+}
+
+/**
+ * Get template for meeting type - now prioritizes call_type_id
  */
 async function getTemplateForMeeting(
   supabase: ReturnType<typeof createClient>,
   orgId: string,
   templateId?: string,
+  callTypeId?: string,
   meetingType?: string
 ): Promise<ScorecardTemplate | null> {
   // If specific template requested
@@ -286,7 +356,20 @@ async function getTemplateForMeeting(
     return data;
   }
 
-  // Otherwise find template for meeting type
+  // Priority 1: Find template linked to this call type
+  if (callTypeId) {
+    const { data } = await supabase
+      .from('coaching_scorecard_templates')
+      .select('*')
+      .eq('org_id', orgId)
+      .eq('call_type_id', callTypeId)
+      .eq('is_active', true)
+      .limit(1)
+      .single();
+    if (data) return data;
+  }
+
+  // Priority 2: Find template for meeting type name
   if (meetingType) {
     const { data } = await supabase
       .from('coaching_scorecard_templates')
@@ -297,7 +380,7 @@ async function getTemplateForMeeting(
       .order('is_default', { ascending: false })
       .limit(1)
       .single();
-    return data;
+    if (data) return data;
   }
 
   // Fall back to general template
@@ -311,6 +394,148 @@ async function getTemplateForMeeting(
     .single();
 
   return data;
+}
+
+/**
+ * Analyze workflow checklist against transcript
+ */
+async function analyzeWorkflowChecklist(
+  transcript: string,
+  checklistItems: WorkflowChecklistItem[]
+): Promise<{ results: WorkflowChecklistResult[]; forwardMovementSignals: ForwardMovementSignal[] }> {
+  if (!checklistItems || checklistItems.length === 0) {
+    return { results: [], forwardMovementSignals: [] };
+  }
+
+  const lowerTranscript = transcript.toLowerCase();
+  const results: WorkflowChecklistResult[] = [];
+  const forwardMovementSignals: ForwardMovementSignal[] = [];
+
+  // Process each checklist item
+  for (const item of checklistItems) {
+    const result: WorkflowChecklistResult = {
+      item_id: item.id,
+      label: item.label,
+      category: item.category,
+      required: item.required,
+      covered: false,
+    };
+
+    // Check if any keyword matches
+    for (const keyword of item.keywords || []) {
+      const lowerKeyword = keyword.toLowerCase();
+      const index = lowerTranscript.indexOf(lowerKeyword);
+
+      if (index !== -1) {
+        result.covered = true;
+
+        // Extract context around the keyword (100 chars before and after)
+        const start = Math.max(0, index - 50);
+        const end = Math.min(transcript.length, index + keyword.length + 100);
+        result.evidence_quote = transcript.slice(start, end).trim();
+
+        // Rough timestamp estimate based on position in transcript
+        const positionRatio = index / transcript.length;
+        result.timestamp = `${Math.round(positionRatio * 60)}:00`;
+
+        break;
+      }
+    }
+
+    results.push(result);
+  }
+
+  // Detect forward movement signals from common phrases
+  const forwardMovementPatterns = [
+    { type: 'proposal_requested', patterns: ['send me a proposal', 'send proposal', 'pricing proposal', 'quote me', 'what does it cost', 'get a proposal'], confidence: 0.85 },
+    { type: 'pricing_discussed', patterns: ['price', 'pricing', 'cost', 'budget', 'investment', 'spend', 'dollars'], confidence: 0.75 },
+    { type: 'next_meeting_scheduled', patterns: ['schedule a follow', 'next meeting', 'schedule a call', 'book a demo', 'set up a demo', 'next tuesday', 'next week'], confidence: 0.85 },
+    { type: 'verbal_commitment', patterns: ["let's do it", "let's move forward", 'we want to', "we'll take", 'sign me up', 'let us proceed', 'sounds good', 'we are in'], confidence: 0.80 },
+    { type: 'decision_maker_engaged', patterns: ['ceo', 'cfo', 'cto', 'vp of', 'director of', 'head of', 'decision maker', 'final say'], confidence: 0.70 },
+    { type: 'timeline_confirmed', patterns: ['start by', 'go live', 'implementation', 'launch date', 'target date', 'deadline', 'q1', 'q2', 'q3', 'q4', 'next quarter'], confidence: 0.75 },
+  ];
+
+  for (const pattern of forwardMovementPatterns) {
+    for (const phrase of pattern.patterns) {
+      const index = lowerTranscript.indexOf(phrase);
+      if (index !== -1) {
+        // Extract evidence
+        const start = Math.max(0, index - 30);
+        const end = Math.min(transcript.length, index + phrase.length + 50);
+        const evidence = transcript.slice(start, end).trim();
+
+        // Only add if not already detected
+        if (!forwardMovementSignals.some(s => s.type === pattern.type)) {
+          forwardMovementSignals.push({
+            type: pattern.type,
+            confidence: pattern.confidence,
+            evidence,
+          });
+        }
+        break;
+      }
+    }
+  }
+
+  return { results, forwardMovementSignals };
+}
+
+/**
+ * Save workflow results to database
+ */
+async function saveWorkflowResults(
+  supabase: ReturnType<typeof createClient>,
+  meetingId: string,
+  callTypeId: string | null,
+  orgId: string,
+  checklistResults: WorkflowChecklistResult[],
+  forwardMovementSignals: ForwardMovementSignal[],
+  workflowConfig?: WorkflowConfig | null
+): Promise<void> {
+  // Calculate coverage scores
+  const totalItems = checklistResults.length;
+  const coveredItems = checklistResults.filter(r => r.covered).length;
+  const requiredItems = checklistResults.filter(r => r.required);
+  const requiredCovered = requiredItems.filter(r => r.covered).length;
+
+  const coverageScore = totalItems > 0 ? (coveredItems / totalItems) * 100 : 0;
+  const requiredCoverageScore = requiredItems.length > 0 ? (requiredCovered / requiredItems.length) * 100 : 100;
+  const missingRequiredItems = checklistResults
+    .filter(r => r.required && !r.covered)
+    .map(r => r.label);
+
+  // Determine if notifications should be scheduled
+  let notificationsScheduledAt: string | null = null;
+  if (
+    missingRequiredItems.length > 0 &&
+    workflowConfig?.notifications?.on_missing_required?.enabled
+  ) {
+    const delayMinutes = workflowConfig.notifications.on_missing_required.delay_minutes || 30;
+    const scheduledDate = new Date(Date.now() + delayMinutes * 60 * 1000);
+    notificationsScheduledAt = scheduledDate.toISOString();
+  }
+
+  // Upsert workflow results
+  const { error } = await supabase
+    .from('meeting_workflow_results')
+    .upsert({
+      meeting_id: meetingId,
+      call_type_id: callTypeId,
+      org_id: orgId,
+      checklist_results: checklistResults,
+      coverage_score: Math.round(coverageScore * 100) / 100,
+      required_coverage_score: Math.round(requiredCoverageScore * 100) / 100,
+      missing_required_items: missingRequiredItems,
+      forward_movement_signals: forwardMovementSignals,
+      notifications_scheduled_at: notificationsScheduledAt,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'meeting_id' });
+
+  if (error) {
+    console.error('Failed to save workflow results:', error.message);
+  } else {
+    console.log(`Saved workflow results: ${coveredItems}/${totalItems} items covered, ${forwardMovementSignals.length} forward signals`);
+  }
 }
 
 /**
@@ -447,7 +672,7 @@ serve(async (req) => {
   }
 
   try {
-    const { meetingId, templateId }: RequestBody = await req.json();
+    const { meetingId, templateId, skipWorkflow }: RequestBody = await req.json();
 
     if (!meetingId) {
       return new Response(
@@ -458,7 +683,7 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get meeting data
+    // Get meeting data including call_type_id
     const { data: meeting, error: meetingError } = await supabase
       .from('meetings')
       .select(`
@@ -467,7 +692,8 @@ serve(async (req) => {
         transcript_text,
         owner_user_id,
         talk_time_rep_pct,
-        talk_time_customer_pct
+        talk_time_customer_pct,
+        call_type_id
       `)
       .eq('id', meetingId)
       .single();
@@ -503,17 +729,53 @@ serve(async (req) => {
 
     const orgId = membership.org_id;
 
-    // Get structured summary to determine meeting type
+    // Get call type for this meeting (if classified)
+    const callType = await getCallTypeForMeeting(supabase, meeting.call_type_id);
+
+    // Check if coaching is enabled for this call type
+    if (callType && !callType.enable_coaching) {
+      console.log(`Coaching disabled for call type: ${callType.name}`);
+
+      // Still process workflow if it has checklist items
+      if (!skipWorkflow && callType.workflow_config?.checklist_items?.length) {
+        const { results, forwardMovementSignals } = await analyzeWorkflowChecklist(
+          meeting.transcript_text,
+          callType.workflow_config.checklist_items
+        );
+        await saveWorkflowResults(
+          supabase,
+          meetingId,
+          callType.id,
+          orgId,
+          results,
+          forwardMovementSignals,
+          callType.workflow_config
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          skipped: true,
+          reason: `Coaching disabled for call type: ${callType.name}`,
+          meeting_id: meetingId,
+          call_type: callType.name,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get structured summary to determine meeting type (fallback)
     const { data: structuredSummary } = await supabase
       .from('meeting_structured_summaries')
       .select('stage_indicators')
       .eq('meeting_id', meetingId)
       .single();
 
-    const detectedType = structuredSummary?.stage_indicators?.detected_stage || 'general';
+    const detectedType = callType?.name || structuredSummary?.stage_indicators?.detected_stage || 'general';
 
-    // Get appropriate template
-    const template = await getTemplateForMeeting(supabase, orgId, templateId, detectedType);
+    // Get appropriate template (now prioritizes call_type_id)
+    const template = await getTemplateForMeeting(supabase, orgId, templateId, meeting.call_type_id, detectedType);
 
     // Analyze transcript
     const startTime = Date.now();
@@ -595,10 +857,50 @@ serve(async (req) => {
 
     console.log(`Generated scorecard for meeting ${meetingId}: Score ${overallScore} (${grade})`);
 
+    // Process workflow checklist if call type has workflow config
+    let workflowResults: {
+      checklist_results: WorkflowChecklistResult[];
+      forward_movement_signals: ForwardMovementSignal[];
+      coverage_score: number;
+      missing_required: string[];
+    } | null = null;
+
+    if (!skipWorkflow && callType?.workflow_config?.checklist_items?.length) {
+      const { results, forwardMovementSignals } = await analyzeWorkflowChecklist(
+        meeting.transcript_text,
+        callType.workflow_config.checklist_items
+      );
+
+      await saveWorkflowResults(
+        supabase,
+        meetingId,
+        callType.id,
+        orgId,
+        results,
+        forwardMovementSignals,
+        callType.workflow_config
+      );
+
+      // Calculate coverage for response
+      const totalItems = results.length;
+      const coveredItems = results.filter(r => r.covered).length;
+      const missingRequired = results.filter(r => r.required && !r.covered).map(r => r.label);
+
+      workflowResults = {
+        checklist_results: results,
+        forward_movement_signals: forwardMovementSignals,
+        coverage_score: totalItems > 0 ? Math.round((coveredItems / totalItems) * 100) : 0,
+        missing_required: missingRequired,
+      };
+
+      console.log(`Workflow results: ${coveredItems}/${totalItems} items covered, ${forwardMovementSignals.length} forward signals`);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         meeting_id: meetingId,
+        call_type: callType?.name || null,
         scorecard: {
           overall_score: overallScore,
           grade,
@@ -607,6 +909,7 @@ serve(async (req) => {
           improvements: analysis.improvements,
           coaching_tips: analysis.coaching_tips,
         },
+        workflow: workflowResults,
         tokens_used: tokensUsed,
         processing_time_ms: processingTimeMs,
       }),

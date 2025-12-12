@@ -4,6 +4,10 @@
  */
 
 import { supabase } from '@/lib/supabase/clientV2';
+import type { WorkflowConfig, WorkflowChecklistConfig } from '@/lib/hooks/useWorkflowResults';
+
+// Re-export workflow config types for external consumers
+export type { WorkflowConfig, WorkflowChecklistConfig };
 
 export interface OrgCallType {
   id: string;
@@ -15,6 +19,8 @@ export interface OrgCallType {
   icon: string;
   is_system: boolean;
   is_active: boolean;
+  enable_coaching: boolean;
+  workflow_config: WorkflowConfig | null;
   display_order: number;
   created_at: string;
   updated_at: string;
