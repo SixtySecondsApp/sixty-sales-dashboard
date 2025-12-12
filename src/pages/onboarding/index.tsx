@@ -9,6 +9,7 @@ import { FathomConnectionStep } from './FathomConnectionStep';
 import { CompletionStep } from './CompletionStep';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { isInternalUser } from '@/lib/utils/userTypeUtils';
+import { supabase } from '@/lib/supabase/clientV2';
 
 export default function OnboardingPage() {
   const { user } = useAuth();
@@ -17,22 +18,57 @@ export default function OnboardingPage() {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isResetting, setIsResetting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCheckingEmailVerification, setIsCheckingEmailVerification] = useState(true);
 
   // Removed 'sync' step - meetings will sync in the background after reaching dashboard
   const steps: OnboardingStep[] = ['welcome', 'org_setup', 'team_invite', 'fathom_connect', 'complete'];
 
+  // Check email verification status first - users must verify email before onboarding
   useEffect(() => {
-    if (!loading && user) {
+    const checkEmailVerification = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        // If no session, redirect to login
+        if (!session?.user) {
+          navigate('/auth/login', { replace: true });
+          return;
+        }
+
+        // If email is not verified, redirect to verify-email page
+        if (!session.user.email_confirmed_at) {
+          navigate(`/auth/verify-email?email=${encodeURIComponent(session.user.email || '')}`, { replace: true });
+          return;
+        }
+
+        // Email is verified, proceed with onboarding
+        setIsCheckingEmailVerification(false);
+      } catch (err) {
+        console.error('Error checking email verification:', err);
+        // On error, try to proceed anyway
+        setIsCheckingEmailVerification(false);
+      }
+    };
+
+    checkEmailVerification();
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!loading && user && !isCheckingEmailVerification) {
       // Handle legacy 'sync' step - map to 'complete' since we removed sync step
       const mappedStep = currentStep === 'sync' ? 'complete' : currentStep;
 
-      // Set initial step based on progress
+      // Set initial step based on progress - but only if it's a valid step
+      // For new users or reset users, always start at welcome (index 0)
       const stepIndex = steps.indexOf(mappedStep);
       if (stepIndex >= 0) {
         setCurrentStepIndex(stepIndex);
+      } else {
+        // Invalid or unrecognized step, start from beginning
+        setCurrentStepIndex(0);
       }
     }
-  }, [loading, user, currentStep]);
+  }, [loading, user, currentStep, isCheckingEmailVerification]);
 
   // Save progress and move to next step
   const handleNext = useCallback(async () => {
@@ -80,7 +116,7 @@ export default function OnboardingPage() {
     }
   };
 
-  if (loading) {
+  if (loading || isCheckingEmailVerification) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#37bd7e]"></div>

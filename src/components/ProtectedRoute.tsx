@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useOnboardingProgress } from '@/lib/hooks/useOnboardingProgress';
+import { supabase } from '@/lib/supabase/clientV2';
 import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -16,6 +17,7 @@ const publicRoutes = [
   '/auth/reset-password',
   '/auth/callback',
   '/auth/sso-callback',
+  '/auth/verify-email',
   '/debug-auth',
   '/auth/google/callback',
   '/oauth/fathom/callback',
@@ -42,14 +44,17 @@ const onboardingExemptRoutes = [
 ];
 
 export function ProtectedRoute({ children, redirectTo = '/auth/login' }: ProtectedRouteProps) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
   const { needsOnboarding, loading: onboardingLoading } = useOnboardingProgress();
   const navigate = useNavigate();
   const location = useLocation();
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(true);
   const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const isPublicRoute = publicRoutes.includes(location.pathname);
+  const isVerifyEmailRoute = location.pathname === '/auth/verify-email';
   const isPasswordRecovery = location.pathname === '/auth/reset-password' &&
     location.hash.includes('type=recovery');
   const isOAuthCallback = location.pathname.includes('/oauth/') || location.pathname.includes('/callback');
@@ -64,6 +69,35 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
   const isDevModeBypass = process.env.NODE_ENV === 'development' &&
     location.pathname.startsWith('/roadmap');
 
+  // Check email verification status
+  useEffect(() => {
+    const checkEmailVerification = async () => {
+      // Skip check for public routes
+      if (isPublicRoute) {
+        setIsCheckingEmail(false);
+        return;
+      }
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setEmailVerified(!!session.user.email_confirmed_at);
+        } else {
+          setEmailVerified(null);
+        }
+      } catch (err) {
+        console.error('Error checking email verification:', err);
+        setEmailVerified(null);
+      } finally {
+        setIsCheckingEmail(false);
+      }
+    };
+
+    if (!loading) {
+      checkEmailVerification();
+    }
+  }, [loading, isPublicRoute]);
+
   useEffect(() => {
     // Clean up timeout on unmount
     return () => {
@@ -74,11 +108,19 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
   }, []);
 
   useEffect(() => {
-    // Don't redirect while loading auth or onboarding status
-    if (loading || onboardingLoading) return;
+    // Don't redirect while loading auth, onboarding status, or email verification
+    if (loading || onboardingLoading || isCheckingEmail) return;
 
-    // If user is authenticated and on a public route (except password recovery and OAuth callbacks), redirect to app
-    if (isAuthenticated && isPublicRoute && !isPasswordRecovery && !isOAuthCallback) {
+    // If user is authenticated but email is not verified, redirect to verify-email
+    // Skip this for public routes and the verify-email page itself
+    if (isAuthenticated && emailVerified === false && !isPublicRoute && !isVerifyEmailRoute) {
+      const userEmail = user?.email || '';
+      navigate(`/auth/verify-email?email=${encodeURIComponent(userEmail)}`, { replace: true });
+      return;
+    }
+
+    // If user is authenticated (and email verified) and on a public route (except password recovery and OAuth callbacks), redirect to app
+    if (isAuthenticated && emailVerified && isPublicRoute && !isPasswordRecovery && !isOAuthCallback && !isVerifyEmailRoute) {
       // If user needs onboarding, redirect to onboarding instead of app
       if (needsOnboarding) {
         navigate('/onboarding', { replace: true });
@@ -118,16 +160,16 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
       return;
     }
 
-    // If user is authenticated but hasn't completed onboarding, redirect to onboarding
+    // If user is authenticated (with verified email) but hasn't completed onboarding, redirect to onboarding
     // Skip this check for onboarding-exempt routes (like the onboarding page itself)
-    if (isAuthenticated && needsOnboarding && !isOnboardingExempt && !isPublicRoute) {
+    if (isAuthenticated && emailVerified && needsOnboarding && !isOnboardingExempt && !isPublicRoute) {
       navigate('/onboarding', { replace: true });
       return;
     }
-  }, [isAuthenticated, loading, onboardingLoading, needsOnboarding, isPublicRoute, isPasswordRecovery, isDevModeBypass, isAuthRequiredRoute, isOnboardingExempt, navigate, redirectTo, location, isRedirecting]);
+  }, [isAuthenticated, loading, onboardingLoading, isCheckingEmail, emailVerified, needsOnboarding, isPublicRoute, isVerifyEmailRoute, isPasswordRecovery, isDevModeBypass, isAuthRequiredRoute, isOnboardingExempt, navigate, redirectTo, location, isRedirecting, user?.email]);
 
-  // Show loading spinner while checking authentication, onboarding status, or during redirect delay
-  if (loading || onboardingLoading || isRedirecting) {
+  // Show loading spinner while checking authentication, onboarding status, email verification, or during redirect delay
+  if (loading || onboardingLoading || isCheckingEmail || isRedirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.25),transparent)] pointer-events-none" />

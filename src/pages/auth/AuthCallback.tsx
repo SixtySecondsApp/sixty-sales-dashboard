@@ -5,6 +5,13 @@
  * - Email signup confirmation
  * - Magic link login
  * - OAuth callbacks
+ * 
+ * FLOW:
+ * 1. User signs up → redirected to /auth/verify-email
+ * 2. User clicks email link → redirected here (/auth/callback)
+ * 3. We verify the token, check email_confirmed_at
+ * 4. If verified → go to /onboarding (or /dashboard if completed)
+ * 5. If not verified → go back to /auth/verify-email
  */
 
 import { useEffect, useState, useRef } from 'react';
@@ -37,12 +44,15 @@ export default function AuthCallback() {
         // First check if we already have a session (user might already be logged in)
         let { data: { session } } = await supabase.auth.getSession();
 
-        // If we already have a valid session, skip verification and proceed
-        if (session?.user) {
-          // User is already authenticated - go directly to appropriate page
+        // If we already have a valid session with verified email, skip verification and proceed
+        if (session?.user?.email_confirmed_at) {
+          // User is already authenticated and verified - go directly to appropriate page
           await navigateBasedOnOnboarding(session, next);
           return;
         }
+
+        // If session exists but email not verified, handle token verification first
+        // Then we'll check verification status again
 
         // If no session, try to get one from the URL params
         if (code) {
@@ -51,8 +61,12 @@ export default function AuthCallback() {
             console.error('Error exchanging code for session:', codeError);
             // Check if user is now logged in despite the error (code may have been used already)
             const { data: { session: retrySession } } = await supabase.auth.getSession();
-            if (retrySession?.user) {
+            if (retrySession?.user?.email_confirmed_at) {
               await navigateBasedOnOnboarding(retrySession, next);
+              return;
+            } else if (retrySession?.user) {
+              // Session exists but email not confirmed
+              navigate(`/auth/verify-email?email=${encodeURIComponent(retrySession.user.email || '')}`, { replace: true });
               return;
             }
             setError(codeError.message);
@@ -71,10 +85,14 @@ export default function AuthCallback() {
             console.error('Error verifying OTP:', otpError);
             // Check if user is now logged in despite the error (link may have been used already)
             const { data: { session: retrySession } } = await supabase.auth.getSession();
-            if (retrySession?.user) {
-              // User is already logged in - the link was probably already used
+            if (retrySession?.user?.email_confirmed_at) {
+              // User is already logged in and verified - the link was probably already used
               // Don't show error, just proceed
               await navigateBasedOnOnboarding(retrySession, next);
+              return;
+            } else if (retrySession?.user) {
+              // Session exists but email still not confirmed
+              navigate(`/auth/verify-email?email=${encodeURIComponent(retrySession.user.email || '')}`, { replace: true });
               return;
             }
             // Only show error if user is truly not logged in
@@ -93,7 +111,13 @@ export default function AuthCallback() {
         session = result.data.session;
 
         if (session?.user) {
-          await navigateBasedOnOnboarding(session, next);
+          // Check if email is now verified
+          if (session.user.email_confirmed_at) {
+            await navigateBasedOnOnboarding(session, next);
+          } else {
+            // Email still not confirmed, go to verify page
+            navigate(`/auth/verify-email?email=${encodeURIComponent(session.user.email || '')}`, { replace: true });
+          }
         } else {
           // No session and no auth params - redirect to login
           navigate('/auth/login', { replace: true });
@@ -102,8 +126,11 @@ export default function AuthCallback() {
         console.error('Auth callback error:', err);
         // Check one more time if user is logged in
         const { data: { session: finalSession } } = await supabase.auth.getSession();
-        if (finalSession?.user) {
+        if (finalSession?.user?.email_confirmed_at) {
           navigate('/onboarding', { replace: true });
+          return;
+        } else if (finalSession?.user) {
+          navigate(`/auth/verify-email?email=${encodeURIComponent(finalSession.user.email || '')}`, { replace: true });
           return;
         }
         setError(err.message || 'Authentication failed');
@@ -114,6 +141,12 @@ export default function AuthCallback() {
     // Helper function to navigate based on onboarding status
     const navigateBasedOnOnboarding = async (session: any, next: string) => {
       try {
+        // Double-check email is verified before proceeding to onboarding
+        if (!session.user.email_confirmed_at) {
+          navigate(`/auth/verify-email?email=${encodeURIComponent(session.user.email || '')}`, { replace: true });
+          return;
+        }
+
         const { data: progress } = await supabase
           .from('user_onboarding_progress')
           .select('onboarding_completed_at, skipped_onboarding')

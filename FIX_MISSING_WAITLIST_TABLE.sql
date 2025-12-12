@@ -51,36 +51,102 @@ CREATE TABLE IF NOT EXISTS meetings_waitlist (
   utm_campaign TEXT,
   utm_medium TEXT,
 
-  -- Additional columns from later migrations
-  is_seeded BOOLEAN DEFAULT false,
-  total_points INTEGER DEFAULT 0,
-  twitter_boost_claimed BOOLEAN DEFAULT false,
-  linkedin_share_claimed BOOLEAN DEFAULT false,
-  linkedin_boost_claimed BOOLEAN DEFAULT false,
-  linkedin_first_share_at TIMESTAMP WITH TIME ZONE,
-  display_rank INTEGER,
-  profile_image_url TEXT,
-  magic_link_sent_at TIMESTAMP WITH TIME ZONE,
-  magic_link_expires_at TIMESTAMP WITH TIME ZONE,
-  granted_access_at TIMESTAMP WITH TIME ZONE,
-  granted_by UUID,
-  access_granted_by UUID,
-  converted_at TIMESTAMP WITH TIME ZONE,
-
   -- Timestamps
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Add self-referential foreign key constraint
-ALTER TABLE meetings_waitlist 
-DROP CONSTRAINT IF EXISTS meetings_waitlist_referred_by_code_fkey;
+-- Add additional columns if they don't exist (from later migrations)
+DO $$
+BEGIN
+  -- is_seeded column
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'meetings_waitlist' AND column_name = 'is_seeded') THEN
+    ALTER TABLE meetings_waitlist ADD COLUMN is_seeded BOOLEAN DEFAULT false;
+  END IF;
+  
+  -- total_points column
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'meetings_waitlist' AND column_name = 'total_points') THEN
+    ALTER TABLE meetings_waitlist ADD COLUMN total_points INTEGER DEFAULT 0;
+  END IF;
+  
+  -- twitter_boost_claimed column
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'meetings_waitlist' AND column_name = 'twitter_boost_claimed') THEN
+    ALTER TABLE meetings_waitlist ADD COLUMN twitter_boost_claimed BOOLEAN DEFAULT false;
+  END IF;
+  
+  -- linkedin_share_claimed column
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'meetings_waitlist' AND column_name = 'linkedin_share_claimed') THEN
+    ALTER TABLE meetings_waitlist ADD COLUMN linkedin_share_claimed BOOLEAN DEFAULT false;
+  END IF;
+  
+  -- linkedin_boost_claimed column
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'meetings_waitlist' AND column_name = 'linkedin_boost_claimed') THEN
+    ALTER TABLE meetings_waitlist ADD COLUMN linkedin_boost_claimed BOOLEAN DEFAULT false;
+  END IF;
+  
+  -- linkedin_first_share_at column
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'meetings_waitlist' AND column_name = 'linkedin_first_share_at') THEN
+    ALTER TABLE meetings_waitlist ADD COLUMN linkedin_first_share_at TIMESTAMP WITH TIME ZONE;
+  END IF;
+  
+  -- display_rank column
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'meetings_waitlist' AND column_name = 'display_rank') THEN
+    ALTER TABLE meetings_waitlist ADD COLUMN display_rank INTEGER;
+  END IF;
+  
+  -- profile_image_url column
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'meetings_waitlist' AND column_name = 'profile_image_url') THEN
+    ALTER TABLE meetings_waitlist ADD COLUMN profile_image_url TEXT;
+  END IF;
+  
+  -- magic_link_sent_at column
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'meetings_waitlist' AND column_name = 'magic_link_sent_at') THEN
+    ALTER TABLE meetings_waitlist ADD COLUMN magic_link_sent_at TIMESTAMP WITH TIME ZONE;
+  END IF;
+  
+  -- magic_link_expires_at column
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'meetings_waitlist' AND column_name = 'magic_link_expires_at') THEN
+    ALTER TABLE meetings_waitlist ADD COLUMN magic_link_expires_at TIMESTAMP WITH TIME ZONE;
+  END IF;
+  
+  -- granted_access_at column
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'meetings_waitlist' AND column_name = 'granted_access_at') THEN
+    ALTER TABLE meetings_waitlist ADD COLUMN granted_access_at TIMESTAMP WITH TIME ZONE;
+  END IF;
+  
+  -- granted_by column
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'meetings_waitlist' AND column_name = 'granted_by') THEN
+    ALTER TABLE meetings_waitlist ADD COLUMN granted_by UUID;
+  END IF;
+  
+  -- access_granted_by column
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'meetings_waitlist' AND column_name = 'access_granted_by') THEN
+    ALTER TABLE meetings_waitlist ADD COLUMN access_granted_by UUID;
+  END IF;
+  
+  -- converted_at column
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'meetings_waitlist' AND column_name = 'converted_at') THEN
+    ALTER TABLE meetings_waitlist ADD COLUMN converted_at TIMESTAMP WITH TIME ZONE;
+  END IF;
+END$$;
 
-ALTER TABLE meetings_waitlist 
-ADD CONSTRAINT meetings_waitlist_referred_by_code_fkey 
-FOREIGN KEY (referred_by_code) REFERENCES meetings_waitlist(referral_code);
+-- Add self-referential foreign key constraint (ignore if exists)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE constraint_name = 'meetings_waitlist_referred_by_code_fkey'
+  ) THEN
+    ALTER TABLE meetings_waitlist 
+    ADD CONSTRAINT meetings_waitlist_referred_by_code_fkey 
+    FOREIGN KEY (referred_by_code) REFERENCES meetings_waitlist(referral_code);
+  END IF;
+EXCEPTION WHEN OTHERS THEN
+  -- Ignore if constraint already exists
+  NULL;
+END$$;
 
--- Create indexes for performance
+-- Create indexes for performance (IF NOT EXISTS handles duplicates)
 CREATE INDEX IF NOT EXISTS idx_waitlist_email ON meetings_waitlist(email);
 CREATE INDEX IF NOT EXISTS idx_waitlist_referral_code ON meetings_waitlist(referral_code);
 CREATE INDEX IF NOT EXISTS idx_waitlist_referred_by ON meetings_waitlist(referred_by_code);
@@ -226,17 +292,27 @@ ON meetings_waitlist FOR SELECT
 TO public
 USING (true);
 
--- Platform admins can manage all entries
-CREATE POLICY "Platform admins can manage waitlist"
-ON meetings_waitlist FOR ALL
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-    AND profiles.is_admin = true
-  )
-);
+-- Platform admins can manage all entries (only if profiles table exists)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'profiles') THEN
+    EXECUTE '
+      CREATE POLICY "Platform admins can manage waitlist"
+      ON meetings_waitlist FOR ALL
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1 FROM profiles
+          WHERE profiles.id = auth.uid()
+          AND profiles.is_admin = true
+        )
+      )
+    ';
+  END IF;
+EXCEPTION WHEN duplicate_object THEN
+  -- Policy already exists, ignore
+  NULL;
+END$$;
 
 -- Grant necessary permissions
 GRANT SELECT, INSERT ON meetings_waitlist TO anon;
@@ -251,4 +327,3 @@ SELECT
   'SUCCESS: meetings_waitlist table created!' as status,
   count(*) as existing_entries
 FROM meetings_waitlist;
-
