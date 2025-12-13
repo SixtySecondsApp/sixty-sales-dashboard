@@ -24,6 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, Check, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   useSlackUserMappings,
   useUpdateUserMapping,
@@ -52,7 +53,13 @@ export function SlackUserMapping({ onRefresh, isRefreshing }: SlackUserMappingPr
   }
 
   const handleMappingChange = (slackUserId: string, sixtyUserId: string | null) => {
-    updateMapping.mutate({ slackUserId, sixtyUserId });
+    updateMapping.mutate(
+      { slackUserId, sixtyUserId },
+      {
+        onSuccess: () => toast.success('User mapping saved'),
+        onError: (e: any) => toast.error(e?.message || 'Failed to save user mapping'),
+      }
+    );
   };
 
   const getStatusBadge = (mapping: SlackUserMappingType) => {

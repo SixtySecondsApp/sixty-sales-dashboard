@@ -7,6 +7,16 @@ interface LogoResponse {
   error?: string;
 }
 
+export interface UseIntegrationLogoOptions {
+  /**
+   * If true, calls the `fetch-company-logo` edge function in the background to
+   * warm/populate the S3 cache. If false, returns the deterministic S3 URL only.
+   *
+   * Default: true (preserves existing behavior).
+   */
+  enableFetch?: boolean;
+}
+
 // Map integration names to their official domains for logo.dev lookup
 const INTEGRATION_DOMAINS: Record<string, string> = {
   // Google services
@@ -193,12 +203,51 @@ const INTEGRATION_DOMAINS: Record<string, string> = {
   bamboohr: 'bamboohr.com',
 };
 
+// -----------------------------------------------------------------------------
+// S3 logo URL helpers + in-memory caching (prevents UI flicker + request storms)
+// -----------------------------------------------------------------------------
+
+const DEFAULT_LOGOS_BUCKET = 'erg-application-logos';
+const DEFAULT_AWS_REGION = 'eu-west-2';
+
+function getLogosBucketName(): string {
+  return (import.meta as any).env?.VITE_LOGOS_BUCKET_NAME || DEFAULT_LOGOS_BUCKET;
+}
+
+function getAwsRegion(): string {
+  return (import.meta as any).env?.VITE_AWS_REGION || DEFAULT_AWS_REGION;
+}
+
+/**
+ * Deterministic public S3 URL for a domain logo.
+ * Matches the edge function key format: `logos/{domain}.png`.
+ */
+export function getLogoS3Url(domain: string): string {
+  const normalizedDomain = domain
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/\/$/, '')
+    .toLowerCase();
+
+  const bucket = getLogosBucketName();
+  const region = getAwsRegion();
+  return `https://${bucket}.s3.${region}.amazonaws.com/logos/${normalizedDomain}.png`;
+}
+
+// Cache per normalized domain (not per integrationId) so aliases share results.
+const logoUrlCache = new Map<string, string>();
+const inFlightFetches = new Map<string, Promise<string | null>>();
+
 /**
  * Hook to fetch integration logos via logo.dev API (with S3 caching)
  * @param integrationId - The integration identifier (e.g., 'slack', 'fathom', 'google-workspace')
  * @returns Logo URL or null if not available
  */
-export function useIntegrationLogo(integrationId: string | null | undefined) {
+export function useIntegrationLogo(
+  integrationId: string | null | undefined,
+  options: UseIntegrationLogoOptions = {}
+) {
+  const enableFetch = options.enableFetch ?? true;
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -218,33 +267,54 @@ export function useIntegrationLogo(integrationId: string | null | undefined) {
       return;
     }
 
+    const normalizedDomain = domain
+      .replace(/^https?:\/\//, '')
+      .replace(/^www\./, '')
+      .replace(/\/$/, '')
+      .toLowerCase();
+
+    // Always render a deterministic S3 URL immediately (prevents fallback flicker).
+    // If we've already resolved a better/confirmed URL, use the cached value.
+    const s3Url = getLogoS3Url(normalizedDomain);
+    const cached = logoUrlCache.get(normalizedDomain);
+    setLogoUrl(cached || s3Url);
+
+    // Optionally warm/populate the S3 cache via edge function.
+    if (!enableFetch) return;
+
     setIsLoading(true);
     setError(null);
-    setLogoUrl(null);
 
-    // Fetch logo via edge function (uses logo.dev with S3 caching)
-    supabase.functions
-      .invoke<LogoResponse>('fetch-company-logo', {
-        method: 'POST',
-        body: { domain },
+    // Dedupe requests per domain to avoid hammering the function on pages with many cards.
+    const existingPromise = inFlightFetches.get(normalizedDomain);
+    const promise =
+      existingPromise ||
+      supabase.functions
+        .invoke<LogoResponse>('fetch-company-logo', {
+          method: 'POST',
+          body: { domain: normalizedDomain },
+        })
+        .then(({ data, error: fetchError }) => {
+          if (fetchError) throw new Error(fetchError.message);
+          return data?.logo_url || null;
+        })
+        .catch((err) => {
+          setError(err?.message || 'Failed to fetch logo');
+          return null;
+        })
+        .finally(() => {
+          inFlightFetches.delete(normalizedDomain);
+        });
+
+    if (!existingPromise) inFlightFetches.set(normalizedDomain, promise);
+
+    promise
+      .then((url) => {
+        if (!url) return;
+        logoUrlCache.set(normalizedDomain, url);
+        setLogoUrl(url);
       })
-      .then(({ data, error: fetchError }) => {
-        if (fetchError) {
-          setError(fetchError.message);
-          setLogoUrl(null);
-        } else if (data?.logo_url) {
-          setLogoUrl(data.logo_url);
-        } else {
-          setLogoUrl(null);
-        }
-      })
-      .catch((err) => {
-        setError(err?.message || 'Failed to fetch logo');
-        setLogoUrl(null);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
+      .finally(() => setIsLoading(false));
   }, [integrationId]);
 
   return { logoUrl, isLoading, error };

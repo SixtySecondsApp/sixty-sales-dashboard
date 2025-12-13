@@ -17,7 +17,12 @@ const OLD_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJz
 
 // New project (destination) - need service role for storage writes
 const NEW_SUPABASE_URL = 'https://ygdpgliavpxeugaajgrb.supabase.co';
-const NEW_SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlnZHBnbGlhdnB4ZXVnYWFqZ3JiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTE4OTQ2MSwiZXhwIjoyMDgwNzY1NDYxfQ.n9MVawseoWgWSu7H48-lgpvl3dUFMqofI7lWlbqmEfI';
+const NEW_SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!NEW_SUPABASE_SERVICE_KEY) {
+  console.error('❌ Missing SUPABASE_SERVICE_ROLE_KEY env var (required).');
+  process.exit(1);
+}
 
 const oldSupabase = createClient(OLD_SUPABASE_URL, OLD_SUPABASE_ANON_KEY);
 const newSupabase = createClient(NEW_SUPABASE_URL, NEW_SUPABASE_SERVICE_KEY);

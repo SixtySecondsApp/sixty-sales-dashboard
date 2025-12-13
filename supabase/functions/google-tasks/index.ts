@@ -1,11 +1,18 @@
+/**
+ * Google Tasks Edge Function
+ * 
+ * Provides Tasks API access for listing, creating, updating, and deleting tasks.
+ * 
+ * SECURITY:
+ * - POST only (no GET for API actions)
+ * - User JWT authentication OR service-role with userId in body
+ * - Allowlist-based CORS
+ */
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PATCH, DELETE',
-};
+import { getCorsHeaders, handleCorsPreflightRequest, jsonResponse, errorResponse } from '../_shared/corsHelper.ts';
+import { authenticateRequest } from '../_shared/edgeAuth.ts';
 
 async function refreshAccessToken(refreshToken: string, supabase: any, userId: string): Promise<string> {
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
@@ -31,7 +38,6 @@ async function refreshAccessToken(refreshToken: string, supabase: any, userId: s
 
   const data = await response.json();
   
-  // Update the stored access token
   const expiresAt = new Date();
   expiresAt.setSeconds(expiresAt.getSeconds() + (data.expires_in || 3600));
   
@@ -59,14 +65,14 @@ interface ListTasksRequest {
   showCompleted?: boolean;
   showDeleted?: boolean;
   showHidden?: boolean;
-  updatedMin?: string; // RFC3339 timestamp for incremental sync
+  updatedMin?: string;
 }
 
 interface CreateTaskRequest {
   taskListId?: string;
   title: string;
   notes?: string;
-  due?: string; // RFC3339 date
+  due?: string;
   status?: 'needsAction' | 'completed';
   position?: string;
 }
@@ -87,14 +93,20 @@ interface DeleteTaskRequest {
 }
 
 interface SyncTasksRequest {
-  lastSyncTime?: string; // ISO timestamp for incremental sync
+  lastSyncTime?: string;
   taskListId?: string;
 }
 
 serve(async (req) => {
-  // Handle CORS
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  // Handle CORS preflight
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) {
+    return preflightResponse;
+  }
+
+  // POST only
+  if (req.method !== 'POST') {
+    return errorResponse('Method not allowed. Use POST.', req, 405);
   }
 
   try {
@@ -102,21 +114,31 @@ serve(async (req) => {
     const url = new URL(req.url);
     let action = url.searchParams.get('action');
     
-    // If no action in URL and it's a POST request, check the body
-    if (!action && req.method === 'POST') {
-      const body = await req.clone().json();
-      action = body.action;
+    // Clone request to read body twice if needed
+    const bodyText = await req.text();
+    let requestBody: any = {};
+    
+    if (bodyText) {
+      try {
+        requestBody = JSON.parse(bodyText);
+      } catch {
+        throw new Error('Invalid JSON in request body');
+      }
     }
-    // Get authorization header
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('No authorization header');
+    
+    // Get action from body if not in URL
+    if (!action && requestBody.action) {
+      action = requestBody.action;
     }
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Server configuration error');
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         persistSession: false,
@@ -124,18 +146,21 @@ serve(async (req) => {
       },
     });
 
-    // Verify user and get Google integration
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      throw new Error('Invalid authentication token');
-    }
+    // Authenticate - supports both user JWT and service role with userId
+    const { userId, mode } = await authenticateRequest(
+      req,
+      supabase,
+      supabaseServiceKey,
+      requestBody.userId
+    );
+
+    console.log(`[google-tasks] Authenticated as ${mode}, userId: ${userId}, action: ${action}`);
+
     // Get Google integration
     const { data: integration, error: integrationError } = await supabase
       .from('google_integrations')
-      .select('*')
-      .eq('user_id', user.id)
+      .select('access_token, refresh_token, expires_at, id')
+      .eq('user_id', userId)
       .eq('is_active', true)
       .single();
 
@@ -149,14 +174,14 @@ serve(async (req) => {
     const now = new Date();
     
     if (now >= expiresAt) {
-      accessToken = await refreshAccessToken(integration.refresh_token, supabase, user.id);
+      accessToken = await refreshAccessToken(integration.refresh_token, supabase, userId);
     }
 
     let result;
 
     switch (action) {
       case 'list-tasklists': {
-        const params = req.method === 'POST' ? await req.json() as ListTaskListsRequest : {};
+        const params = requestBody as ListTaskListsRequest;
         
         const queryParams = new URLSearchParams();
         if (params.maxResults) queryParams.set('maxResults', params.maxResults.toString());
@@ -180,7 +205,7 @@ serve(async (req) => {
       }
 
       case 'list-tasks': {
-        const params = req.method === 'POST' ? await req.json() as ListTasksRequest : {};
+        const params = requestBody as ListTasksRequest;
         const taskListId = params.taskListId || '@default';
         
         const queryParams = new URLSearchParams();
@@ -209,14 +234,9 @@ serve(async (req) => {
       }
 
       case 'create-task': {
-        if (req.method !== 'POST') {
-          throw new Error('Method not allowed');
-        }
-
-        const params = await req.json() as CreateTaskRequest;
+        const params = requestBody as CreateTaskRequest;
         const taskListId = params.taskListId || '@default';
         
-        // Log the exact parameters being used
         const taskData: any = {
           title: params.title,
         };
@@ -248,11 +268,7 @@ serve(async (req) => {
       }
 
       case 'update-task': {
-        if (req.method !== 'POST' && req.method !== 'PATCH') {
-          throw new Error('Method not allowed');
-        }
-
-        const params = await req.json() as UpdateTaskRequest;
+        const params = requestBody as UpdateTaskRequest;
         const { taskListId, taskId, ...updateData } = params;
         
         const taskData: any = {};
@@ -283,11 +299,7 @@ serve(async (req) => {
       }
 
       case 'delete-task': {
-        if (req.method !== 'POST' && req.method !== 'DELETE') {
-          throw new Error('Method not allowed');
-        }
-
-        const params = await req.json() as DeleteTaskRequest;
+        const params = requestBody as DeleteTaskRequest;
         const { taskListId, taskId } = params;
         
         const response = await fetch(
@@ -301,7 +313,7 @@ serve(async (req) => {
         );
 
         if (!response.ok && response.status !== 204) {
-          const error = await response.json();
+          const error = await response.json().catch(() => ({}));
           throw new Error(error.error?.message || 'Failed to delete task');
         }
 
@@ -310,12 +322,7 @@ serve(async (req) => {
       }
 
       case 'create-tasklist': {
-        if (req.method !== 'POST') {
-          throw new Error('Method not allowed');
-        }
-
-        const params = await req.json();
-        const { title } = params;
+        const { title } = requestBody;
         
         if (!title) {
           throw new Error('Task list title is required');
@@ -343,18 +350,15 @@ serve(async (req) => {
       }
 
       case 'sync-tasks': {
-        // This is a higher-level operation that performs incremental sync
-        const params = req.method === 'POST' ? await req.json() as SyncTasksRequest : {};
+        const params = requestBody as SyncTasksRequest;
         const taskListId = params.taskListId || '@default';
         
-        // Get all tasks updated since last sync
         const queryParams = new URLSearchParams();
         queryParams.set('showCompleted', 'true');
         queryParams.set('showHidden', 'false');
         queryParams.set('maxResults', '100');
         
         if (params.lastSyncTime) {
-          // Convert ISO timestamp to RFC3339
           const lastSync = new Date(params.lastSyncTime);
           queryParams.set('updatedMin', lastSync.toISOString());
         }
@@ -375,7 +379,6 @@ serve(async (req) => {
 
         const tasks = await response.json();
         
-        // Also get the task lists for complete sync
         const listsResponse = await fetch(
           'https://tasks.googleapis.com/tasks/v1/users/@me/lists',
           {
@@ -404,27 +407,24 @@ serve(async (req) => {
         throw new Error(`Unknown action: ${action}`);
     }
 
-    return new Response(
-      JSON.stringify(result),
-      {
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        },
-      }
-    );
-  } catch (error) {
-    return new Response(
-      JSON.stringify({ 
-        error: error.message || 'Internal server error' 
-      }),
-      {
-        status: 400,
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        },
-      }
-    );
+    // Log successful operation
+    await supabase
+      .from('google_service_logs')
+      .insert({
+        integration_id: integration.id,
+        service: 'tasks',
+        action: action || 'unknown',
+        status: 'success',
+        request_data: { action, userId },
+        response_data: { success: true },
+      }).catch(() => {
+        // Non-critical
+      });
+
+    return jsonResponse(result, req);
+
+  } catch (error: any) {
+    console.error('[google-tasks] Error:', error.message);
+    return errorResponse(error.message || 'Tasks service error', req, 400);
   }
 });

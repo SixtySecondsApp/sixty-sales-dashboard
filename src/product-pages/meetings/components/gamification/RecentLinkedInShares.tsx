@@ -18,7 +18,8 @@ export function RecentLinkedInShares() {
 
   const fetchRecentShares = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      // NOTE: waitlist_shares isn't in the generated Database types yet, so we use an untyped query here.
+      const { data, error } = await (supabase as any)
         .from('waitlist_shares')
         .select(`
           shared_at,
@@ -37,11 +38,11 @@ export function RecentLinkedInShares() {
         return;
       }
 
-      const shares = data?.map(share => ({
-        full_name: (share as any).meetings_waitlist.full_name,
-        company_name: (share as any).meetings_waitlist.company_name,
-        shared_at: share.shared_at
-      })) || [];
+      const shares: RecentShare[] = (data || []).map((share: any) => ({
+        full_name: share.meetings_waitlist?.full_name,
+        company_name: share.meetings_waitlist?.company_name,
+        shared_at: share.shared_at,
+      })).filter((s: RecentShare) => !!s.full_name && !!s.shared_at);
 
       setRecentShares(shares);
     } catch (err) {

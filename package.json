@@ -34,6 +34,7 @@
     "test:coverage": "vitest run --coverage",
     "test:coverage:open": "vitest run --coverage && open coverage/index.html",
     "test:unit": "vitest run tests/unit",
+    "test:intelligence": "vitest run tests/unit/intelligence",
     "test:unit:watch": "vitest tests/unit",
     "test:unit:coverage": "vitest run tests/unit --coverage",
     "test:integration": "vitest run tests/integration",

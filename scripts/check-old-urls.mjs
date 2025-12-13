@@ -5,10 +5,15 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  'https://ygdpgliavpxeugaajgrb.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlnZHBnbGlhdnB4ZXVnYWFqZ3JiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTE4OTQ2MSwiZXhwIjoyMDgwNzY1NDYxfQ.n9MVawseoWgWSu7H48-lgpvl3dUFMqofI7lWlbqmEfI'
-);
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ygdpgliavpxeugaajgrb.supabase.co';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('❌ Missing SUPABASE_SERVICE_ROLE_KEY env var (required).');
+  process.exit(1);
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 const OLD_URL = 'ewtuefzeogytgmsnkpmb';
 

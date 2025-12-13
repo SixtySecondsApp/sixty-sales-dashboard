@@ -6,6 +6,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const publicUrl =
+  Deno.env.get('PUBLIC_URL') ||
+  Deno.env.get('APP_URL') ||
+  Deno.env.get('SITE_URL') ||
+  'https://use60.com'
+
 /**
  * Fathom OAuth Callback Edge Function
  *
@@ -325,7 +331,7 @@ serve(async (req) => {
           <script>
             // Redirect after 2 seconds
             setTimeout(() => {
-              window.location.href = '/integrations?fathom=connected';
+              window.location.href = '${publicUrl}/integrations?fathom=connected';
             }, 2000);
           </script>
         </body>
@@ -343,13 +349,13 @@ serve(async (req) => {
         <body>
           <h1>Fathom Connection Failed</h1>
           <p>Error: ${error.message}</p>
-          <a href="/integrations">Return to Integrations</a>
+          <a href="${publicUrl}/integrations">Return to Integrations</a>
           <script>
             setTimeout(() => {
               if (window.opener) {
                 window.close();
               } else {
-                window.location.href = '/integrations';
+                window.location.href = '${publicUrl}/integrations';
               }
             }, 5000);
           </script>

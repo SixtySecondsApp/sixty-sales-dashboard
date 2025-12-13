@@ -1192,7 +1192,7 @@ export async function extractGoalsFromMeeting(meetingId: string): Promise<{
     // Get meeting transcript
     const { data: meeting, error: meetingError } = await supabase
       .from('meetings')
-      .select('transcript_text, summary, contact_id, company_id')
+      .select('transcript_text, summary, primary_contact_id, company_id')
       .eq('id', meetingId)
       .single();
 
@@ -1212,11 +1212,11 @@ export async function extractGoalsFromMeeting(meetingId: string): Promise<{
     let contactName: string | undefined;
     let companyName: string | undefined;
 
-    if (meeting.contact_id) {
+    if (meeting.primary_contact_id) {
       const { data: contact } = await supabase
         .from('contacts')
         .select('first_name, last_name')
-        .eq('id', meeting.contact_id)
+        .eq('id', meeting.primary_contact_id)
         .single();
       
       if (contact) {

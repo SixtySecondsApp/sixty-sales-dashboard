@@ -205,7 +205,12 @@ export function useFathomIntegration() {
 
       // Listen for OAuth completion
       const handleMessage = async (event: MessageEvent) => {
-        if (event.data.type === 'fathom-oauth-success') {
+        // Security: only accept messages from our own origin
+        if (event.origin !== window.location.origin) return;
+        // Security: only accept messages from the OAuth popup window
+        if (popup && event.source !== popup) return;
+
+        if (event.data?.type === 'fathom-oauth-success') {
           popup?.close();
           window.removeEventListener('message', handleMessage);
 

@@ -3,8 +3,10 @@ import { useState, useEffect } from 'react';
 import { Building2, Check, X, Loader2, AlertCircle, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useOrg } from '@/lib/contexts/OrgContext';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
+import { CURRENCIES, type CurrencyCode } from '@/lib/services/currencyService';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,16 +16,35 @@ import {
 
 export default function OrganizationSettingsPage() {
   const { activeOrgId, activeOrg, organizations, permissions, refreshOrgs, switchOrg } = useOrg();
+  const { user } = useAuth();
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedOrgName, setEditedOrgName] = useState(activeOrg?.name || '');
   const [isSavingName, setIsSavingName] = useState(false);
   const [memberCount, setMemberCount] = useState(0);
   const [isLoadingMembers, setIsLoadingMembers] = useState(true);
 
+  // Org profile settings
+  const [currencyCode, setCurrencyCode] = useState<CurrencyCode>(
+    ((activeOrg?.currency_code as CurrencyCode | undefined) || 'GBP')
+  );
+  const [companyDomain, setCompanyDomain] = useState(activeOrg?.company_domain || '');
+  const [companyWebsite, setCompanyWebsite] = useState(activeOrg?.company_website || '');
+  const [companyBio, setCompanyBio] = useState(activeOrg?.company_bio || '');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isEnriching, setIsEnriching] = useState(false);
+
   // Update org name when activeOrg changes
   useEffect(() => {
     setEditedOrgName(activeOrg?.name || '');
   }, [activeOrg]);
+
+  // Update org profile settings when activeOrg changes
+  useEffect(() => {
+    setCurrencyCode(((activeOrg?.currency_code as CurrencyCode | undefined) || 'GBP'));
+    setCompanyDomain(activeOrg?.company_domain || '');
+    setCompanyWebsite(activeOrg?.company_website || '');
+    setCompanyBio(activeOrg?.company_bio || '');
+  }, [activeOrg?.currency_code, activeOrg?.company_domain, activeOrg?.company_website, activeOrg?.company_bio]);
 
   // Load member count
   useEffect(() => {
@@ -32,7 +53,7 @@ export default function OrganizationSettingsPage() {
     const loadMemberCount = async () => {
       setIsLoadingMembers(true);
       try {
-        const { count, error } = await supabase
+        const { count, error } = await (supabase as any)
           .from('organization_memberships')
           .select('*', { count: 'exact', head: true })
           .eq('org_id', activeOrgId);
@@ -68,6 +89,74 @@ export default function OrganizationSettingsPage() {
       toast.error(err.message || 'Failed to update organization name');
     } finally {
       setIsSavingName(false);
+    }
+  };
+
+  const handleSaveOrgProfile = async () => {
+    if (!activeOrgId) return;
+    if (!permissions.canManageSettings) return;
+
+    setIsSavingProfile(true);
+    try {
+      const locale = CURRENCIES[currencyCode]?.locale || 'en-GB';
+      const payload = {
+        currency_code: currencyCode,
+        currency_locale: locale,
+        company_domain: companyDomain.trim() ? companyDomain.trim() : null,
+        company_website: companyWebsite.trim() ? companyWebsite.trim() : null,
+        company_bio: companyBio.trim() ? companyBio.trim() : null,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await (supabase as any)
+        .from('organizations')
+        .update(payload)
+        .eq('id', activeOrgId);
+
+      if (error) throw error;
+      toast.success('Organization settings saved');
+      await refreshOrgs();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to save organization settings');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleEnrichOrg = async (force: boolean) => {
+    if (!activeOrgId) return;
+    if (!permissions.canManageSettings) return;
+
+    const emailDomain = user?.email?.split('@')[1]?.toLowerCase() || '';
+    const domain = companyDomain.trim() || emailDomain;
+
+    if (!domain) {
+      toast.error('Please enter a company domain (or use a work email)');
+      return;
+    }
+
+    setIsEnriching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('enrich-organization', {
+        body: {
+          orgId: activeOrgId,
+          orgName: activeOrg?.name,
+          domain,
+          force,
+        },
+      });
+
+      if (error) throw error;
+      if (!(data as any)?.success) {
+        throw new Error((data as any)?.error || 'Enrichment failed');
+      }
+
+      toast.success(force ? 'Re-enrichment completed' : 'Enrichment started');
+      await refreshOrgs();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to enrich organization');
+    } finally {
+      setIsEnriching(false);
     }
   };
 
@@ -202,6 +291,143 @@ export default function OrganizationSettingsPage() {
           </div>
         </div>
 
+        {/* Currency + Company Profile */}
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-[#37bd7e]" />
+            Currency & Company Profile
+          </h2>
+
+          <div className="border border-gray-200 dark:border-gray-800 rounded-xl p-6 space-y-6">
+            {/* Currency */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Organization Currency
+              </label>
+              <div className="flex items-center gap-3">
+                <select
+                  value={currencyCode}
+                  onChange={(e) => setCurrencyCode(e.target.value as CurrencyCode)}
+                  disabled={!permissions.canManageSettings || isSavingProfile}
+                  className="bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                >
+                  {Object.values(CURRENCIES).map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.symbol} {c.code} — {c.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  Locale: <span className="font-mono">{CURRENCIES[currencyCode]?.locale || 'en-GB'}</span>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                This changes how money is displayed across your organization (no automatic conversion).
+              </p>
+            </div>
+
+            {/* Company domain / website */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Company Domain
+                </label>
+                <input
+                  type="text"
+                  value={companyDomain}
+                  onChange={(e) => setCompanyDomain(e.target.value)}
+                  placeholder="example.com"
+                  disabled={!permissions.canManageSettings || isSavingProfile}
+                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Used for company enrichment on signup and for org context.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Company Website
+                </label>
+                <input
+                  type="text"
+                  value={companyWebsite}
+                  onChange={(e) => setCompanyWebsite(e.target.value)}
+                  placeholder="https://example.com"
+                  disabled={!permissions.canManageSettings || isSavingProfile}
+                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Company bio */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Company Bio (AI context)
+              </label>
+              <textarea
+                value={companyBio}
+                onChange={(e) => setCompanyBio(e.target.value)}
+                placeholder="A short bio about your company used to personalize AI responses…"
+                rows={5}
+                disabled={!permissions.canManageSettings || isSavingProfile}
+                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+              />
+              <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                <span>
+                  Status:{' '}
+                  <span className="font-medium">
+                    {activeOrg?.company_enrichment_status || 'not_started'}
+                  </span>
+                </span>
+                {activeOrg?.company_industry && <span>Industry: {activeOrg.company_industry}</span>}
+                {activeOrg?.company_country_code && <span>Country: {activeOrg.company_country_code}</span>}
+                {activeOrg?.company_timezone && <span>Timezone: {activeOrg.company_timezone}</span>}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                onClick={handleSaveOrgProfile}
+                disabled={!permissions.canManageSettings || isSavingProfile}
+                className="bg-[#37bd7e] hover:bg-[#2da76c]"
+              >
+                {isSavingProfile ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  'Save Settings'
+                )}
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => handleEnrichOrg(false)}
+                disabled={!permissions.canManageSettings || isEnriching}
+              >
+                {isEnriching ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Enriching…
+                  </>
+                ) : (
+                  'Enrich with AI'
+                )}
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => handleEnrichOrg(true)}
+                disabled={!permissions.canManageSettings || isEnriching}
+              >
+                Re-enrich (overwrite)
+              </Button>
+            </div>
+          </div>
+        </div>
+
         {/* Info Section */}
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
           <div className="flex gap-3">
@@ -210,7 +436,7 @@ export default function OrganizationSettingsPage() {
               <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">Organization Information</h3>
               <p className="text-sm text-blue-700 dark:text-blue-300">
                 Your organization name is visible to all members and appears in various parts of the application.
-                Only organization admins can modify these settings.
+                Only organization admins can modify these settings. Currency and company bio are used across the app and to personalize AI.
               </p>
             </div>
           </div>

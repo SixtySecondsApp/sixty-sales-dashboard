@@ -66,3 +66,32 @@
 - [x] Add a recent-meetings picker so tests don’t require copy/pasting meeting IDs.
 - [x] Add per-integration roadmap routes (`/platform/integrations/roadmap/:integrationId`) and a “Copy link” button.
 - [x] Update Slack roadmap plan to include meeting debriefs, prep cards, daily digest, deal rooms, and user mapping.
+- [x] Restore per-integration roadmap *pages* (card grid → click-through page), replacing the modal popup.
+- [ ] Make Daily Digest delivery configurable: team, individual, or both (Slack settings + edge function fanout).
+
+## Workstream: Integrations Page Logos + External View
+
+### Objectives
+- Eliminate logo flicker on `/integrations` by avoiding repeated remount + placeholder swap.
+- Load logos directly from the cached public S3 bucket on first paint (no “over the top of icons” flicker).
+- Make `/integrations` available in external view mode (and for external users where allowed).
+
+### Tasks
+- [x] Stabilize Integrations page components to prevent remount loops.
+- [x] Render deterministic S3 logo URLs immediately; dedupe background cache warming calls.
+- [x] Preload integration logos on page load to avoid visible swaps.
+- [x] Allow `/integrations` route in external view routing rules.
+
+## Workstream: Org Currency + Company Enrichment
+
+### Objectives
+- Support organization-level currency selection (display formatting across UI + Slack + Copilot context).
+- Auto-enrich company profile from signup email domain using Gemini (platform-managed secret), with manual re-enrich in settings.
+
+### Tasks
+- [x] Add org fields: `currency_code`, `currency_locale`, `company_*` enrichment fields; add `profiles.bio`.
+- [x] Implement `enrich-organization` edge function (Gemini) and persist org/user bio context.
+- [x] Refactor key UI surfaces to use org-aware currency formatting (Slack settings + deal cards + shared currency helper).
+- [x] Update Slack edge functions + Slack blocks currency formatting (no hardcoded `$`).
+- [x] Update Copilot context builder to include org/company/user bio + org currency formatting.
+- [x] Add org settings UI for currency + company profile, including Enrich/Re-enrich and background auto-enrichment in onboarding.

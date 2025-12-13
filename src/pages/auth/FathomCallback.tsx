@@ -2,9 +2,6 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/clientV2';
 
-// Log module load immediately
-console.log('🔵 FathomCallback.tsx module loaded');
-
 /**
  * Fathom OAuth Callback Page
  *
@@ -15,15 +12,12 @@ console.log('🔵 FathomCallback.tsx module loaded');
  * without an authenticated session. The edge function handles authentication.
  */
 export default function FathomCallback() {
-  console.log('🔵 FathomCallback component function called');
-  
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
-    console.log('🔵 FathomCallback useEffect triggered');
     const handleCallback = async () => {
       try {
         const code = searchParams.get('code');
@@ -47,8 +41,6 @@ export default function FathomCallback() {
           console.error('Fathom OAuth callback missing parameters:', { code: !!code, state: !!state });
           throw new Error('Missing authorization code or state parameter');
         }
-
-        console.log('Fathom OAuth callback received, calling edge function...', { code: code.substring(0, 10) + '...', state });
         
         // Call the Edge Function to handle token exchange
         // Edge function validates state parameter (contains user_id) - doesn't require client auth
@@ -64,17 +56,20 @@ export default function FathomCallback() {
           throw new Error(functionError.message || `Failed to complete OAuth flow: ${JSON.stringify(functionError)}`);
         }
         
-        console.log('Fathom OAuth callback successful:', data);
         setStatus('success');
 
         // Check if we're in a popup window (multiple detection methods)
         const isPopup = !!(window.opener || window.name === 'Fathom OAuth' || window.outerWidth < 700);
         if (isPopup && window.opener) {
-          window.opener.postMessage({
-            type: 'fathom-oauth-success',
-            integrationId: data.integration_id,
-            userId: data.user_id
-          }, '*');
+          // Restrict message delivery to our own origin
+          window.opener.postMessage(
+            {
+              type: 'fathom-oauth-success',
+              integrationId: (data as any)?.integration_id,
+              userId: (data as any)?.user_id,
+            },
+            window.location.origin
+          );
 
           // Close popup after 1 second
           setTimeout(() => {
@@ -116,11 +111,6 @@ export default function FathomCallback() {
       setStatus('error');
     });
   }, [searchParams, navigate]);
-
-  // Log render state changes
-  useEffect(() => {
-    console.log('🔵 FathomCallback status changed:', status, error || 'no error');
-  }, [status, error]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#1a1a1a]">

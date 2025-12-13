@@ -1,0 +1,352 @@
+---
+name: slack-blocks
+description: Create perfectly structured, engaging, and interactive Slack Block Kit messages for sales assistant bots. Use when building Slack notifications, alerts, dashboards, or interactive messages for sales workflows including deal updates, lead alerts, meeting reminders, pipeline summaries, activity notifications, approval requests, and any sales-related Slack bot messaging.
+globs:
+  - "**/slack*.ts"
+  - "**/slackBlocks.ts"
+  - "**/*slack*.tsx"
+  - "**/functions/slack-*/**"
+---
+
+# Slack Blocks for Sales Bots
+
+Create visually stunning, interactive Slack messages that drive engagement and action.
+
+## Core Principles
+
+1. **Scannable**: Lead with the most important info. Sales reps skim, they don't read.
+2. **Actionable**: Every message should have a clear next step with interactive buttons.
+3. **Contextual**: Include just enough data to make decisions without leaving Slack.
+4. **Branded**: Use consistent emoji patterns for instant recognition.
+
+## Quick Reference
+
+### Block Structure
+
+```json
+{
+  "blocks": [...],           // Visual layout (required)
+  "attachments": [...]       // Colored sidebar + fallback (optional)
+}
+```
+
+### Essential Block Types
+
+| Block | Use For |
+|-------|---------|
+| `header` | Titles, alerts (emoji + bold text) |
+| `section` | Main content, key-value pairs, images |
+| `actions` | Buttons, dropdowns, date pickers |
+| `divider` | Visual separation |
+| `context` | Timestamps, metadata, subtle info |
+| `rich_text` | Formatted lists, links, mentions |
+
+## Sales Message Patterns
+
+### Pattern 1: Deal Alert (High Priority)
+
+```json
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {"type": "plain_text", "text": "🔥 Hot Lead Alert", "emoji": true}
+    },
+    {
+      "type": "section",
+      "fields": [
+        {"type": "mrkdwn", "text": "*Company*\nAcme Corp"},
+        {"type": "mrkdwn", "text": "*Value*\n£45,000"},
+        {"type": "mrkdwn", "text": "*Source*\nInbound Demo"},
+        {"type": "mrkdwn", "text": "*Score*\n92/100 🎯"}
+      ]
+    },
+    {
+      "type": "section",
+      "text": {"type": "mrkdwn", "text": "*Signal:* Downloaded pricing guide + viewed case studies 3x today"}
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {"type": "button", "text": {"type": "plain_text", "text": "📞 Call Now"}, "style": "primary", "action_id": "call_lead"},
+        {"type": "button", "text": {"type": "plain_text", "text": "📧 Send Email"}, "action_id": "send_email"},
+        {"type": "button", "text": {"type": "plain_text", "text": "👀 View Profile"}, "action_id": "view_profile"}
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {"type": "mrkdwn", "text": "Assigned to <@U123> • Last activity: 5 mins ago"}
+      ]
+    }
+  ]
+}
+```
+
+### Pattern 2: Daily Pipeline Summary
+
+```json
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {"type": "plain_text", "text": "📊 Your Pipeline Today", "emoji": true}
+    },
+    {
+      "type": "section",
+      "text": {"type": "mrkdwn", "text": "*Pipeline Value:* £1.2M across 24 deals"}
+    },
+    {"type": "divider"},
+    {
+      "type": "section",
+      "text": {"type": "mrkdwn", "text": "🟢 *Closing This Week (3)*\n• Acme Corp — £45K — Contract sent\n• Beta Inc — £28K — Final negotiation\n• Gamma Ltd — £15K — Awaiting signature"}
+    },
+    {
+      "type": "section",
+      "text": {"type": "mrkdwn", "text": "🟡 *Needs Attention (2)*\n• Delta Corp — No response 7 days\n• Epsilon Ltd — Stalled at proposal"}
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {"type": "button", "text": {"type": "plain_text", "text": "View Full Pipeline"}, "style": "primary", "action_id": "view_pipeline"},
+        {"type": "button", "text": {"type": "plain_text", "text": "Schedule Follow-ups"}, "action_id": "schedule_followups"}
+      ]
+    }
+  ]
+}
+```
+
+### Pattern 3: Meeting Reminder
+
+```json
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {"type": "plain_text", "text": "📅 Meeting in 15 mins", "emoji": true}
+    },
+    {
+      "type": "section",
+      "fields": [
+        {"type": "mrkdwn", "text": "*With*\nSarah Chen, VP Sales @ Acme"},
+        {"type": "mrkdwn", "text": "*Deal*\n£45,000 Enterprise"},
+        {"type": "mrkdwn", "text": "*Stage*\nNegotiation"},
+        {"type": "mrkdwn", "text": "*Meeting*\nContract Review"}
+      ],
+      "accessory": {
+        "type": "image",
+        "image_url": "https://example.com/avatar.png",
+        "alt_text": "Sarah Chen"
+      }
+    },
+    {
+      "type": "section",
+      "text": {"type": "mrkdwn", "text": "*Quick Prep:*\n• They asked about SOC2 compliance last call\n• Budget approved, timeline is Q1\n• Key objection: Implementation time"}
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {"type": "button", "text": {"type": "plain_text", "text": "🎥 Join Call"}, "style": "primary", "url": "https://zoom.us/j/123", "action_id": "join_call"},
+        {"type": "button", "text": {"type": "plain_text", "text": "📋 View Notes"}, "action_id": "view_notes"},
+        {"type": "button", "text": {"type": "plain_text", "text": "⏰ Snooze 5m"}, "action_id": "snooze"}
+      ]
+    }
+  ]
+}
+```
+
+### Pattern 4: Win/Loss Notification
+
+```json
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {"type": "plain_text", "text": "🎉 DEAL WON!", "emoji": true}
+    },
+    {
+      "type": "section",
+      "text": {"type": "mrkdwn", "text": "*Acme Corporation* just signed!\n\n💰 *£45,000* Annual Contract\n📈 *18% above* target price\n⏱️ *23 days* sales cycle"}
+    },
+    {"type": "divider"},
+    {
+      "type": "section",
+      "text": {"type": "mrkdwn", "text": "*Winning Factors:*\n✅ ROI calculator demo\n✅ Customer reference call\n✅ Fast legal turnaround"}
+    },
+    {
+      "type": "context",
+      "elements": [
+        {"type": "mrkdwn", "text": "Closed by <@U123> • Team quota: 78% → 89%"}
+      ]
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {"type": "button", "text": {"type": "plain_text", "text": "🎊 Celebrate"}, "action_id": "celebrate"},
+        {"type": "button", "text": {"type": "plain_text", "text": "📝 Add to Case Studies"}, "action_id": "case_study"}
+      ]
+    }
+  ]
+}
+```
+
+### Pattern 5: Approval Request
+
+```json
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {"type": "plain_text", "text": "⚡ Discount Approval Needed", "emoji": true}
+    },
+    {
+      "type": "section",
+      "fields": [
+        {"type": "mrkdwn", "text": "*Deal*\nAcme Corp Enterprise"},
+        {"type": "mrkdwn", "text": "*Rep*\n<@U123>"},
+        {"type": "mrkdwn", "text": "*Requested*\n25% discount"},
+        {"type": "mrkdwn", "text": "*Value*\n£45K → £33.75K"}
+      ]
+    },
+    {
+      "type": "section",
+      "text": {"type": "mrkdwn", "text": "*Justification:*\n3-year commit, expansion potential to 500+ seats, competitive pressure from Competitor X"}
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {"type": "button", "text": {"type": "plain_text", "text": "✅ Approve"}, "style": "primary", "action_id": "approve"},
+        {"type": "button", "text": {"type": "plain_text", "text": "❌ Deny"}, "style": "danger", "action_id": "deny"},
+        {"type": "button", "text": {"type": "plain_text", "text": "💬 Discuss"}, "action_id": "discuss"}
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {"type": "mrkdwn", "text": "⏰ Expires in 4 hours • Deal closes Friday"}
+      ]
+    }
+  ]
+}
+```
+
+## Interactive Elements
+
+### Buttons
+
+```json
+// Primary action (green)
+{"type": "button", "text": {"type": "plain_text", "text": "Approve"}, "style": "primary", "action_id": "approve"}
+
+// Danger action (red)
+{"type": "button", "text": {"type": "plain_text", "text": "Delete"}, "style": "danger", "action_id": "delete"}
+
+// Default (gray) - use for secondary actions
+{"type": "button", "text": {"type": "plain_text", "text": "View Details"}, "action_id": "view"}
+
+// Link button (opens URL) - NO value prop when url is present
+{"type": "button", "text": {"type": "plain_text", "text": "Open CRM"}, "url": "https://crm.example.com", "action_id": "open_crm"}
+```
+
+### Dropdown Menus
+
+```json
+{
+  "type": "static_select",
+  "placeholder": {"type": "plain_text", "text": "Select stage"},
+  "action_id": "update_stage",
+  "options": [
+    {"text": {"type": "plain_text", "text": "Discovery"}, "value": "discovery"},
+    {"text": {"type": "plain_text", "text": "Proposal"}, "value": "proposal"},
+    {"text": {"type": "plain_text", "text": "Negotiation"}, "value": "negotiation"}
+  ]
+}
+```
+
+### Date Picker
+
+```json
+{
+  "type": "datepicker",
+  "action_id": "select_date",
+  "placeholder": {"type": "plain_text", "text": "Select close date"}
+}
+```
+
+### Overflow Menu (for secondary actions)
+
+```json
+{
+  "type": "overflow",
+  "action_id": "more_options",
+  "options": [
+    {"text": {"type": "plain_text", "text": "Edit"}, "value": "edit"},
+    {"text": {"type": "plain_text", "text": "Archive"}, "value": "archive"},
+    {"text": {"type": "plain_text", "text": "Delete"}, "value": "delete"}
+  ]
+}
+```
+
+## Emoji Patterns for Sales Bots
+
+Use consistent emoji for instant recognition:
+
+| Category | Emoji | Use For |
+|----------|-------|---------|
+| Urgency | 🔥 🚨 ⚡ | Hot leads, urgent actions |
+| Success | 🎉 ✅ 🏆 💰 | Wins, completions, revenue |
+| Warning | ⚠️ 🟡 ⏰ | At-risk deals, deadlines |
+| Status | 🟢 🟡 🔴 | Health indicators |
+| Actions | 📞 📧 📅 📋 | Call, email, meeting, notes |
+| Data | 📊 📈 💹 | Reports, analytics, trends |
+
+## Slack Block Kit Limits (CRITICAL)
+
+**Always respect these limits to avoid `invalid_blocks` errors:**
+
+| Element | Limit |
+|---------|-------|
+| Header text | 150 characters |
+| Section text | 3000 characters |
+| Button text | 75 characters |
+| Button value | 2000 characters |
+| Context element text | 500 characters |
+| Blocks per message | 50 blocks |
+| Actions per block | 25 elements |
+| Fields per section | 10 fields |
+
+## Design Rules
+
+1. **Max 3 buttons** per actions block (more creates decision fatigue)
+2. **One primary button** per message (clear CTA hierarchy)
+3. **Fields for pairs** - use section fields for label:value pairs
+4. **Headers for alerts** - skip headers for routine updates
+5. **Context for metadata** - timestamps, attributions at bottom
+6. **Dividers sparingly** - only when switching topics
+7. **URL buttons omit value** - don't include `value` when `url` is present
+
+## Common Mistakes to Avoid
+
+❌ **Too many blocks** - Keep under 10 blocks total
+❌ **Wall of text** - Break into scannable chunks
+❌ **No clear action** - Always include at least one button
+❌ **Missing context** - Include who/when/why metadata
+❌ **Inconsistent emoji** - Stick to your emoji vocabulary
+❌ **Button text too long** - Max 24 characters recommended
+❌ **Value + URL on same button** - Slack may reject this
+❌ **Exceeding character limits** - Truncate long text before building blocks
+
+## Our Implementation
+
+See `supabase/functions/_shared/slackBlocks.ts` for our Block Kit builder functions:
+
+- `header(text)` - Creates header block (auto-truncates to 150 chars)
+- `section(text)` - Creates section with mrkdwn (auto-truncates to 3000 chars)
+- `sectionWithButton(text, buttonText, actionId, value, style)` - Section with accessory button
+- `context(elements)` - Creates context block
+- `actions(buttons)` - Creates actions block with buttons
+- `divider()` - Creates divider block
+- `buildMeetingDebriefMessage(data)` - Full meeting debrief message
+- `buildDailyDigestMessage(data)` - Daily standup digest
+- `buildMeetingPrepMessage(data)` - Pre-meeting prep card
+- `buildDealRoomMessage(data)` - Deal room creation

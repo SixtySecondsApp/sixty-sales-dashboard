@@ -1268,6 +1268,80 @@ async function handleGetConversation(
 async function buildContext(client: any, userId: string, context?: ChatRequest['context']): Promise<string> {
   const contextParts: string[] = []
 
+  // ---------------------------------------------------------------------------
+  // Org + personalization context (company bio, user bio, org currency)
+  // ---------------------------------------------------------------------------
+  let orgCurrencyCode = 'GBP'
+  let orgCurrencyLocale = 'en-GB'
+
+  const formatOrgMoney = (value: number | null | undefined): string => {
+    const n = typeof value === 'number' ? value : Number(value)
+    const safe = Number.isFinite(n) ? n : 0
+    try {
+      return new Intl.NumberFormat(orgCurrencyLocale, {
+        style: 'currency',
+        currency: orgCurrencyCode,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(safe)
+    } catch {
+      return `${safe}`
+    }
+  }
+
+  try {
+    const { data: membership } = await client
+      .from('organization_memberships')
+      .select('org_id')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    const orgId = membership?.org_id || null
+
+    if (orgId) {
+      const { data: org } = await client
+        .from('organizations')
+        .select('name, currency_code, currency_locale, company_bio, company_industry, company_country_code, company_timezone')
+        .eq('id', orgId)
+        .maybeSingle()
+
+      if (org?.currency_code) orgCurrencyCode = String(org.currency_code).toUpperCase()
+      if (org?.currency_locale) orgCurrencyLocale = String(org.currency_locale)
+
+      // Keep this short and high-signal: this becomes prompt context.
+      if (org?.name) {
+        contextParts.push(`Organization: ${org.name}`)
+      }
+      contextParts.push(`Org currency: ${orgCurrencyCode} (${orgCurrencyLocale})`)
+
+      const orgMeta: string[] = []
+      if (org?.company_industry) orgMeta.push(`Industry: ${org.company_industry}`)
+      if (org?.company_country_code) orgMeta.push(`Country: ${org.company_country_code}`)
+      if (org?.company_timezone) orgMeta.push(`Timezone: ${org.company_timezone}`)
+      if (orgMeta.length > 0) {
+        contextParts.push(`Org info: ${orgMeta.join(' • ')}`)
+      }
+
+      if (org?.company_bio) {
+        contextParts.push(`Company bio: ${org.company_bio}`)
+      }
+    }
+
+    const { data: profile } = await client
+      .from('profiles')
+      .select('bio')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (profile?.bio) {
+      contextParts.push(`User bio: ${profile.bio}`)
+    }
+  } catch (e) {
+    // fail open: copilot should still work without org context
+  }
+
   if (context?.temporalContext) {
     const { date, time, timezone, localeString, isoString } = context.temporalContext
     const primary = (date && time) ? `${date} at ${time}` : localeString || isoString
@@ -1297,7 +1371,7 @@ async function buildContext(client: any, userId: string, context?: ChatRequest['
       .eq('owner_id', userId)
 
     if (deals && deals.length > 0) {
-      contextParts.push(`Related deals: ${deals.map(d => `${d.name} (${d.deal_stages?.name || 'Unknown Stage'}, $${d.value})`).join(', ')}`)
+      contextParts.push(`Related deals: ${deals.map(d => `${d.name} (${d.deal_stages?.name || 'Unknown Stage'}, ${formatOrgMoney(d.value)})`).join(', ')}`)
     }
   }
 

@@ -5,11 +5,42 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 import { buildMeetingPrepMessage, type MeetingPrepData } from '../_shared/slackBlocks.ts';
+import { getAuthContext, requireOrgRole } from '../_shared/edgeAuth.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
 const appUrl = Deno.env.get('APP_URL') || Deno.env.get('SITE_URL') || 'https://use60.com';
+
+async function getOrgMoneyConfig(
+  supabase: ReturnType<typeof createClient>,
+  orgId: string
+): Promise<{ currencyCode: string; currencyLocale: string }> {
+  try {
+    const { data } = await supabase
+      .from('organizations')
+      .select('currency_code, currency_locale')
+      .eq('id', orgId)
+      .single();
+
+    const currencyCode = ((data as any)?.currency_code as string | null | undefined) || 'GBP';
+    const currencyLocale =
+      ((data as any)?.currency_locale as string | null | undefined) ||
+      (currencyCode === 'USD'
+        ? 'en-US'
+        : currencyCode === 'EUR'
+          ? 'en-IE'
+          : currencyCode === 'AUD'
+            ? 'en-AU'
+            : currencyCode === 'CAD'
+              ? 'en-CA'
+              : 'en-GB');
+
+    return { currencyCode: currencyCode.toUpperCase(), currencyLocale };
+  } catch {
+    return { currencyCode: 'GBP', currencyLocale: 'en-GB' };
+  }
+}
 
 interface CalendarEvent {
   id: string;
@@ -606,20 +637,23 @@ async function postToSlack(
  */
 async function processMeetingPrep(
   supabase: ReturnType<typeof createClient>,
-  event: CalendarEvent
+  event: CalendarEvent,
+  isTest: boolean = false
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Check if already sent
-    const { data: existingSent } = await supabase
-      .from('slack_notifications_sent')
-      .select('id')
-      .eq('org_id', event.org_id)
-      .eq('feature', 'meeting_prep')
-      .eq('entity_id', event.id)
-      .limit(1);
+    // Check if already sent (skip in test mode)
+    if (!isTest) {
+      const { data: existingSent } = await supabase
+        .from('slack_notifications_sent')
+        .select('id')
+        .eq('org_id', event.org_id)
+        .eq('feature', 'meeting_prep')
+        .eq('entity_id', event.id)
+        .limit(1);
 
-    if (existingSent && existingSent.length > 0) {
-      return { success: true }; // Already sent
+      if (existingSent && existingSent.length > 0) {
+        return { success: true }; // Already sent
+      }
     }
 
     // Get Slack config
@@ -717,12 +751,16 @@ async function processMeetingPrep(
       daysInPipeline = Math.ceil((Date.now() - new Date(deal.created_at).getTime()) / (1000 * 60 * 60 * 24));
     }
 
+    const money = await getOrgMoneyConfig(supabase, event.org_id);
+
     // Build prep data with enhanced fields
     const prepData: MeetingPrepData = {
       meetingTitle: event.title,
       meetingId: event.id,
       userName: userProfile.fullName,
       slackUserId,
+      currencyCode: money.currencyCode,
+      currencyLocale: money.currencyLocale,
       attendees: contacts.map((c) => ({
         name: c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Unknown',
         title: c.title,
@@ -771,17 +809,19 @@ async function processMeetingPrep(
       return { success: false, error: result.error };
     }
 
-    // Record sent notification
-    await supabase.from('slack_notifications_sent').insert({
-      org_id: event.org_id,
-      feature: 'meeting_prep',
-      entity_type: 'prep',
-      entity_id: event.id,
-      recipient_type: slackConfig.deliveryMethod === 'dm' ? 'user' : 'channel',
-      recipient_id: recipientId,
-      slack_ts: result.ts,
-      slack_channel_id: recipientId,
-    });
+    // Record sent notification (skip in test mode to allow repeated testing)
+    if (!isTest) {
+      await supabase.from('slack_notifications_sent').insert({
+        org_id: event.org_id,
+        feature: 'meeting_prep',
+        entity_type: 'prep',
+        entity_id: event.id,
+        recipient_type: slackConfig.deliveryMethod === 'dm' ? 'user' : 'channel',
+        recipient_id: recipientId,
+        slack_ts: result.ts,
+        slack_channel_id: recipientId,
+      });
+    }
 
     return { success: true };
   } catch (error) {
@@ -797,21 +837,42 @@ serve(async (req) => {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const auth = await getAuthContext(req, supabase, supabaseServiceKey);
 
     // Check for manual trigger with specific event
     let targetEventId: string | null = null;
+    let targetMeetingId: string | null = null;
     let targetOrgId: string | null = null;
+    let isTest = false;
 
     if (req.method === 'POST') {
       const body = await req.json().catch(() => ({}));
       targetEventId = body.eventId || null;
+      // Also accept meetingId for backwards compatibility with test UI
+      targetMeetingId = body.meetingId || null;
       targetOrgId = body.orgId || null;
+      isTest = body.isTest === true;
+    }
+
+    // External release hardening:
+    // - User-auth calls MUST target a specific org or event.
+    // - Only org admins (or platform admins) can manually trigger.
+    if (auth.mode === 'user') {
+      if (!targetEventId && !targetMeetingId && !targetOrgId) {
+        return new Response(
+          JSON.stringify({ error: 'orgId, eventId, or meetingId required for manual trigger' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (targetOrgId && auth.userId && !auth.isPlatformAdmin) {
+        await requireOrgRole(supabase, targetOrgId, auth.userId, ['owner', 'admin']);
+      }
     }
 
     let meetings: CalendarEvent[];
 
     if (targetEventId) {
-      // Process specific event
+      // Process specific calendar event
       const { data } = await supabase
         .from('calendar_events')
         .select('id, title, start_time, user_id, attendee_emails, meeting_url, org_id')
@@ -819,6 +880,41 @@ serve(async (req) => {
         .single();
 
       meetings = data ? [data] : [];
+    } else if (targetMeetingId && isTest) {
+      // Test mode: Look up meeting from meetings table and create a virtual calendar event
+      // This allows testing with meetings that don't have corresponding calendar events
+      const { data: meeting } = await supabase
+        .from('meetings')
+        .select('id, title, meeting_start, owner_user_id, owner_email, org_id, attendee_emails, meeting_url, company_id')
+        .eq('id', targetMeetingId)
+        .single();
+
+      if (meeting) {
+        // Get company name if available
+        let companyName: string | null = null;
+        if (meeting.company_id) {
+          const { data: company } = await supabase
+            .from('companies')
+            .select('name')
+            .eq('id', meeting.company_id)
+            .single();
+          companyName = company?.name || null;
+        }
+
+        // Create a virtual calendar event from the meeting
+        const virtualEvent: CalendarEvent = {
+          id: meeting.id,
+          title: meeting.title || companyName || 'Meeting',
+          start_time: meeting.meeting_start,
+          user_id: meeting.owner_user_id,
+          attendee_emails: meeting.attendee_emails || [],
+          meeting_url: meeting.meeting_url || undefined,
+          org_id: meeting.org_id || targetOrgId!,
+        };
+        meetings = [virtualEvent];
+      } else {
+        meetings = [];
+      }
     } else {
       // Get upcoming meetings (25-35 mins from now)
       meetings = await getUpcomingMeetings(supabase, targetOrgId || undefined);
@@ -826,14 +922,14 @@ serve(async (req) => {
 
     if (meetings.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, message: 'No upcoming meetings to process' }),
+        JSON.stringify({ success: true, message: 'No meetings found to process' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Process each meeting
     const results = await Promise.all(
-      meetings.map((meeting) => processMeetingPrep(supabase, meeting))
+      meetings.map((meeting) => processMeetingPrep(supabase, meeting, isTest))
     );
 
     const successCount = results.filter((r) => r.success).length;

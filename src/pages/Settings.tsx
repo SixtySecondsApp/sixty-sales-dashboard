@@ -10,18 +10,18 @@
  * - Email Sync
  * - Task Auto-Sync
  *
- * Org-level settings (Team, Branding) moved to /team/*
- * Platform-level settings (View Mode) moved to /platform/*
+ * Team-level settings are shown here for admins only.
+ * Platform-level settings (internal-only) are separate.
  */
 
 import { useNavigate } from 'react-router-dom';
 import { useOrg } from '@/lib/contexts/OrgContext';
 import { useUserPermissions } from '@/contexts/UserPermissionsContext';
 import { useMemo } from 'react';
+import { useSlackOrgSettings } from '@/lib/hooks/useSlackSettings';
 import {
   User,
   Palette,
-  FileText,
   Sparkles,
   MessageSquare,
   Mail,
@@ -33,6 +33,8 @@ import {
   Video,
   Phone,
   Workflow,
+  Paintbrush,
+  CreditCard,
 } from 'lucide-react';
 
 interface SettingsSection {
@@ -48,6 +50,8 @@ export default function Settings() {
   const navigate = useNavigate();
   const { permissions } = useOrg();
   const { isPlatformAdmin } = useUserPermissions();
+  const { data: slackOrgSettings, isLoading: slackOrgLoading, error: slackOrgError } = useSlackOrgSettings();
+  const isSlackConnected = !slackOrgLoading && !slackOrgError && slackOrgSettings?.is_connected === true;
 
   const allSettingsSections: SettingsSection[] = [
     {
@@ -123,6 +127,13 @@ export default function Settings() {
       path: '/settings/email-sync',
     },
     {
+      id: 'slack',
+      label: 'Slack',
+      icon: MessageSquare,
+      description: 'Send meeting, deal, and digest notifications to Slack',
+      path: '/settings/integrations/slack',
+    },
+    {
       id: 'team-members',
       label: 'Team Members',
       icon: Users,
@@ -138,18 +149,39 @@ export default function Settings() {
       path: '/settings/organization',
       requiresOrgAdmin: true,
     },
+    {
+      id: 'branding',
+      label: 'Branding',
+      icon: Paintbrush,
+      description: 'Manage your organization logo and branding',
+      path: '/settings/branding',
+      requiresOrgAdmin: true,
+    },
+    {
+      id: 'billing',
+      label: 'Billing',
+      icon: CreditCard,
+      description: 'Manage your subscription and billing',
+      path: '/settings/billing',
+      requiresOrgAdmin: true,
+    },
   ];
 
   // Filter sections based on permissions
   const settingsSections = useMemo(() => {
     return allSettingsSections.filter(section => {
+      // Slack settings should only appear when the org is already connected.
+      // If Slack isn't connected (or the status can't be determined), hide the entry entirely.
+      if (section.id === 'slack') {
+        return isSlackConnected;
+      }
       if (section.requiresOrgAdmin) {
         // Allow org admins AND platform admins to see team settings
         return permissions.canManageTeam || permissions.canManageSettings || isPlatformAdmin;
       }
       return true;
     });
-  }, [allSettingsSections, permissions, isPlatformAdmin]);
+  }, [allSettingsSections, permissions, isPlatformAdmin, isSlackConnected]);
 
   const categories = useMemo(() => {
     const personalSections = settingsSections.filter(s =>
@@ -159,10 +191,10 @@ export default function Settings() {
       ['ai-personalization', 'sales-coaching', 'api-keys', 'follow-ups', 'task-sync', 'meeting-sync', 'call-types'].includes(s.id)
     );
     const integrationSections = settingsSections.filter(s =>
-      ['email-sync'].includes(s.id)
+      ['email-sync', 'slack'].includes(s.id)
     );
     const teamSections = settingsSections.filter(s =>
-      ['team-members', 'organization'].includes(s.id)
+      ['team-members', 'organization', 'branding', 'billing'].includes(s.id)
     );
 
     const cats = [

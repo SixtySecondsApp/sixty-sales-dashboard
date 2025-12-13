@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useUser } from '@/lib/hooks/useUser';
+import { useOrg } from '@/lib/contexts/OrgContext';
 import logger from '@/lib/utils/logger';
 
 // Production webhook URL (always use the branded domain)
@@ -53,6 +54,7 @@ type EditingMapping = {
 
 export default function SettingsSavvyCal() {
   const { userData: user } = useUser();
+  const { activeOrgId } = useOrg();
   const [mappings, setMappings] = useState<SourceMapping[]>([]);
   const [bookingSources, setBookingSources] = useState<BookingSource[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,6 +65,8 @@ export default function SettingsSavvyCal() {
     link_id: '',
     source: '',
     source_id: null,
+    meeting_link: '',
+    private_link: '',
     notes: '',
     isCustomSource: false,
   });
@@ -298,8 +302,8 @@ export default function SettingsSavvyCal() {
         .select('*');
       
       // Filter by org_id if available, otherwise show mappings with null org_id or created by user
-      if (user?.org_id) {
-        query = query.eq('org_id', user.org_id);
+      if (activeOrgId) {
+        query = query.eq('org_id', activeOrgId);
       } else if (user?.id) {
         // If no org_id, show mappings where org_id is null or created by current user
         query = query.or(`org_id.is.null,created_by.eq.${user.id}`);
@@ -401,8 +405,8 @@ export default function SettingsSavvyCal() {
           })
           .eq('id', editingMapping.id);
         
-        if (user?.org_id) {
-          updateQuery = updateQuery.eq('org_id', user.org_id);
+        if (activeOrgId) {
+          updateQuery = updateQuery.eq('org_id', activeOrgId);
         }
         
         const { error } = await updateQuery;
@@ -421,7 +425,7 @@ export default function SettingsSavvyCal() {
             private_link: editingMapping.private_link.trim() || null,
             notes: editingMapping.notes.trim() || null,
             created_by: user.id,
-            org_id: user.org_id || null,
+            org_id: activeOrgId || null,
           });
 
         if (error) {
@@ -549,8 +553,8 @@ export default function SettingsSavvyCal() {
         .delete()
         .eq('id', id);
       
-      if (user?.org_id) {
-        deleteQuery = deleteQuery.eq('org_id', user.org_id);
+      if (activeOrgId) {
+        deleteQuery = deleteQuery.eq('org_id', activeOrgId);
       }
       
       const { error } = await deleteQuery;
@@ -613,7 +617,7 @@ export default function SettingsSavvyCal() {
       
       // Fetch meeting links for all link IDs in parallel
       toast.info(`Fetching meeting links for ${linkIds.size} link(s)...`);
-      const linkDetailsMap = new Map<string, { meeting_link: string | null; notes: string }>();
+      const linkDetailsMap = new Map<string, { meeting_link: string | null; private_link: string | null; notes: string }>();
       
       // Fetch details for each link ID
       const fetchPromises = Array.from(linkIds).map(async (linkId) => {
@@ -659,7 +663,7 @@ export default function SettingsSavvyCal() {
           private_link: details.private_link,
           notes: details.notes,
           created_by: user.id,
-          org_id: user.org_id || null,
+          org_id: activeOrgId || null,
         };
       });
 

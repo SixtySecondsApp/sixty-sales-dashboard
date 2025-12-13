@@ -6,6 +6,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, ArrowRightLeft, Loader2 } from 'lucide-react';
 import { useIntegrationLogo } from '@/lib/hooks/useIntegrationLogo';
+import { DEFAULT_SIXTY_ICON_URL } from '@/lib/utils/sixtyBranding';
 
 export interface Permission {
   title: string;
@@ -23,6 +24,8 @@ interface ConnectModalProps {
   isAuthorizing?: boolean;
   brandColor?: string;
   fallbackIcon?: React.ReactNode;
+  /** Optional override (e.g. org branding). */
+  sixtyLogoUrl?: string | null;
 }
 
 export function ConnectModal({
@@ -36,8 +39,10 @@ export function ConnectModal({
   isAuthorizing = false,
   brandColor = 'blue',
   fallbackIcon,
+  sixtyLogoUrl,
 }: ConnectModalProps) {
   const { logoUrl } = useIntegrationLogo(integrationId);
+  const sixtyLogo = sixtyLogoUrl || DEFAULT_SIXTY_ICON_URL;
 
   const colorClasses: Record<string, { button: string; shadow: string }> = {
     blue: { button: 'bg-blue-600 hover:bg-blue-700', shadow: 'shadow-blue-500/20' },
@@ -57,8 +62,14 @@ export function ConnectModal({
         <div className="p-6 text-center border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
           <div className="flex items-center justify-center gap-4 mb-4">
             {/* Sixty Sales Logo */}
-            <div className="w-12 h-12 bg-black dark:bg-white rounded-xl flex items-center justify-center shadow-sm">
-              <span className="text-white dark:text-black font-bold text-xl">S</span>
+            <div className="w-12 h-12 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl flex items-center justify-center shadow-sm overflow-hidden">
+              <img
+                src={sixtyLogo}
+                alt="Sixty logo"
+                className="w-8 h-8 object-contain"
+                decoding="async"
+                loading="eager"
+              />
             </div>
             <ArrowRightLeft className="w-5 h-5 text-gray-400" />
             {/* Integration Logo */}

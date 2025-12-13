@@ -376,3 +376,17 @@ async function getLastMeaningfulInteraction(
   return undefined;
 }
 
+// =====================================================
+// Testable helpers (pure mapping)
+// =====================================================
+
+/**
+ * Exposes internal, deterministic helpers for unit tests.
+ * These do not perform any I/O.
+ */
+export const __dealHealthInterventionAdapterTestables = {
+  mapDealHealthStatusToRelationshipStatus,
+  mapDealRiskToGhostSeverity,
+  convertDealHealthToGhostSignals,
+};
+

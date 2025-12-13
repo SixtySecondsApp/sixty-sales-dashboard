@@ -1,5 +1,6 @@
 // supabase/functions/_shared/slackBlocks.ts
 // Reusable Slack Block Kit builders for consistent message formatting
+// Following the slack-blocks skill for sales assistant bots
 
 /**
  * Slack Block Kit Types
@@ -13,6 +14,31 @@ export interface SlackMessage {
   blocks: SlackBlock[];
   text?: string; // Fallback text for notifications
 }
+
+/**
+ * Slack Block Kit safety helpers (prevent "invalid_blocks")
+ *
+ * Slack limits:
+ * - header plain_text: 150 chars
+ * - section mrkdwn: 3000 chars
+ * - section field: 2000 chars
+ * - context mrkdwn: 2000 chars
+ * - button text: 75 chars
+ * - button value: 2000 chars
+ */
+const truncate = (value: string, max: number): string => {
+  const v = String(value ?? '');
+  if (v.length <= max) return v;
+  if (max <= 1) return v.slice(0, max);
+  return `${v.slice(0, max - 1)}…`;
+};
+
+const safeHeaderText = (text: string): string => truncate(text, 150);
+const safeButtonText = (text: string): string => truncate(text, 75);
+const safeMrkdwn = (text: string): string => truncate(text, 2800);
+const safeFieldText = (text: string): string => truncate(text, 1900);
+const safeContextMrkdwn = (text: string): string => truncate(text, 1900);
+const safeButtonValue = (value: string): string => truncate(value, 1900);
 
 export interface ActionItem {
   task: string;
@@ -36,12 +62,15 @@ export interface MeetingDebriefData {
   talkTimeCustomer: number;
   actionItems: ActionItem[];
   coachingInsight: string;
+  keyQuotes?: string[];
   appUrl: string;
 }
 
 export interface DailyDigestData {
   teamName: string;
   date: string;
+  currencyCode?: string;
+  currencyLocale?: string;
   meetings: Array<{
     time: string;
     userName: string;
@@ -77,6 +106,8 @@ export interface MeetingPrepData {
   meetingId: string;
   userName: string;
   slackUserId?: string;
+  currencyCode?: string;
+  currencyLocale?: string;
   attendees: Array<{
     name: string;
     title?: string;
@@ -103,7 +134,6 @@ export interface MeetingPrepData {
   talkingPoints: string[];
   meetingUrl?: string;
   appUrl: string;
-  // Enhanced meeting prep data
   meetingHistory?: Array<{
     date: string;
     title: string;
@@ -133,6 +163,8 @@ export interface DealRoomData {
   dealId: string;
   dealValue: number;
   dealStage: string;
+  currencyCode?: string;
+  currencyLocale?: string;
   ownerName?: string;
   ownerSlackUserId?: string;
   winProbability?: number;
@@ -197,10 +229,13 @@ export interface DealWonData {
   dealName: string;
   dealId: string;
   dealValue: number;
+  currencyCode?: string;
+  currencyLocale?: string;
   companyName: string;
   closedBy: string;
   slackUserId?: string;
   daysInPipeline?: number;
+  winningFactors?: string[];
   archiveImmediately?: boolean;
   appUrl: string;
 }
@@ -209,75 +244,86 @@ export interface DealLostData {
   dealName: string;
   dealId: string;
   dealValue: number;
+  currencyCode?: string;
+  currencyLocale?: string;
   companyName: string;
   lostReason?: string;
   closedBy: string;
   slackUserId?: string;
+  lessonsLearned?: string[];
   archiveImmediately?: boolean;
   appUrl: string;
 }
 
 /**
- * Emoji helpers
+ * Format currency for Slack messages.
+ *
+ * Defaults to GBP/en-GB so we don't accidentally show USD/$.
  */
-const getSentimentEmoji = (sentiment: string): string => {
-  switch (sentiment) {
-    case 'positive': return '😊';
-    case 'neutral': return '😐';
-    case 'challenging': return '😰';
-    default: return '📊';
-  }
-};
-
-const getTalkTimeEmoji = (repPercent: number): string => {
-  // Ideal is 30-40% rep talk time
-  if (repPercent >= 25 && repPercent <= 45) return '✅';
-  if (repPercent < 25) return '⚠️'; // Too quiet
-  return '⚠️'; // Talking too much
-};
-
-/**
- * Format currency
- */
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('en-US', {
+const formatCurrency = (value: number, currency: string = 'GBP', locale?: string): string => {
+  const code = (currency || 'GBP').toUpperCase();
+  const effectiveLocale = locale || (code === 'USD' ? 'en-US' : code === 'EUR' ? 'en-IE' : code === 'AUD' ? 'en-AU' : code === 'CAD' ? 'en-CA' : 'en-GB');
+  return new Intl.NumberFormat(effectiveLocale, {
     style: 'currency',
-    currency: 'USD',
+    currency: code,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
 };
 
 /**
- * Create a divider block
+ * Get sentiment indicator
  */
-export const divider = (): SlackBlock => ({ type: 'divider' });
+const getSentimentBadge = (sentiment: string, score: number): string => {
+  const emoji = sentiment === 'positive' ? '🟢' : sentiment === 'challenging' ? '🔴' : '🟡';
+  return `${emoji} ${sentiment.charAt(0).toUpperCase() + sentiment.slice(1)} (${score}%)`;
+};
 
 /**
- * Create a header block
+ * Get talk time indicator
  */
+const getTalkTimeBadge = (repPercent: number): string => {
+  // Ideal is 30-40% rep talk time
+  if (repPercent >= 25 && repPercent <= 45) return `✅ ${repPercent}%`;
+  return `⚠️ ${repPercent}%`;
+};
+
+// =============================================================================
+// PRIMITIVE BLOCK BUILDERS
+// =============================================================================
+
+export const divider = (): SlackBlock => ({ type: 'divider' });
+
 export const header = (text: string): SlackBlock => ({
   type: 'header',
   text: {
     type: 'plain_text',
-    text,
+    text: safeHeaderText(text),
     emoji: true,
   },
 });
 
-/**
- * Create a section block with markdown
- */
 export const section = (text: string): SlackBlock => ({
   type: 'section',
   text: {
     type: 'mrkdwn',
-    text,
+    text: safeMrkdwn(text),
   },
 });
 
 /**
- * Create a section with an accessory button
+ * Section with fields (key-value pairs) - great for data display
+ */
+export const sectionWithFields = (fields: Array<{ label: string; value: string }>): SlackBlock => ({
+  type: 'section',
+  fields: fields.slice(0, 10).map((f) => ({
+    type: 'mrkdwn',
+    text: safeFieldText(`*${f.label}*\n${f.value}`),
+  })),
+});
+
+/**
+ * Section with accessory button
  */
 export const sectionWithButton = (
   text: string,
@@ -289,34 +335,51 @@ export const sectionWithButton = (
   type: 'section',
   text: {
     type: 'mrkdwn',
-    text,
+    text: safeMrkdwn(text),
   },
   accessory: {
     type: 'button',
     text: {
       type: 'plain_text',
-      text: buttonText,
+      text: safeButtonText(buttonText),
       emoji: true,
     },
     action_id: actionId,
-    value,
+    value: safeButtonValue(value),
     ...(style && { style }),
   },
 });
 
 /**
- * Create a context block
+ * Section with image accessory
  */
+export const sectionWithImage = (
+  text: string,
+  imageUrl: string,
+  altText: string
+): SlackBlock => ({
+  type: 'section',
+  text: {
+    type: 'mrkdwn',
+    text: safeMrkdwn(text),
+  },
+  accessory: {
+    type: 'image',
+    image_url: imageUrl,
+    alt_text: altText,
+  },
+});
+
 export const context = (elements: string[]): SlackBlock => ({
   type: 'context',
   elements: elements.map((text) => ({
     type: 'mrkdwn',
-    text,
+    text: safeContextMrkdwn(text),
   })),
 });
 
 /**
- * Create an actions block with buttons
+ * Actions block with buttons (max 3 recommended for UX)
  */
 export const actions = (
   buttons: Array<{
@@ -328,73 +391,75 @@ export const actions = (
   }>
 ): SlackBlock => ({
   type: 'actions',
-  elements: buttons.map((btn) => ({
+  elements: buttons.slice(0, 5).map((btn) => ({
     type: 'button',
     text: {
       type: 'plain_text',
-      text: btn.text,
+      text: safeButtonText(btn.text),
       emoji: true,
     },
     action_id: btn.actionId,
-    value: btn.value,
+    // URL buttons should not have value (Slack can reject)
+    ...(btn.url ? {} : { value: safeButtonValue(btn.value) }),
     ...(btn.style && { style: btn.style }),
     ...(btn.url && { url: btn.url }),
   })),
 });
 
+// =============================================================================
+// MESSAGE BUILDERS
+// =============================================================================
+
 /**
- * Build Meeting Debrief message
+ * Meeting Debrief - Post-call summary with AI analysis
  */
 export const buildMeetingDebriefMessage = (data: MeetingDebriefData): SlackMessage => {
   const blocks: SlackBlock[] = [];
 
-  // Header
-  blocks.push(header(`🎯 Meeting Debrief: ${data.meetingTitle}`));
+  // Header with meeting title
+  blocks.push(header(`🎯 Meeting Debrief: ${truncate(data.meetingTitle, 100)}`));
 
-  // Metrics row
-  const sentimentEmoji = getSentimentEmoji(data.sentiment);
-  const talkTimeEmoji = getTalkTimeEmoji(data.talkTimeRep);
-
-  blocks.push(section([
-    `*Sentiment:* ${sentimentEmoji} ${data.sentiment.charAt(0).toUpperCase() + data.sentiment.slice(1)} (${data.sentimentScore}%)`,
-    `*Talk Time:* Rep ${data.talkTimeRep}% | Customer ${data.talkTimeCustomer}% ${talkTimeEmoji}`,
-    `*Duration:* ${data.duration} minutes`,
-  ].join('\n')));
-
-  blocks.push(divider());
+  // Key metrics as fields
+  blocks.push(sectionWithFields([
+    { label: 'Sentiment', value: getSentimentBadge(data.sentiment, data.sentimentScore) },
+    { label: 'Duration', value: `${data.duration} mins` },
+    { label: 'Rep Talk Time', value: getTalkTimeBadge(data.talkTimeRep) },
+    { label: 'Customer', value: `${data.talkTimeCustomer}%` },
+  ]));
 
   // Summary
-  blocks.push(section(`*📝 Summary*\n${data.summary}`));
+  blocks.push(section(`*📝 Summary*\n${truncate(data.summary, 500)}`));
 
   blocks.push(divider());
 
-  // Action Items with Add Task buttons
+  // Action Items (max 3 shown inline)
   if (data.actionItems.length > 0) {
     blocks.push(section('*✅ Action Items*'));
-
-    data.actionItems.forEach((item, index) => {
-      const ownerText = item.suggestedOwner ? ` (${item.suggestedOwner})` : '';
+    
+    data.actionItems.slice(0, 3).forEach((item, index) => {
+      const ownerText = item.suggestedOwner ? ` → _${item.suggestedOwner}_` : '';
+      const dueText = item.dueInDays ? ` (${item.dueInDays}d)` : '';
       const taskValue = JSON.stringify({
-        title: item.task,
+        title: truncate(item.task, 150),
         dealId: data.dealId,
         dueInDays: item.dueInDays || 3,
         meetingId: data.meetingId,
       });
 
       blocks.push(sectionWithButton(
-        `• ${item.task}${ownerText}`,
-        'Add Task',
+        `• ${truncate(item.task, 180)}${ownerText}${dueText}`,
+        '➕ Add',
         `add_task_${index}`,
         taskValue,
         'primary'
       ));
     });
 
-    // Add All Tasks button
+    // Bulk action for multiple items
     if (data.actionItems.length > 1) {
       const allTasksValue = JSON.stringify({
-        tasks: data.actionItems.map((item) => ({
-          title: item.task,
+        tasks: data.actionItems.slice(0, 5).map((item) => ({
+          title: truncate(item.task, 150),
           dealId: data.dealId,
           dueInDays: item.dueInDays || 3,
           meetingId: data.meetingId,
@@ -402,8 +467,7 @@ export const buildMeetingDebriefMessage = (data: MeetingDebriefData): SlackMessa
       });
 
       blocks.push(actions([
-        { text: 'Add All Tasks', actionId: 'add_all_tasks', value: allTasksValue, style: 'primary' },
-        { text: 'Dismiss', actionId: 'dismiss_tasks', value: data.meetingId },
+        { text: `Add All ${data.actionItems.length} Tasks`, actionId: 'add_all_tasks', value: allTasksValue, style: 'primary' },
       ]));
     }
 
@@ -412,309 +476,214 @@ export const buildMeetingDebriefMessage = (data: MeetingDebriefData): SlackMessa
 
   // Coaching Insight
   if (data.coachingInsight) {
-    blocks.push(section(`*💡 Coaching Insight*\n${data.coachingInsight}`));
-    blocks.push(divider());
+    blocks.push(section(`*💡 Coaching Tip*\n${truncate(data.coachingInsight, 400)}`));
   }
 
-  // Action buttons
-  const buttonRow: Array<{
-    text: string;
-    actionId: string;
-    value: string;
-    url?: string;
-  }> = [
-    { text: 'View Full Meeting', actionId: 'view_meeting', value: data.meetingId, url: `${data.appUrl}/meetings/${data.meetingId}` },
+  // Key Quote (if available)
+  if (data.keyQuotes && data.keyQuotes.length > 0) {
+    blocks.push(context([`_"${truncate(data.keyQuotes[0], 200)}"_`]));
+  }
+
+  // Action buttons (max 3)
+  const buttonRow: Array<{ text: string; actionId: string; value: string; url?: string; style?: 'primary' }> = [
+    { text: '🎬 View Meeting', actionId: 'view_meeting', value: data.meetingId, url: `${data.appUrl}/meetings/${data.meetingId}`, style: 'primary' },
   ];
 
   if (data.dealId) {
-    buttonRow.push({ text: 'View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` });
+    buttonRow.push({ text: '💼 View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` });
   }
 
   blocks.push(actions(buttonRow));
 
   return {
     blocks,
-    text: `Meeting Debrief: ${data.meetingTitle} - ${data.summary.substring(0, 100)}...`,
+    text: `Meeting Debrief: ${truncate(data.meetingTitle, 60)} - ${truncate(data.summary, 80)}`,
   };
 };
 
 /**
- * Build Daily Standup Digest message
+ * Daily Digest - Morning standup summary
  */
 export const buildDailyDigestMessage = (data: DailyDigestData): SlackMessage => {
   const blocks: SlackBlock[] = [];
 
   // Header
-  blocks.push(header(`☀️ Good Morning, ${data.teamName}! Here's your day.`));
-  blocks.push(context([data.date]));
+  blocks.push(header(`☀️ Good Morning, ${truncate(data.teamName, 50)}!`));
+  blocks.push(context([`📅 ${data.date}`]));
+
+  // Quick Stats
+  blocks.push(sectionWithFields([
+    { label: '📊 Pipeline', value: formatCurrency(data.weekStats.pipelineValue, data.currencyCode, data.currencyLocale) },
+    { label: '🎯 Meetings', value: `${data.meetings.length} today` },
+    { label: '✅ Due Today', value: `${data.dueTodayTasks.length} tasks` },
+    { label: '🔴 Overdue', value: `${data.overdueTasks.length} tasks` },
+  ]));
 
   blocks.push(divider());
 
-  // Today's Meetings
+  // Today's Meetings (if any)
   if (data.meetings.length > 0) {
-    blocks.push(section(`*📅 TODAY'S MEETINGS (${data.meetings.length})*`));
-
-    const meetingLines = data.meetings.slice(0, 5).map((m) => {
+    const meetingLines = data.meetings.slice(0, 4).map((m) => {
       const userMention = m.slackUserId ? `<@${m.slackUserId}>` : m.userName;
-      let line = `*${m.time}* ${userMention} - ${m.title}`;
-      if (m.prepNote) {
-        const emoji = m.isImportant ? '⚠️' : '💡';
-        line += `\n      ${emoji} _${m.prepNote}_`;
-      }
-      return line;
+      const important = m.isImportant ? '🔥 ' : '';
+      return `${important}*${m.time}* ${userMention} - ${truncate(m.title, 80)}`;
     });
 
-    blocks.push(section(meetingLines.join('\n\n')));
+    blocks.push(section(`*📅 TODAY'S MEETINGS*\n${meetingLines.join('\n')}`));
 
-    if (data.meetings.length > 5) {
-      blocks.push(context([`+ ${data.meetings.length - 5} more meetings...`]));
+    if (data.meetings.length > 4) {
+      blocks.push(context([`+ ${data.meetings.length - 4} more meetings`]));
     }
-
-    blocks.push(divider());
   }
 
   // Tasks Needing Attention
-  if (data.overdueTasks.length > 0 || data.dueTodayTasks.length > 0) {
-    blocks.push(section('*🔥 TASKS NEEDING ATTENTION*'));
+  if (data.overdueTasks.length > 0) {
+    const overdueLines = data.overdueTasks.slice(0, 3).map((t) => {
+      const userMention = t.slackUserId ? `<@${t.slackUserId}>` : t.userName;
+      return `🔴 ${userMention}: ${truncate(t.task, 60)} (${t.daysOverdue}d overdue)`;
+    });
 
-    if (data.overdueTasks.length > 0) {
-      blocks.push(section(`*🔴 OVERDUE (${data.overdueTasks.length})*`));
-      const overdueLines = data.overdueTasks.slice(0, 3).map((t) => {
-        const userMention = t.slackUserId ? `<@${t.slackUserId}>` : t.userName;
-        return `• ${userMention}: ${t.task} (${t.daysOverdue} day${t.daysOverdue > 1 ? 's' : ''})`;
-      });
-      blocks.push(section(overdueLines.join('\n')));
-    }
-
-    if (data.dueTodayTasks.length > 0) {
-      blocks.push(section(`*🟡 DUE TODAY (${data.dueTodayTasks.length})*`));
-      const dueTodayLines = data.dueTodayTasks.slice(0, 3).map((t) => {
-        const userMention = t.slackUserId ? `<@${t.slackUserId}>` : t.userName;
-        return `• ${userMention}: ${t.task}`;
-      });
-      blocks.push(section(dueTodayLines.join('\n')));
-    }
-
-    blocks.push(divider());
+    blocks.push(section(`*🚨 OVERDUE TASKS*\n${overdueLines.join('\n')}`));
   }
 
   // AI Insights
   if (data.insights.length > 0) {
-    blocks.push(section('*💡 AI INSIGHTS*'));
-    const insightLines = data.insights.map((insight) => `• ${insight}`);
-    blocks.push(section(insightLines.join('\n\n')));
     blocks.push(divider());
+    const insightLines = data.insights.slice(0, 3).map((insight) => `💡 ${truncate(insight, 150)}`);
+    blocks.push(section(`*AI INSIGHTS*\n${insightLines.join('\n')}`));
   }
 
-  // Week Stats
-  blocks.push(section([
-    `*📊 TEAM STATS THIS WEEK*`,
-    `Deals Closed: ${data.weekStats.dealsCount} (${formatCurrency(data.weekStats.dealsValue)}) | Meetings: ${data.weekStats.meetingsCount}`,
-    `Activities: ${data.weekStats.activitiesCount} | Pipeline: ${formatCurrency(data.weekStats.pipelineValue)}`,
-  ].join('\n')));
+  // Week Stats Summary
+  blocks.push(divider());
+  blocks.push(context([
+    `📈 This week: ${data.weekStats.dealsCount} deals closed (${formatCurrency(data.weekStats.dealsValue, data.currencyCode, data.currencyLocale)}) | ${data.weekStats.meetingsCount} meetings | ${data.weekStats.activitiesCount} activities`,
+  ]));
 
-  // View Dashboard button
+  // Action button
   blocks.push(actions([
-    { text: 'View Dashboard', actionId: 'view_dashboard', value: 'dashboard', url: `${data.appUrl}/dashboard` },
+    { text: '📊 View Dashboard', actionId: 'view_dashboard', value: 'dashboard', url: `${data.appUrl}/dashboard`, style: 'primary' },
+    { text: '📋 View Tasks', actionId: 'view_tasks', value: 'tasks', url: `${data.appUrl}/tasks` },
   ]));
 
   return {
     blocks,
-    text: `Daily Standup Digest for ${data.date}`,
+    text: `Daily Digest for ${data.date} - ${data.meetings.length} meetings, ${data.overdueTasks.length} overdue tasks`,
   };
 };
 
 /**
- * Build Pre-Meeting Prep Card message
+ * Meeting Prep - Pre-meeting intelligence card
  */
 export const buildMeetingPrepMessage = (data: MeetingPrepData): SlackMessage => {
   const blocks: SlackBlock[] = [];
 
   // Header with user mention
   const userMention = data.slackUserId ? `<@${data.slackUserId}>` : data.userName;
-  blocks.push(header(`⏰ ${userMention} Meeting in 30 mins`));
-  blocks.push(section(`*${data.meetingTitle}*`));
+  blocks.push(header(`📅 Meeting in 15 mins`));
+  blocks.push(section(`*${truncate(data.meetingTitle, 100)}*\n${userMention}`));
 
-  blocks.push(divider());
-
-  // Risk Alert (if any high/critical risks)
+  // Risk Alerts (if critical/high)
   const criticalRisks = data.riskSignals?.filter(r => r.severity === 'critical' || r.severity === 'high') || [];
   if (criticalRisks.length > 0) {
     const riskEmoji = criticalRisks.some(r => r.severity === 'critical') ? '🚨' : '⚠️';
-    blocks.push(section(`${riskEmoji} *DEAL RISK ALERTS*`));
-    const riskLines = criticalRisks.slice(0, 3).map(r => {
-      const severityBadge = r.severity === 'critical' ? '🔴' : '🟠';
-      return `${severityBadge} ${r.description}`;
+    const riskLines = criticalRisks.slice(0, 2).map(r => {
+      const badge = r.severity === 'critical' ? '🔴' : '🟠';
+      return `${badge} ${truncate(r.description, 100)}`;
     });
-    blocks.push(section(riskLines.join('\n')));
-    blocks.push(divider());
-  }
-
-  // Attendees
-  if (data.attendees.length > 0) {
-    blocks.push(section('*👥 ATTENDEES*'));
-
-    const attendeeLines = data.attendees.map((a) => {
-      let line = `*${a.name}*`;
-      if (a.title) line += ` (${a.title})`;
-
-      const badges: string[] = [];
-      if (a.isDecisionMaker) badges.push('🎯 Decision Maker');
-      if (a.isFirstMeeting) badges.push('🆕 First meeting!');
-      if (a.meetingCount && a.meetingCount > 0) badges.push(`${a.meetingCount} prev meetings`);
-
-      if (badges.length > 0) {
-        line += `\n${badges.join(' | ')}`;
-      }
-
-      return line;
-    });
-
-    blocks.push(section(attendeeLines.join('\n\n')));
-    blocks.push(divider());
-  }
-
-  // Company Info
-  blocks.push(section([
-    `*🏢 COMPANY: ${data.company.name}*`,
-    [
-      data.company.industry && `Industry: ${data.company.industry}`,
-      data.company.size && `Size: ${data.company.size}`,
-      data.company.stage && `Stage: ${data.company.stage}`,
-    ].filter(Boolean).join(' | '),
-  ].filter(Boolean).join('\n')));
-
-  // Deal Info
-  if (data.deal) {
-    blocks.push(section([
-      `*💰 DEAL: ${formatCurrency(data.deal.value)} | Stage: ${data.deal.stage}*`,
-      [
-        data.deal.winProbability !== undefined && `Win Probability: ${data.deal.winProbability}%`,
-        data.deal.daysInPipeline !== undefined && `In pipeline: ${data.deal.daysInPipeline} days`,
-      ].filter(Boolean).join(' | '),
-    ].filter(Boolean).join('\n')));
+    blocks.push(section(`${riskEmoji} *DEAL RISKS*\n${riskLines.join('\n')}`));
   }
 
   blocks.push(divider());
 
-  // Meeting History (if available)
-  if (data.meetingHistory && data.meetingHistory.length > 0) {
-    blocks.push(section(`*📜 MEETING HISTORY* (${data.meetingHistory.length} previous)`));
-    const historyLines = data.meetingHistory.slice(0, 3).map(m => {
-      const outcomeEmoji = m.outcome === 'positive' ? '✅' : m.outcome === 'negative' ? '⚠️' : '➖';
-      const topics = m.keyTopics?.slice(0, 2).join(', ') || '';
-      return `${outcomeEmoji} *${m.date}*: ${m.title}${topics ? `\n      _Topics: ${topics}_` : ''}`;
-    });
-    blocks.push(section(historyLines.join('\n')));
-    if (data.meetingHistory.length > 3) {
-      blocks.push(context([`+ ${data.meetingHistory.length - 3} more meetings...`]));
-    }
-    blocks.push(divider());
-  } else if (data.lastMeetingNotes) {
-    // Fall back to simple last meeting notes
-    blocks.push(section([
-      `*💬 FROM LAST MEETING${data.lastMeetingDate ? ` (${data.lastMeetingDate})` : ''}*`,
-      `_"${data.lastMeetingNotes}"_`,
-    ].join('\n')));
-    blocks.push(divider());
+  // Key info as fields
+  const fields: Array<{ label: string; value: string }> = [];
+  
+  if (data.attendees.length > 0) {
+    const keyAttendee = data.attendees.find(a => a.isDecisionMaker) || data.attendees[0];
+    const badge = keyAttendee.isDecisionMaker ? ' 🎯' : '';
+    fields.push({ label: 'With', value: `${keyAttendee.name}${keyAttendee.title ? ` (${keyAttendee.title})` : ''}${badge}` });
   }
 
-  // Previous Objections (if any unresolved)
-  const unresolvedObjections = data.previousObjections?.filter(o => !o.resolved) || [];
-  if (unresolvedObjections.length > 0) {
-    blocks.push(section('*🔴 UNRESOLVED OBJECTIONS*'));
-    const objectionLines = unresolvedObjections.slice(0, 3).map(o => `• ${o.objection}`);
-    blocks.push(section(objectionLines.join('\n')));
-    blocks.push(divider());
-  }
-
-  // Resolved Objections (for reference)
-  const resolvedObjections = data.previousObjections?.filter(o => o.resolved && o.resolution) || [];
-  if (resolvedObjections.length > 0) {
-    blocks.push(section('*✅ PREVIOUSLY RESOLVED*'));
-    const resolvedLines = resolvedObjections.slice(0, 2).map(o =>
-      `• _"${o.objection}"_\n   → ${o.resolution}`
-    );
-    blocks.push(section(resolvedLines.join('\n')));
-    blocks.push(divider());
-  }
-
-  // Script Flow / Checklist Reminders (if template exists)
-  if (data.scriptSteps && data.scriptSteps.length > 0) {
-    blocks.push(section('*📋 CALL SCRIPT FLOW*'));
-    const scriptLines = data.scriptSteps.map((step, i) => {
-      const topics = step.topics.slice(0, 3).join(', ');
-      return `${i + 1}. *${step.stepName}* - ${topics}`;
-    });
-    blocks.push(section(scriptLines.join('\n')));
-    blocks.push(divider());
-  }
-
-  if (data.checklistReminders && data.checklistReminders.length > 0) {
-    blocks.push(section('*☑️ KEY ITEMS TO COVER*'));
-    const checklistLines = data.checklistReminders.slice(0, 5).map(item => `☐ ${item}`);
-    blocks.push(section(checklistLines.join('\n')));
-    blocks.push(divider());
-  }
-
-  // Stage-Appropriate Questions
-  if (data.stageQuestions && data.stageQuestions.length > 0) {
-    blocks.push(section(`*❓ QUESTIONS FOR ${data.deal?.stage?.toUpperCase() || 'THIS'} STAGE*`));
-    const questionLines = data.stageQuestions.slice(0, 4).map((q, i) => `${i + 1}. ${q}`);
-    blocks.push(section(questionLines.join('\n')));
-    blocks.push(divider());
-  }
-
-  // Talking Points (AI-generated)
-  if (data.talkingPoints.length > 0) {
-    blocks.push(section('*🎯 SUGGESTED TALKING POINTS*'));
-    const talkingPointLines = data.talkingPoints.map((tp, i) => `${i + 1}. ${tp}`);
-    blocks.push(section(talkingPointLines.join('\n')));
-    blocks.push(divider());
-  }
-
-  // Action buttons
-  const buttonRow: Array<{
-    text: string;
-    actionId: string;
-    value: string;
-    url?: string;
-  }> = [];
+  fields.push({ label: 'Company', value: data.company.name });
 
   if (data.deal) {
-    buttonRow.push({ text: 'Open Deal', actionId: 'view_deal', value: data.deal.id, url: `${data.appUrl}/deals/${data.deal.id}` });
+    fields.push({ label: 'Deal', value: `${formatCurrency(data.deal.value, data.currencyCode, data.currencyLocale)} - ${data.deal.stage}` });
+    if (data.deal.winProbability !== undefined) {
+      fields.push({ label: 'Win Prob', value: `${data.deal.winProbability}%` });
+    }
   }
 
-  buttonRow.push({ text: 'View Meeting', actionId: 'view_meeting', value: data.meetingId, url: `${data.appUrl}/meetings/${data.meetingId}` });
+  if (fields.length > 0) {
+    blocks.push(sectionWithFields(fields));
+  }
+
+  // Quick Prep Notes
+  const prepItems: string[] = [];
+  
+  if (data.lastMeetingNotes) {
+    prepItems.push(`📝 Last meeting: _"${truncate(data.lastMeetingNotes, 120)}"_`);
+  }
+
+  // Unresolved objections
+  const unresolvedObjections = data.previousObjections?.filter(o => !o.resolved) || [];
+  if (unresolvedObjections.length > 0) {
+    prepItems.push(`⚠️ Open objection: ${truncate(unresolvedObjections[0].objection, 100)}`);
+  }
+
+  // Key talking point
+  if (data.talkingPoints.length > 0) {
+    prepItems.push(`🎯 Key point: ${truncate(data.talkingPoints[0], 100)}`);
+  }
+
+  if (prepItems.length > 0) {
+    blocks.push(section(`*Quick Prep:*\n${prepItems.join('\n')}`));
+  }
+
+  // Action buttons (max 3)
+  const buttonRow: Array<{ text: string; actionId: string; value: string; url?: string; style?: 'primary' }> = [];
 
   if (data.meetingUrl) {
-    buttonRow.push({ text: 'Join Call', actionId: 'join_meeting', value: data.meetingId, url: data.meetingUrl });
+    buttonRow.push({ text: '🎥 Join Call', actionId: 'join_meeting', value: data.meetingId, url: data.meetingUrl, style: 'primary' });
   }
 
-  blocks.push(actions(buttonRow));
+  if (data.deal) {
+    buttonRow.push({ text: '💼 View Deal', actionId: 'view_deal', value: data.deal.id, url: `${data.appUrl}/deals/${data.deal.id}` });
+  }
+
+  buttonRow.push({ text: '📋 Full Prep', actionId: 'view_meeting', value: data.meetingId, url: `${data.appUrl}/meetings/${data.meetingId}` });
+
+  blocks.push(actions(buttonRow.slice(0, 3)));
+
+  // Context
+  if (data.attendees.length > 1) {
+    blocks.push(context([`👥 ${data.attendees.length} attendees • ${data.company.industry || 'Company'}`]));
+  }
 
   return {
     blocks,
-    text: `Meeting Prep: ${data.meetingTitle} in 30 minutes`,
+    text: `Meeting Prep: ${data.meetingTitle} in 15 minutes`,
   };
 };
 
 /**
- * Build Deal Room Initial Message
+ * Deal Room - Initial channel message
  */
 export const buildDealRoomMessage = (data: DealRoomData): SlackMessage => {
   const blocks: SlackBlock[] = [];
   const companyName = data.companyName || data.company?.name || 'Unknown Company';
+  const ownerMention = data.ownerSlackUserId ? `<@${data.ownerSlackUserId}>` : (data.ownerName || 'Unknown');
+  const hasWinProb = data.winProbability !== undefined && data.winProbability !== null;
 
   // Header
-  blocks.push(header(`💰 DEAL ROOM: ${companyName}`));
+  blocks.push(header(`💰 ${truncate(companyName, 80)} Deal Room`));
 
-  // Deal Info
-  const ownerMention = data.ownerSlackUserId ? `<@${data.ownerSlackUserId}>` : (data.ownerName || 'Unknown');
-  blocks.push(section([
-    `*Value:* ${formatCurrency(data.dealValue)} | *Stage:* ${data.dealStage}`,
-    `*Owner:* ${ownerMention} | *Created:* ${new Date().toLocaleDateString()}`,
-  ].join('\n')));
+  // Key deal info as fields
+  blocks.push(sectionWithFields([
+    { label: 'Value', value: formatCurrency(data.dealValue, data.currencyCode, data.currencyLocale) },
+    { label: 'Stage', value: data.dealStage },
+    { label: 'Owner', value: ownerMention },
+    { label: 'Win Prob', value: hasWinProb ? `${data.winProbability}%` : 'TBD' },
+  ]));
 
   blocks.push(divider());
 
@@ -723,222 +692,241 @@ export const buildDealRoomMessage = (data: DealRoomData): SlackMessage => {
   const size = data.companySize || data.company?.size;
   const location = data.company?.location;
 
-  blocks.push(section([
-    `*🏢 COMPANY*`,
-    [
-      industry && `Industry: ${industry}`,
-      size && `Size: ${size}`,
-      location && `HQ: ${location}`,
-    ].filter(Boolean).join(' | '),
-  ].filter(Boolean).join('\n')));
-
-  blocks.push(divider());
+  const companyDetails = [industry, size, location].filter(Boolean).join(' • ');
+  if (companyDetails) {
+    blocks.push(section(`*🏢 Company*\n${companyDetails}`));
+  }
 
   // Key Contacts
   const contacts = data.keyContacts || data.contacts || [];
   if (contacts.length > 0) {
-    blocks.push(section('*👥 KEY CONTACTS*'));
-    const contactLines = contacts.map((c) => {
-      let line = `• *${c.name}*`;
-      if (c.title) line += ` (${c.title})`;
-      if (c.isDecisionMaker) line += ' - Decision Maker';
-      return line;
+    const contactLines = contacts.slice(0, 3).map((c) => {
+      const badge = c.isDecisionMaker ? ' 🎯' : '';
+      return `• *${c.name}*${c.title ? ` (${c.title})` : ''}${badge}`;
     });
-    blocks.push(section(contactLines.join('\n')));
-    blocks.push(divider());
+    blocks.push(section(`*👥 Key Contacts*\n${contactLines.join('\n')}`));
   }
 
   // AI Assessment
-  const winProb = data.winProbability || data.aiAssessment?.winProbability;
-  if (winProb || data.aiAssessment) {
-    blocks.push(section([
-      `*📊 AI ASSESSMENT*`,
-      winProb && `Win Probability: ${winProb}%`,
-      data.aiAssessment?.keyFactors && data.aiAssessment.keyFactors.length > 0 && `Key Factors: ${data.aiAssessment.keyFactors.join(', ')}`,
-      data.aiAssessment?.risks && data.aiAssessment.risks.length > 0 && `Risks: ${data.aiAssessment.risks.join(', ')}`,
-    ].filter(Boolean).join('\n')));
+  if (data.aiAssessment) {
     blocks.push(divider());
+    const assessmentLines: string[] = [];
+    if (data.aiAssessment.keyFactors?.length > 0) {
+      assessmentLines.push(`✅ ${data.aiAssessment.keyFactors.slice(0, 2).join(', ')}`);
+    }
+    if (data.aiAssessment.risks?.length > 0) {
+      assessmentLines.push(`⚠️ ${data.aiAssessment.risks.slice(0, 2).join(', ')}`);
+    }
+    if (assessmentLines.length > 0) {
+      blocks.push(section(`*🤖 AI Assessment*\n${assessmentLines.join('\n')}`));
+    }
   }
 
   // Action buttons
   blocks.push(actions([
-    { text: 'View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` },
-    { text: 'View Company', actionId: 'view_company', value: companyName, url: `${data.appUrl}/companies?search=${encodeURIComponent(companyName)}` },
-    { text: 'Log Activity', actionId: 'log_activity', value: data.dealId },
+    { text: '💼 View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}`, style: 'primary' },
+    { text: '📝 Log Activity', actionId: 'log_activity', value: data.dealId },
   ]));
+
+  // Context
+  blocks.push(context([`Created ${new Date().toLocaleDateString()} • Updates will be posted here`]));
 
   return {
     blocks,
-    text: `Deal Room created for ${companyName} - ${formatCurrency(data.dealValue)}`,
+    text: `Deal Room: ${companyName} - ${formatCurrency(data.dealValue, data.currencyCode, data.currencyLocale)}`,
   };
 };
 
-/**
- * Build Deal Room Welcome Message (used when channel is first created)
- */
 export const buildDealRoomWelcomeMessage = (data: DealRoomData): SlackMessage => {
   return buildDealRoomMessage(data);
 };
 
 /**
- * Build Deal Stage Change message (for deal room updates)
+ * Deal Stage Change - Pipeline movement notification
  */
 export const buildDealStageChangeMessage = (data: DealStageChangeData): SlackMessage => {
   const blocks: SlackBlock[] = [];
-
   const userMention = data.slackUserId ? `<@${data.slackUserId}>` : data.updatedBy;
 
-  blocks.push(section(`🚀 *Stage Update*\nDeal moved: ${data.previousStage} → ${data.newStage}`));
-  blocks.push(context([`_${userMention} updated just now_`]));
+  // Determine if this is progress or regression
+  const stages = ['sql', 'opportunity', 'verbal', 'signed'];
+  const prevIndex = stages.indexOf(data.previousStage.toLowerCase());
+  const newIndex = stages.indexOf(data.newStage.toLowerCase());
+  const isProgress = newIndex > prevIndex;
+  const emoji = isProgress ? '🚀' : '⚠️';
+
+  blocks.push(section(`${emoji} *Stage Update*\n*${data.dealName}*\n${data.previousStage} → *${data.newStage}*`));
+
+  blocks.push(context([`Updated by ${userMention} • Just now`]));
 
   if (data.dealId && data.appUrl) {
     blocks.push(actions([
-      { text: 'View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` },
+      { text: '💼 View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` },
     ]));
   }
 
   return {
     blocks,
-    text: `Stage Update: ${data.dealName} moved from ${data.previousStage} to ${data.newStage}`,
+    text: `Stage Update: ${data.dealName} → ${data.newStage}`,
   };
 };
 
 /**
- * Build Deal Activity message (for deal room updates)
+ * Deal Activity - Activity logged notification
  */
 export const buildDealActivityMessage = (data: DealActivityData): SlackMessage => {
   const blocks: SlackBlock[] = [];
-
   const userMention = data.slackUserId ? `<@${data.slackUserId}>` : data.createdBy;
-  const activityEmoji = {
+
+  const activityEmoji: Record<string, string> = {
     'call': '📞',
     'email': '📧',
     'meeting': '📅',
     'proposal': '📝',
     'note': '📌',
     'task': '✅',
-  }[data.activityType.toLowerCase()] || '📢';
+    'demo': '🎬',
+  };
+  const emoji = activityEmoji[data.activityType.toLowerCase()] || '📢';
 
-  blocks.push(section(`${activityEmoji} *${data.activityType}* logged by ${userMention}\n\n${data.description}`));
+  blocks.push(section(`${emoji} *${data.activityType}* by ${userMention}\n\n${truncate(data.description, 300)}`));
 
   if (data.dealId && data.appUrl) {
     blocks.push(actions([
-      { text: 'View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` },
+      { text: '💼 View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` },
     ]));
   }
 
   return {
     blocks,
-    text: `Activity: ${data.activityType} - ${data.description}`,
+    text: `${data.activityType}: ${truncate(data.description, 100)}`,
   };
 };
 
 /**
- * Build Win Probability Change message (for deal room updates)
+ * Win Probability Change - Risk alert
  */
 export const buildWinProbabilityChangeMessage = (data: WinProbabilityChangeData): SlackMessage => {
   const blocks: SlackBlock[] = [];
 
   const change = data.newProbability - data.previousProbability;
-  const emoji = change > 0 ? '📈' : '⚠️';
-  const direction = change > 0 ? '↑' : '↓';
+  const isIncrease = change > 0;
+  const emoji = isIncrease ? '📈' : '⚠️';
+  const direction = isIncrease ? '↑' : '↓';
+  const headerEmoji = isIncrease ? '🟢' : '🔴';
 
-  blocks.push(section(`${emoji} *Win Probability Changed*\n\n${data.previousProbability}% → ${data.newProbability}% (${direction}${Math.abs(change)}%)`));
+  blocks.push(header(`${headerEmoji} Win Probability ${isIncrease ? 'Increased' : 'Dropped'}`));
+
+  blocks.push(sectionWithFields([
+    { label: 'Deal', value: truncate(data.dealName, 60) },
+    { label: 'Change', value: `${data.previousProbability}% → ${data.newProbability}% (${direction}${Math.abs(change)}%)` },
+  ]));
 
   if (data.factors && data.factors.length > 0) {
-    blocks.push(section(`*Factors:*\n${data.factors.map(f => `• ${f}`).join('\n')}`));
+    blocks.push(section(`*${isIncrease ? '✅ Positive Signals' : '⚠️ Risk Factors'}*\n${data.factors.slice(0, 3).map(f => `• ${truncate(f, 100)}`).join('\n')}`));
   }
 
-  if (data.suggestedActions && data.suggestedActions.length > 0) {
-    blocks.push(section(`*Suggested Actions:*\n${data.suggestedActions.map(a => `• ${a}`).join('\n')}`));
+  if (!isIncrease && data.suggestedActions && data.suggestedActions.length > 0) {
+    blocks.push(section(`*🎯 Suggested Actions*\n${data.suggestedActions.slice(0, 3).map(a => `• ${truncate(a, 100)}`).join('\n')}`));
   }
 
-  const buttonRow: Array<{
-    text: string;
-    actionId: string;
-    value: string;
-    url?: string;
-  }> = [];
+  const buttonRow: Array<{ text: string; actionId: string; value: string; url?: string; style?: 'primary' | 'danger' }> = [];
 
   if (data.dealId && data.appUrl) {
-    buttonRow.push({ text: 'View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` });
+    buttonRow.push({ text: '💼 View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}`, style: 'primary' });
   }
-  buttonRow.push({ text: 'Create Task', actionId: 'create_task_from_alert', value: JSON.stringify({ dealId: data.dealId, type: 'win_probability' }) });
+  if (!isIncrease) {
+    buttonRow.push({ text: '📝 Create Task', actionId: 'create_task_from_alert', value: JSON.stringify({ dealId: data.dealId, type: 'win_probability' }) });
+  }
 
-  blocks.push(actions(buttonRow));
+  blocks.push(actions(buttonRow.slice(0, 3)));
 
   return {
     blocks,
-    text: `Win Probability Alert: ${data.dealName} changed from ${data.previousProbability}% to ${data.newProbability}%`,
+    text: `Win Probability ${isIncrease ? 'increased' : 'dropped'}: ${data.dealName} ${data.previousProbability}% → ${data.newProbability}%`,
   };
 };
 
 /**
- * Build Deal Won message (for deal room updates)
+ * Deal Won - Celebration message
  */
 export const buildDealWonMessage = (data: DealWonData): SlackMessage => {
   const blocks: SlackBlock[] = [];
-
   const userMention = data.slackUserId ? `<@${data.slackUserId}>` : data.closedBy;
 
-  blocks.push(section(`🎉 *DEAL WON!*\n\n*${data.companyName}* - ${formatCurrency(data.dealValue)}`));
-  blocks.push(section(`Closed by ${userMention}${data.daysInPipeline ? `\nTime in pipeline: ${data.daysInPipeline} days` : ''}`));
-  blocks.push(context(['🏆 This channel will be archived in 24 hours.']));
+  // Celebratory header
+  blocks.push(header(`🎉 DEAL WON!`));
 
-  if (data.dealId && data.appUrl) {
-    blocks.push(actions([
-      { text: 'View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` },
-      { text: 'Create Client Record', actionId: 'create_client', value: data.dealId },
-    ]));
+  // Main announcement
+  blocks.push(section(`*${data.companyName}* just signed!\n\n💰 *${formatCurrency(data.dealValue, data.currencyCode, data.currencyLocale)}* Contract${data.daysInPipeline ? `\n⏱️ *${data.daysInPipeline} days* in pipeline` : ''}`));
+
+  blocks.push(divider());
+
+  // Winning factors (if provided)
+  if (data.winningFactors && data.winningFactors.length > 0) {
+    const factorLines = data.winningFactors.slice(0, 3).map(f => `✅ ${truncate(f, 80)}`);
+    blocks.push(section(`*Winning Factors*\n${factorLines.join('\n')}`));
   }
+
+  // Context
+  blocks.push(context([`Closed by ${userMention} • 🏆 Great work!`]));
+
+  // Action buttons
+  blocks.push(actions([
+    { text: '🎊 Celebrate', actionId: 'celebrate_deal', value: data.dealId, style: 'primary' },
+    { text: '📝 Case Study', actionId: 'create_case_study', value: data.dealId },
+    { text: '💼 View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` },
+  ]));
 
   return {
     blocks,
-    text: `Deal Won! ${data.companyName} - ${formatCurrency(data.dealValue)}`,
+    text: `🎉 Deal Won! ${data.companyName} - ${formatCurrency(data.dealValue, data.currencyCode, data.currencyLocale)}`,
   };
 };
 
 /**
- * Build Deal Lost message (for deal room updates)
+ * Deal Lost - Respectful close notification
  */
 export const buildDealLostMessage = (data: DealLostData): SlackMessage => {
   const blocks: SlackBlock[] = [];
-
   const userMention = data.slackUserId ? `<@${data.slackUserId}>` : data.closedBy;
 
-  blocks.push(section(`😔 *Deal Lost*\n\n*${data.companyName}* - ${formatCurrency(data.dealValue)}`));
+  blocks.push(section(`😔 *Deal Lost*\n\n*${data.companyName}* - ${formatCurrency(data.dealValue, data.currencyCode, data.currencyLocale)}`));
 
   if (data.lostReason) {
-    blocks.push(section(`*Reason:* ${data.lostReason}`));
+    blocks.push(section(`*Reason:* ${truncate(data.lostReason, 200)}`));
   }
 
-  blocks.push(context([`Closed by ${userMention}. This channel will be archived.`]));
+  // Lessons learned (if provided)
+  if (data.lessonsLearned && data.lessonsLearned.length > 0) {
+    const lessonLines = data.lessonsLearned.slice(0, 2).map(l => `📝 ${truncate(l, 100)}`);
+    blocks.push(section(`*Takeaways*\n${lessonLines.join('\n')}`));
+  }
+
+  blocks.push(context([`Closed by ${userMention} • This channel will be archived`]));
 
   if (data.dealId && data.appUrl) {
     blocks.push(actions([
-      { text: 'View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` },
+      { text: '💼 View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` },
     ]));
   }
 
   return {
     blocks,
-    text: `Deal Lost: ${data.companyName}`,
+    text: `Deal Lost: ${data.companyName} - ${formatCurrency(data.dealValue, data.currencyCode, data.currencyLocale)}`,
   };
 };
 
 /**
- * Build task completion confirmation (ephemeral)
+ * Task confirmation (ephemeral response)
  */
 export const buildTaskAddedConfirmation = (taskTitle: string, count: number = 1): SlackMessage => {
+  const message = count === 1
+    ? `✅ Task added: "${truncate(taskTitle, 60)}"`
+    : `✅ ${count} tasks added to your task list!`;
+
   return {
-    blocks: [
-      section(count === 1
-        ? `✅ Task "${taskTitle}" added to your task list!`
-        : `✅ ${count} tasks added to your task list!`
-      ),
-    ],
-    text: count === 1
-      ? `Task "${taskTitle}" added to your task list!`
-      : `${count} tasks added to your task list!`,
+    blocks: [section(message)],
+    text: message,
   };
 };

@@ -4,7 +4,7 @@ export interface GoogleIntegration {
   id: string;
   user_id: string;
   email: string;
-  expires_at: string;
+  expires_at: string | null;
   scopes: string;
   is_active: boolean;
   created_at: string;
@@ -204,6 +204,11 @@ export class GoogleIntegrationAPI {
       return false;
     }
 
+    // If we don't have an expiry, treat as invalid and force refresh/reconnect flow.
+    if (!integration.expires_at) {
+      return false;
+    }
+
     const expiresAt = new Date(integration.expires_at);
     const now = new Date();
     const fiveMinutes = 5 * 60 * 1000; // 5 minutes in milliseconds
@@ -250,6 +255,48 @@ export class GoogleIntegrationAPI {
       lastSync: integration.updated_at
     };
   }
+
+  /**
+   * Test Google connection by calling lightweight API endpoints
+   * Returns detailed status for each service
+   */
+  static async testConnection(): Promise<GoogleTestConnectionResult> {
+    const { data, error } = await supabase.functions.invoke('google-test-connection', {
+      body: {}
+    });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to test connection');
+    }
+
+    return data;
+  }
+}
+
+/**
+ * Result from test connection endpoint
+ */
+export interface GoogleTestConnectionResult {
+  success: boolean;
+  connected: boolean;
+  email?: string;
+  scopes?: string;
+  allServicesOk?: boolean;
+  message?: string;
+  error?: string;
+  testedAt?: string;
+  services: {
+    userinfo: ServiceTestResult;
+    gmail: ServiceTestResult;
+    calendar: ServiceTestResult;
+    tasks: ServiceTestResult;
+  };
+}
+
+interface ServiceTestResult {
+  ok: boolean;
+  message?: string;
+  data?: Record<string, unknown>;
 }
 
 // Export convenience methods for easier imports
@@ -261,6 +308,7 @@ export const googleApi = {
   disconnect: GoogleIntegrationAPI.disconnectIntegration,
   toggleService: GoogleIntegrationAPI.toggleService,
   refreshTokens: GoogleIntegrationAPI.refreshTokensIfNeeded,
+  testConnection: GoogleIntegrationAPI.testConnection,
 };
 
 export default googleApi;

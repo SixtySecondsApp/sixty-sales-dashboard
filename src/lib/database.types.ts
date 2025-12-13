@@ -503,6 +503,90 @@ export interface Database {
         }
         Relationships: []
       }
+      booking_sources: {
+        Row: {
+          id: string
+          name: string
+          api_name: string
+          description: string | null
+          category: string | null
+          icon: string | null
+          color: string | null
+          is_active: boolean
+          sort_order: number
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          api_name: string
+          description?: string | null
+          category?: string | null
+          icon?: string | null
+          color?: string | null
+          is_active?: boolean
+          sort_order?: number
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          api_name?: string
+          description?: string | null
+          category?: string | null
+          icon?: string | null
+          color?: string | null
+          is_active?: boolean
+          sort_order?: number
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      savvycal_source_mappings: {
+        Row: {
+          id: string
+          link_id: string
+          source: string
+          source_id: string | null
+          meeting_link: string | null
+          private_link: string | null
+          notes: string | null
+          created_by: string | null
+          org_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          link_id: string
+          source: string
+          source_id?: string | null
+          meeting_link?: string | null
+          private_link?: string | null
+          notes?: string | null
+          created_by?: string | null
+          org_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          link_id?: string
+          source?: string
+          source_id?: string | null
+          meeting_link?: string | null
+          private_link?: string | null
+          notes?: string | null
+          created_by?: string | null
+          org_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           id: string
@@ -997,6 +1081,11 @@ export interface Database {
           status: 'draft' | 'generated' | 'approved' | 'sent'
           content: string
           title: string | null
+          share_token: string | null
+          password_hash: string | null
+          is_public: boolean | null
+          share_views: number | null
+          last_viewed_at: string | null
           created_at: string
           updated_at: string
         }
@@ -1009,6 +1098,11 @@ export interface Database {
           status?: 'draft' | 'generated' | 'approved' | 'sent'
           content: string
           title?: string | null
+          share_token?: string | null
+          password_hash?: string | null
+          is_public?: boolean | null
+          share_views?: number | null
+          last_viewed_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1021,6 +1115,11 @@ export interface Database {
           status?: 'draft' | 'generated' | 'approved' | 'sent'
           content?: string
           title?: string | null
+          share_token?: string | null
+          password_hash?: string | null
+          is_public?: boolean | null
+          share_views?: number | null
+          last_viewed_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1443,7 +1542,327 @@ export interface Database {
           }
         ]
       }
+      google_integrations: {
+        Row: {
+          id: string
+          user_id: string
+          email: string
+          access_token: string
+          refresh_token: string | null
+          expires_at: string | null
+          scopes: string
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          email: string
+          access_token: string
+          refresh_token?: string | null
+          expires_at?: string | null
+          scopes: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          email?: string
+          access_token?: string
+          refresh_token?: string | null
+          expires_at?: string | null
+          scopes?: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      google_calendars: {
+        Row: {
+          id: string
+          integration_id: string
+          calendar_id: string
+          name: string
+          description: string | null
+          time_zone: string | null
+          color_id: string | null
+          is_primary: boolean | null
+          access_role: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          integration_id: string
+          calendar_id: string
+          name: string
+          description?: string | null
+          time_zone?: string | null
+          color_id?: string | null
+          is_primary?: boolean | null
+          access_role?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          integration_id?: string
+          calendar_id?: string
+          name?: string
+          description?: string | null
+          time_zone?: string | null
+          color_id?: string | null
+          is_primary?: boolean | null
+          access_role?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendars_integration_id_fkey"
+            columns: ["integration_id"]
+            referencedRelation: "google_integrations"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      google_email_labels: {
+        Row: {
+          id: string
+          integration_id: string
+          label_id: string
+          name: string
+          type: string | null
+          message_list_visibility: string | null
+          label_list_visibility: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          integration_id: string
+          label_id: string
+          name: string
+          type?: string | null
+          message_list_visibility?: string | null
+          label_list_visibility?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          integration_id?: string
+          label_id?: string
+          name?: string
+          type?: string | null
+          message_list_visibility?: string | null
+          label_list_visibility?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_email_labels_integration_id_fkey"
+            columns: ["integration_id"]
+            referencedRelation: "google_integrations"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      google_drive_folders: {
+        Row: {
+          id: string
+          integration_id: string
+          folder_id: string
+          name: string
+          path: string | null
+          parent_id: string | null
+          mime_type: string | null
+          web_view_link: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          integration_id: string
+          folder_id: string
+          name: string
+          path?: string | null
+          parent_id?: string | null
+          mime_type?: string | null
+          web_view_link?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          integration_id?: string
+          folder_id?: string
+          name?: string
+          path?: string | null
+          parent_id?: string | null
+          mime_type?: string | null
+          web_view_link?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_drive_folders_integration_id_fkey"
+            columns: ["integration_id"]
+            referencedRelation: "google_integrations"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       // Add other tables as needed
+      
+      // Email Categorization Tables (Fyxer-style)
+      email_categorizations: {
+        Row: {
+          id: string
+          user_id: string
+          org_id: string | null
+          external_id: string
+          thread_id: string | null
+          direction: 'inbound' | 'outbound'
+          received_at: string | null
+          category: 'to_respond' | 'fyi' | 'marketing' | 'calendar_related' | 'automated' | 'uncategorized'
+          category_confidence: number | null
+          signals: Json
+          source: 'ai' | 'rules' | 'label_map' | 'user_override'
+          communication_event_id: string | null
+          gmail_label_applied: boolean
+          gmail_label_applied_at: string | null
+          processed_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          org_id?: string | null
+          external_id: string
+          thread_id?: string | null
+          direction: 'inbound' | 'outbound'
+          received_at?: string | null
+          category: 'to_respond' | 'fyi' | 'marketing' | 'calendar_related' | 'automated' | 'uncategorized'
+          category_confidence?: number | null
+          signals?: Json
+          source: 'ai' | 'rules' | 'label_map' | 'user_override'
+          communication_event_id?: string | null
+          gmail_label_applied?: boolean
+          gmail_label_applied_at?: string | null
+          processed_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          org_id?: string | null
+          external_id?: string
+          thread_id?: string | null
+          direction?: 'inbound' | 'outbound'
+          received_at?: string | null
+          category?: 'to_respond' | 'fyi' | 'marketing' | 'calendar_related' | 'automated' | 'uncategorized'
+          category_confidence?: number | null
+          signals?: Json
+          source?: 'ai' | 'rules' | 'label_map' | 'user_override'
+          communication_event_id?: string | null
+          gmail_label_applied?: boolean
+          gmail_label_applied_at?: string | null
+          processed_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      gmail_label_mappings: {
+        Row: {
+          id: string
+          user_id: string
+          org_id: string | null
+          category_key: 'to_respond' | 'fyi' | 'marketing' | 'calendar_related' | 'automated'
+          gmail_label_id: string
+          gmail_label_name: string
+          is_sixty_managed: boolean
+          sync_direction: 'gmail_to_sixty' | 'sixty_to_gmail' | 'bidirectional' | 'none'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          org_id?: string | null
+          category_key: 'to_respond' | 'fyi' | 'marketing' | 'calendar_related' | 'automated'
+          gmail_label_id: string
+          gmail_label_name: string
+          is_sixty_managed?: boolean
+          sync_direction: 'gmail_to_sixty' | 'sixty_to_gmail' | 'bidirectional' | 'none'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          org_id?: string | null
+          category_key?: 'to_respond' | 'fyi' | 'marketing' | 'calendar_related' | 'automated'
+          gmail_label_id?: string
+          gmail_label_name?: string
+          is_sixty_managed?: boolean
+          sync_direction?: 'gmail_to_sixty' | 'sixty_to_gmail' | 'bidirectional' | 'none'
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      org_email_categorization_settings: {
+        Row: {
+          id: string
+          org_id: string
+          is_enabled: boolean
+          label_mode: 'mode_a_internal_only' | 'mode_b_use_existing' | 'mode_c_sync_labels'
+          archive_non_actionable: boolean
+          use_ai_categorization: boolean
+          use_rules_categorization: boolean
+          enabled_categories: string[]
+          created_at: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          is_enabled?: boolean
+          label_mode?: 'mode_a_internal_only' | 'mode_b_use_existing' | 'mode_c_sync_labels'
+          archive_non_actionable?: boolean
+          use_ai_categorization?: boolean
+          use_rules_categorization?: boolean
+          enabled_categories?: string[]
+          created_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          is_enabled?: boolean
+          label_mode?: 'mode_a_internal_only' | 'mode_b_use_existing' | 'mode_c_sync_labels'
+          archive_non_actionable?: boolean
+          use_ai_categorization?: boolean
+          use_rules_categorization?: boolean
+          enabled_categories?: string[]
+          created_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       deal_splits_with_users: {
@@ -1464,6 +1883,7 @@ export interface Database {
           deal_value: number
           deal_owner_id: string
         }
+        Relationships: []
       }
       lead_source_summary: {
         Row: {
@@ -1489,6 +1909,7 @@ export interface Database {
           conversion_rate: number | null
           win_rate: number | null
         }
+        Relationships: []
       }
     }
     Functions: {
@@ -1516,6 +1937,19 @@ export interface Database {
             created_at: string
             updated_at: string
           }>
+        }[]
+      }
+      get_my_google_integration: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          user_id: string
+          email: string
+          expires_at: string | null
+          scopes: string
+          is_active: boolean
+          created_at: string
+          updated_at: string
         }[]
       }
     }

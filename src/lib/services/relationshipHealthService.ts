@@ -828,3 +828,17 @@ export async function getGhostRiskRelationships(userId: string): Promise<Relatio
     return [];
   }
 }
+
+// =====================================================
+// Testable helpers (pure scoring functions)
+// =====================================================
+
+/**
+ * Exposes internal, deterministic scoring helpers for unit tests.
+ * These do not perform any I/O.
+ */
+export const __relationshipHealthTestables = {
+  calculateCommunicationFrequencyScore,
+  calculateResponseBehaviorScore,
+  calculateEngagementQualityScore,
+};

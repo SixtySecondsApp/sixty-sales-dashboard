@@ -399,23 +399,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   Settings
                 </Link>
 
-                {/* Org Admin - for org owners/admins */}
-                {isOrgAdmin && (
-                  <Link
-                    to="/team"
-                    onClick={() => toggleMobileMenu()}
-                    className={cn(
-                      "flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]",
-                      location.pathname.startsWith('/team')
-                        ? 'bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/20 dark:text-white dark:border-blue-800/20'
-                        : 'text-[#64748B] dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800/50'
-                    )}
-                  >
-                    <Building2 className="w-6 h-6 sm:w-7 sm:h-7" />
-                    Team
-                  </Link>
-                )}
-
                 {/* Platform Admin - internal admins only */}
                 {isPlatformAdmin && (
                   <Link
@@ -533,13 +516,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <Settings className="w-4 h-4 mr-2" />
                 Settings
               </DropdownMenuItem>
-              {/* Org Admin - for org owners/admins */}
-              {isOrgAdmin && (
-                <DropdownMenuItem onClick={() => navigate('/team')}>
-                  <Building2 className="w-4 h-4 mr-2" />
-                  Team
-                </DropdownMenuItem>
-              )}
               {/* Platform Admin - internal admins only */}
               {isPlatformAdmin && (
                 <DropdownMenuItem onClick={() => navigate('/platform')}>
@@ -746,33 +722,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 )}
               </AnimatePresence>
             </Link>
-            
-            {/* Org Admin link - for org owners/admins */}
-            {isOrgAdmin && (
-              <Link
-                to="/team"
-                className={cn(
-                  'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors mb-2',
-                  location.pathname.startsWith('/team')
-                    ? 'bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/20 dark:text-white dark:border-blue-800/20'
-                    : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
-                )}
-              >
-                <Building2 className="w-4 h-4 flex-shrink-0" />
-                <AnimatePresence>
-                  {!isCollapsed && (
-                    <motion.span
-                      initial={{ opacity: 0, width: 0 }}
-                      animate={{ opacity: 1, width: 'auto' }}
-                      exit={{ opacity: 0, width: 0 }}
-                      className="overflow-hidden whitespace-nowrap"
-                    >
-                      Team
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </Link>
-            )}
 
             {/* Platform Admin link - internal admins only */}
             {isPlatformAdmin && (

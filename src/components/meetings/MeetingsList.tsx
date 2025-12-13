@@ -74,7 +74,7 @@ interface Meeting {
   talk_time_rep_pct: number | null
   talk_time_customer_pct: number | null
   talk_time_judgement: string | null
-  next_actions_count: number | null
+  next_actions_count?: number | null
   meeting_type?: 'discovery' | 'demo' | 'negotiation' | 'closing' | 'follow_up' | 'general' | null
   classification_confidence?: number | null
   company?: {
@@ -402,8 +402,13 @@ const MeetingsList: React.FC = () => {
 
     setLoading(true)
     try {
+      // Supabase generic types can get extremely deep in complex query chains.
+      // Use a local untyped alias to keep TS fast and stable (runtime behavior unchanged).
+      const sb: any = supabase
+
       // First get total count for pagination
-      let countQuery = supabase
+      // Supabase query typing gets extremely deep here; keep it runtime-safe and avoid TS instantiation blowups.
+      let countQuery: any = sb
         .from('meetings')
         .select('*', { count: 'exact', head: true })
 
@@ -420,18 +425,20 @@ const MeetingsList: React.FC = () => {
       // Always fetch both counts for the toggle buttons
       if (activeOrgId) {
         // Get my meetings count
-        const { count: myCount } = await supabase
+        const myCountQuery: any = sb
           .from('meetings')
           .select('*', { count: 'exact', head: true })
           .eq('org_id', activeOrgId)
           .or(`owner_user_id.eq.${user.id},owner_email.eq.${user.email}`)
+        const { count: myCount } = await myCountQuery
         setMyMeetingsCount(myCount || 0)
 
         // Get team (all org) meetings count
-        const { count: teamCount } = await supabase
+        const teamCountQuery: any = sb
           .from('meetings')
           .select('*', { count: 'exact', head: true })
           .eq('org_id', activeOrgId)
+        const { count: teamCount } = await teamCountQuery
         setTeamMeetingsCount(teamCount || 0)
       } else {
         // No org - all meetings are "my" meetings
@@ -443,7 +450,8 @@ const MeetingsList: React.FC = () => {
       const from = (currentPage - 1) * ITEMS_PER_PAGE
       const to = from + ITEMS_PER_PAGE - 1
 
-      let query = supabase
+      // Same as above: prevent excessively-deep generic instantiation.
+      let query: any = sb
         .from('meetings')
         .select(`
           *,
@@ -471,12 +479,12 @@ const MeetingsList: React.FC = () => {
 
       if (error) throw error
 
-      setMeetings(data || [])
+      setMeetings((data as Meeting[]) || [])
       // Reset to allow ensureThumbnails to run for the new list
       setThumbnailsEnsured(false)
       // Only calculate stats on first page to avoid recalculating on every page
       if (currentPage === 1) {
-        calculateStats(data || [])
+        calculateStats(((data as Meeting[]) || []))
       }
     } catch (error) {
       console.error('Error fetching meetings:', error)

@@ -27,7 +27,6 @@ import {
   User,
   LayoutDashboard,
   HeartPulse,
-  Building,
   Bot,
   Inbox,
   type LucideIcon,
@@ -210,7 +209,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
   },
   {
     path: '/integrations',
-    access: 'internal',
+    access: 'any',
     label: 'Integrations',
     icon: Plug,
     showInNav: true,
@@ -263,41 +262,9 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     order: 4,
   },
 
-  // ========== Org Admin Section (Tier 2: Org Admins) ==========
-  {
-    path: '/team',
-    access: 'orgAdmin',
-    label: 'Team',
-    icon: Building,
-    showInNav: true,
-    navSection: 'org',
-    order: 1,
-  },
-  {
-    path: '/team/team',
-    access: 'orgAdmin',
-    label: 'Team',
-    icon: Users,
-    showInNav: false,
-    navSection: 'org',
-    order: 2,
-  },
-  {
-    path: '/team/branding',
-    access: 'orgAdmin',
-    label: 'Branding',
-    showInNav: false,
-    navSection: 'org',
-    order: 3,
-  },
-  {
-    path: '/team/billing',
-    access: 'orgAdmin',
-    label: 'Billing',
-    showInNav: false,
-    navSection: 'org',
-    order: 4,
-  },
+  // ========== Org Admin Routes ==========
+  // Org/team management is now accessed via the main Settings page (role-gated cards).
+  // We keep legacy redirects for /team/* paths elsewhere.
 
   // ========== Platform Admin Section (Tier 3: Platform Admins Only) ==========
   {
@@ -529,7 +496,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
   // Slack Settings (Org Admin)
   {
     path: '/settings/integrations/slack',
-    access: 'orgAdmin',
+    access: 'any',
     label: 'Slack Settings',
     showInNav: false,
     navSection: 'settings',
@@ -680,6 +647,7 @@ export const LEGACY_ROUTE_REDIRECTS: Record<string, string> = {
   '/admin/pipeline': '/platform/crm/pipeline',
   '/admin/audit': '/platform/audit',
   '/admin/smart-tasks': '/platform/crm/smart-tasks',
+  '/admin/email-categorization': '/platform/integrations/email-categorization',
   '/admin/pipeline-automation': '/platform/crm/automation',
   '/admin/health-rules': '/platform/crm/health-rules',
   '/admin/ai-settings': '/platform/ai/providers',
@@ -698,12 +666,17 @@ export const LEGACY_ROUTE_REDIRECTS: Record<string, string> = {
   '/saas-admin/usage': '/platform/usage',
   '/saas-admin/features': '/platform/features',
   // Settings routes
-  '/settings/team': '/team/team',
-  // Legacy org routes -> team routes
-  '/org': '/team',
-  '/org/team': '/team/team',
-  '/org/branding': '/team/branding',
-  '/org/billing': '/team/billing',
+  '/settings/team': '/settings',
+  // Legacy team routes -> settings
+  '/team': '/settings',
+  '/team/team': '/settings/team-members',
+  '/team/branding': '/settings/branding',
+  '/team/billing': '/settings/billing',
+  // Legacy org routes -> settings
+  '/org': '/settings',
+  '/org/team': '/settings/team-members',
+  '/org/branding': '/settings/branding',
+  '/org/billing': '/settings/billing',
 };
 
 /**

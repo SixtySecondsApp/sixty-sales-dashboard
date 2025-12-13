@@ -18,6 +18,7 @@ import {
   type DealLostData,
   type MeetingDebriefData,
 } from '../_shared/slackBlocks.ts';
+import { getAuthContext, requireOrgRole } from '../_shared/edgeAuth.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -71,6 +72,78 @@ async function getSlackBotToken(
   return data?.bot_access_token || null;
 }
 
+async function getOrgMoneyConfig(
+  supabase: ReturnType<typeof createClient>,
+  orgId: string
+): Promise<{ currencyCode: string; currencyLocale: string }> {
+  try {
+    const { data } = await supabase
+      .from('organizations')
+      .select('currency_code, currency_locale')
+      .eq('id', orgId)
+      .single();
+
+    const currencyCode = ((data as any)?.currency_code as string | null | undefined) || 'GBP';
+    const currencyLocale =
+      ((data as any)?.currency_locale as string | null | undefined) ||
+      (currencyCode === 'USD'
+        ? 'en-US'
+        : currencyCode === 'EUR'
+          ? 'en-IE'
+          : currencyCode === 'AUD'
+            ? 'en-AU'
+            : currencyCode === 'CAD'
+              ? 'en-CA'
+              : 'en-GB');
+
+    return { currencyCode: currencyCode.toUpperCase(), currencyLocale };
+  } catch {
+    return { currencyCode: 'GBP', currencyLocale: 'en-GB' };
+  }
+}
+
+function formatMoney(value: number, currencyCode: string, currencyLocale: string): string {
+  try {
+    return new Intl.NumberFormat(currencyLocale || 'en-GB', {
+      style: 'currency',
+      currency: (currencyCode || 'GBP').toUpperCase(),
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  } catch {
+    return `${value}`;
+  }
+}
+
+type DealRoomArchiveMode = 'immediate' | 'delayed';
+
+/**
+ * Get deal room archive behavior for org
+ * (configured on slack_notification_settings.feature = 'deal_rooms')
+ */
+async function getDealRoomArchiveSettings(
+  supabase: ReturnType<typeof createClient>,
+  orgId: string
+): Promise<{ mode: DealRoomArchiveMode; delayHours: number }> {
+  const { data } = await supabase
+    .from('slack_notification_settings')
+    .select('deal_room_archive_mode, deal_room_archive_delay_hours')
+    .eq('org_id', orgId)
+    .eq('feature', 'deal_rooms')
+    .single();
+
+  const rawMode = (data as any)?.deal_room_archive_mode as string | null | undefined;
+  const rawDelay = (data as any)?.deal_room_archive_delay_hours as number | null | undefined;
+
+  const mode: DealRoomArchiveMode = rawMode === 'immediate' ? 'immediate' : 'delayed';
+  const delayHours =
+    typeof rawDelay === 'number' && Number.isFinite(rawDelay)
+      ? Math.min(168, Math.max(0, Math.floor(rawDelay)))
+      : 24;
+
+  return { mode, delayHours };
+}
+
 /**
  * Get Slack user ID for a Sixty user
  */
@@ -87,6 +160,74 @@ async function getSlackUserId(
     .single();
 
   return data?.slack_user_id;
+}
+
+/**
+ * Mark a deal room for archiving (either immediately or scheduled)
+ */
+async function applyDealRoomArchivePolicy(params: {
+  supabase: ReturnType<typeof createClient>;
+  botToken: string;
+  dealId: string;
+  orgId: string;
+  channelId: string;
+  reasonLabel: string; // "WON", "LOST", "SIGNED"
+  archiveImmediatelyRequested?: boolean;
+}): Promise<{ archived: boolean; scheduledFor?: string }> {
+  const {
+    supabase,
+    botToken,
+    dealId,
+    orgId,
+    channelId,
+    reasonLabel,
+    archiveImmediatelyRequested,
+  } = params;
+
+  const settings = await getDealRoomArchiveSettings(supabase, orgId);
+
+  const effectiveMode: DealRoomArchiveMode =
+    archiveImmediatelyRequested === true || settings.mode === 'immediate' || settings.delayHours === 0
+      ? 'immediate'
+      : 'delayed';
+
+  if (effectiveMode === 'immediate') {
+    const topic = `🏁 ${reasonLabel} - Channel archived`;
+    await updateChannelTopic(botToken, channelId, topic);
+
+    const archiveResult = await archiveChannel(botToken, channelId);
+    if (!archiveResult.ok) {
+      console.warn('Failed to archive channel:', archiveResult.error);
+    }
+
+    await supabase
+      .from('slack_deal_rooms')
+      .update({
+        is_archived: true,
+        archived_at: new Date().toISOString(),
+        archive_scheduled_for: null,
+      })
+      .eq('deal_id', dealId);
+
+    return { archived: true };
+  }
+
+  const scheduledFor = new Date(Date.now() + settings.delayHours * 60 * 60 * 1000).toISOString();
+  const topic =
+    settings.delayHours === 1
+      ? `🏁 ${reasonLabel} - Auto-archive in ~1 hour`
+      : `🏁 ${reasonLabel} - Auto-archive in ~${settings.delayHours} hours`;
+
+  await updateChannelTopic(botToken, channelId, topic);
+
+  await supabase
+    .from('slack_deal_rooms')
+    .update({
+      archive_scheduled_for: scheduledFor,
+    })
+    .eq('deal_id', dealId);
+
+  return { archived: false, scheduledFor };
 }
 
 /**
@@ -207,6 +348,7 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const auth = await getAuthContext(req, supabase, supabaseServiceKey);
 
     // Get deal room channel
     const dealRoom = await getDealRoomChannel(supabase, dealId);
@@ -218,6 +360,12 @@ serve(async (req) => {
       );
     }
 
+    // External release hardening: only org admins (or platform admins) can post deal-room updates manually.
+    // (Service-role callers like triggers/cron are allowed.)
+    if (auth.mode === 'user' && auth.userId && !auth.isPlatformAdmin) {
+      await requireOrgRole(supabase, dealRoom.orgId, auth.userId, ['owner', 'admin']);
+    }
+
     // Get bot token
     const botToken = await getSlackBotToken(supabase, dealRoom.orgId);
     if (!botToken) {
@@ -227,11 +375,15 @@ serve(async (req) => {
       );
     }
 
+    const money = await getOrgMoneyConfig(supabase, dealRoom.orgId);
+
     // Enrich data with common fields
     const enrichedData = {
       ...data,
       appUrl,
       dealId,
+      currencyCode: money.currencyCode,
+      currencyLocale: money.currencyLocale,
     };
 
     // If there's a user_id in data, try to get their Slack ID for @mention
@@ -258,35 +410,41 @@ serve(async (req) => {
 
     // Handle special cases for deal won/lost
     if (updateType === 'deal_won' || updateType === 'deal_lost') {
-      // Update channel topic
-      const statusEmoji = updateType === 'deal_won' ? '🏆 WON' : '❌ LOST';
-      const topic = `${statusEmoji} - This channel will be archived soon`;
-      await updateChannelTopic(botToken, dealRoom.channelId, topic);
-
-      // Archive channel after a delay (or immediately)
-      if (data.archiveImmediately) {
-        const archiveResult = await archiveChannel(botToken, dealRoom.channelId);
-        if (!archiveResult.ok) {
-          console.warn('Failed to archive channel:', archiveResult.error);
-        }
-
-        // Update database
-        await supabase
-          .from('slack_deal_rooms')
-          .update({
-            is_archived: true,
-            archived_at: new Date().toISOString(),
-          })
-          .eq('deal_id', dealId);
-      }
+      const reasonLabel = updateType === 'deal_won' ? 'WON' : 'LOST';
+      const archiveImmediatelyRequested =
+        (data as any)?.archiveImmediately === true || (data as any)?.archive_immediately === true;
+      await applyDealRoomArchivePolicy({
+        supabase,
+        botToken,
+        dealId,
+        orgId: dealRoom.orgId,
+        channelId: dealRoom.channelId,
+        reasonLabel,
+        archiveImmediatelyRequested,
+      });
     }
 
     // Update channel topic for stage changes
     if (updateType === 'stage_change') {
       const { dealName, dealValue, newStage } = data as { dealName?: string; dealValue?: number; newStage?: string };
       if (dealName && dealValue && newStage) {
-        const topic = `💰 ${dealName} | $${dealValue.toLocaleString()} | Stage: ${newStage}`;
+        const topic = `💰 ${dealName} | ${formatMoney(dealValue, money.currencyCode, money.currencyLocale)} | Stage: ${newStage}`;
         await updateChannelTopic(botToken, dealRoom.channelId, topic);
+      }
+
+      // If a deal enters Signed stage, apply the same archive policy as a "close"
+      if (newStage && typeof newStage === 'string' && newStage.toLowerCase() === 'signed') {
+        const archiveImmediatelyRequested =
+          (data as any)?.archiveImmediately === true || (data as any)?.archive_immediately === true;
+        await applyDealRoomArchivePolicy({
+          supabase,
+          botToken,
+          dealId,
+          orgId: dealRoom.orgId,
+          channelId: dealRoom.channelId,
+          reasonLabel: 'SIGNED',
+          archiveImmediatelyRequested,
+        });
       }
     }
 

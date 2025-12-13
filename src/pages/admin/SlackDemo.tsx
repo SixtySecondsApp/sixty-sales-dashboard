@@ -5,7 +5,7 @@
  * Allows manually triggering each notification type with sample data.
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +37,8 @@ import {
   AlertTriangle,
   Activity,
   Send,
+  Bot,
+  Code2,
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase/clientV2';
@@ -58,6 +60,14 @@ type MeetingPickerItem = {
   title: string | null;
   meeting_start: string | null;
   owner_email: string | null;
+  company?: { name?: string | null } | null;
+};
+
+type DealPickerItem = {
+  id: string;
+  title: string | null;
+  stage: string | null;
+  value: number | null;
   company?: { name?: string | null } | null;
 };
 
@@ -141,8 +151,12 @@ export default function SlackDemo() {
       toast.error('No organization selected');
       return;
     }
-    const oauthUrl = slackOAuthService.initiateOAuth(user.id, activeOrgId);
-    window.location.href = oauthUrl;
+    try {
+      const oauthUrl = slackOAuthService.initiateOAuth(user.id, activeOrgId);
+      window.location.href = oauthUrl;
+    } catch (e: any) {
+      toast.error(e?.message || 'Slack OAuth is not configured');
+    }
   };
 
   // Test states
@@ -158,12 +172,27 @@ export default function SlackDemo() {
   const [dailyDigestData, setDailyDigestData] = useState({
     date: new Date().toISOString().split('T')[0],
   });
+  const [recentDailyDigests, setRecentDailyDigests] = useState<Array<{ created_at: string; slack_channel_id?: string | null; slack_ts?: string | null }>>([]);
+  
+  // Stored digest analyses (new table)
+  const [storedDigests, setStoredDigests] = useState<Array<{
+    id: string;
+    digest_date: string;
+    digest_type: 'org' | 'user';
+    user_id: string | null;
+    timezone: string;
+    created_at: string;
+    highlights: { summary?: string; insights?: string[] };
+    delivery: { channelId?: string; status?: string } | null;
+  }>>([]);
+  const [digestViewType, setDigestViewType] = useState<'org' | 'user'>('org');
 
   // Meeting Prep form state
   const [meetingPrepData, setMeetingPrepData] = useState({
     meetingId: '',
     minutesBefore: '30',
   });
+  const NONE_SELECT_VALUE = '__none__';
 
   // Deal Room form state
   const [dealRoomData, setDealRoomData] = useState({
@@ -175,6 +204,8 @@ export default function SlackDemo() {
     activityDescription: 'Discussed pricing and timeline',
     previousProbability: '65',
     newProbability: '45',
+    // Optional: invite extra Slack users (e.g. manager) to the deal room.
+    inviteSlackUserIdsCsv: '',
   });
 
   // Quick testing + meeting selection helpers
@@ -184,6 +215,16 @@ export default function SlackDemo() {
   const [meetingsLoading, setMeetingsLoading] = useState(false);
   const [meetingSearch, setMeetingSearch] = useState('');
   const [recentMeetings, setRecentMeetings] = useState<MeetingPickerItem[]>([]);
+
+  // Deal selection helpers
+  const [dealsLoading, setDealsLoading] = useState(false);
+  const [dealSearch, setDealSearch] = useState('');
+  const [recentDeals, setRecentDeals] = useState<DealPickerItem[]>([]);
+
+  // Sales Assistant preview state
+  const [assistantMode, setAssistantMode] = useState<'live' | 'sample'>('live');
+  const [assistantPreview, setAssistantPreview] = useState<any>(null);
+  const [assistantPreviewLoading, setAssistantPreviewLoading] = useState(false);
 
   const setLoadingState = (key: string, value: boolean) => {
     setLoading((prev) => ({ ...prev, [key]: value }));
@@ -197,33 +238,156 @@ export default function SlackDemo() {
     const { data, error } = await supabase.functions.invoke(functionName, { body });
 
     if (error) {
-      throw new Error(error.message);
+      const anyErr = error as any;
+      const status = anyErr?.context?.status ?? anyErr?.status;
+
+      // Supabase can return 404 for:
+      // - truly missing function ("Function not found")
+      // - an actual 404 returned by the edge function (e.g., entity missing)
+      const rawBody =
+        anyErr?.context?.body ??
+        anyErr?.context?.responseBody ??
+        anyErr?.context?.data ??
+        anyErr?.context?.text ??
+        null;
+
+      const bodyText =
+        typeof rawBody === 'string'
+          ? rawBody
+          : rawBody && typeof rawBody === 'object'
+            ? JSON.stringify(rawBody)
+            : '';
+
+      let bodyJson: any = null;
+      if (typeof rawBody === 'string') {
+        try {
+          bodyJson = JSON.parse(rawBody);
+        } catch {
+          bodyJson = null;
+        }
+      } else if (rawBody && typeof rawBody === 'object') {
+        bodyJson = rawBody;
+      }
+
+      const messageFromBody = bodyJson?.error || bodyJson?.message;
+      const message = messageFromBody || anyErr?.message || 'Failed to send a request to the Edge Function';
+
+      if (status === 404 && (bodyText.includes('Function not found') || message.includes('Function not found'))) {
+        throw new Error(
+          `Edge Function "${functionName}" is not deployed for this Supabase project (HTTP 404). ` +
+            `Deploy it via: supabase functions deploy ${functionName} --project-ref <your_project_ref>`
+        );
+      }
+
+      throw new Error(status ? `Edge Function "${functionName}" failed (HTTP ${status}): ${message}` : message);
     }
 
     return data;
+  };
+
+  const previewSalesAssistant = async () => {
+    if (!activeOrgId) {
+      toast.error('No organization selected');
+      return;
+    }
+    setAssistantPreviewLoading(true);
+    try {
+      const result = await invokeFunction('slack-test-message', {
+        orgId: activeOrgId,
+        action: 'preview_sales_assistant',
+        mode: assistantMode,
+      });
+      setAssistantPreview(result);
+      toast.success('Generated Sales Assistant preview');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to preview Sales Assistant');
+    } finally {
+      setAssistantPreviewLoading(false);
+    }
+  };
+
+  const sendSalesAssistantDm = async () => {
+    if (!activeOrgId) {
+      toast.error('No organization selected');
+      return;
+    }
+    setLoadingState('salesAssistant', true);
+    try {
+      const result = await invokeFunction('slack-test-message', {
+        orgId: activeOrgId,
+        action: 'send_sales_assistant_dm',
+        mode: assistantMode,
+      });
+      setResult('salesAssistant', {
+        success: result.success,
+        message: result.success ? 'Sales Assistant DM sent to you!' : result.error || 'Failed',
+        data: result,
+        timestamp: new Date(),
+      });
+      setAssistantPreview(result);
+      toast.success('Sales Assistant DM sent');
+    } catch (e: any) {
+      setResult('salesAssistant', {
+        success: false,
+        message: e?.message || 'Failed to send Sales Assistant DM',
+        data: e,
+        timestamp: new Date(),
+      });
+      toast.error(e?.message || 'Failed to send Sales Assistant DM');
+    } finally {
+      setLoadingState('salesAssistant', false);
+    }
   };
 
   const loadRecentMeetings = async () => {
     if (!user?.id) return;
     setMeetingsLoading(true);
     try {
-      let q = supabase
-        .from('meetings')
-        .select('id, title, meeting_start, owner_email, company:companies(name)')
-        .order('meeting_start', { ascending: false })
-        .limit(75);
+      const userEmail = (user as any)?.email as string | undefined;
 
-      if (activeOrgId) {
-        q = q.eq('org_id', activeOrgId);
-      } else if ((user as any)?.email) {
-        q = q.or(`owner_user_id.eq.${user.id},owner_email.eq.${(user as any).email}`);
+      // 1) Prefer org-scoped query (fast + correct when org_id is populated)
+      // 2) If it returns 0 rows, fall back to owner_user_id / owner_email matching (older data may have org_id null)
+      const runQuery = async (useOrgFilter: boolean) => {
+        // Some environments may not have a relationship between meetings -> companies; if so, we retry without the join.
+        const baseSelect = 'id, title, meeting_start, owner_email, company:companies(name)';
+        const fallbackSelect = 'id, title, meeting_start, owner_email';
+
+        const build = (selectStr: string) => {
+          // Use `any` to avoid TS deep instantiation on dynamic selects.
+          let q: any = (supabase as any)
+            .from('meetings')
+            .select(selectStr)
+            .order('meeting_start', { ascending: false })
+            .limit(75);
+
+          if (useOrgFilter && activeOrgId) {
+            q = q.eq('org_id', activeOrgId);
+          } else if (userEmail) {
+            // IMPORTANT: meetings table uses owner_user_id (not user_id)
+            q = q.or(`owner_user_id.eq.${user.id},owner_email.eq.${userEmail}`);
+          } else {
+            q = q.eq('owner_user_id', user.id);
+          }
+          return q;
+        };
+
+        // Try with join first
+        let { data, error }: any = await build(baseSelect);
+        if (error) {
+          // Retry without join if relationship isn't defined
+          ({ data, error } = (await build(fallbackSelect)) as any);
+        }
+        if (error) throw error;
+        return (data as any[]) || [];
+      };
+
+      const primary = await runQuery(true);
+      if (primary.length > 0) {
+        setRecentMeetings(primary);
       } else {
-        q = q.eq('owner_user_id', user.id);
+        const fallback = await runQuery(false);
+        setRecentMeetings(fallback);
       }
-
-      const { data, error } = await q;
-      if (error) throw error;
-      setRecentMeetings((data as any[]) || []);
     } catch (e: any) {
       // Non-fatal: meeting picker is just a convenience
       setRecentMeetings([]);
@@ -233,11 +397,93 @@ export default function SlackDemo() {
     }
   };
 
+  const loadRecentDeals = async () => {
+    if (!user?.id) return;
+    setDealsLoading(true);
+    try {
+      // NOTE: "deals" schema differs across environments.
+      // Newer schema: deals(id, title, stage, value, org_id, user_id, company_id -> companies)
+      // Legacy schema: deals(id, name, stage_id, value, owner_id, stage_id -> deal_stages)
+
+      const tryNewSchema = async (): Promise<DealPickerItem[] | null> => {
+        const baseSelect = 'id, title, stage, value, companies:company_id(name)';
+        const fallbackSelect = 'id, title, stage, value';
+
+        const build = (selectStr: string) => {
+          let q: any = (supabase as any)
+            .from('deals')
+            .select(selectStr)
+            .order('updated_at', { ascending: false })
+            .limit(50);
+
+          // Prefer org filter if available; fall back to user filter.
+          if (activeOrgId) q = q.eq('org_id', activeOrgId);
+          q = q.eq('user_id', user.id);
+          return q;
+        };
+
+        let { data, error }: any = await build(baseSelect);
+        if (error) ({ data, error } = (await build(fallbackSelect)) as any);
+        if (error) return null;
+
+        return ((data as any[]) || []).map((d) => ({
+          id: d.id,
+          title: d.title ?? null,
+          stage: d.stage ?? null,
+          value: d.value ?? null,
+          company: d.companies ? { name: d.companies?.name ?? null } : null,
+        })) as DealPickerItem[];
+      };
+
+      const tryLegacySchema = async (): Promise<DealPickerItem[]> => {
+        // Legacy: stage is a foreign key to deal_stages; company is stored on deal row.
+        const selectWithJoin = 'id, name, value, updated_at, company, deal_stages:stage_id(name)';
+        const selectFallback = 'id, name, value, updated_at, company, stage_id';
+
+        const build = (selectStr: string) => {
+          let q: any = (supabase as any)
+            .from('deals')
+            .select(selectStr)
+            .order('updated_at', { ascending: false })
+            .limit(50)
+            .eq('owner_id', user.id);
+          return q;
+        };
+
+        let { data, error }: any = await build(selectWithJoin);
+        if (error) ({ data, error } = (await build(selectFallback)) as any);
+        if (error) throw error;
+
+        return ((data as any[]) || []).map((d) => ({
+          id: d.id,
+          title: d.name ?? null,
+          stage: d.deal_stages?.name ?? (d.stage_id ?? null),
+          value: d.value ?? null,
+          company: d.company ? { name: d.company } : null,
+        })) as DealPickerItem[];
+      };
+
+      const newDeals = await tryNewSchema();
+      if (newDeals) {
+        setRecentDeals(newDeals);
+      } else {
+        const legacyDeals = await tryLegacySchema();
+        setRecentDeals(legacyDeals);
+      }
+    } catch (e: any) {
+      setRecentDeals([]);
+      toast.error(e?.message || 'Failed to load deals');
+    } finally {
+      setDealsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (!slackSettings?.is_connected) return;
+    // Meeting picker should work even if Slack isn't connected
     void loadRecentMeetings();
+    void loadRecentDeals();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slackSettings?.is_connected, activeOrgId, user?.id]);
+  }, [activeOrgId, user?.id]);
 
   const filteredMeetings = useMemo(() => {
     const q = meetingSearch.trim().toLowerCase();
@@ -249,6 +495,17 @@ export default function SlackDemo() {
       return title.includes(q) || company.includes(q) || email.includes(q) || m.id.toLowerCase().includes(q);
     });
   }, [meetingSearch, recentMeetings]);
+
+  const filteredDeals = useMemo(() => {
+    const q = dealSearch.trim().toLowerCase();
+    if (!q) return recentDeals;
+    return recentDeals.filter((d) => {
+      const title = (d.title || '').toLowerCase();
+      const company = (d.company?.name || '').toLowerCase();
+      const stage = (d.stage || '').toLowerCase();
+      return title.includes(q) || company.includes(q) || stage.includes(q) || d.id.toLowerCase().includes(q);
+    });
+  }, [dealSearch, recentDeals]);
 
   const testSlackConnectionQuick = async () => {
     if (!user?.id) {
@@ -266,31 +523,11 @@ export default function SlackDemo() {
 
     setConnectionTestLoading(true);
     try {
-      // Prefer a real channel ID (Slack APIs are much happier with IDs)
-      const channelsRes = await invokeFunction('slack-list-channels', { orgId: activeOrgId });
-      const channels = (channelsRes as any)?.channels as Array<{ id: string; name: string }> | undefined;
-
-      const preferred =
-        channels?.find((c) => c.name === 'general') ||
-        channels?.find((c) => c.name === 'random') ||
-        (channels && channels.length ? channels[0] : null);
-
-      if (!preferred?.id) {
-        throw new Error('No Slack channels available (invite the bot to at least one channel)');
-      }
-
-      await slackOAuthService.sendMessage(
-        user.id,
-        preferred.id,
-        {
-          text: '✅ Sixty Slack connection test: bot can post messages successfully.',
-        },
-        slackSettings.slack_team_id || undefined
-      );
-
+      const apiResult = await invokeFunction('slack-test-message', { orgId: activeOrgId });
       const result: TestResult = {
         success: true,
-        message: `Test message sent to #${preferred.name}`,
+        message: `Test message sent${(apiResult as any)?.channelName ? ` to #${(apiResult as any).channelName}` : ''}`,
+        data: apiResult,
         timestamp: new Date(),
       };
       setConnectionTestResult(result);
@@ -313,18 +550,28 @@ export default function SlackDemo() {
     setLoadingState('meetingDebrief', true);
     try {
       const result = await invokeFunction('slack-post-meeting', {
-        meetingId: meetingDebriefData.meetingId || 'test-meeting-id',
+        meetingId: meetingDebriefData.meetingId || null,
         orgId: activeOrgId,
         isTest: true,
       });
 
+      const deliveryInfo = result.deliveryMethod === 'dm' 
+        ? 'via DM' 
+        : result.channelId 
+          ? `to channel ${result.channelId}` 
+          : 'to Slack';
+      
       setResult('meetingDebrief', {
         success: result.success,
-        message: result.success ? 'Meeting debrief sent!' : result.error || 'Failed',
+        message: result.success ? `Meeting debrief sent ${deliveryInfo}!` : result.error || 'Failed',
         data: result,
         timestamp: new Date(),
       });
-      toast.success('Meeting debrief test sent');
+      if (result?.success) {
+        toast.success(`Meeting debrief sent ${deliveryInfo}`);
+      } else {
+        toast.error(result?.error || result?.message || 'Meeting debrief failed');
+      }
     } catch (error: any) {
       setResult('meetingDebrief', {
         success: false,
@@ -348,11 +595,18 @@ export default function SlackDemo() {
 
       setResult('dailyDigest', {
         success: result.success,
-        message: result.success ? 'Daily digest sent!' : result.error || 'Failed',
+        message: (() => {
+          const firstOk = Array.isArray(result?.results) ? result.results.find((r: any) => r?.success) : null;
+          const channelId = firstOk?.channelId;
+          return result.success
+            ? `Daily digest sent${channelId ? ` to channel ${channelId}` : ''}!`
+            : result.error || 'Failed';
+        })(),
         data: result,
         timestamp: new Date(),
       });
-      toast.success('Daily digest test sent');
+      const firstOk = Array.isArray(result?.results) ? result.results.find((r: any) => r?.success) : null;
+      toast.success(`Daily digest test sent${firstOk?.channelId ? ` to ${firstOk.channelId}` : ''}`);
     } catch (error: any) {
       setResult('dailyDigest', {
         success: false,
@@ -364,6 +618,51 @@ export default function SlackDemo() {
       setLoadingState('dailyDigest', false);
     }
   };
+
+  const loadRecentDailyDigests = useCallback(async () => {
+    if (!activeOrgId) return;
+    try {
+      const { data, error } = await (supabase as any)
+        .from('slack_notifications_sent')
+        .select('created_at, slack_channel_id, slack_ts')
+        .eq('org_id', activeOrgId)
+        .eq('feature', 'daily_digest')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error) return;
+      setRecentDailyDigests((data as any[]) || []);
+    } catch {
+      // Ignore if table isn't accessible under RLS in this environment
+    }
+  }, [activeOrgId]);
+
+  const loadStoredDigests = useCallback(async () => {
+    if (!activeOrgId) return;
+    try {
+      const { data, error } = await (supabase as any)
+        .from('daily_digest_analyses')
+        .select('id, digest_date, digest_type, user_id, timezone, created_at, highlights, delivery')
+        .eq('org_id', activeOrgId)
+        .eq('digest_type', digestViewType)
+        .order('digest_date', { ascending: false })
+        .limit(20);
+      if (error) {
+        return;
+      }
+      const digests = (data as any[]) || [];
+      setStoredDigests(digests);
+      
+      // Default date picker to most recent stored digest date
+      if (digests.length > 0 && digests[0].digest_date) {
+        setDailyDigestData((prev) => ({ ...prev, date: digests[0].digest_date }));
+      }
+    } catch {
+      // Table may not exist yet if migration hasn't run
+    }
+  }, [activeOrgId, digestViewType]);
+
+  // NOTE: We intentionally do not auto-load digest history on page load.
+  // These tables are optional / migration-gated across environments and can cause noisy 400/404 REST calls.
 
   const testMeetingPrep = async () => {
     setLoadingState('meetingPrep', true);
@@ -400,10 +699,15 @@ export default function SlackDemo() {
       let result;
 
       if (dealRoomData.action === 'create') {
+        const inviteSlackUserIds = dealRoomData.inviteSlackUserIdsCsv
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
         result = await invokeFunction('slack-deal-room', {
           dealId: dealRoomData.dealId || 'test-deal-id',
           orgId: activeOrgId,
           isTest: true,
+          inviteSlackUserIds,
         });
       } else {
         const updateData: Record<string, unknown> = {
@@ -469,11 +773,15 @@ export default function SlackDemo() {
           ? dealRoomData.action === 'create'
             ? 'Deal room created!'
             : 'Update sent!'
-          : result.error || 'Failed',
+          : result.error || result.message || 'Failed',
         data: result,
         timestamp: new Date(),
       });
-      toast.success('Deal room test sent');
+      if (result?.success) {
+        toast.success('Deal room test sent');
+      } else {
+        toast.error(result?.error || result?.message || 'Deal room failed');
+      }
     } catch (error: any) {
       setResult('dealRoom', {
         success: false,
@@ -644,13 +952,16 @@ export default function SlackDemo() {
                 onChange={(e) => setMeetingSearch(e.target.value)}
               />
               <Select
-                value={meetingDebriefData.meetingId || undefined}
-                onValueChange={(value) => setMeetingDebriefData({ ...meetingDebriefData, meetingId: value })}
+                value={meetingDebriefData.meetingId ? meetingDebriefData.meetingId : NONE_SELECT_VALUE}
+                onValueChange={(value) =>
+                  setMeetingDebriefData({ ...meetingDebriefData, meetingId: value === NONE_SELECT_VALUE ? '' : value })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder={meetingsLoading ? 'Loading meetings…' : 'Select a meeting (optional)'} />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={NONE_SELECT_VALUE}>None</SelectItem>
                   {filteredMeetings.slice(0, 75).map((m) => {
                     const dt = m.meeting_start ? new Date(m.meeting_start).toLocaleString() : '';
                     const company = m.company?.name ? ` • ${m.company.name}` : '';
@@ -680,21 +991,115 @@ export default function SlackDemo() {
         {/* Daily Digest */}
         <TestCard
           title="Daily Standup Digest"
-          description="Test the morning digest with meetings, tasks, and AI insights."
+          description="Analyzes the selected day and posts a digest to Slack. Digests are stored for historical browsing and future RAG/analysis workflows."
           icon={Calendar}
           onTest={testDailyDigest}
           isLoading={loading.dailyDigest}
           lastResult={results.dailyDigest}
         >
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Date</Label>
+              <Label>Analyze date</Label>
               <Input
                 type="date"
                 value={dailyDigestData.date}
                 onChange={(e) => setDailyDigestData({ ...dailyDigestData, date: e.target.value })}
               />
+              <p className="text-xs text-muted-foreground">
+                Pick any day to analyze. Digests are stored in the database for historical lookup and RAG.
+              </p>
             </div>
+
+            {/* Stored Digests Section */}
+            <div className="space-y-3 pt-2 border-t">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Stored Digests</Label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={digestViewType === 'org' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setDigestViewType('org')}
+                  >
+                    Org
+                  </Button>
+                  <Button
+                    variant={digestViewType === 'user' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setDigestViewType('user')}
+                  >
+                    Per-User
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => void loadStoredDigests()}>
+                    <RefreshCw className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+
+              {storedDigests.length > 0 ? (
+                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  {storedDigests.map((d) => {
+                    const summary = d.highlights?.summary || 'No summary';
+                    const channelInfo = d.delivery?.channelId ? ` - ${d.delivery.channelId}` : '';
+                    const statusBadge = d.delivery?.status === 'sent' 
+                      ? <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">Sent</Badge>
+                      : d.delivery?.status === 'failed'
+                        ? <Badge variant="destructive" className="text-xs">Failed</Badge>
+                        : <Badge variant="outline" className="text-xs">Stored</Badge>;
+                    
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        className={`w-full text-left p-2 rounded-md border transition-colors hover:bg-muted/50 ${
+                          dailyDigestData.date === d.digest_date ? 'border-primary bg-primary/5' : 'border-border'
+                        }`}
+                        onClick={() => setDailyDigestData({ ...dailyDigestData, date: d.digest_date })}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-sm">{d.digest_date}</span>
+                          <div className="flex items-center gap-1">
+                            {statusBadge}
+                            {d.digest_type === 'user' && (
+                              <Badge variant="outline" className="text-xs">User</Badge>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                          {summary}{channelInfo}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground py-2">
+                  No stored {digestViewType} digests found. Run a test to generate one!
+                </p>
+              )}
+            </div>
+
+            {/* Legacy send history (kept for reference) */}
+            {recentDailyDigests.length > 0 && (
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="text-xs text-muted-foreground">Legacy send history</Label>
+                <div className="space-y-1">
+                  {recentDailyDigests.slice(0, 3).map((d, idx) => {
+                    const date = d.created_at ? new Date(d.created_at).toISOString().split('T')[0] : '';
+                    const channel = d.slack_channel_id ? ` - ${d.slack_channel_id}` : '';
+                    return (
+                      <button
+                        key={`${d.created_at}-${idx}`}
+                        type="button"
+                        className="w-full text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={() => date && setDailyDigestData({ ...dailyDigestData, date })}
+                      >
+                        {date}{channel}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </TestCard>
 
@@ -711,13 +1116,16 @@ export default function SlackDemo() {
             <div className="space-y-2">
               <Label>Meeting (optional)</Label>
               <Select
-                value={meetingPrepData.meetingId || undefined}
-                onValueChange={(value) => setMeetingPrepData({ ...meetingPrepData, meetingId: value })}
+                value={meetingPrepData.meetingId ? meetingPrepData.meetingId : NONE_SELECT_VALUE}
+                onValueChange={(value) =>
+                  setMeetingPrepData({ ...meetingPrepData, meetingId: value === NONE_SELECT_VALUE ? '' : value })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder={meetingsLoading ? 'Loading meetings…' : 'Select a meeting (optional)'} />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={NONE_SELECT_VALUE}>None</SelectItem>
                   {filteredMeetings.slice(0, 75).map((m) => {
                     const dt = m.meeting_start ? new Date(m.meeting_start).toLocaleString() : '';
                     const company = m.company?.name ? ` • ${m.company.name}` : '';
@@ -753,6 +1161,76 @@ export default function SlackDemo() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+        </TestCard>
+
+        {/* Sales Assistant DM */}
+        <TestCard
+          title="Sales Assistant DM (Preview + Send)"
+          description="Preview the exact Block Kit JSON and send a test Sales Assistant DM to yourself."
+          icon={Bot}
+          onTest={sendSalesAssistantDm}
+          isLoading={loading.salesAssistant}
+          lastResult={results.salesAssistant || null}
+        >
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label>Preview Mode</Label>
+                <p className="text-xs text-muted-foreground">
+                  Live uses your org data; Sample renders a designed demo message.
+                </p>
+              </div>
+              <Select value={assistantMode} onValueChange={(v) => setAssistantMode(v as any)}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="live">Live</SelectItem>
+                  <SelectItem value="sample">Sample</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={previewSalesAssistant} disabled={assistantPreviewLoading}>
+                {assistantPreviewLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating…
+                  </>
+                ) : (
+                  <>
+                    <Code2 className="mr-2 h-4 w-4" />
+                    Preview Blocks JSON
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {assistantPreview?.blocks_prompt && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Code2 className="h-4 w-4" />
+                  Block Kit Template (\"prompt\")
+                </Label>
+                <Textarea value={assistantPreview.blocks_prompt} readOnly className="min-h-[180px] font-mono text-xs" />
+              </div>
+            )}
+
+            {assistantPreview?.blocks && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Code2 className="h-4 w-4" />
+                  Blocks JSON (what we send to Slack)
+                </Label>
+                <Textarea
+                  value={JSON.stringify(assistantPreview.blocks, null, 2)}
+                  readOnly
+                  className="min-h-[260px] font-mono text-xs"
+                />
+              </div>
+            )}
           </div>
         </TestCard>
 
@@ -793,13 +1271,61 @@ export default function SlackDemo() {
             </TabsList>
 
             <div className="mt-4 space-y-4">
-              <div className="space-y-2">
-                <Label>Deal ID (optional)</Label>
+              <div className="space-y-3">
+                <Label>Deal (optional)</Label>
                 <Input
-                  placeholder="Leave empty for test data"
-                  value={dealRoomData.dealId}
-                  onChange={(e) => setDealRoomData({ ...dealRoomData, dealId: e.target.value })}
+                  placeholder="Search deals by title/company/stage…"
+                  value={dealSearch}
+                  onChange={(e) => setDealSearch(e.target.value)}
                 />
+                <Select
+                  value={dealRoomData.dealId ? dealRoomData.dealId : NONE_SELECT_VALUE}
+                  onValueChange={(value) =>
+                    setDealRoomData({ ...dealRoomData, dealId: value === NONE_SELECT_VALUE ? '' : value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={dealsLoading ? 'Loading deals…' : 'Select a deal (optional)'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE_SELECT_VALUE}>None (use sample data)</SelectItem>
+                    {filteredDeals.slice(0, 50).map((d) => {
+                      const company = d.company?.name ? ` • ${d.company.name}` : '';
+                      const value = d.value ? ` • $${d.value.toLocaleString()}` : '';
+                      const stage = d.stage ? ` (${d.stage})` : '';
+                      return (
+                        <SelectItem key={d.id} value={d.id}>
+                          {(d.title || 'Untitled deal') + company + value + stage}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Or paste deal ID</Label>
+                  <Input
+                    placeholder="Leave empty for test data"
+                    value={dealRoomData.dealId}
+                    onChange={(e) => setDealRoomData({ ...dealRoomData, dealId: e.target.value })}
+                  />
+                </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">
+                  Invite extra Slack user IDs (optional)
+                </Label>
+                <Input
+                  placeholder="U0123ABC, U0456DEF (e.g. manager)"
+                  value={dealRoomData.inviteSlackUserIdsCsv}
+                  onChange={(e) =>
+                    setDealRoomData({ ...dealRoomData, inviteSlackUserIdsCsv: e.target.value })
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  This is the Slack user ID (starts with <code>U</code>). Useful for testing “owner + manager”
+                  membership even if we can’t auto-resolve managers yet.
+                </p>
+              </div>
               </div>
 
               <TabsContent value="stage_change" className="mt-0 space-y-4">

@@ -9,6 +9,34 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { hmacSha256Hex } from '../_shared/signing';
+
+function getHeader(req: VercelRequest, name: string): string | null {
+  const v = (req.headers as any)[name.toLowerCase()];
+  if (!v) return null;
+  return Array.isArray(v) ? String(v[0]) : String(v);
+}
+
+async function readRawBody(req: VercelRequest): Promise<string> {
+  // If Vercel already provided a parsed body, we may not be able to re-read the stream.
+  // Prefer the stream when possible, otherwise fall back to stringifying.
+  if (typeof (req as any).body === 'string') return (req as any).body;
+  if (Buffer.isBuffer((req as any).body)) return ((req as any).body as Buffer).toString('utf8');
+
+  // Try reading the stream
+  const chunks: Buffer[] = [];
+  try {
+    for await (const chunk of req as any) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    if (chunks.length) return Buffer.concat(chunks).toString('utf8');
+  } catch {
+    // ignore
+  }
+
+  // Last resort: stringify parsed body
+  return JSON.stringify((req as any).body ?? {});
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle CORS preflight
@@ -27,6 +55,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const proxySecret = process.env.FATHOM_WEBHOOK_PROXY_SECRET;
+    const webhookSecret = process.env.FATHOM_WEBHOOK_SECRET;
 
     if (!supabaseUrl) {
       console.error('[fathom-webhook-proxy] Missing SUPABASE_URL');
@@ -38,13 +68,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new Error('Webhook endpoint not configured');
     }
 
-    // Get the raw body for signature verification
-    const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    if (!proxySecret) {
+      console.error('[fathom-webhook-proxy] Missing FATHOM_WEBHOOK_PROXY_SECRET');
+      throw new Error('Webhook endpoint not configured');
+    }
+
+    // Read raw body once (for signature verification + forwarding).
+    const rawBody = await readRawBody(req);
+
+    // Optional: verify Fathom’s webhook signature (recommended for external release).
+    // If FATHOM_WEBHOOK_SECRET is set, we require a matching signature header.
+    if (webhookSecret) {
+      const sigHeader =
+        getHeader(req, 'x-fathom-signature') ||
+        getHeader(req, 'fathom-signature') ||
+        getHeader(req, 'Fathom-Signature');
+
+      if (!sigHeader) {
+        return res.status(401).json({ success: false, error: 'Missing webhook signature' });
+      }
+
+      const expectedHex = hmacSha256Hex(webhookSecret, rawBody);
+      const expected = `sha256=${expectedHex}`;
+
+      const provided = sigHeader.trim();
+      const ok = provided === expectedHex || provided === expected;
+      if (!ok) {
+        return res.status(401).json({ success: false, error: 'Invalid webhook signature' });
+      }
+    }
+
+    const ts = Math.floor(Date.now() / 1000).toString();
+    const signedPayload = `v1:${ts}:${rawBody}`;
+    const sig = hmacSha256Hex(proxySecret, signedPayload);
 
     // Forward all relevant headers from Fathom
     const forwardHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${supabaseServiceKey}`,
+      'X-Use60-Timestamp': ts,
+      'X-Use60-Signature': `v1=${sig}`,
     };
 
     // Forward Fathom signature header if present

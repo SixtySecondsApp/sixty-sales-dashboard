@@ -30,13 +30,17 @@ import { ConnectModal, Permission } from '@/components/integrations/ConnectModal
 import { GoogleConfigModal } from '@/components/integrations/GoogleConfigModal';
 import { FathomConfigModal } from '@/components/integrations/FathomConfigModal';
 import { SavvyCalConfigModal } from '@/components/integrations/SavvyCalConfigModal';
+import { SlackConfigModal } from '@/components/integrations/SlackConfigModal';
 
 // Hooks and stores
 import { useGoogleIntegration } from '@/lib/stores/integrationStore';
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
-import { useIntegrationLogo } from '@/lib/hooks/useIntegrationLogo';
+import { useSlackIntegration } from '@/lib/hooks/useSlackIntegration';
+import { getIntegrationDomain, getLogoS3Url, useIntegrationLogo } from '@/lib/hooks/useIntegrationLogo';
 import { useUser } from '@/lib/hooks/useUser';
-import { useIntegrationUpvotes } from '@/lib/hooks/useIntegrationUpvotes';
+import { IntegrationVoteState, useIntegrationUpvotes } from '@/lib/hooks/useIntegrationUpvotes';
+import { useBrandingSettings } from '@/lib/hooks/useBrandingSettings';
+import { DEFAULT_SIXTY_ICON_URL } from '@/lib/utils/sixtyBranding';
 
 // Integration definitions
 interface IntegrationConfig {
@@ -59,6 +63,149 @@ interface IntegrationCategory {
   tooltip?: string; // Explains how this category integrates with Sixty
   icon: React.ReactNode;
   integrations: IntegrationConfig[];
+}
+
+function IntegrationCardWithLogo({
+  config,
+  isBuilt,
+  status,
+  onAction,
+  actionLoading,
+  vote,
+  onToggleUpvote,
+  sixtyLogoUrl,
+}: {
+  config: IntegrationConfig;
+  isBuilt: boolean;
+  status: IntegrationStatus;
+  onAction?: () => void;
+  actionLoading?: boolean;
+  vote?: IntegrationVoteState | null;
+  onToggleUpvote?: (args: { integrationId: string; integrationName: string; description?: string }) => Promise<void>;
+  sixtyLogoUrl?: string | null;
+}) {
+  // Only warm the S3 cache for "built" integrations to avoid a request storm on the huge "coming soon" list.
+  const { logoUrl } = useIntegrationLogo(config.id, { enableFetch: isBuilt });
+
+  return (
+    <IntegrationCard
+      name={config.name}
+      description={config.description}
+      logoUrl={logoUrl}
+      fallbackIcon={config.fallbackIcon}
+      status={status}
+      onAction={onAction}
+      actionLoading={actionLoading}
+      iconBgColor={config.iconBgColor}
+      iconBorderColor={config.iconBorderColor}
+      sixtyLogoUrl={sixtyLogoUrl}
+      footer={
+        !isBuilt && vote && onToggleUpvote ? (
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-gray-500 dark:text-gray-400">Vote to prioritize</div>
+            <button
+              type="button"
+              onClick={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                try {
+                  await onToggleUpvote({
+                    integrationId: config.id,
+                    integrationName: config.name,
+                    description: config.description,
+                  });
+                } catch (err: any) {
+                  toast.error(err?.message || 'Failed to upvote');
+                }
+              }}
+              disabled={vote?.isLoading}
+              className={[
+                'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors',
+                vote?.hasVoted
+                  ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700',
+                vote?.isLoading ? 'opacity-60 cursor-not-allowed' : '',
+              ].join(' ')}
+              aria-label={`${vote?.hasVoted ? 'Remove upvote' : 'Upvote'} ${config.name} integration`}
+            >
+              <ChevronUp className="w-4 h-4" />
+              <span>{(vote?.votesCount ?? 0).toLocaleString()}</span>
+            </button>
+          </div>
+        ) : undefined
+      }
+    />
+  );
+}
+
+function CategorySection({
+  category,
+  isBuilt,
+  getIntegrationStatus,
+  onBuiltAction,
+  builtActionLoadingById,
+  getVoteState,
+  toggleUpvote,
+  sixtyLogoUrl,
+}: {
+  category: IntegrationCategory;
+  isBuilt: boolean;
+  getIntegrationStatus: (integrationId: string) => IntegrationStatus;
+  onBuiltAction: (integrationId: string) => void;
+  builtActionLoadingById: Record<string, boolean>;
+  getVoteState: (integrationId: string) => IntegrationVoteState;
+  toggleUpvote: (args: { integrationId: string; integrationName: string; description?: string }) => Promise<void>;
+  sixtyLogoUrl?: string | null;
+}) {
+  return (
+    <div className="mb-12">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+          {category.icon}
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{category.name}</h2>
+            {category.tooltip && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                      <Info className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs text-sm">
+                    <p className="font-medium mb-1">How it works with Sixty:</p>
+                    <p className="text-gray-600 dark:text-gray-300">{category.tooltip}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{category.description}</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {category.integrations.map((integration) => {
+          const status = isBuilt ? getIntegrationStatus(integration.id) : 'coming_soon';
+          const vote = !isBuilt ? getVoteState(integration.id) : null;
+          return (
+            <IntegrationCardWithLogo
+              key={integration.id}
+              config={integration}
+              isBuilt={isBuilt}
+              status={status}
+              onAction={isBuilt ? () => onBuiltAction(integration.id) : undefined}
+              actionLoading={builtActionLoadingById[integration.id]}
+              vote={vote}
+              onToggleUpvote={!isBuilt ? toggleUpvote : undefined}
+              sixtyLogoUrl={sixtyLogoUrl}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 // =====================================================
@@ -123,6 +270,32 @@ const builtIntegrations: IntegrationConfig[] = [
     iconBgColor: 'bg-purple-50 dark:bg-purple-900/30',
     iconBorderColor: 'border-purple-100 dark:border-purple-800',
     fallbackIcon: <Calendar className="w-6 h-6 text-purple-600 dark:text-purple-400" />,
+    isBuilt: true,
+  },
+  {
+    id: 'slack',
+    name: 'Slack',
+    description: 'Team notifications & deal rooms.',
+    permissions: [
+      { title: 'Send messages', description: 'Post notifications to channels and DMs.' },
+      { title: 'Create channels', description: 'Auto-create deal room channels.' },
+      { title: 'Read members', description: 'Map Slack users to Sixty users.' },
+    ],
+    brandColor: 'purple',
+    iconBgColor: 'bg-purple-50 dark:bg-purple-900/30',
+    iconBorderColor: 'border-purple-200 dark:border-purple-800',
+    fallbackIcon: (
+      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+        <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52z" fill="#36C5F0"/>
+        <path d="M6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313z" fill="#2EB67D"/>
+        <path d="M8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834z" fill="#ECB22E"/>
+        <path d="M8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312z" fill="#E01E5A"/>
+        <path d="M18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834z" fill="#36C5F0"/>
+        <path d="M17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312z" fill="#2EB67D"/>
+        <path d="M15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52z" fill="#ECB22E"/>
+        <path d="M15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" fill="#E01E5A"/>
+      </svg>
+    ),
     isBuilt: true,
   },
 ];
@@ -247,9 +420,9 @@ const integrationCategories: IntegrationCategory[] = [
     tooltip: 'Get deal alerts and activity notifications in your team channels. Share wins, flag at-risk deals, and collaborate without leaving your chat app.',
     icon: <Users className="w-5 h-5" />,
     integrations: [
-      { id: 'slack', name: 'Slack', description: 'Team messaging platform.', fallbackIcon: <Users className="w-6 h-6 text-purple-600" /> },
       { id: 'discord', name: 'Discord', description: 'Community chat.', fallbackIcon: <Users className="w-6 h-6 text-indigo-500" /> },
       { id: 'intercom', name: 'Intercom', description: 'Customer messaging.', fallbackIcon: <Users className="w-6 h-6 text-blue-500" /> },
+      { id: 'microsoft-teams', name: 'Microsoft Teams', description: 'Team collaboration.', fallbackIcon: <Users className="w-6 h-6 text-purple-600" /> },
     ],
   },
 ];
@@ -333,6 +506,8 @@ const suggestedIntegrations: IntegrationCategory[] = [
 export default function Integrations() {
   const [searchParams] = useSearchParams();
   useUser(); // ensures auth/user is initialized (needed for upvotes under Clerk)
+  const { settings: brandingSettings } = useBrandingSettings();
+  const sixtyLogoUrl = brandingSettings?.icon_url || DEFAULT_SIXTY_ICON_URL;
 
   const allComingSoonIntegrationIds = useMemo(() => {
     const ids: string[] = [];
@@ -353,6 +528,8 @@ export default function Integrations() {
   } = useGoogleIntegration();
 
   const { isConnected: fathomConnected, loading: fathomLoading, connectFathom } = useFathomIntegration();
+
+  const { isConnected: slackConnected, loading: slackLoading, connectSlack } = useSlackIntegration();
 
   // Modal states
   const [activeConnectModal, setActiveConnectModal] = useState<string | null>(null);
@@ -392,6 +569,8 @@ export default function Integrations() {
         return fathomConnected ? 'active' : 'inactive';
       case 'savvycal':
         return 'inactive'; // Webhook-based, always show as inactive until configured
+      case 'slack':
+        return slackConnected ? 'active' : 'inactive';
       default:
         return 'coming_soon';
     }
@@ -431,6 +610,10 @@ export default function Integrations() {
           setActiveConnectModal(null);
           setActiveConfigModal('savvycal');
           break;
+        case 'slack':
+          connectSlack();
+          setActiveConnectModal(null);
+          break;
         default:
           toast.info('Integration coming soon');
           setActiveConnectModal(null);
@@ -446,114 +629,36 @@ export default function Integrations() {
   const getBuiltIntegrationConfig = (id: string) => builtIntegrations.find((i) => i.id === id);
 
   // Integration Card wrapper with logo hook
-  const IntegrationCardWithLogo = ({
-    config,
-    isBuilt = false,
-  }: {
-    config: IntegrationConfig;
-    isBuilt?: boolean;
-  }) => {
-    const { logoUrl } = useIntegrationLogo(config.id);
-    const status = isBuilt ? getIntegrationStatus(config.id) : 'coming_soon';
-    const vote = !isBuilt ? getVoteState(config.id) : null;
-
-    return (
-      <IntegrationCard
-        name={config.name}
-        description={config.description}
-        logoUrl={logoUrl}
-        fallbackIcon={config.fallbackIcon}
-        status={status}
-        onAction={isBuilt ? () => handleCardAction(config.id, isBuilt) : undefined}
-        actionLoading={
-          (config.id === 'google-workspace' && googleLoading) ||
-          (config.id === 'fathom' && fathomLoading)
-        }
-        iconBgColor={config.iconBgColor}
-        iconBorderColor={config.iconBorderColor}
-        footer={
-          !isBuilt ? (
-            <div className="flex items-center justify-between">
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                Vote to prioritize
-              </div>
-              <button
-                type="button"
-                onClick={async (e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  try {
-                    await toggleUpvote({
-                      integrationId: config.id,
-                      integrationName: config.name,
-                      description: config.description,
-                    });
-                  } catch (err: any) {
-                    toast.error(err?.message || 'Failed to upvote');
-                  }
-                }}
-                disabled={vote?.isLoading}
-                className={[
-                  'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors',
-                  vote?.hasVoted
-                    ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
-                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700',
-                  vote?.isLoading ? 'opacity-60 cursor-not-allowed' : '',
-                ].join(' ')}
-                aria-label={`${vote?.hasVoted ? 'Remove upvote' : 'Upvote'} ${config.name} integration`}
-              >
-                <ChevronUp className="w-4 h-4" />
-                <span>{(vote?.votesCount ?? 0).toLocaleString()}</span>
-              </button>
-            </div>
-          ) : undefined
-        }
-      />
-    );
-  };
-
-  // Category Section component
-  const CategorySection = ({
-    category,
-    isBuilt = false,
-  }: {
-    category: IntegrationCategory;
-    isBuilt?: boolean;
-  }) => (
-    <div className="mb-12">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
-          {category.icon}
-        </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{category.name}</h2>
-            {category.tooltip && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                      <Info className="w-4 h-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="max-w-xs text-sm">
-                    <p className="font-medium mb-1">How it works with Sixty:</p>
-                    <p className="text-gray-600 dark:text-gray-300">{category.tooltip}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-          </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{category.description}</p>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {category.integrations.map((integration) => (
-          <IntegrationCardWithLogo key={integration.id} config={integration} isBuilt={isBuilt} />
-        ))}
-      </div>
-    </div>
+  const builtActionLoadingById: Record<string, boolean> = useMemo(
+    () => ({
+      'google-workspace': googleLoading,
+      fathom: fathomLoading,
+      slack: slackLoading,
+    }),
+    [googleLoading, fathomLoading, slackLoading]
   );
+
+  // Preload cached S3 logo URLs on page load to prevent any visible swap/flicker.
+  useEffect(() => {
+    const allIds = [
+      ...builtIntegrations.map((i) => i.id),
+      ...integrationCategories.flatMap((c) => c.integrations.map((i) => i.id)),
+      ...suggestedIntegrations.flatMap((c) => c.integrations.map((i) => i.id)),
+    ];
+
+    // De-dupe
+    const urls = Array.from(new Set(allIds.map((id) => getLogoS3Url(getIntegrationDomain(id)))));
+
+    for (const url of urls) {
+      try {
+        const img = new Image();
+        img.decoding = 'async';
+        img.src = url;
+      } catch {
+        // ignore (non-browser environments)
+      }
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-8">
@@ -583,7 +688,15 @@ export default function Integrations() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {builtIntegrations.map((integration) => (
-              <IntegrationCardWithLogo key={integration.id} config={integration} isBuilt={true} />
+              <IntegrationCardWithLogo
+                key={integration.id}
+                config={integration}
+                isBuilt={true}
+                status={getIntegrationStatus(integration.id)}
+                onAction={() => handleCardAction(integration.id, true)}
+                actionLoading={builtActionLoadingById[integration.id]}
+                sixtyLogoUrl={sixtyLogoUrl}
+              />
             ))}
           </div>
         </div>
@@ -599,7 +712,17 @@ export default function Integrations() {
           </p>
 
           {integrationCategories.map((category) => (
-            <CategorySection key={category.id} category={category} isBuilt={false} />
+            <CategorySection
+              key={category.id}
+              category={category}
+              isBuilt={false}
+              getIntegrationStatus={getIntegrationStatus}
+              onBuiltAction={(integrationId) => handleCardAction(integrationId, true)}
+              builtActionLoadingById={builtActionLoadingById}
+              getVoteState={getVoteState}
+              toggleUpvote={toggleUpvote}
+              sixtyLogoUrl={sixtyLogoUrl}
+            />
           ))}
         </div>
 
@@ -616,7 +739,17 @@ export default function Integrations() {
           </p>
 
           {suggestedIntegrations.map((category) => (
-            <CategorySection key={category.id} category={category} isBuilt={false} />
+            <CategorySection
+              key={category.id}
+              category={category}
+              isBuilt={false}
+              getIntegrationStatus={getIntegrationStatus}
+              onBuiltAction={(integrationId) => handleCardAction(integrationId, true)}
+              builtActionLoadingById={builtActionLoadingById}
+              getVoteState={getVoteState}
+              toggleUpvote={toggleUpvote}
+              sixtyLogoUrl={sixtyLogoUrl}
+            />
           ))}
         </div>
 
@@ -634,6 +767,7 @@ export default function Integrations() {
           isAuthorizing={isConnecting}
           brandColor={getBuiltIntegrationConfig(activeConnectModal)!.brandColor}
           fallbackIcon={getBuiltIntegrationConfig(activeConnectModal)!.fallbackIcon}
+          sixtyLogoUrl={sixtyLogoUrl}
         />
       )}
 
@@ -648,6 +782,10 @@ export default function Integrations() {
       />
       <SavvyCalConfigModal
         open={activeConfigModal === 'savvycal'}
+        onOpenChange={(open) => !open && setActiveConfigModal(null)}
+      />
+      <SlackConfigModal
+        open={activeConfigModal === 'slack'}
         onOpenChange={(open) => !open && setActiveConfigModal(null)}
       />
     </div>

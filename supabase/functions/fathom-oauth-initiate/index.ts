@@ -90,7 +90,7 @@ serve(async (req) => {
       })
 
     if (stateError) {
-      // Continue anyway - state validation is best-effort
+      throw new Error(`Failed to store OAuth state: ${stateError.message}`)
     }
 
     // Build OAuth authorization URL

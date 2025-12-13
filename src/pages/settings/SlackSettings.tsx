@@ -5,7 +5,8 @@
  * Allows configuration of notification features, channel selection, and user mappings.
  */
 
-import React, { useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -15,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -31,27 +33,28 @@ import {
   Users,
   Bell,
   RefreshCw,
-  ExternalLink,
   Building2,
   Info,
 } from 'lucide-react';
 
 import { SlackChannelSelector } from '@/components/settings/SlackChannelSelector';
 import { SlackUserMapping } from '@/components/settings/SlackUserMapping';
+import { SlackSelfMapping } from '@/components/settings/SlackSelfMapping';
+import { PageContainer } from '@/components/layout/PageContainer';
 import {
   useSlackOrgSettings,
   useSlackNotificationSettings,
+  useSlackUserMappings,
   useUpdateNotificationSettings,
   useSendTestNotification,
-  useDisconnectSlack,
   type SlackFeature,
   type SlackNotificationSettings,
 } from '@/lib/hooks/useSlackSettings';
 import { useOrg } from '@/lib/contexts/OrgContext';
 import { useIsOrgAdmin } from '@/contexts/UserPermissionsContext';
-import { useAuth } from '@/lib/contexts/AuthContext';
-import { slackOAuthService } from '@/lib/services/slackOAuthService';
+import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
+import { useOrgMoney } from '@/lib/hooks/useOrgMoney';
 
 // Timezone options
 const TIMEZONES = [
@@ -83,6 +86,7 @@ const FEATURES = [
     supportsDM: true,
     dmDescription: 'Send to meeting owner',
     channelDescription: 'Post to team channel',
+    supportsStakeholders: true,
   },
   {
     key: 'daily_digest' as SlackFeature,
@@ -92,6 +96,7 @@ const FEATURES = [
     supportsDM: true,
     dmDescription: 'Send personalized digest to each user',
     channelDescription: 'Post team-wide digest to channel',
+    supportsBothDelivery: true,
     hasSchedule: true,
   },
   {
@@ -121,6 +126,7 @@ function FeatureSettingsCard({
   onTest,
   isUpdating,
   isTesting,
+  stakeholderOptions,
 }: {
   feature: (typeof FEATURES)[0];
   settings: SlackNotificationSettings | undefined;
@@ -128,10 +134,26 @@ function FeatureSettingsCard({
   onTest: () => void;
   isUpdating: boolean;
   isTesting: boolean;
+  stakeholderOptions?: Array<{ slack_user_id: string; slack_username: string | null; slack_email: string | null }>;
 }) {
   const Icon = feature.icon;
+  const { symbol } = useOrgMoney();
   const isEnabled = settings?.is_enabled ?? false;
   const deliveryMethod = settings?.delivery_method || (feature.defaultDM ? 'dm' : 'channel');
+  const sendToChannel = deliveryMethod === 'channel' || deliveryMethod === 'both';
+  const sendToDm = deliveryMethod === 'dm' || deliveryMethod === 'both';
+  const dmAudience = (settings?.dm_audience || 'owner') as 'owner' | 'stakeholders' | 'both';
+  const sendDmToOwner = dmAudience === 'owner' || dmAudience === 'both';
+  const sendDmToStakeholders = dmAudience === 'stakeholders' || dmAudience === 'both';
+  const currentStakeholders = (settings?.stakeholder_slack_ids || []).filter(Boolean);
+  const [stakeholdersCsv, setStakeholdersCsv] = useState(currentStakeholders.join(', '));
+  const dealRoomArchiveMode = settings?.deal_room_archive_mode || 'delayed';
+  const dealRoomArchiveDelayHours = settings?.deal_room_archive_delay_hours ?? 24;
+
+  useEffect(() => {
+    setStakeholdersCsv(currentStakeholders.join(', '));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStakeholders.join(',')]);
 
   return (
     <Card>
@@ -158,11 +180,11 @@ function FeatureSettingsCard({
         <CardContent className="space-y-4">
           {feature.supportsDM && (
             <div className="space-y-3">
-              <Label>Delivery Method</Label>
+              <Label>{feature.key === 'daily_digest' ? 'Audience' : 'Delivery Method'}</Label>
               <RadioGroup
                 value={deliveryMethod}
-                onValueChange={(value) => onUpdate({ delivery_method: value as 'channel' | 'dm' })}
-                className="grid grid-cols-2 gap-4"
+                onValueChange={(value) => onUpdate({ delivery_method: value as 'channel' | 'dm' | 'both' })}
+                className={`grid gap-4 ${feature.supportsBothDelivery ? 'grid-cols-3' : 'grid-cols-2'}`}
               >
                 <div>
                   <RadioGroupItem value="channel" id={`${feature.key}-channel`} className="peer sr-only" />
@@ -190,11 +212,156 @@ function FeatureSettingsCard({
                     </span>
                   </Label>
                 </div>
+                {feature.supportsBothDelivery && (
+                  <div>
+                    <RadioGroupItem value="both" id={`${feature.key}-both`} className="peer sr-only" />
+                    <Label
+                      htmlFor={`${feature.key}-both`}
+                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    >
+                      <Users className="mb-2 h-5 w-5" />
+                      <span className="text-sm font-medium">Both</span>
+                      <span className="text-xs text-muted-foreground text-center mt-1">
+                        Post to channel + DM users
+                      </span>
+                    </Label>
+                  </div>
+                )}
               </RadioGroup>
+              {feature.key === 'daily_digest' && sendToDm && (
+                <p className="text-xs text-muted-foreground">
+                  Individual digests are delivered via DM to users who have linked their Slack account in “Personal Slack”.
+                </p>
+              )}
+              {feature.key === 'meeting_debrief' && sendToDm && (
+                <p className="text-xs text-muted-foreground">
+                  Meeting debrief DMs require users to link Slack under “Personal Slack”.
+                </p>
+              )}
             </div>
           )}
 
-          {deliveryMethod === 'channel' && (
+          {feature.key === 'meeting_debrief' && sendToDm && (
+            <div className="space-y-3">
+              <Label>DM recipients</Label>
+              <RadioGroup
+                value={dmAudience}
+                onValueChange={(value) => onUpdate({ dm_audience: value as any })}
+                className="grid grid-cols-3 gap-4"
+              >
+                <div>
+                  <RadioGroupItem value="owner" id={`${feature.key}-dm-owner`} className="peer sr-only" />
+                  <Label
+                    htmlFor={`${feature.key}-dm-owner`}
+                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                  >
+                    <MessageSquare className="mb-2 h-5 w-5" />
+                    <span className="text-sm font-medium">Individual</span>
+                    <span className="text-xs text-muted-foreground text-center mt-1">DM the meeting owner</span>
+                  </Label>
+                </div>
+                <div>
+                  <RadioGroupItem value="stakeholders" id={`${feature.key}-dm-stakeholders`} className="peer sr-only" />
+                  <Label
+                    htmlFor={`${feature.key}-dm-stakeholders`}
+                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                  >
+                    <Users className="mb-2 h-5 w-5" />
+                    <span className="text-sm font-medium">Stakeholder</span>
+                    <span className="text-xs text-muted-foreground text-center mt-1">DM a manager/stakeholder</span>
+                  </Label>
+                </div>
+                <div>
+                  <RadioGroupItem value="both" id={`${feature.key}-dm-both`} className="peer sr-only" />
+                  <Label
+                    htmlFor={`${feature.key}-dm-both`}
+                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                  >
+                    <Users className="mb-2 h-5 w-5" />
+                    <span className="text-sm font-medium">Both</span>
+                    <span className="text-xs text-muted-foreground text-center mt-1">Owner + stakeholder(s)</span>
+                  </Label>
+                </div>
+              </RadioGroup>
+
+              {(sendDmToStakeholders || dmAudience === 'stakeholders') && (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label>Stakeholders to notify (optional)</Label>
+                    <p className="text-xs text-muted-foreground">
+                      These Slack users will receive meeting debrief DMs (e.g. a manager).
+                    </p>
+                  </div>
+
+                  {stakeholderOptions && stakeholderOptions.length > 0 ? (
+                    <div className="space-y-2 rounded-md border p-3">
+                      <div className="text-xs text-muted-foreground">
+                        Select from known Slack users in this org:
+                      </div>
+                      <div className="grid gap-2">
+                        {stakeholderOptions.slice(0, 20).map((u) => {
+                          const checked = currentStakeholders.includes(u.slack_user_id);
+                          const label = u.slack_username ? `@${u.slack_username}` : u.slack_user_id;
+                          return (
+                            <label key={u.slack_user_id} className="flex items-center gap-2 text-sm">
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(next) => {
+                                  const isChecked = next === true;
+                                  const updated = isChecked
+                                    ? Array.from(new Set([...currentStakeholders, u.slack_user_id]))
+                                    : currentStakeholders.filter((id) => id !== u.slack_user_id);
+                                  onUpdate({ stakeholder_slack_ids: updated });
+                                }}
+                              />
+                              <span className="font-medium">{label}</span>
+                              {u.slack_email && (
+                                <span className="text-xs text-muted-foreground">{u.slack_email}</span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {stakeholderOptions.length > 20 && (
+                        <div className="text-xs text-muted-foreground">
+                          Showing first 20 users. You can paste additional Slack user IDs below.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        No Slack users are available yet. Users appear after they interact with the bot, or after you refresh Slack users in the mapping table.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Stakeholder Slack user IDs (CSV)</Label>
+                    <Input
+                      value={stakeholdersCsv}
+                      onChange={(e) => setStakeholdersCsv(e.target.value)}
+                      onBlur={() => {
+                        const parsed = stakeholdersCsv
+                          .split(',')
+                          .map((s) => s.trim())
+                          .filter(Boolean);
+                        const unique = Array.from(new Set(parsed));
+                        onUpdate({ stakeholder_slack_ids: unique });
+                      }}
+                      placeholder="U0123ABC, U0456DEF"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Tip: Slack user IDs start with <code>U</code>.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {sendToChannel && (
             <div className="space-y-2">
               <Label>Channel</Label>
               <SlackChannelSelector
@@ -255,7 +422,7 @@ function FeatureSettingsCard({
                   <span className="text-sm text-muted-foreground">Deal value exceeds</span>
                   <div className="relative w-32">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      $
+                      {symbol}
                     </span>
                     <Input
                       type="number"
@@ -285,6 +452,128 @@ function FeatureSettingsCard({
                   </Select>
                 </div>
               </div>
+
+              {feature.key === 'deal_rooms' && (
+                <div className="space-y-3">
+                  <div className="space-y-2 rounded-md border p-3">
+                    <div className="space-y-1">
+                      <Label>When a deal is signed/won or lost</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Choose whether to archive the deal room channel instantly or after a delay (e.g. 24 hours).
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3">
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Archive behavior</Label>
+                        <Select
+                          value={dealRoomArchiveMode}
+                          onValueChange={(value) => onUpdate({ deal_room_archive_mode: value as any })}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="immediate">Archive immediately</SelectItem>
+                            <SelectItem value="delayed">Archive after a delay</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {dealRoomArchiveMode === 'delayed' && (
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Delay (hours)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={168}
+                            value={dealRoomArchiveDelayHours}
+                            onChange={(e) => {
+                              const n = parseInt(e.target.value);
+                              const clamped = Number.isFinite(n) ? Math.min(168, Math.max(0, n)) : 24;
+                              onUpdate({ deal_room_archive_delay_hours: clamped });
+                            }}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            0 = archive immediately. Max 168 hours (7 days).
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Stakeholders to invite (optional)</Label>
+                    <p className="text-xs text-muted-foreground">
+                      These Slack users will be invited to deal room channels (in addition to the deal owner).
+                    </p>
+                  </div>
+
+                  {stakeholderOptions && stakeholderOptions.length > 0 ? (
+                    <div className="space-y-2 rounded-md border p-3">
+                      <div className="text-xs text-muted-foreground">
+                        Select from known Slack users in this org:
+                      </div>
+                      <div className="grid gap-2">
+                        {stakeholderOptions.slice(0, 20).map((u) => {
+                          const checked = currentStakeholders.includes(u.slack_user_id);
+                          const label = u.slack_username ? `@${u.slack_username}` : u.slack_user_id;
+                          return (
+                            <label key={u.slack_user_id} className="flex items-center gap-2 text-sm">
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(next) => {
+                                  const isChecked = next === true;
+                                  const updated = isChecked
+                                    ? Array.from(new Set([...currentStakeholders, u.slack_user_id]))
+                                    : currentStakeholders.filter((id) => id !== u.slack_user_id);
+                                  onUpdate({ stakeholder_slack_ids: updated });
+                                }}
+                              />
+                              <span className="font-medium">{label}</span>
+                              {u.slack_email && (
+                                <span className="text-xs text-muted-foreground">{u.slack_email}</span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {stakeholderOptions.length > 20 && (
+                        <div className="text-xs text-muted-foreground">
+                          Showing first 20 users. You can paste additional Slack user IDs below.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        No Slack users are available yet. Users appear after they interact with the bot, or after you refresh Slack users in the mapping table.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Stakeholder Slack user IDs (CSV)</Label>
+                    <Input
+                      value={stakeholdersCsv}
+                      onChange={(e) => setStakeholdersCsv(e.target.value)}
+                      onBlur={() => {
+                        const parsed = stakeholdersCsv
+                          .split(',')
+                          .map((s) => s.trim())
+                          .filter(Boolean);
+                        const unique = Array.from(new Set(parsed));
+                        onUpdate({ stakeholder_slack_ids: unique });
+                      }}
+                      placeholder="U0123ABC, U0456DEF"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Tip: Slack user IDs start with <code>U</code>.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -310,52 +599,66 @@ function FeatureSettingsCard({
 }
 
 export default function SlackSettings() {
-  const { activeOrgId } = useOrg();
+  const { activeOrgId, userRole } = useOrg();
   const isAdmin = useIsOrgAdmin();
-  const { user } = useAuth();
+  const { formatMoney: formatOrgMoney } = useOrgMoney();
+  const navigate = useNavigate();
   const { data: orgSettings, isLoading: settingsLoading } = useSlackOrgSettings();
   const { data: notificationSettings, isLoading: notificationsLoading } = useSlackNotificationSettings();
+  const { data: slackUserMappings } = useSlackUserMappings({ enabled: isAdmin });
   const updateSettings = useUpdateNotificationSettings();
   const sendTest = useSendTestNotification();
-  const disconnect = useDisconnectSlack();
   const [testingFeature, setTestingFeature] = useState<SlackFeature | null>(null);
+  const [testingConnection, setTestingConnection] = useState(false);
 
-  const handleConnectSlack = () => {
-    if (!user?.id) {
-      toast.error('You must be logged in to connect Slack');
-      return;
-    }
-    if (!activeOrgId) {
-      toast.error('No organization selected');
-      return;
-    }
-    const oauthUrl = slackOAuthService.initiateOAuth(user.id, activeOrgId);
-    window.location.href = oauthUrl;
-  };
+  const isConnected = orgSettings?.is_connected ?? false;
 
-  if (!isAdmin) {
-    return (
-      <div className="container max-w-4xl py-8">
-        <Alert variant="destructive">
-          <AlertDescription>
-            You need admin permissions to access Slack settings.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+  // Hooks MUST be called unconditionally. Keep memos above early returns.
+  const notificationSettingsByFeature = useMemo(() => {
+    const map = new Map<SlackFeature, SlackNotificationSettings>();
+    (notificationSettings || []).forEach((s) => map.set(s.feature, s));
+    return map;
+  }, [notificationSettings]);
+
+  const dailyDigestSettings = notificationSettingsByFeature.get('daily_digest');
+  const dealRoomSettings = notificationSettingsByFeature.get('deal_rooms');
+
+  const slackUserOptions = useMemo(() => {
+    const rows = ((slackUserMappings as any[]) || [])
+      .map((m) => ({
+        slack_user_id: m.slack_user_id,
+        slack_username: m.slack_username ?? null,
+        slack_email: m.slack_email ?? null,
+      }))
+      .filter((m) => !!m.slack_user_id);
+
+    const byId = new Map<string, { slack_user_id: string; slack_username: string | null; slack_email: string | null }>();
+    rows.forEach((r) => byId.set(r.slack_user_id, r));
+    return Array.from(byId.values());
+  }, [slackUserMappings]);
+
+  // Requirement: only show this page when Slack is already integrated.
+  // If not connected, send the user back to Settings.
+  // Note: This hook must be called before any early returns to follow React's rules of hooks.
+  useEffect(() => {
+    if (!settingsLoading && !isConnected) {
+      navigate('/settings', { replace: true });
+    }
+  }, [isConnected, navigate, settingsLoading]);
 
   if (settingsLoading || notificationsLoading) {
     return (
-      <div className="container max-w-4xl py-8">
+      <PageContainer maxWidth="4xl" className="py-8">
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
-  const isConnected = orgSettings?.is_connected ?? false;
+  if (!isConnected) {
+    return null;
+  }
 
   const getSettingsForFeature = (feature: SlackFeature) => {
     return notificationSettings?.find((s) => s.feature === feature);
@@ -365,8 +668,8 @@ export default function SlackSettings() {
     try {
       await updateSettings.mutateAsync({ feature, settings: updates });
       toast.success('Settings saved');
-    } catch (error) {
-      toast.error('Failed to save settings');
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to save settings');
     }
   };
 
@@ -384,21 +687,28 @@ export default function SlackSettings() {
     }
   };
 
-  const handleDisconnect = async () => {
-    if (!confirm('Are you sure you want to disconnect Slack? This will disable all Slack notifications.')) {
-      return;
-    }
-
+  const handleTestConnection = async () => {
+    if (!activeOrgId) return;
+    setTestingConnection(true);
     try {
-      await disconnect.mutateAsync();
-      toast.success('Slack disconnected');
-    } catch (error) {
-      toast.error('Failed to disconnect Slack');
+      const { data, error } = await supabase.functions.invoke('slack-test-message', {
+        body: { orgId: activeOrgId },
+      });
+      if (error) throw error;
+      if (!(data as any)?.success) throw new Error((data as any)?.error || 'Failed to send test message');
+      toast.success(
+        (data as any)?.channelName ? `Test message sent to #${(data as any).channelName}` : 'Test message sent'
+      );
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to send test message');
+    } finally {
+      setTestingConnection(false);
     }
   };
 
   return (
-    <div className="container max-w-4xl py-8 space-y-8">
+    <PageContainer maxWidth="4xl" className="py-8">
+      <div className="space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">Slack Integration</h1>
@@ -407,7 +717,7 @@ export default function SlackSettings() {
         </p>
       </div>
 
-      {/* Connection Status */}
+      {/* Connection Status (read-only) */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -428,47 +738,99 @@ export default function SlackSettings() {
           </div>
         </CardHeader>
         <CardContent>
-          {isConnected ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{orgSettings?.slack_team_name || 'Slack Workspace'}</p>
-                  {orgSettings?.connected_at && (
-                    <p className="text-sm text-muted-foreground">
-                      Connected on {new Date(orgSettings.connected_at).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
-                <Button variant="outline" onClick={handleDisconnect} disabled={disconnect.isPending}>
-                  {disconnect.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">{orgSettings?.slack_team_name || 'Slack Workspace'}</p>
+                {orgSettings?.connected_at && (
+                  <p className="text-sm text-muted-foreground">
+                    Connected on {new Date(orgSettings.connected_at).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={handleTestConnection} disabled={testingConnection}>
+                  {testingConnection ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Testing…
+                    </>
                   ) : (
-                    'Disconnect'
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Send test
+                    </>
                   )}
                 </Button>
               </div>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Connect your Slack workspace to enable notifications.
-              </p>
-              <Button onClick={handleConnectSlack}>
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Connect Slack
-              </Button>
-            </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 
-      {isConnected && (
+      <Separator />
+
+      {/* Personal Slack (all users) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Personal Slack
+          </CardTitle>
+          <CardDescription>
+            Link your Slack account so you can receive DMs and be @mentioned in notifications.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SlackSelfMapping />
+
+          {/* Read-only org summary for regular users */}
+          {!isAdmin && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Org Slack settings are managed by your org owner/admin. Below is a read-only summary of the key settings.
+                {userRole ? ` Your role: ${userRole}.` : ''}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="grid gap-3">
+            <div className="text-sm">
+              <span className="font-medium">Org Daily Digest:</span>{' '}
+              <span className="text-muted-foreground">
+                {dailyDigestSettings?.is_enabled ? 'Enabled' : 'Disabled'}
+                {dailyDigestSettings?.delivery_method === 'both'
+                  ? ` • #${dailyDigestSettings?.channel_name || 'channel'} + DM`
+                  : dailyDigestSettings?.delivery_method === 'channel' && dailyDigestSettings?.channel_name
+                    ? ` • #${dailyDigestSettings.channel_name}`
+                    : dailyDigestSettings?.delivery_method === 'dm'
+                      ? ' • DM'
+                      : ''}
+              </span>
+            </div>
+            <div className="text-sm">
+              <span className="font-medium">Deal Rooms:</span>{' '}
+              <span className="text-muted-foreground">
+                {dealRoomSettings?.is_enabled ? 'Enabled' : 'Disabled'}
+                {dealRoomSettings?.deal_value_threshold
+                  ? ` • ${formatOrgMoney(dealRoomSettings.deal_value_threshold, { maximumFractionDigits: 0 })}+`
+                  : ''}
+                {dealRoomSettings?.deal_stage_threshold ? ` • ${dealRoomSettings.deal_stage_threshold}` : ''}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Org settings (admins only) */}
+      {isAdmin && (
         <>
           <Separator />
 
           {/* Notification Settings */}
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Notification Settings</h2>
+            <h2 className="text-lg font-semibold">Org Slack Settings</h2>
             <div className="grid gap-4">
               {FEATURES.map((feature) => (
                 <FeatureSettingsCard
@@ -479,6 +841,11 @@ export default function SlackSettings() {
                   onTest={() => handleTestNotification(feature.key)}
                   isUpdating={updateSettings.isPending}
                   isTesting={testingFeature === feature.key}
+                  stakeholderOptions={
+                    feature.key === 'deal_rooms' || feature.key === 'meeting_debrief'
+                      ? slackUserOptions
+                      : []
+                  }
                 />
               ))}
             </div>
@@ -486,12 +853,12 @@ export default function SlackSettings() {
 
           <Separator />
 
-          {/* User Mapping */}
+          {/* User Mapping (admin) */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                User Mapping
+                User Mapping (Org)
               </CardTitle>
               <CardDescription>
                 Map Slack users to Sixty users for @mentions and direct messages.
@@ -502,7 +869,6 @@ export default function SlackSettings() {
             </CardContent>
           </Card>
 
-          {/* Info */}
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
@@ -513,6 +879,7 @@ export default function SlackSettings() {
           </Alert>
         </>
       )}
-    </div>
+      </div>
+    </PageContainer>
   );
 }

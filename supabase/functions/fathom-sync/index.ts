@@ -459,17 +459,19 @@ serve(async (req) => {
     // Get user ID - either from body (webhook) or from auth header
     let userId: string
 
-    console.log('🔍 Request body:', JSON.stringify(body).substring(0, 200))
-    console.log('🔍 body.user_id:', body.user_id)
-    console.log('🔍 Has user_id?:', !!body.user_id)
-
     if (body.user_id) {
-      // Webhook call with explicit user_id
-      console.log('✅ Using user_id from body:', body.user_id)
+      // SECURITY: only internal callers (service role) may specify user_id explicitly.
+      // Otherwise any unauthenticated client could sync arbitrary users.
+      const authHeader = req.headers.get('Authorization')?.trim() || ''
+      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+      if (!serviceRoleKey || authHeader !== `Bearer ${serviceRoleKey}`) {
+        throw new Error('Unauthorized: user_id can only be provided by internal callers')
+      }
+
+      // Internal call with explicit user_id
       userId = body.user_id
     } else {
       // Regular authenticated call
-      console.log('⚠️ No user_id in body, attempting JWT auth')
       const authHeader = req.headers.get('Authorization')
       if (!authHeader) {
         throw new Error('Missing authorization header and no user_id in request')
@@ -480,7 +482,6 @@ serve(async (req) => {
       const { data: { user }, error: userError } = await supabase.auth.getUser(token)
 
       if (userError || !user) {
-        console.error('❌ JWT validation failed:', userError?.message || 'No user')
         throw new Error('Unauthorized: Invalid token')
       }
 

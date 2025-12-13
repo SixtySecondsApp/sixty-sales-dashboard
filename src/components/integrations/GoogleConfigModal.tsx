@@ -7,10 +7,11 @@ import {
 } from './ConfigureModal';
 import { Button } from '@/components/ui/button';
 import { useGoogleIntegration } from '@/lib/stores/integrationStore';
-import { GoogleServiceStatus } from '@/lib/api/googleIntegration';
-import { Mail, Calendar, FolderOpen, ListTodo, RefreshCw, Loader2 } from 'lucide-react';
+import { GoogleServiceStatus, googleApi, GoogleTestConnectionResult } from '@/lib/api/googleIntegration';
+import { Mail, Calendar, FolderOpen, ListTodo, RefreshCw, Loader2, CheckCircle, XCircle, TestTube2, Sparkles, Tag, ChevronDown, ChevronUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useUser } from '@/lib/hooks/useUser';
 
 interface GoogleConfigModalProps {
   open: boolean;
@@ -31,6 +32,10 @@ export function GoogleConfigModal({ open, onOpenChange }: GoogleConfigModalProps
   const [localServices, setLocalServices] = useState<GoogleServiceStatus>(services);
   const [isSaving, setIsSaving] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<GoogleTestConnectionResult | null>(null);
+  const [showCategorizationSettings, setShowCategorizationSettings] = useState(false);
+  const { user } = useUser();
 
   // Sync local state with store
   useEffect(() => {
@@ -78,6 +83,37 @@ export function GoogleConfigModal({ open, onOpenChange }: GoogleConfigModalProps
       toast.error(error.message || 'Failed to disconnect');
     } finally {
       setIsDisconnecting(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      const result = await googleApi.testConnection();
+      setTestResult(result);
+      if (result.allServicesOk) {
+        toast.success('All Google services are working correctly!');
+      } else if (result.connected) {
+        toast.warning('Some services may have issues. Check details below.');
+      } else {
+        toast.error('Connection test failed. Please reconnect your Google account.');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to test connection');
+      setTestResult({
+        success: false,
+        connected: false,
+        message: error.message,
+        services: {
+          userinfo: { ok: false, message: 'Test failed' },
+          gmail: { ok: false, message: 'Test failed' },
+          calendar: { ok: false, message: 'Test failed' },
+          tasks: { ok: false, message: 'Test failed' },
+        },
+      });
+    } finally {
+      setIsTesting(false);
     }
   };
 
@@ -199,6 +235,77 @@ export function GoogleConfigModal({ open, onOpenChange }: GoogleConfigModalProps
         </div>
       </ConfigSection>
 
+      {/* Email Categorization (Fyxer-style) */}
+      <ConfigSection title="Email Categorization">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Sparkles className="w-5 h-5 text-purple-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                  Smart Categorization
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Auto-categorize emails: To Respond, FYI, Marketing
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setShowCategorizationSettings(!showCategorizationSettings)}
+              className="text-xs"
+            >
+              {showCategorizationSettings ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
+          
+          {showCategorizationSettings && (
+            <div className="pt-3 border-t border-gray-100 dark:border-gray-700/50 space-y-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Emails are categorized every 15 minutes. Categories feed into the Slack Sales Assistant for follow-up reminders.
+              </p>
+              
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-2 p-2 rounded bg-green-50 dark:bg-green-900/20">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <span className="text-xs text-green-700 dark:text-green-300">To Respond</span>
+                </div>
+                <div className="flex items-center gap-2 p-2 rounded bg-blue-50 dark:bg-blue-900/20">
+                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                  <span className="text-xs text-blue-700 dark:text-blue-300">FYI</span>
+                </div>
+                <div className="flex items-center gap-2 p-2 rounded bg-orange-50 dark:bg-orange-900/20">
+                  <div className="w-2 h-2 rounded-full bg-orange-500" />
+                  <span className="text-xs text-orange-700 dark:text-orange-300">Marketing</span>
+                </div>
+                <div className="flex items-center gap-2 p-2 rounded bg-purple-50 dark:bg-purple-900/20">
+                  <div className="w-2 h-2 rounded-full bg-purple-500" />
+                  <span className="text-xs text-purple-700 dark:text-purple-300">Automated</span>
+                </div>
+              </div>
+              
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  onOpenChange(false);
+                  navigate('/admin/email-categorization');
+                }}
+                className="w-full text-xs"
+              >
+                <Tag className="w-4 h-4 mr-2" />
+                Configure Categories
+              </Button>
+            </div>
+          )}
+        </div>
+      </ConfigSection>
+
       {/* Connection Info */}
       <ConfigSection title="Connection Info">
         <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
@@ -215,6 +322,75 @@ export function GoogleConfigModal({ open, onOpenChange }: GoogleConfigModalProps
                 Token expires:
               </span>
               <span>{new Date(integration.expires_at).toLocaleDateString()}</span>
+            </div>
+          )}
+        </div>
+      </ConfigSection>
+
+      {/* Test Connection */}
+      <ConfigSection title="Test Connection">
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Verify your Google integration is working correctly by testing all connected services.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleTestConnection}
+            disabled={isTesting || !integration}
+            className="w-full"
+          >
+            {isTesting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Testing...
+              </>
+            ) : (
+              <>
+                <TestTube2 className="w-4 h-4 mr-2" />
+                Test Connection
+              </>
+            )}
+          </Button>
+          
+          {testResult && (
+            <div className="space-y-2 mt-3">
+              <div className="flex items-center gap-2 text-sm">
+                {testResult.allServicesOk ? (
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-amber-500" />
+                )}
+                <span className={testResult.allServicesOk ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}>
+                  {testResult.allServicesOk ? 'All services working' : 'Some services have issues'}
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {Object.entries(testResult.services).map(([service, result]) => (
+                  <div 
+                    key={service}
+                    className={`flex items-center gap-1.5 p-2 rounded ${
+                      result.ok 
+                        ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
+                        : 'bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400'
+                    }`}
+                  >
+                    {result.ok ? (
+                      <CheckCircle className="w-3 h-3" />
+                    ) : (
+                      <XCircle className="w-3 h-3" />
+                    )}
+                    <span className="capitalize">{service}</span>
+                  </div>
+                ))}
+              </div>
+              
+              {testResult.testedAt && (
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  Tested at {new Date(testResult.testedAt).toLocaleTimeString()}
+                </p>
+              )}
             </div>
           )}
         </div>

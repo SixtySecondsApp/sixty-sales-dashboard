@@ -1,4 +1,21 @@
 import { Deal } from '@/lib/database/models';
+import { useOrgStore } from '@/lib/stores/orgStore';
+import { formatMoney, getCurrencySymbol, getDefaultLocaleForCurrency } from '@/lib/services/moneyFormat';
+
+function getActiveOrgMoneyConfig(): { currencyCode: string; locale: string; symbol: string } {
+  try {
+    const state = useOrgStore.getState();
+    const activeOrgId = state.activeOrgId;
+    const activeOrg = activeOrgId ? state.organizations.find((o) => o.id === activeOrgId) : null;
+    const currencyCode = (activeOrg?.currency_code || 'GBP').toUpperCase();
+    const locale = activeOrg?.currency_locale || getDefaultLocaleForCurrency(currencyCode);
+    const symbol = getCurrencySymbol(currencyCode, locale);
+    return { currencyCode, locale, symbol };
+  } catch {
+    // Safe fallback (no org store available / SSR / unexpected error)
+    return { currencyCode: 'GBP', locale: 'en-GB', symbol: '£' };
+  }
+}
 
 /**
  * Calculate the Lifetime Value (LTV) based on revenue model fields
@@ -58,19 +75,14 @@ export function calculateLTVValue(
 }
 
 /**
- * Format currency value to GBP
- * 
- * @param value - The numeric value to format
- * @returns Formatted currency string
+ * Format money using the active organization's currency/locale.
+ *
+ * NOTE: This is a display helper only; it does not convert values between currencies.
  */
 export function formatCurrency(value: number | null | undefined): string {
-  if (value === null || value === undefined) return '£0';
-  return new Intl.NumberFormat('en-GB', { 
-    style: 'currency', 
-    currency: 'GBP',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(value);
+  const { currencyCode, locale, symbol } = getActiveOrgMoneyConfig();
+  if (value === null || value === undefined) return `${symbol}0`;
+  return formatMoney(value, { currencyCode, locale, minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 /**

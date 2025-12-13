@@ -11,6 +11,10 @@ interface TestResult {
 async function runComprehensiveCalendarTest(): Promise<TestResult[]> {
   const results: TestResult[] = [];
   try {
+    // Some calendar tables/RPCs may not be present in the generated Database types yet.
+    // Use an untyped supabase client for those specific calls to avoid blocking builds.
+    const sb: any = supabase;
+
     // ============================================
     // STEP 1: Authentication & Setup
     // ============================================
@@ -65,7 +69,7 @@ async function runComprehensiveCalendarTest(): Promise<TestResult[]> {
     // ============================================
     // STEP 3: Clear existing events (for clean test)
     // ============================================
-    const { error: clearError } = await supabase
+    const { error: clearError } = await sb
       .from('calendar_events')
       .delete()
       .eq('user_id', userData.user.id)
@@ -103,7 +107,7 @@ async function runComprehensiveCalendarTest(): Promise<TestResult[]> {
     // STEP 5: Verify Events in Database
     // ============================================
     // Check events directly in database
-    const { data: dbEvents, error: dbError } = await supabase
+    const { data: dbEvents, error: dbError } = await sb
       .from('calendar_events')
       .select('*')
       .eq('user_id', userData.user.id)
@@ -166,7 +170,7 @@ async function runComprehensiveCalendarTest(): Promise<TestResult[]> {
     // ============================================
     // STEP 7: Test RPC Function
     // ============================================
-    const { data: rpcData, error: rpcError } = await supabase.rpc('get_calendar_events_in_range', {
+    const { data: rpcData, error: rpcError } = await sb.rpc('get_calendar_events_in_range', {
       p_user_id: userData.user.id,
       p_start_date: startDate.toISOString(),
       p_end_date: endDate.toISOString(),
@@ -192,7 +196,7 @@ async function runComprehensiveCalendarTest(): Promise<TestResult[]> {
     // ============================================
     // STEP 8: Check Calendar Configuration
     // ============================================
-    const { data: calendar, error: calendarError } = await supabase
+    const { data: calendar, error: calendarError } = await sb
       .from('calendar_calendars')
       .select('*')
       .eq('user_id', userData.user.id)

@@ -100,6 +100,19 @@ serve(async (req) => {
       throw new Error('Could not determine organization for user');
     }
 
+    // External release hardening:
+    // Ensure the user completing OAuth is actually a member of the org they are connecting.
+    const { data: membershipCheck } = await supabase
+      .from('organization_memberships')
+      .select('role')
+      .eq('org_id', orgId)
+      .eq('user_id', userId)
+      .single();
+
+    if (!membershipCheck?.role) {
+      throw new Error('Unauthorized: user is not a member of this organization');
+    }
+
     // Store in slack_org_settings (org-level)
     const { error: orgSettingsError } = await supabase
       .from('slack_org_settings')

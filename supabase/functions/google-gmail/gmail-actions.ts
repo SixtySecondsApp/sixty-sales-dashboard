@@ -178,6 +178,185 @@ export async function replyToEmail(
   return await response.json();
 }
 
+/**
+ * Create a new label in Gmail
+ * Used for Fyxer-style categorization in modeC (sync labels to Gmail)
+ */
+export async function createLabel(
+  accessToken: string, 
+  name: string,
+  options?: {
+    labelListVisibility?: 'labelShow' | 'labelShowIfUnread' | 'labelHide';
+    messageListVisibility?: 'show' | 'hide';
+    backgroundColor?: string;
+    textColor?: string;
+  }
+): Promise<any> {
+  const body: any = {
+    name,
+    labelListVisibility: options?.labelListVisibility || 'labelShow',
+    messageListVisibility: options?.messageListVisibility || 'show',
+  };
+  
+  // Add color if specified
+  if (options?.backgroundColor || options?.textColor) {
+    body.color = {};
+    if (options.backgroundColor) body.color.backgroundColor = options.backgroundColor;
+    if (options.textColor) body.color.textColor = options.textColor;
+  }
+  
+  const response = await fetch(
+    'https://gmail.googleapis.com/gmail/v1/users/me/labels',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Gmail API error: ${errorData.error?.message || 'Unknown error'}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * Update an existing Gmail label
+ */
+export async function updateLabel(
+  accessToken: string,
+  labelId: string,
+  updates: {
+    name?: string;
+    labelListVisibility?: 'labelShow' | 'labelShowIfUnread' | 'labelHide';
+    messageListVisibility?: 'show' | 'hide';
+    backgroundColor?: string;
+    textColor?: string;
+  }
+): Promise<any> {
+  const body: any = {};
+  
+  if (updates.name) body.name = updates.name;
+  if (updates.labelListVisibility) body.labelListVisibility = updates.labelListVisibility;
+  if (updates.messageListVisibility) body.messageListVisibility = updates.messageListVisibility;
+  
+  if (updates.backgroundColor || updates.textColor) {
+    body.color = {};
+    if (updates.backgroundColor) body.color.backgroundColor = updates.backgroundColor;
+    if (updates.textColor) body.color.textColor = updates.textColor;
+  }
+  
+  const response = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/labels/${labelId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Gmail API error: ${errorData.error?.message || 'Unknown error'}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * Delete a Gmail label
+ */
+export async function deleteLabel(accessToken: string, labelId: string): Promise<void> {
+  const response = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/labels/${labelId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`Gmail API error: ${errorData.error?.message || 'Unknown error'}`);
+  }
+}
+
+/**
+ * Find a label by name (case-insensitive match)
+ * Returns the label if found, null otherwise
+ */
+export async function findLabelByName(
+  accessToken: string,
+  name: string
+): Promise<any | null> {
+  const response = await fetch(
+    'https://gmail.googleapis.com/gmail/v1/users/me/labels',
+    {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Gmail API error: ${errorData.error?.message || 'Unknown error'}`);
+  }
+
+  const data = await response.json();
+  const labels = data.labels || [];
+  
+  // Case-insensitive match
+  const normalizedName = name.toLowerCase();
+  return labels.find((label: any) => label.name?.toLowerCase() === normalizedName) || null;
+}
+
+/**
+ * Create a label if it doesn't exist, or return existing one
+ * Collision-safe: if label exists but isn't Sixty-managed, just return it
+ */
+export async function getOrCreateLabel(
+  accessToken: string,
+  name: string,
+  options?: {
+    labelListVisibility?: 'labelShow' | 'labelShowIfUnread' | 'labelHide';
+    messageListVisibility?: 'show' | 'hide';
+    backgroundColor?: string;
+    textColor?: string;
+  }
+): Promise<{ label: any; created: boolean; isSixtyManaged: boolean }> {
+  // First, try to find existing label
+  const existingLabel = await findLabelByName(accessToken, name);
+  
+  if (existingLabel) {
+    // Label already exists - don't overwrite
+    return {
+      label: existingLabel,
+      created: false,
+      isSixtyManaged: false, // Existing label was not created by us
+    };
+  }
+  
+  // Create new label
+  const newLabel = await createLabel(accessToken, name, options);
+  
+  return {
+    label: newLabel,
+    created: true,
+    isSixtyManaged: true, // We just created it
+  };
+}
+
 export async function forwardEmail(
   accessToken: string,
   messageId: string,

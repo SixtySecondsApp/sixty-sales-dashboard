@@ -1,5 +1,18 @@
+/**
+ * Google Gmail Edge Function
+ * 
+ * Provides Gmail API access for sending, listing, and managing emails.
+ * 
+ * SECURITY:
+ * - POST only (no GET for API actions)
+ * - User JWT authentication OR service-role with userId in body
+ * - Allowlist-based CORS
+ */
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { getCorsHeaders, handleCorsPreflightRequest, jsonResponse, errorResponse } from '../_shared/corsHelper.ts';
+import { authenticateRequest } from '../_shared/edgeAuth.ts';
 import { 
   modifyEmail,
   archiveEmail,
@@ -8,7 +21,12 @@ import {
   markAsRead,
   getFullLabel,
   replyToEmail,
-  forwardEmail
+  forwardEmail,
+  createLabel,
+  updateLabel,
+  deleteLabel,
+  findLabelByName,
+  getOrCreateLabel
 } from './gmail-actions.ts';
 
 async function refreshAccessToken(refreshToken: string, supabase: any, userId: string): Promise<string> {
@@ -53,14 +71,6 @@ async function refreshAccessToken(refreshToken: string, supabase: any, userId: s
   return data.access_token;
 }
 
-// Import shared CORS headers for consistency
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Expose-Headers': 'x-ratelimit-limit, x-ratelimit-remaining, x-ratelimit-reset'
-};
-
 interface SendEmailRequest {
   to: string;
   subject: string;
@@ -79,37 +89,42 @@ interface GetMessageRequest {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  // Handle CORS preflight
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) {
+    return preflightResponse;
   }
 
-  if (req.method !== 'POST' && req.method !== 'GET') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { 
-      status: 405,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json'
-      }
-    });
+  // POST only
+  if (req.method !== 'POST') {
+    return errorResponse('Method not allowed. Use POST.', req, 405);
   }
 
-  // Parse request based on method and URL (outside try block for error handling)
+  // Parse URL and body for action
   const url = new URL(req.url);
   let action = url.searchParams.get('action');
   let requestBody: any = {};
 
   try {
-    // Get the authorization header
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('No authorization header');
+    // Parse request body
+    try {
+      requestBody = await req.json();
+      // If action not in URL, get it from body
+      if (!action && requestBody.action) {
+        action = requestBody.action;
+      }
+    } catch (parseError) {
+      throw new Error('Invalid JSON in request body');
     }
 
-    // Initialize Supabase client
+    // Initialize Supabase client with service role
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Server configuration error');
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         persistSession: false,
@@ -117,18 +132,21 @@ serve(async (req) => {
       },
     });
 
-    // Verify the JWT and get user
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      throw new Error('Invalid authentication token');
-    }
+    // Authenticate - supports both user JWT and service role with userId
+    const { userId, mode } = await authenticateRequest(
+      req,
+      supabase,
+      supabaseServiceKey,
+      requestBody.userId
+    );
+
+    console.log(`[google-gmail] Authenticated as ${mode}, userId: ${userId}, action: ${action}`);
+
     // Get user's Google integration
     const { data: integration, error: integrationError } = await supabase
       .from('google_integrations')
-      .select('access_token, refresh_token, expires_at')
-      .eq('user_id', user.id)
+      .select('access_token, refresh_token, expires_at, id')
+      .eq('user_id', userId)
       .eq('is_active', true)
       .single();
 
@@ -142,20 +160,7 @@ serve(async (req) => {
     let accessToken = integration.access_token;
     
     if (expiresAt <= now) {
-      accessToken = await refreshAccessToken(integration.refresh_token, supabase, user.id);
-    }
-
-    // Support action from both URL params and request body
-    if (req.method === 'POST') {
-      try {
-        requestBody = await req.json();
-        // If action not in URL, get it from body
-        if (!action && requestBody.action) {
-          action = requestBody.action;
-        }
-      } catch (parseError) {
-        throw new Error('Invalid JSON in request body');
-      }
+      accessToken = await refreshAccessToken(integration.refresh_token, supabase, userId);
     }
 
     let response;
@@ -178,9 +183,6 @@ serve(async (req) => {
         break;
       
       case 'list-labels':
-        response = await getLabels(accessToken);
-        break;
-      
       case 'labels':
         response = await getLabels(accessToken);
         break;
@@ -197,16 +199,9 @@ serve(async (req) => {
         break;
       
       case 'delete':
+      case 'trash':
         if (!requestBody.messageId) {
           throw new Error('messageId is required for delete action');
-        }
-        response = await trashEmail(accessToken, requestBody.messageId);
-        break;
-      
-      case 'trash':
-        // Keep for backward compatibility
-        if (!requestBody.messageId) {
-          throw new Error('messageId is required for trash action');
         }
         response = await trashEmail(accessToken, requestBody.messageId);
         break;
@@ -222,22 +217,12 @@ serve(async (req) => {
         break;
       
       case 'mark-as-read':
-        if (!requestBody.messageId || typeof requestBody.messageId !== 'string' || requestBody.messageId.trim() === '') {
-          throw new Error('messageId is required and must be a non-empty string for mark-as-read action');
-        }
-        if (typeof requestBody.read !== 'boolean') {
-          throw new Error('read must be a boolean for mark-as-read action');
-        }
-        response = await markAsRead(accessToken, requestBody.messageId.trim(), requestBody.read);
-        break;
-      
       case 'markAsRead':
-        // Keep for backward compatibility
         if (!requestBody.messageId || typeof requestBody.messageId !== 'string' || requestBody.messageId.trim() === '') {
-          throw new Error('messageId is required and must be a non-empty string for markAsRead action');
+          throw new Error('messageId is required and must be a non-empty string');
         }
         if (typeof requestBody.read !== 'boolean') {
-          throw new Error('read must be a boolean for markAsRead action');
+          throw new Error('read must be a boolean');
         }
         response = await markAsRead(accessToken, requestBody.messageId.trim(), requestBody.read);
         break;
@@ -274,7 +259,60 @@ serve(async (req) => {
         break;
       
       case 'sync':
-        response = await syncEmailsToContacts(accessToken, supabase, user.id, integration.id);
+        response = await syncEmailsToContacts(accessToken, supabase, userId, integration.id);
+        break;
+      
+      // Label management actions for Fyxer-style categorization
+      case 'create-label':
+        if (!requestBody.name) {
+          throw new Error('name is required for create-label action');
+        }
+        response = await createLabel(accessToken, requestBody.name, {
+          labelListVisibility: requestBody.labelListVisibility,
+          messageListVisibility: requestBody.messageListVisibility,
+          backgroundColor: requestBody.backgroundColor,
+          textColor: requestBody.textColor,
+        });
+        break;
+      
+      case 'update-label':
+        if (!requestBody.labelId) {
+          throw new Error('labelId is required for update-label action');
+        }
+        response = await updateLabel(accessToken, requestBody.labelId, {
+          name: requestBody.name,
+          labelListVisibility: requestBody.labelListVisibility,
+          messageListVisibility: requestBody.messageListVisibility,
+          backgroundColor: requestBody.backgroundColor,
+          textColor: requestBody.textColor,
+        });
+        break;
+      
+      case 'delete-label':
+        if (!requestBody.labelId) {
+          throw new Error('labelId is required for delete-label action');
+        }
+        await deleteLabel(accessToken, requestBody.labelId);
+        response = { success: true, message: 'Label deleted' };
+        break;
+      
+      case 'find-label':
+        if (!requestBody.name) {
+          throw new Error('name is required for find-label action');
+        }
+        response = await findLabelByName(accessToken, requestBody.name);
+        break;
+      
+      case 'get-or-create-label':
+        if (!requestBody.name) {
+          throw new Error('name is required for get-or-create-label action');
+        }
+        response = await getOrCreateLabel(accessToken, requestBody.name, {
+          labelListVisibility: requestBody.labelListVisibility,
+          messageListVisibility: requestBody.messageListVisibility,
+          backgroundColor: requestBody.backgroundColor,
+          textColor: requestBody.textColor,
+        });
         break;
       
       default:
@@ -290,57 +328,35 @@ serve(async (req) => {
     await supabase
       .from('google_service_logs')
       .insert({
-        integration_id: null, // We'd need to get this from the integration
+        integration_id: integration.id,
         service: 'gmail',
-        action: action || 'unknown',
+        action: action || 'list',
         status: 'success',
-        request_data: requestBody,
+        request_data: { action, userId },
         response_data: { success: true },
+      }).catch(() => {
+        // Non-critical
       });
 
-    return new Response(
-      JSON.stringify(response),
-      {
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        },
-      }
-    );
+    return jsonResponse(response, req);
 
-  } catch (error) {
-    // Log error details for debugging
+  } catch (error: any) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
-
     console.error('[google-gmail] Error:', {
       message: errorMessage,
-      stack: errorStack,
-      action: action || url.searchParams.get('action') || 'unknown',
-      requestBody: req.method === 'POST' ? requestBody : null,
-      url: req.url
+      action: action || 'unknown',
     });
     
-    return new Response(
-      JSON.stringify({ 
-        success: false,
-        error: errorMessage,
-        details: 'Gmail service error',
-        action: action || url.searchParams.get('action') || 'unknown'
-      }),
-      {
-        status: 200, // Return 200 to allow client to parse the error message
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        },
-      }
-    );
+    return jsonResponse({ 
+      success: false,
+      error: errorMessage,
+      details: 'Gmail service error',
+      action: action || 'unknown'
+    }, req, 200); // Return 200 to allow client to parse the error message
   }
 });
 
 async function sendEmail(accessToken: string, request: SendEmailRequest): Promise<any> {
-  // Create the email message in RFC 2822 format
   const emailLines = [
     `To: ${request.to}`,
     `Subject: ${request.subject}`,
@@ -351,7 +367,6 @@ async function sendEmail(accessToken: string, request: SendEmailRequest): Promis
   
   const emailMessage = emailLines.join('\r\n');
   
-  // Base64 encode the message (URL-safe)
   const encodedMessage = btoa(emailMessage)
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
@@ -387,7 +402,6 @@ async function listEmails(accessToken: string, request: ListEmailsRequest): Prom
   if (request.maxResults) params.set('maxResults', request.maxResults.toString());
   if (request.pageToken) params.set('pageToken', request.pageToken);
 
-  // First, get the list of message IDs
   const listResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -400,7 +414,7 @@ async function listEmails(accessToken: string, request: ListEmailsRequest): Prom
   }
 
   const listData = await listResponse.json();
-  // If no messages, return empty array
+  
   if (!listData.messages || listData.messages.length === 0) {
     return {
       messages: [],
@@ -409,7 +423,7 @@ async function listEmails(accessToken: string, request: ListEmailsRequest): Prom
     };
   }
   
-  // Now fetch full details for each message (limit to first 10 for performance)
+  // Fetch full details for first 10 messages
   const messagePromises = listData.messages.slice(0, 10).map(async (msg: any) => {
     try {
       const messageResponse = await fetch(
@@ -422,13 +436,12 @@ async function listEmails(accessToken: string, request: ListEmailsRequest): Prom
       );
       
       if (!messageResponse.ok) {
-        return msg; // Return the basic message if fetch fails
+        return msg;
       }
       
-      const fullMessage = await messageResponse.json();
-      return fullMessage;
+      return await messageResponse.json();
     } catch (error) {
-      return msg; // Return the basic message if error occurs
+      return msg;
     }
   });
   
@@ -453,13 +466,12 @@ async function getLabels(accessToken: string): Promise<any> {
   }
 
   const data = await response.json();
-  // Fetch full details for each label to get colors and other metadata
+  
   const labelPromises = data.labels?.map(async (label: any) => {
     try {
-      const fullLabel = await getFullLabel(accessToken, label.id);
-      return fullLabel;
+      return await getFullLabel(accessToken, label.id);
     } catch (error) {
-      return label; // Return basic label if fetch fails
+      return label;
     }
   }) || [];
   
@@ -478,14 +490,13 @@ async function syncEmailsToContacts(
 ): Promise<any> {
   try {
     // Get or create sync status
-    let { data: syncStatus, error: statusError } = await supabase
+    let { data: syncStatus } = await supabase
       .from('email_sync_status')
       .select('*')
       .eq('integration_id', integrationId)
       .single();
     
-    if (statusError || !syncStatus) {
-      // Create new sync status
+    if (!syncStatus) {
       const { data: newStatus, error: createError } = await supabase
         .from('email_sync_status')
         .insert({
@@ -519,13 +530,12 @@ async function syncEmailsToContacts(
     }
     
     // Build email search query
-    const emailAddresses = contacts.map(c => c.email).filter(Boolean);
-    const query = emailAddresses.map(email => `from:${email} OR to:${email}`).join(' OR ');
+    const emailAddresses = contacts.map((c: any) => c.email).filter(Boolean);
+    const query = emailAddresses.map((email: string) => `from:${email} OR to:${email}`).join(' OR ');
     
-    // Fetch emails from Gmail
     const params = new URLSearchParams({
       q: query,
-      maxResults: '50', // Limit for initial sync
+      maxResults: '50',
     });
     
     if (syncStatus.next_page_token) {
@@ -548,9 +558,8 @@ async function syncEmailsToContacts(
     let syncedCount = 0;
     
     // Process each message
-    for (const message of messages.slice(0, 10)) { // Limit to 10 for now
+    for (const message of messages.slice(0, 10)) {
       try {
-        // Get full message details
         const msgResponse = await fetch(
           `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
           {
@@ -564,7 +573,6 @@ async function syncEmailsToContacts(
         
         const msgData = await msgResponse.json();
         
-        // Extract email details
         const headers = msgData.payload?.headers || [];
         const fromHeader = headers.find((h: any) => h.name === 'From');
         const toHeader = headers.find((h: any) => h.name === 'To');
@@ -573,23 +581,19 @@ async function syncEmailsToContacts(
         
         if (!fromHeader || !toHeader) continue;
         
-        // Parse email addresses
         const fromEmail = extractEmail(fromHeader.value);
         const toEmails = extractEmails(toHeader.value);
         
-        // Determine direction and find matching contact
         let contactId = null;
         let direction = 'inbound';
         
-        // Check if from email matches a contact
-        const fromContact = contacts.find(c => c.email?.toLowerCase() === fromEmail.toLowerCase());
+        const fromContact = contacts.find((c: any) => c.email?.toLowerCase() === fromEmail.toLowerCase());
         if (fromContact) {
           contactId = fromContact.id;
           direction = 'inbound';
         } else {
-          // Check if any to email matches a contact
           for (const toEmail of toEmails) {
-            const toContact = contacts.find(c => c.email?.toLowerCase() === toEmail.toLowerCase());
+            const toContact = contacts.find((c: any) => c.email?.toLowerCase() === toEmail.toLowerCase());
             if (toContact) {
               contactId = toContact.id;
               direction = 'outbound';
@@ -600,10 +604,8 @@ async function syncEmailsToContacts(
         
         if (!contactId) continue;
         
-        // Extract body
         const body = extractBody(msgData.payload);
         
-        // Store in database
         const { error: insertError } = await supabase
           .from('contact_emails')
           .upsert({
@@ -628,6 +630,7 @@ async function syncEmailsToContacts(
           syncedCount++;
         }
       } catch (err) {
+        // Continue with other messages
       }
     }
     
@@ -641,17 +644,17 @@ async function syncEmailsToContacts(
         updated_at: new Date().toISOString(),
       })
       .eq('integration_id', integrationId);
+
     return {
       success: true,
       syncedCount,
       totalMessages: messages.length,
       hasMore: !!data.nextPageToken,
     };
-  } catch (error) {
+  } catch (error: any) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     
     // Update sync status with error
-    // First, get the current consecutive_errors value
     const { data: currentStatus } = await supabase
       .from('email_sync_status')
       .select('consecutive_errors')
@@ -689,13 +692,11 @@ function extractName(emailString: string): string {
   return match ? match[1].trim() : '';
 }
 
-function extractBody(payload: any): { text: string; html?: string } {
-  if (!payload) return { text: '' };
+function extractBody(payload: any): string {
+  if (!payload) return '';
   
   let textBody = '';
-  let htmlBody = '';
   
-  // Helper to decode base64
   const decodeBase64 = (data: string) => {
     try {
       return atob(data.replace(/-/g, '+').replace(/_/g, '/'));
@@ -704,45 +705,23 @@ function extractBody(payload: any): { text: string; html?: string } {
     }
   };
   
-  // Helper to recursively extract from parts
   const extractFromParts = (parts: any[]) => {
     for (const part of parts) {
       if (part.mimeType === 'text/plain' && part.body?.data) {
         textBody = decodeBase64(part.body.data);
-      } else if (part.mimeType === 'text/html' && part.body?.data) {
-        htmlBody = decodeBase64(part.body.data);
       } else if (part.parts) {
         extractFromParts(part.parts);
       }
     }
   };
   
-  // Check if payload has parts
   if (payload.parts) {
     extractFromParts(payload.parts);
   } else if (payload.mimeType === 'text/plain' && payload.body?.data) {
     textBody = decodeBase64(payload.body.data);
-  } else if (payload.mimeType === 'text/html' && payload.body?.data) {
-    htmlBody = decodeBase64(payload.body.data);
   }
   
-  return {
-    text: textBody || (htmlBody ? stripHtml(htmlBody) : ''),
-    html: htmlBody || undefined
-  };
-}
-
-function stripHtml(html: string): string {
-  // Simple HTML stripping - remove tags and decode entities
-  return html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .trim();
+  return textBody;
 }
 
 async function getMessage(accessToken: string, request: GetMessageRequest): Promise<any> {
@@ -750,25 +729,23 @@ async function getMessage(accessToken: string, request: GetMessageRequest): Prom
     throw new Error('messageId is required');
   }
   
-  try {
-    const response = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${request.messageId}?format=full`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const errorMessage = errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
-      throw new Error(`Gmail API error: ${errorMessage}`);
+  const response = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${request.messageId}?format=full`,
+    {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
     }
+  );
 
-    const message = await response.json();
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const errorMessage = errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
+    throw new Error(`Gmail API error: ${errorMessage}`);
+  }
+
+  const message = await response.json();
   
-  // Extract headers
   const headers = message.payload?.headers || [];
   const fromHeader = headers.find((h: any) => h.name?.toLowerCase() === 'from')?.value || '';
   const subject = headers.find((h: any) => h.name?.toLowerCase() === 'subject')?.value || '(No Subject)';
@@ -777,15 +754,12 @@ async function getMessage(accessToken: string, request: GetMessageRequest): Prom
   const ccHeader = headers.find((h: any) => h.name?.toLowerCase() === 'cc')?.value || '';
   const replyToHeader = headers.find((h: any) => h.name?.toLowerCase() === 'reply-to')?.value || '';
   
-  // Parse sender
   const fromMatch = fromHeader.match(/^(.+?)\s*<(.+)>$/);
   const fromName = fromMatch ? fromMatch[1].replace(/"/g, '') : fromHeader.split('@')[0];
   const fromEmail = fromMatch ? fromMatch[2] : fromHeader;
   
-  // Extract body
-  const bodyData = extractBody(message.payload);
+  const bodyText = extractBody(message.payload);
   
-  // Parse date
   let timestamp = new Date();
   if (dateHeader) {
     const parsedDate = new Date(dateHeader);
@@ -796,7 +770,6 @@ async function getMessage(accessToken: string, request: GetMessageRequest): Prom
     timestamp = new Date(parseInt(message.internalDate));
   }
   
-  // Extract attachments
   const attachments: any[] = [];
   const extractAttachments = (parts: any[]) => {
     for (const part of parts) {
@@ -824,8 +797,7 @@ async function getMessage(accessToken: string, request: GetMessageRequest): Prom
     from: fromEmail,
     fromName,
     subject,
-    body: bodyData.text,
-    bodyHtml: bodyData.html,
+    body: bodyText,
     timestamp: timestamp.toISOString(),
     read: !message.labelIds?.includes('UNREAD'),
     starred: message.labelIds?.includes('STARRED'),
@@ -836,8 +808,4 @@ async function getMessage(accessToken: string, request: GetMessageRequest): Prom
     attachments,
     snippet: message.snippet || ''
   };
-  } catch (error: any) {
-    console.error('[getMessage] Error:', error);
-    throw error instanceof Error ? error : new Error(`Failed to get message: ${error?.message || 'Unknown error'}`);
-  }
 }

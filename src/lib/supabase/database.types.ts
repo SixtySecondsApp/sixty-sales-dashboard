@@ -6962,24 +6962,66 @@ export type Database = {
       }
       organizations: {
         Row: {
+          company_bio: string | null
+          company_country_code: string | null
+          company_domain: string | null
+          company_enriched_at: string | null
+          company_enrichment_confidence: number | null
+          company_enrichment_raw: Json | null
+          company_enrichment_status: string
+          company_industry: string | null
+          company_linkedin_url: string | null
+          company_size: string | null
+          company_timezone: string | null
+          company_website: string | null
           created_at: string | null
           created_by: string | null
+          currency_code: string
+          currency_locale: string
           id: string
           is_active: boolean | null
           name: string
           updated_at: string | null
         }
         Insert: {
+          company_bio?: string | null
+          company_country_code?: string | null
+          company_domain?: string | null
+          company_enriched_at?: string | null
+          company_enrichment_confidence?: number | null
+          company_enrichment_raw?: Json | null
+          company_enrichment_status?: string
+          company_industry?: string | null
+          company_linkedin_url?: string | null
+          company_size?: string | null
+          company_timezone?: string | null
+          company_website?: string | null
           created_at?: string | null
           created_by?: string | null
+          currency_code?: string
+          currency_locale?: string
           id?: string
           is_active?: boolean | null
           name: string
           updated_at?: string | null
         }
         Update: {
+          company_bio?: string | null
+          company_country_code?: string | null
+          company_domain?: string | null
+          company_enriched_at?: string | null
+          company_enrichment_confidence?: number | null
+          company_enrichment_raw?: Json | null
+          company_enrichment_status?: string
+          company_industry?: string | null
+          company_linkedin_url?: string | null
+          company_size?: string | null
+          company_timezone?: string | null
+          company_website?: string | null
           created_at?: string | null
           created_by?: string | null
+          currency_code?: string
+          currency_locale?: string
           id?: string
           is_active?: boolean | null
           name?: string
@@ -7137,6 +7179,7 @@ export type Database = {
         Row: {
           auth_provider: string | null
           avatar_url: string | null
+          bio: string | null
           clerk_user_id: string | null
           created_at: string | null
           email: string
@@ -7151,6 +7194,7 @@ export type Database = {
         Insert: {
           auth_provider?: string | null
           avatar_url?: string | null
+          bio?: string | null
           clerk_user_id?: string | null
           created_at?: string | null
           email: string
@@ -7165,6 +7209,7 @@ export type Database = {
         Update: {
           auth_provider?: string | null
           avatar_url?: string | null
+          bio?: string | null
           clerk_user_id?: string | null
           created_at?: string | null
           email?: string

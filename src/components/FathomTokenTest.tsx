@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
+import { toast } from 'sonner';
 
 /**
  * Fathom Token Test Component
@@ -23,11 +24,14 @@ export function FathomTokenTest() {
       }
       setResult(data);
 
-      // Show user-friendly alert
       if (data.success) {
-        alert(`✅ Success!\n\nYour Fathom token is valid and working.\n\nMeetings found: ${data.api_test?.meetings_count || 0}\n\nYou can now run a full sync.`);
+        toast.success('Fathom token valid', {
+          description: `Meetings found: ${(data.api_test?.meetings_count || 0).toLocaleString()}`,
+        });
       } else {
-        alert(`❌ Token Invalid\n\n${data.message}\n\nRecommendation: ${data.recommendation || 'Reconnect your Fathom account'}`);
+        toast.error('Fathom token invalid', {
+          description: data.message || data.recommendation || 'Reconnect your Fathom account',
+        });
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -36,7 +40,7 @@ export function FathomTokenTest() {
         error: errorMessage,
         details: error
       });
-      alert(`❌ Test Failed\n\nError: ${errorMessage}\n\nCheck the browser console for details.`);
+      toast.error('Fathom token test failed', { description: errorMessage });
     } finally {
       setTesting(false);
     }

@@ -4,14 +4,10 @@ import {
   Heart, 
   Building2, 
   User, 
-  Calendar,
-  TrendingUp,
   Clock,
   Edit,
   Trash2,
   ChevronRight,
-  DollarSign,
-  Target,
   Star
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import type { DealWithRelationships } from '@/lib/hooks/deals/types/dealTypes';
 import { extractDomainFromDeal } from '@/lib/utils/domainUtils';
 import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
+import { formatCurrency } from '@/lib/utils/calculations';
 
 interface DealCardProps {
   deal: DealWithRelationships;
@@ -46,12 +43,12 @@ const DealCard: React.FC<DealCardProps> = ({
 
   // Extract domain for logo
   const domainForLogo = useMemo(() => {
-    return extractDomainFromDeal({
-      companies: deal.companies,
-      company: deal.company,
-      contact_email: deal.contact_email,
-      company_website: deal.company_website,
-    });
+    const input: any = {};
+    if (deal.companies) input.companies = deal.companies;
+    if (deal.company) input.company = deal.company;
+    if (deal.contact_email) input.contact_email = deal.contact_email;
+    if (deal.company_website) input.company_website = deal.company_website;
+    return extractDomainFromDeal(input);
   }, [deal.companies, deal.company, deal.contact_email, deal.company_website]);
 
   const { logoUrl, isLoading } = useCompanyLogo(domainForLogo);
@@ -98,15 +95,6 @@ const DealCard: React.FC<DealCardProps> = ({
       default:
         return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
     }
-  };
-
-  // Format currency
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-GB', {
-      style: 'currency',
-      currency: 'GBP',
-      maximumFractionDigits: 0
-    }).format(value);
   };
 
   // Calculate days in stage

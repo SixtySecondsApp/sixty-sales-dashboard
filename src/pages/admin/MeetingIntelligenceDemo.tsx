@@ -51,6 +51,7 @@ import {
   Workflow,
   ArrowRight,
   ArrowDown,
+  ArrowLeft,
   Phone,
   Mic,
   MessageSquare,
@@ -81,6 +82,18 @@ import {
   Hash,
   Database,
   Wand2,
+  // Icons for pre-call and sales assistant
+  CalendarClock,
+  Inbox,
+  Tag,
+  Bot,
+  BellRing,
+  UserCheck,
+  MessageCircle,
+  Ghost,
+  AlertOctagon,
+  HeartPulse,
+  Shield,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -90,6 +103,8 @@ import { useOrg } from '@/lib/contexts/OrgContext';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { CallTypeService, OrgCallType } from '@/lib/services/callTypeService';
 import { useWorkflowResults, WorkflowConfig, WorkflowChecklistItem, useOrgCallTypes } from '@/lib/hooks/useWorkflowResults';
+import { SalesIntelligenceHealthPanel } from '../../components/admin/SalesIntelligenceHealthPanel';
+import { SalesIntelligenceAuditPanel } from '../../components/admin/SalesIntelligenceAuditPanel';
 
 const LazyCallTypeWorkflowEditor = React.lazy(async () => {
   const mod = await import('@/components/admin/CallTypeWorkflowEditor');
@@ -217,9 +232,9 @@ function TestCard({
 }
 
 export default function MeetingIntelligenceDemo() {
-  const { org } = useOrg();
+  const { activeOrg } = useOrg();
   const { user } = useAuth();
-  const orgIdFromContext = org?.id ?? null;
+  const orgIdFromContext = activeOrg?.id ?? null;
   const [orgIdOverride, setOrgIdOverride] = useState<string>(() => {
     try {
       return localStorage.getItem('mi_demo_org_id_override') || '';
@@ -232,6 +247,7 @@ export default function MeetingIntelligenceDemo() {
 
   // State
   const [activeTab, setActiveTab] = useState('overview');
+  const [auditFocusKey, setAuditFocusKey] = useState<string | null>(null);
   const [callTypes, setCallTypes] = useState<OrgCallType[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [pipelineRules, setPipelineRules] = useState<PipelineRule[]>([]);
@@ -289,8 +305,7 @@ export default function MeetingIntelligenceDemo() {
 
     // Load pipeline automation rules
     try {
-      const { data: rulesData, error: rulesError } = await (supabase
-        .from('pipeline_automation_rules') as any)
+      const { data: rulesData, error: rulesError } = await (supabase.from as any)('pipeline_automation_rules')
         .select('*')
         .eq('org_id', effectiveOrgId)
         .order('created_at', { ascending: false });
@@ -306,8 +321,7 @@ export default function MeetingIntelligenceDemo() {
 
     // Load recent workflow results
     try {
-      const { data: resultsData, error: resultsError } = await (supabase
-        .from('meeting_workflow_results') as any)
+      const { data: resultsData, error: resultsError } = await (supabase.from as any)('meeting_workflow_results')
         .select('*')
         .eq('org_id', effectiveOrgId)
         .order('created_at', { ascending: false })
@@ -533,8 +547,7 @@ export default function MeetingIntelligenceDemo() {
 
   const toggleRuleActive = async (ruleId: string, isActive: boolean) => {
     try {
-      const { error } = await (supabase
-        .from('pipeline_automation_rules') as any)
+      const { error } = await (supabase.from as any)('pipeline_automation_rules')
         .update({ is_active: !isActive })
         .eq('id', ruleId);
 
@@ -715,14 +728,30 @@ export default function MeetingIntelligenceDemo() {
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <div className="overflow-x-auto">
-          <TabsList className="inline-flex w-auto min-w-full md:grid md:w-full md:grid-cols-9 gap-1">
+          <TabsList className="inline-flex w-auto min-w-full md:grid md:w-full md:grid-cols-13 gap-1">
             <TabsTrigger value="overview" className="flex items-center gap-2 whitespace-nowrap">
               <Eye className="h-4 w-4" />
               Overview
             </TabsTrigger>
+            <TabsTrigger value="pre-call" className="flex items-center gap-2 whitespace-nowrap">
+              <CalendarClock className="h-4 w-4" />
+              Pre-Call
+            </TabsTrigger>
             <TabsTrigger value="ai-analysis" className="flex items-center gap-2 whitespace-nowrap">
               <BarChart3 className="h-4 w-4" />
               AI Analysis
+            </TabsTrigger>
+            <TabsTrigger value="sales-assistant" className="flex items-center gap-2 whitespace-nowrap">
+              <Bot className="h-4 w-4" />
+              Sales Assistant
+            </TabsTrigger>
+            <TabsTrigger value="health" className="flex items-center gap-2 whitespace-nowrap">
+              <HeartPulse className="h-4 w-4" />
+              Health & Signals
+            </TabsTrigger>
+            <TabsTrigger value="audit" className="flex items-center gap-2 whitespace-nowrap">
+              <Shield className="h-4 w-4" />
+              Audit
             </TabsTrigger>
             <TabsTrigger value="proposals" className="flex items-center gap-2 whitespace-nowrap">
               <FileSignature className="h-4 w-4" />
@@ -757,6 +786,111 @@ export default function MeetingIntelligenceDemo() {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
+          {/* Split Journey Header: Pre vs Post */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="border-2 border-blue-500/20 bg-blue-50/50 dark:bg-blue-950/20">
+              <CardContent className="py-6">
+                <div className="space-y-2">
+                  <h2 className="text-xl font-bold flex items-center gap-3">
+                    <CalendarClock className="h-6 w-6 text-blue-500" />
+                    <span>Pre‑Call Intelligence</span>
+                  </h2>
+                  <p className="text-muted-foreground">
+                    Sixty prepares you before the meeting with fresh calendar + email context and a concise briefing.
+                  </p>
+                </div>
+                <div className="flex gap-3 mt-5">
+                  <Button variant="default" onClick={() => setActiveTab('pre-call')}>
+                    View Pre‑Call
+                  </Button>
+                  <Button variant="outline" onClick={() => setActiveTab('sales-assistant')}>
+                    <Bot className="h-4 w-4 mr-2" />
+                    Slack Assistant
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 border-purple-500/20 bg-purple-50/50 dark:bg-purple-950/20">
+              <CardContent className="py-6">
+                <div className="space-y-2">
+                  <h2 className="text-xl font-bold flex items-center gap-3">
+                    <Mic className="h-6 w-6 text-purple-500" />
+                    <span>Post‑Call Intelligence</span>
+                  </h2>
+                  <p className="text-muted-foreground">
+                    Sixty acts as your AI sales agent after the call: extracts insights, updates CRM signals, and nudges follow‑ups.
+                  </p>
+                </div>
+                <div className="flex gap-3 mt-5">
+                  <Button variant="default" onClick={() => setActiveTab('ai-analysis')}>
+                    View Post‑Call
+                  </Button>
+                  <Button variant="outline" onClick={() => setActiveTab('audit')}>
+                    <Shield className="h-4 w-4 mr-2" />
+                    Audit & Tests
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Pre-Call Summary */}
+          <Card className="border-2 border-blue-500/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <CalendarClock className="h-6 w-6 text-blue-500" />
+                Before Every Call
+                <Badge variant="secondary" className="ml-2">Every 15 min</Badge>
+              </CardTitle>
+              <CardDescription className="text-base">
+                Context gathered automatically to prepare you for each meeting
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                  <Calendar className="h-5 w-5 text-blue-500" />
+                  <div>
+                    <p className="font-medium text-xs">Calendar Sync</p>
+                    <p className="text-[10px] text-muted-foreground">15 min intervals</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
+                  <Mail className="h-5 w-5 text-green-500" />
+                  <div>
+                    <p className="font-medium text-xs">Email Categorized</p>
+                    <p className="text-[10px] text-muted-foreground">AI-sorted inbox</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800">
+                  <UserCheck className="h-5 w-5 text-purple-500" />
+                  <div>
+                    <p className="font-medium text-xs">Contact Matched</p>
+                    <p className="text-[10px] text-muted-foreground">CRM linked</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800">
+                  <Target className="h-5 w-5 text-orange-500" />
+                  <div>
+                    <p className="font-medium text-xs">Deal Context</p>
+                    <p className="text-[10px] text-muted-foreground">Stage & history</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800">
+                  <Slack className="h-5 w-5 text-cyan-500" />
+                  <div>
+                    <p className="font-medium text-xs">Prep via Slack</p>
+                    <p className="text-[10px] text-muted-foreground">DM briefing</p>
+                  </div>
+                </div>
+              </div>
+              <Button variant="link" className="mt-3 p-0 h-auto text-xs" onClick={() => setActiveTab('pre-call')}>
+                View Pre-Call Details →
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* What Happens After a Call - Visual Timeline */}
           <Card className="border-2 border-primary/20">
             <CardHeader className="pb-2">
@@ -1434,6 +1568,610 @@ export default function MeetingIntelligenceDemo() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Pre-Call Intelligence Tab - NEW */}
+        <TabsContent value="pre-call" className="space-y-6">
+          {/* Pre-Call Timeline */}
+          <Card className="border-2 border-primary/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <CalendarClock className="h-6 w-6 text-primary" />
+                What Happens Before Every Call
+              </CardTitle>
+              <CardDescription className="text-base">
+                Intelligence gathered automatically to prepare you for every meeting
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Pre-Call Timeline */}
+              <div className="relative">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  {/* Step 1: Calendar Sync */}
+                  <div className="relative">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="w-14 h-14 rounded-full bg-blue-500/10 flex items-center justify-center mb-3 ring-4 ring-blue-500/20">
+                        <Calendar className="h-7 w-7 text-blue-500" />
+                      </div>
+                      <Badge className="mb-2 bg-blue-500">15 min sync</Badge>
+                      <h4 className="font-semibold text-sm">Calendar Scanned</h4>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Upcoming meetings identified every 15 minutes
+                      </p>
+                    </div>
+                    <ArrowRight className="hidden md:block absolute -right-2 top-6 h-5 w-5 text-muted-foreground" />
+                  </div>
+
+                  {/* Step 2: Contact Lookup */}
+                  <div className="relative">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="w-14 h-14 rounded-full bg-green-500/10 flex items-center justify-center mb-3 ring-4 ring-green-500/20">
+                        <UserCheck className="h-7 w-7 text-green-500" />
+                      </div>
+                      <Badge className="mb-2 bg-green-500">Auto</Badge>
+                      <h4 className="font-semibold text-sm">Contact Matched</h4>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Attendees linked to CRM contacts
+                      </p>
+                    </div>
+                    <ArrowRight className="hidden md:block absolute -right-2 top-6 h-5 w-5 text-muted-foreground" />
+                  </div>
+
+                  {/* Step 3: Email Context */}
+                  <div className="relative">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="w-14 h-14 rounded-full bg-purple-500/10 flex items-center justify-center mb-3 ring-4 ring-purple-500/20">
+                        <Mail className="h-7 w-7 text-purple-500" />
+                      </div>
+                      <Badge className="mb-2 bg-purple-500">AI</Badge>
+                      <h4 className="font-semibold text-sm">Email Categorized</h4>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Recent emails sorted by priority
+                      </p>
+                    </div>
+                    <ArrowRight className="hidden md:block absolute -right-2 top-6 h-5 w-5 text-muted-foreground" />
+                  </div>
+
+                  {/* Step 4: Deal Context */}
+                  <div className="relative">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="w-14 h-14 rounded-full bg-orange-500/10 flex items-center justify-center mb-3 ring-4 ring-orange-500/20">
+                        <Target className="h-7 w-7 text-orange-500" />
+                      </div>
+                      <Badge className="mb-2 bg-orange-500">CRM</Badge>
+                      <h4 className="font-semibold text-sm">Deal Context</h4>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Pipeline stage, history, and value
+                      </p>
+                    </div>
+                    <ArrowRight className="hidden md:block absolute -right-2 top-6 h-5 w-5 text-muted-foreground" />
+                  </div>
+
+                  {/* Step 5: Prep Briefing */}
+                  <div className="relative">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="w-14 h-14 rounded-full bg-cyan-500/10 flex items-center justify-center mb-3 ring-4 ring-cyan-500/20">
+                        <Slack className="h-7 w-7 text-cyan-500" />
+                      </div>
+                      <Badge className="mb-2 bg-cyan-500">DM</Badge>
+                      <h4 className="font-semibold text-sm">Prep Sent</h4>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Meeting briefing delivered via Slack
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Pre-Call Features Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Calendar Sync */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-500/10 rounded-lg">
+                    <Calendar className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">15-Minute Calendar Sync</CardTitle>
+                    <CardDescription>Google Calendar integration</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Sync Frequency</span>
+                    <Badge variant="secondary">Every 15 min</Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Events Synced</span>
+                    <Badge variant="default">Last 7 days</Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Contact Matching</span>
+                    <Badge className="bg-green-500">Automatic</Badge>
+                  </div>
+                </div>
+                <Alert className="mt-4">
+                  <Calendar className="h-4 w-4" />
+                  <AlertTitle className="text-sm">How it works</AlertTitle>
+                  <AlertDescription className="text-xs">
+                    Calendar events are synced every 15 minutes. Attendee emails are matched 
+                    to CRM contacts automatically, linking meetings to deals.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+
+            {/* Email Categorization */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-500/10 rounded-lg">
+                    <Tag className="h-5 w-5 text-purple-500" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">Email Categorization</CardTitle>
+                    <CardDescription>Fyxer-style AI inbox sorting</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex items-center gap-2 p-2 rounded bg-green-50 dark:bg-green-900/20">
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                    <span className="text-xs text-green-700 dark:text-green-300">To Respond</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded bg-blue-50 dark:bg-blue-900/20">
+                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                    <span className="text-xs text-blue-700 dark:text-blue-300">FYI</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded bg-orange-50 dark:bg-orange-900/20">
+                    <div className="w-2 h-2 rounded-full bg-orange-500" />
+                    <span className="text-xs text-orange-700 dark:text-orange-300">Marketing</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded bg-purple-50 dark:bg-purple-900/20">
+                    <div className="w-2 h-2 rounded-full bg-purple-500" />
+                    <span className="text-xs text-purple-700 dark:text-purple-300">Automated</span>
+                  </div>
+                </div>
+                <Alert className="mt-4">
+                  <Brain className="h-4 w-4" />
+                  <AlertTitle className="text-sm">AI-Powered</AlertTitle>
+                  <AlertDescription className="text-xs">
+                    Claude AI categorizes emails and extracts sales signals like urgency, 
+                    budget mentions, and competitor references.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+
+            {/* Meeting Prep */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-cyan-500/10 rounded-lg">
+                    <Slack className="h-5 w-5 text-cyan-500" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">Meeting Prep via Slack</CardTitle>
+                    <CardDescription>Briefing before each call</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Delivery</span>
+                    <Badge variant="secondary">Slack DM</Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Timing</span>
+                    <Badge variant="default">15 min before</Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Content</span>
+                    <Badge className="bg-cyan-500">Contact + Deal</Badge>
+                  </div>
+                </div>
+                <div className="mt-4 p-3 bg-muted/50 rounded-lg text-xs space-y-1">
+                  <p className="font-medium">Prep includes:</p>
+                  <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
+                    <li>Contact history & last interaction</li>
+                    <li>Deal stage & value</li>
+                    <li>Recent emails to respond to</li>
+                    <li>Suggested talking points</li>
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Label Modes Explanation */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Settings className="h-5 w-5 text-primary" />
+                Email Categorization Modes
+              </CardTitle>
+              <CardDescription>
+                Choose how email categories are managed for your organization
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Mode A */}
+                <div className="p-4 rounded-lg border-2 border-green-500/30 bg-green-50/50 dark:bg-green-950/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge className="bg-green-500">Recommended</Badge>
+                    <h4 className="font-semibold">Internal Only</h4>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Categories are stored in Sixty only. Gmail is never modified.
+                  </p>
+                  <ul className="text-xs space-y-1 text-muted-foreground">
+                    <li className="flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3 text-green-500" />
+                      Safest option for new users
+                    </li>
+                    <li className="flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3 text-green-500" />
+                      No inbox changes
+                    </li>
+                    <li className="flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3 text-green-500" />
+                      Full AI categorization
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Mode B */}
+                <div className="p-4 rounded-lg border-2 border-blue-500/30 bg-blue-50/50 dark:bg-blue-950/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant="secondary">Optional</Badge>
+                    <h4 className="font-semibold">Use Existing Labels</h4>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Map your existing Gmail labels to Sixty categories.
+                  </p>
+                  <ul className="text-xs space-y-1 text-muted-foreground">
+                    <li className="flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3 text-blue-500" />
+                      Works with your current system
+                    </li>
+                    <li className="flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3 text-blue-500" />
+                      No new labels created
+                    </li>
+                    <li className="flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3 text-blue-500" />
+                      One-way sync (Gmail → Sixty)
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Mode C */}
+                <div className="p-4 rounded-lg border-2 border-orange-500/30 bg-orange-50/50 dark:bg-orange-950/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant="outline">Advanced</Badge>
+                    <h4 className="font-semibold">Sync Labels</h4>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Create Sixty labels in Gmail and apply automatically.
+                  </p>
+                  <ul className="text-xs space-y-1 text-muted-foreground">
+                    <li className="flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3 text-orange-500" />
+                      Creates labels in your inbox
+                    </li>
+                    <li className="flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3 text-orange-500" />
+                      Full bi-directional sync
+                    </li>
+                    <li className="flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3 text-orange-500" />
+                      Collision-safe creation
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Sales Assistant Tab - NEW */}
+        <TabsContent value="sales-assistant" className="space-y-6">
+          {/* Sales Assistant Overview */}
+          <Card className="border-2 border-primary/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Bot className="h-6 w-6 text-primary" />
+                Slack Sales Assistant
+              </CardTitle>
+              <CardDescription className="text-base">
+                Proactive DM nudges every 15 minutes to help you stay on top of deals
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* Signal 1: Emails to Respond */}
+                <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Mail className="h-5 w-5 text-green-600" />
+                    <h4 className="font-semibold text-sm">Emails to Respond</h4>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Unanswered emails from prospects categorized as "To Respond"
+                  </p>
+                  <div className="p-2 bg-white dark:bg-gray-900 rounded text-xs">
+                    <p className="font-medium text-green-600">📧 "John from Acme needs pricing"</p>
+                    <p className="text-muted-foreground">2 hours ago</p>
+                  </div>
+                </div>
+
+                {/* Signal 2: Ghost Detection */}
+                <div className="p-4 rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Ghost className="h-5 w-5 text-orange-600" />
+                    <h4 className="font-semibold text-sm">Ghost Detection</h4>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Contacts who haven't responded in 5+ days
+                  </p>
+                  <div className="p-2 bg-white dark:bg-gray-900 rounded text-xs">
+                    <p className="font-medium text-orange-600">👻 "Sarah went quiet 7 days ago"</p>
+                    <p className="text-muted-foreground">TechCorp deal at risk</p>
+                  </div>
+                </div>
+
+                {/* Signal 3: Upcoming Meetings */}
+                <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Calendar className="h-5 w-5 text-blue-600" />
+                    <h4 className="font-semibold text-sm">Meeting Prep</h4>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Briefings for meetings in the next 2 hours
+                  </p>
+                  <div className="p-2 bg-white dark:bg-gray-900 rounded text-xs">
+                    <p className="font-medium text-blue-600">📅 "Discovery call in 30 min"</p>
+                    <p className="text-muted-foreground">With Mike, BigCo ($50k)</p>
+                  </div>
+                </div>
+
+                {/* Signal 4: Deal Risk */}
+                <div className="p-4 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertOctagon className="h-5 w-5 text-red-600" />
+                    <h4 className="font-semibold text-sm">Deal Risk Alerts</h4>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    High-severity risk signals on active deals
+                  </p>
+                  <div className="p-2 bg-white dark:bg-gray-900 rounded text-xs">
+                    <p className="font-medium text-red-600">⚠️ "Competitor mentioned in call"</p>
+                    <p className="text-muted-foreground">Enterprise deal flagged</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Example Slack DM */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <MessageCircle className="h-5 w-5 text-primary" />
+                Example Sales Assistant DM
+              </CardTitle>
+              <CardDescription>
+                This is what you'll receive in Slack every 15 minutes (when there are actionable items)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="max-w-xl mx-auto">
+                {/* Fake Slack Message */}
+                <div className="bg-white dark:bg-gray-900 rounded-lg border shadow-sm p-4 space-y-4">
+                  {/* Header */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                      <Bot className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">Sixty Sales Assistant <Badge variant="secondary" className="ml-2 text-xs">APP</Badge></p>
+                      <p className="text-xs text-muted-foreground">Today at 2:45 PM</p>
+                    </div>
+                  </div>
+
+                  {/* Message Body */}
+                  <div className="space-y-3">
+                    <p className="text-sm">👋 Hey! Here's what needs your attention:</p>
+
+                    {/* Emails */}
+                    <div className="p-3 rounded bg-gray-50 dark:bg-gray-800 border-l-4 border-green-500">
+                      <p className="font-semibold text-sm flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-green-500" />
+                        Emails to Respond (2)
+                      </p>
+                      <ul className="text-xs mt-2 space-y-1 text-muted-foreground">
+                        <li>• John (Acme Corp) - "Quick question about pricing"</li>
+                        <li>• Sarah (TechCo) - "Following up on our call"</li>
+                      </ul>
+                    </div>
+
+                    {/* Ghost */}
+                    <div className="p-3 rounded bg-gray-50 dark:bg-gray-800 border-l-4 border-orange-500">
+                      <p className="font-semibold text-sm flex items-center gap-2">
+                        <Ghost className="h-4 w-4 text-orange-500" />
+                        Going Cold (1)
+                      </p>
+                      <ul className="text-xs mt-2 space-y-1 text-muted-foreground">
+                        <li>• Mike (BigCorp) - No response for 8 days • $75k deal</li>
+                      </ul>
+                    </div>
+
+                    {/* Meeting */}
+                    <div className="p-3 rounded bg-gray-50 dark:bg-gray-800 border-l-4 border-blue-500">
+                      <p className="font-semibold text-sm flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-blue-500" />
+                        Coming Up (1)
+                      </p>
+                      <ul className="text-xs mt-2 space-y-1 text-muted-foreground">
+                        <li>• Discovery call with Lisa (StartupXYZ) in 45 min</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <Button size="sm" variant="outline" className="text-xs h-7">
+                      <ListTodo className="h-3 w-3 mr-1" />
+                      Create Follow-up Task
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-xs h-7">
+                      <Mail className="h-3 w-3 mr-1" />
+                      Draft Email
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-xs h-7">
+                      Dismiss
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Configuration Options */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Settings className="h-5 w-5 text-primary" />
+                  Assistant Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure when and how you receive notifications
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">Sales Assistant</p>
+                    <p className="text-xs text-muted-foreground">Receive DM nudges</p>
+                  </div>
+                  <Switch defaultChecked />
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">Frequency</p>
+                    <p className="text-xs text-muted-foreground">How often to check</p>
+                  </div>
+                  <Badge variant="secondary">Every 15 min</Badge>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">Rate Limiting</p>
+                    <p className="text-xs text-muted-foreground">Max 1 DM per 15 min</p>
+                  </div>
+                  <Badge className="bg-green-500">Active</Badge>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">Delivery Method</p>
+                    <p className="text-xs text-muted-foreground">How notifications arrive</p>
+                  </div>
+                  <Badge variant="secondary">Slack DM</Badge>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Data Sources */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Database className="h-5 w-5 text-primary" />
+                  Data Sources
+                </CardTitle>
+                <CardDescription>
+                  Where the assistant gets its intelligence from
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium text-sm">Email Categorizations</p>
+                      <p className="text-xs text-muted-foreground">From Gmail sync</p>
+                    </div>
+                  </div>
+                  <Badge className="bg-green-500">Connected</Badge>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Ghost className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium text-sm">Ghost Detection</p>
+                      <p className="text-xs text-muted-foreground">Contact activity tracking</p>
+                    </div>
+                  </div>
+                  <Badge className="bg-green-500">Active</Badge>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium text-sm">Calendar Events</p>
+                      <p className="text-xs text-muted-foreground">Google Calendar</p>
+                    </div>
+                  </div>
+                  <Badge className="bg-green-500">Synced</Badge>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertOctagon className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium text-sm">Deal Risk Signals</p>
+                      <p className="text-xs text-muted-foreground">AI-detected risks</p>
+                    </div>
+                  </div>
+                  <Badge className="bg-green-500">Active</Badge>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Health & Signals Tab - NEW */}
+        <TabsContent value="health" className="space-y-6">
+          <SalesIntelligenceHealthPanel
+            orgId={effectiveOrgId}
+            userId={user?.id}
+            onTest={(key) => {
+              setAuditFocusKey(key);
+              setActiveTab('audit');
+            }}
+          />
+        </TabsContent>
+
+        {/* Audit Tab - NEW */}
+        <TabsContent value="audit" className="space-y-6">
+          <SalesIntelligenceAuditPanel
+            orgId={effectiveOrgId}
+            userId={user?.id}
+            focusKey={auditFocusKey}
+            autoRunFocused
+          />
         </TabsContent>
 
         {/* AI Analysis Tab - NEW */}

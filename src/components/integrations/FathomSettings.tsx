@@ -12,8 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { FathomTokenTest } from '@/components/FathomTokenTest';
 import { toast } from 'sonner';
 
-// Production webhook URL (always use the branded domain)
-const WEBHOOK_URL = 'https://use60.com/api/webhooks/fathom';
+// Webhook URL should match the current environment domain.
+// Prefer an explicit public URL env var if set, otherwise fall back to window.location.origin.
+const WEBHOOK_URL = `${(import.meta as any)?.env?.VITE_PUBLIC_URL || window.location.origin}/api/webhooks/fathom`;
 
 export function FathomSettings() {
   const {

@@ -73,6 +73,7 @@ const SettingsBookingSources = lazyWithRetry(() => import('@/pages/admin/Setting
 // SystemHealth, Database, Reports, Documentation - REMOVED (scaffolded only, not functional)
 const HealthRules = lazyWithRetry(() => import('@/pages/admin/HealthRules'));
 const LogoSettings = lazyWithRetry(() => import('@/pages/settings/LogoSettings'));
+const EmailCategorizationSettings = lazyWithRetry(() => import('@/pages/admin/EmailCategorizationSettings'));
 
 // Health Monitoring routes
 const DealHealthDashboard = lazyWithRetry(() => import('@/components/DealHealthDashboard').then(m => ({ default: m.DealHealthDashboard })));
@@ -136,7 +137,6 @@ const Preferences = lazyWithRetry(() => import('@/pages/Preferences'));
 const SettingsPage = lazyWithRetry(() => import('@/pages/Settings'));
 const AISettings = lazyWithRetry(() => import('@/pages/settings/AISettings'));
 const TaskSyncSettings = lazyWithRetry(() => import('@/pages/settings/TaskSyncSettings'));
-const TeamSettings = lazyWithRetry(() => import('@/pages/settings/TeamSettings'));
 const CoachingPreferences = lazyWithRetry(() => import('@/pages/settings/CoachingPreferences'));
 const AccountSettings = lazyWithRetry(() => import('@/pages/settings/AccountSettings'));
 const AppearanceSettings = lazyWithRetry(() => import('@/pages/settings/AppearanceSettings'));
@@ -165,8 +165,6 @@ import { LandingWrapper, WaitlistPageWrapper } from '@/components/LandingWrapper
 
 // New 3-tier architecture routes
 const PlatformDashboard = lazyWithRetry(() => import('@/pages/platform/PlatformDashboard'));
-const OrgDashboard = lazyWithRetry(() => import('@/pages/org/OrgDashboard'));
-const TeamManagement = lazyWithRetry(() => import('@/pages/org/TeamManagement'));
 const OrgBranding = lazyWithRetry(() => import('@/pages/org/OrgBranding'));
 const OrgBilling = lazyWithRetry(() => import('@/pages/OrgBilling'));
 
@@ -426,21 +424,22 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* NEW 3-TIER ARCHITECTURE ROUTES           */}
                 {/* ========================================= */}
 
-                {/* Tier 2: Organization Admin Routes (Org owners/admins + Platform admins) */}
-                <Route path="/team" element={<OrgAdminRouteGuard><AppLayout><OrgDashboard /></AppLayout></OrgAdminRouteGuard>} />
-                <Route path="/team/team" element={<OrgAdminRouteGuard><AppLayout><TeamManagement /></AppLayout></OrgAdminRouteGuard>} />
-                <Route path="/team/branding" element={<OrgAdminRouteGuard><AppLayout><OrgBranding /></AppLayout></OrgAdminRouteGuard>} />
-                <Route path="/team/billing" element={<OrgAdminRouteGuard><AppLayout><OrgBilling /></AppLayout></OrgAdminRouteGuard>} />
-                <Route path="/team/billing/success" element={<OrgAdminRouteGuard><AppLayout><OrgBilling /></AppLayout></OrgAdminRouteGuard>} />
-                <Route path="/team/billing/cancel" element={<OrgAdminRouteGuard><AppLayout><OrgBilling /></AppLayout></OrgAdminRouteGuard>} />
+                {/* Team settings have been consolidated into /settings (role-gated).
+                    Keep /team/* paths as legacy redirects for existing links. */}
+                <Route path="/team" element={<Navigate to="/settings" replace />} />
+                <Route path="/team/team" element={<Navigate to="/settings/team-members" replace />} />
+                <Route path="/team/branding" element={<Navigate to="/settings/branding" replace />} />
+                <Route path="/team/billing" element={<Navigate to="/settings/billing" replace />} />
+                <Route path="/team/billing/success" element={<Navigate to="/settings/billing" replace />} />
+                <Route path="/team/billing/cancel" element={<Navigate to="/settings/billing" replace />} />
                 
                 {/* Legacy /org routes redirect to /team */}
-                <Route path="/org" element={<Navigate to="/team" replace />} />
-                <Route path="/org/team" element={<Navigate to="/team/team" replace />} />
-                <Route path="/org/branding" element={<Navigate to="/team/branding" replace />} />
-                <Route path="/org/billing" element={<Navigate to="/team/billing" replace />} />
-                <Route path="/org/billing/success" element={<Navigate to="/team/billing/success" replace />} />
-                <Route path="/org/billing/cancel" element={<Navigate to="/team/billing/cancel" replace />} />
+                <Route path="/org" element={<Navigate to="/settings" replace />} />
+                <Route path="/org/team" element={<Navigate to="/settings/team-members" replace />} />
+                <Route path="/org/branding" element={<Navigate to="/settings/branding" replace />} />
+                <Route path="/org/billing" element={<Navigate to="/settings/billing" replace />} />
+                <Route path="/org/billing/success" element={<Navigate to="/settings/billing" replace />} />
+                <Route path="/org/billing/cancel" element={<Navigate to="/settings/billing" replace />} />
 
                 {/* Tier 3: Platform Admin Routes (Internal + is_admin only) */}
                 {/* Platform Admin - All specific routes MUST come before /platform route */}
@@ -460,6 +459,9 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/crm/pipeline" element={<PlatformAdminRouteGuard><AppLayout><PipelineSettings /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/crm/smart-tasks" element={<PlatformAdminRouteGuard><AppLayout><SmartTasksAdmin /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/crm/automation" element={<PlatformAdminRouteGuard><AppLayout><PipelineAutomationAdmin /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* Platform Admin - Email Categorization Settings */}
+                <Route path="/platform/integrations/email-categorization" element={<PlatformAdminRouteGuard><AppLayout><EmailCategorizationSettings /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/admin/email-categorization" element={<Navigate to="/platform/integrations/email-categorization" replace />} />
                 {/* Platform Admin - Meetings Waitlist */}
                 <Route path="/platform/meetings-waitlist" element={<PlatformAdminRouteGuard><AppLayout><MeetingsWaitlist /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Platform Admin - AI Configuration */}
@@ -493,7 +495,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
 
                 {/* Internal-only tools */}
                 <Route path="/workflows" element={<InternalRouteGuard><AppLayout><Workflows /></AppLayout></InternalRouteGuard>} />
-                <Route path="/integrations" element={<InternalRouteGuard><AppLayout><Integrations /></AppLayout></InternalRouteGuard>} />
+                <Route path="/integrations" element={<AppLayout><Integrations /></AppLayout>} />
                 {/* Email and Calendar routes redirect to Google services */}
                 <Route path="/email" element={<ExternalRedirect url="https://mail.google.com" />} />
                 {/* Internal-only: Pipeline, Tasks */}
@@ -525,7 +527,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
 
                 {/* Legacy redirects for 3-tier migration (keep for 3-6 months) */}
                 <Route path="/saas-admin" element={<Navigate to="/platform" replace />} />
-                <Route path="/settings/team" element={<Navigate to="/team/team" replace />} />
+                <Route path="/settings/team" element={<Navigate to="/settings" replace />} />
                 
                 {/* Individual record routes - Internal only */}
                 <Route path="/companies/:companyId" element={<InternalRouteGuard><AppLayout><CompanyProfile /></AppLayout></InternalRouteGuard>} />
@@ -551,11 +553,12 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/settings/email-sync" element={<AppLayout><EmailSyncPage /></AppLayout>} />
                 <Route path="/settings/task-sync" element={<AppLayout><TaskSyncPage /></AppLayout>} />
                 <Route path="/settings/meeting-sync" element={<AppLayout><MeetingSyncPage /></AppLayout>} />
-                <Route path="/settings/team-members" element={<AppLayout><TeamMembersPage /></AppLayout>} />
-                <Route path="/settings/organization" element={<AppLayout><OrganizationSettingsPage /></AppLayout>} />
-                <Route path="/settings/team" element={<AppLayout><TeamSettings /></AppLayout>} />
-                {/* Slack Settings - Org Admin only */}
-                <Route path="/settings/integrations/slack" element={<OrgAdminRouteGuard><AppLayout><SlackSettings /></AppLayout></OrgAdminRouteGuard>} />
+                <Route path="/settings/team-members" element={<OrgAdminRouteGuard><AppLayout><TeamMembersPage /></AppLayout></OrgAdminRouteGuard>} />
+                <Route path="/settings/organization" element={<OrgAdminRouteGuard><AppLayout><OrganizationSettingsPage /></AppLayout></OrgAdminRouteGuard>} />
+                <Route path="/settings/branding" element={<OrgAdminRouteGuard><AppLayout><OrgBranding /></AppLayout></OrgAdminRouteGuard>} />
+                <Route path="/settings/billing" element={<OrgAdminRouteGuard><AppLayout><OrgBilling /></AppLayout></OrgAdminRouteGuard>} />
+                {/* Slack Settings - visible only when Slack is connected (enforced inside page) */}
+                <Route path="/settings/integrations/slack" element={<AppLayout><SlackSettings /></AppLayout>} />
                 <Route path="/settings/ai" element={<AppLayout><AISettings /></AppLayout>} />
                 <Route path="/settings/extraction-rules" element={<Navigate to="/settings/task-sync" replace />} />
                 <Route path="/settings/task-sync" element={<AppLayout><TaskSyncSettings /></AppLayout>} />

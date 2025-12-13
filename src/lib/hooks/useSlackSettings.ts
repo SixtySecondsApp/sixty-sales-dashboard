@@ -25,7 +25,17 @@ export interface SlackNotificationSettings {
   org_id: string;
   feature: SlackFeature;
   is_enabled: boolean;
-  delivery_method: 'channel' | 'dm';
+  /**
+   * Delivery target for Slack notifications.
+   *
+   * - channel: post to the configured Slack channel
+   * - dm: send a DM (per-user where applicable)
+   * - both: send to channel + DM
+   *
+   * Note: some features only meaningfully support a subset, but we keep this
+   * shared to avoid feature-specific columns.
+   */
+  delivery_method: 'channel' | 'dm' | 'both';
   channel_id: string | null;
   channel_name: string | null;
   schedule_time: string | null;
@@ -33,6 +43,16 @@ export interface SlackNotificationSettings {
   deal_value_threshold: number | null;
   deal_stage_threshold: string | null;
   stakeholder_slack_ids: string[] | null;
+  /**
+   * When delivery_method includes DM (meeting debriefs), which recipients should receive the DM?
+   * - owner: the meeting owner only
+   * - stakeholders: configured stakeholder_slack_ids only
+   * - both: owner + stakeholders
+   */
+  dm_audience?: 'owner' | 'stakeholders' | 'both' | null;
+  // Deal room closure behavior (when deal is signed/won or lost)
+  deal_room_archive_mode?: 'immediate' | 'delayed' | null;
+  deal_room_archive_delay_hours?: number | null;
 }
 
 export interface SlackUserMapping {
@@ -74,18 +94,29 @@ export function useSlackOrgSettings() {
     queryFn: async () => {
       if (!orgId) return null;
 
-      // Using type assertion since slack tables aren't in generated types yet
-      const { data, error } = await (supabase
-        .from('slack_org_settings') as any)
-        .select('*')
-        .eq('org_id', orgId)
-        .single();
+      // IMPORTANT:
+      // slack_org_settings contains bot_access_token. Regular org members should be able to
+      // read connection status, but must never be able to read the token.
+      // We use a SECURITY DEFINER RPC that returns a safe subset of columns.
+      const { data, error } = await supabase.rpc('get_slack_org_settings_public', {
+        p_org_id: orgId,
+      });
 
-      if (error && error.code !== 'PGRST116') {
-        throw error;
+      if (error) {
+        // Backward-compat fallback: if the RPC hasn't been deployed yet, read only safe columns.
+        // NOTE: This relies on RLS allowing the caller to select these fields.
+        const { data: row, error: rowError } = await (supabase.from('slack_org_settings') as any)
+          .select('id, org_id, slack_team_id, slack_team_name, is_connected, connected_at, connected_by')
+          .eq('org_id', orgId)
+          .maybeSingle();
+
+        if (rowError) throw rowError;
+        return (row || null) as SlackOrgSettings | null;
       }
 
-      return data as SlackOrgSettings | null;
+      // supabase.rpc returns an array for table-returning functions
+      const row = Array.isArray(data) ? data[0] : data;
+      return (row || null) as SlackOrgSettings | null;
     },
     enabled: !!orgId,
   });
@@ -137,12 +168,14 @@ export function useUpdateNotificationSettings() {
 
       // Check if settings exist
       // Using type assertion since slack tables aren't in generated types yet
-      const { data: existing } = await (supabase
+      const { data: existing, error: existingError } = await (supabase
         .from('slack_notification_settings') as any)
         .select('id')
         .eq('org_id', orgId)
         .eq('feature', feature)
-        .single();
+        .maybeSingle();
+
+      if (existingError) throw existingError;
 
       if (existing) {
         // Update existing
@@ -203,7 +236,7 @@ export function useSlackChannels() {
 /**
  * Hook to get user mappings
  */
-export function useSlackUserMappings() {
+export function useSlackUserMappings(options?: { enabled?: boolean }) {
   const { activeOrgId } = useOrg();
   const orgId = activeOrgId;
 
@@ -222,7 +255,7 @@ export function useSlackUserMappings() {
 
       return (data || []) as SlackUserMapping[];
     },
-    enabled: !!orgId,
+    enabled: options?.enabled ?? !!orgId,
   });
 }
 
@@ -273,18 +306,14 @@ export function useSendTestNotification() {
       feature: SlackFeature;
       orgId: string;
     }) => {
-      const functionMap: Record<SlackFeature, string> = {
-        meeting_debrief: 'slack-post-meeting',
-        daily_digest: 'slack-daily-digest',
-        meeting_prep: 'slack-meeting-prep',
-        deal_rooms: 'slack-deal-room',
-      };
+      // External release: keep “test” safe + low-friction.
+      // Some feature endpoints require real entity IDs (meetingId/dealId). For settings UX,
+      // a simple bot-post verification is sufficient.
+      const functionName = feature === 'daily_digest' ? 'slack-daily-digest' : 'slack-test-message';
 
-      const { data, error } = await supabase.functions.invoke(functionMap[feature], {
-        body: {
-          orgId,
-          isTest: true,
-        },
+      const { data, error } = await supabase.functions.invoke(functionName, {
+        // For daily digests, ensure a "safe" test mode (e.g. avoid DMing the whole org).
+        body: feature === 'daily_digest' ? { orgId, isTest: true } : { orgId },
       });
 
       if (error) throw error;
@@ -319,6 +348,29 @@ export function useDisconnectSlack() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.orgSettings(orgId || '') });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.notificationSettings(orgId || '') });
+    },
+  });
+}
+
+/**
+ * Hook to allow a user to map ONLY themselves to a Slack user in this org.
+ * This is used by the Slack Settings page "Personal Slack" section.
+ */
+export function useSlackSelfMap() {
+  const { activeOrgId } = useOrg();
+  const orgId = activeOrgId;
+
+  return useMutation({
+    mutationFn: async ({ slackUserId }: { slackUserId?: string }) => {
+      if (!orgId) throw new Error('No org selected');
+
+      const { data, error } = await supabase.functions.invoke('slack-self-map', {
+        body: { orgId, slackUserId: slackUserId || undefined },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Failed to link Slack user');
+      return data;
     },
   });
 }

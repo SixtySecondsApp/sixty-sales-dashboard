@@ -13,7 +13,7 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-    if (!authHeader || !authHeader.includes(serviceRoleKey || '')) {
+    if (!authHeader || !serviceRoleKey || authHeader.trim() !== `Bearer ${serviceRoleKey}`) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized: Cron jobs must use service role key' }),
         { status: 401 }

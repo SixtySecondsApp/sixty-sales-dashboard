@@ -18,6 +18,22 @@ export interface Organization {
   created_at: string;
   updated_at: string;
   is_active: boolean;
+
+  // Org-level preferences / enrichment (nullable in DB, optional here for backwards compatibility)
+  currency_code?: string | null;
+  currency_locale?: string | null;
+  company_domain?: string | null;
+  company_website?: string | null;
+  company_country_code?: string | null;
+  company_timezone?: string | null;
+  company_industry?: string | null;
+  company_size?: string | null;
+  company_bio?: string | null;
+  company_linkedin_url?: string | null;
+  company_enrichment_status?: 'not_started' | 'pending' | 'completed' | 'failed' | string | null;
+  company_enriched_at?: string | null;
+  company_enrichment_confidence?: number | null;
+  company_enrichment_raw?: any | null;
 }
 
 export interface OrganizationMembership {
@@ -122,7 +138,7 @@ export const useOrgStore = create<OrgStore>()(
           }
 
           // Fetch memberships with organization details
-          const { data: memberships, error: membershipsError } = await supabase
+          const { data: memberships, error: membershipsError } = await (supabase as any)
             .from('organization_memberships')
             .select(`
               *,
@@ -168,7 +184,7 @@ export const useOrgStore = create<OrgStore>()(
             const counts = await Promise.all(
               orgs.map(async (org) => {
                 try {
-                  const { count } = await supabase
+                  const { count } = await (supabase as any)
                     .from('meetings')
                     .select('id', { count: 'exact', head: true })
                     .eq('org_id', org.id)
@@ -197,7 +213,7 @@ export const useOrgStore = create<OrgStore>()(
           }
 
           if (!activeOrgId) {
-            activeOrgId = orgs.length > 0 ? orgs[0].id : null;
+            activeOrgId = orgs[0]?.id || null;
           }
 
           // Get role for active org
@@ -244,7 +260,7 @@ export const useOrgStore = create<OrgStore>()(
           }
 
           // Create organization
-          const { data: org, error: orgError } = await supabase
+          const { data: org, error: orgError } = await (supabase as any)
             .from('organizations')
             .insert({
               name: name.trim(),
@@ -257,10 +273,10 @@ export const useOrgStore = create<OrgStore>()(
           if (orgError) throw orgError;
 
           // Create membership as owner
-          const { error: membershipError } = await supabase
+          const { error: membershipError } = await (supabase as any)
             .from('organization_memberships')
             .insert({
-              org_id: org.id,
+              org_id: (org as any).id,
               user_id: user.id,
               role: 'owner',
             });
@@ -271,10 +287,10 @@ export const useOrgStore = create<OrgStore>()(
           await get().refreshOrganizations();
 
           // Set as active org
-          get().setActiveOrg(org.id);
+          get().setActiveOrg((org as any).id);
 
-          logger.log('[OrgStore] Created organization:', org.id);
-          return org;
+          logger.log('[OrgStore] Created organization:', (org as any).id);
+          return org as any;
         } catch (error: any) {
           logger.error('[OrgStore] Error creating organization:', error);
           set({ error: error.message || 'Failed to create organization' });
@@ -395,7 +411,7 @@ export function useHasOrgRole(
   if (!userRole) return false;
 
   // Role hierarchy: owner > admin > member > readonly
-  const roleHierarchy: Record<string, number> = {
+  const roleHierarchy: Record<'owner' | 'admin' | 'member' | 'readonly', number> = {
     owner: 4,
     admin: 3,
     member: 2,

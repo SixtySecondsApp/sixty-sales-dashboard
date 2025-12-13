@@ -34,6 +34,7 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasCheckedOrg, setHasCheckedOrg] = useState(false);
+  const [hasTriggeredEnrichment, setHasTriggeredEnrichment] = useState(false);
 
   // Domain matching state
   const [matchingOrgs, setMatchingOrgs] = useState<MatchingOrg[]>([]);
@@ -124,6 +125,36 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
 
     initializeOrgName();
   }, [activeOrg?.name, orgLoading, user]);
+
+  // Background org enrichment (non-blocking)
+  useEffect(() => {
+    if (hasTriggeredEnrichment) return;
+    if (!activeOrg?.id) return;
+    if (!userDomain || isPersonalEmail) return;
+
+    const status = (activeOrg as any)?.company_enrichment_status as string | null | undefined;
+    if (status && status !== 'not_started') {
+      setHasTriggeredEnrichment(true);
+      return;
+    }
+
+    setHasTriggeredEnrichment(true);
+
+    // Fire-and-forget: enrich org profile from domain (don’t block onboarding UX)
+    supabase.functions
+      .invoke('enrich-organization', {
+        body: {
+          orgId: activeOrg.id,
+          domain: userDomain,
+          orgName: activeOrg.name,
+          force: false,
+        },
+      })
+      .then(() => refreshOrgs())
+      .catch(() => {
+        // ignore errors; user can retry from org settings
+      });
+  }, [activeOrg?.id, activeOrg?.name, hasTriggeredEnrichment, isPersonalEmail, refreshOrgs, userDomain]);
 
   const handleJoinOrg = async () => {
     if (!selectedOrgId) {

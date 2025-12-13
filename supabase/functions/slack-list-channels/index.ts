@@ -4,6 +4,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
+import { getAuthContext, requireOrgRole } from '../_shared/edgeAuth.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -87,6 +88,16 @@ serve(async (req) => {
   }
 
   try {
+    if (req.method !== 'POST') {
+      return new Response(
+        JSON.stringify({ error: 'Method not allowed' }),
+        { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const auth = await getAuthContext(req, supabase, supabaseServiceKey);
+
     const { orgId } = await req.json();
 
     if (!orgId) {
@@ -96,7 +107,11 @@ serve(async (req) => {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // External release hardening:
+    // - Only org admins (or platform admins) can list channels for configuration.
+    if (auth.mode === 'user' && auth.userId && !auth.isPlatformAdmin) {
+      await requireOrgRole(supabase, orgId, auth.userId, ['owner', 'admin']);
+    }
 
     // Get bot token
     const botToken = await getSlackBotToken(supabase, orgId);

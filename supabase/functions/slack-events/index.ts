@@ -19,8 +19,14 @@ async function verifySlackRequest(
   signature: string
 ): Promise<boolean> {
   if (!slackSigningSecret) {
-    console.warn('SLACK_SIGNING_SECRET not set - skipping signature verification');
-    return true; // Allow in development
+    // Allow opting into insecure mode for local development only.
+    const allowInsecure = (Deno.env.get('ALLOW_INSECURE_SLACK_SIGNATURES') || '').toLowerCase() === 'true';
+    if (allowInsecure) {
+      console.warn('ALLOW_INSECURE_SLACK_SIGNATURES=true - skipping signature verification');
+      return true;
+    }
+    console.error('SLACK_SIGNING_SECRET not set - refusing request');
+    return false;
   }
 
   // Check timestamp to prevent replay attacks (within 5 minutes)

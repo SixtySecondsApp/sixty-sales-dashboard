@@ -4,11 +4,11 @@
  * Displays platform integration plans with:
  * - Grid of integration cards organized by category
  * - Upvote functionality to prioritize requests
- * - Detail modal for implementation plans
+ * - Dedicated detail page per integration (no modal)
  */
 
 import { useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   ArrowRight,
@@ -29,9 +29,9 @@ import {
   Layers,
   RefreshCw,
   Search,
-  X,
+  Link as LinkIcon,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,7 +39,6 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
   integrationPlans,
@@ -48,6 +47,7 @@ import {
   type AuthType,
   type Priority,
   type DataFlow,
+  getIntegrationById,
 } from '@/lib/data/integrationPlans';
 import { useIntegrationLogo } from '@/lib/hooks/useIntegrationLogo';
 import { useIntegrationUpvotes, type IntegrationVoteState } from '@/lib/hooks/useIntegrationUpvotes';
@@ -235,225 +235,304 @@ function IntegrationCard({
   );
 }
 
-// Detail modal for integration
-function IntegrationDetailModal({
+function IntegrationDetailPage({
   integration,
   vote,
   onToggleVote,
-  open,
-  onClose,
 }: {
-  integration: IntegrationPlan | null;
+  integration: IntegrationPlan;
   vote: IntegrationVoteState;
   onToggleVote: () => void;
-  open: boolean;
-  onClose: () => void;
 }) {
-  if (!integration) return null;
-
+  const navigate = useNavigate();
   const auth = authTypeConfig[integration.authType];
   const priority = priorityConfig[integration.priority];
 
+  const copyLink = async () => {
+    try {
+      const url = `${window.location.origin}/platform/integrations/roadmap/${integration.id}`;
+      await navigator.clipboard.writeText(url);
+      toast.success('Link copied');
+    } catch {
+      toast.error('Failed to copy link');
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="pb-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <IntegrationLogo integration={integration} size="lg" />
-              <div>
-                <DialogTitle className="text-xl font-bold flex items-center gap-3">
-                  {integration.name}
-                  <Badge variant="outline" className={cn('text-xs', priority.color, priority.bgColor)}>
-                    {priority.label}
-                  </Badge>
-                </DialogTitle>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{integration.category}</p>
-              </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/platform/integrations/roadmap')}
+            className="shrink-0"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <IntegrationLogo integration={integration} size="lg" />
+          <div className="min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{integration.name}</h1>
+              <Badge variant="outline" className={cn('text-xs', priority.color, priority.bgColor)}>
+                {priority.label}
+              </Badge>
+              <Badge variant="secondary" className="text-xs">
+                {integration.category}
+              </Badge>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <UpvoteButton vote={vote} onToggle={onToggleVote} />
-              {integration.apiDocsUrl && (
-                <Button asChild variant="outline" size="sm">
-                  <a href={integration.apiDocsUrl} target="_blank" rel="noopener noreferrer">
-                    API Docs
-                    <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
-                  </a>
-                </Button>
-              )}
-            </div>
-          </div>
-        </DialogHeader>
-
-        <div className="space-y-6">
-          {/* Use Case */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-500" />
-                Why This Integration
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">
-                {integration.useCase}
-              </p>
-              <ul className="space-y-1.5">
-                {integration.useCaseDetails.map((detail, index) => (
-                  <li key={index} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
-                    {detail}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-
-          {/* Two column grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* API Requirements */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Code2 className="w-4 h-4 text-blue-500" />
-                  API Requirements
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className={cn('p-1.5 rounded-md', auth.color)}>
-                    <auth.icon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white">{auth.label}</p>
-                    <p className="text-xs text-gray-500">Auth Method</p>
-                  </div>
-                </div>
-
-                {integration.baseUrl && (
-                  <div>
-                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Base URL</p>
-                    <code className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
-                      {integration.baseUrl}
-                    </code>
-                  </div>
-                )}
-
-                {integration.scopes && integration.scopes.length > 0 && (
-                  <div>
-                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Scopes</p>
-                    <div className="flex flex-wrap gap-1">
-                      {integration.scopes.map((scope) => (
-                        <Badge key={scope} variant="outline" className="text-[10px] font-mono">
-                          {scope}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Data Flows */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <RefreshCw className="w-4 h-4 text-emerald-500" />
-                  Data Flows
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {integration.dataFlows.map((flow, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 p-2 rounded-md bg-gray-50 dark:bg-gray-800/50 text-sm"
-                  >
-                    <span className="font-medium text-gray-900 dark:text-white flex-1 truncate">
-                      {flow.sixtyEntity}
-                    </span>
-                    <DataFlowIcon direction={flow.direction} />
-                    <span className="text-gray-600 dark:text-gray-400 flex-1 truncate text-right">
-                      {flow.externalEntity}
-                    </span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Effort & Impact */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-purple-500" />
-                Effort & Impact
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-4 gap-3">
-                <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">{integration.estimatedDays}</p>
-                  <p className="text-xs text-gray-500">Days</p>
-                </div>
-                <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-                  <p className={cn('text-xl font-bold capitalize', {
-                    'text-emerald-600': integration.impactScore === 'high',
-                    'text-amber-600': integration.impactScore === 'medium',
-                    'text-gray-600': integration.impactScore === 'low',
-                  })}>
-                    {integration.impactScore}
-                  </p>
-                  <p className="text-xs text-gray-500">Impact</p>
-                </div>
-                <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-                  <p className={cn('text-xl font-bold capitalize', {
-                    'text-red-600': integration.complexity === 'high',
-                    'text-amber-600': integration.complexity === 'medium',
-                    'text-emerald-600': integration.complexity === 'low',
-                  })}>
-                    {integration.complexity}
-                  </p>
-                  <p className="text-xs text-gray-500">Complexity</p>
-                </div>
-                <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-                  <div className="flex justify-center mb-0.5">
-                    <StarRating rating={integration.popularity} />
-                  </div>
-                  <p className="text-xs text-gray-500">Popularity</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* What's Possible / Limitations */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="border-emerald-200 dark:border-emerald-800">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
-                  <CheckCircle2 className="w-4 h-4" />
-                  What's Possible
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-700 dark:text-gray-300">{integration.whatsPossible}</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-amber-200 dark:border-amber-800">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2 text-amber-700 dark:text-amber-400">
-                  <AlertTriangle className="w-4 h-4" />
-                  Limitations
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-700 dark:text-gray-300">{integration.limitations}</p>
-              </CardContent>
-            </Card>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Integration roadmap entry #{integration.priorityOrder}
+            </p>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" size="sm" onClick={copyLink}>
+            <LinkIcon className="w-3.5 h-3.5 mr-1.5" />
+            Copy link
+          </Button>
+          <UpvoteButton vote={vote} onToggle={onToggleVote} />
+          {integration.apiDocsUrl && (
+            <Button asChild variant="outline" size="sm">
+              <a href={integration.apiDocsUrl} target="_blank" rel="noopener noreferrer">
+                API Docs
+                <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
+              </a>
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Use Case / Ideas */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Zap className="w-4 h-4 text-amber-500" />
+            Integration ideas
+          </CardTitle>
+          <CardDescription>What we can build and why it matters.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+            {integration.useCase}
+          </p>
+          <ul className="space-y-1.5">
+            {integration.useCaseDetails.map((detail, index) => (
+              <li key={index} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                {detail}
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+
+      {/* API Requirements + Data Flows */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Code2 className="w-4 h-4 text-blue-500" />
+              API requirements
+            </CardTitle>
+            <CardDescription>Auth model, base URL, scopes, and limits.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div className="flex items-center gap-2">
+              <div className={cn('p-1.5 rounded-md', auth.color)}>
+                <auth.icon className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">{auth.label}</p>
+                <p className="text-xs text-gray-500">Auth method</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {integration.baseUrl && (
+                <div>
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Base URL</p>
+                  <code className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded block break-all">
+                    {integration.baseUrl}
+                  </code>
+                </div>
+              )}
+              {integration.rateLimit && (
+                <div>
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Rate limit</p>
+                  <p className="text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 px-2 py-1 rounded">
+                    {integration.rateLimit}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {integration.scopes && integration.scopes.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Scopes</p>
+                <div className="flex flex-wrap gap-1">
+                  {integration.scopes.map((scope) => (
+                    <Badge key={scope} variant="outline" className="text-[10px] font-mono">
+                      {scope}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {integration.webhookEvents && integration.webhookEvents.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Webhook events</p>
+                <div className="flex flex-wrap gap-1">
+                  {integration.webhookEvents.map((evt) => (
+                    <Badge key={evt} variant="outline" className="text-[10px] font-mono">
+                      <Webhook className="w-3 h-3 mr-1" />
+                      {evt}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-emerald-500" />
+              Data flows
+            </CardTitle>
+            <CardDescription>How records map between Sixty and the integration.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {integration.dataFlows.map((flow, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-2 p-2 rounded-md bg-gray-50 dark:bg-gray-800/50 text-sm"
+              >
+                <span className="font-medium text-gray-900 dark:text-white flex-1 truncate">
+                  {flow.sixtyEntity}
+                </span>
+                <DataFlowIcon direction={flow.direction} />
+                <span className="text-gray-600 dark:text-gray-400 flex-1 truncate text-right">
+                  {flow.externalEntity}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Plan / API surface */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Layers className="w-4 h-4 text-indigo-500" />
+            Implementation plan (API surface)
+          </CardTitle>
+          <CardDescription>The endpoints/events we’ll use to ship a reliable v1.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {integration.apiEndpoints.map((ep, idx) => (
+            <div
+              key={`${ep.method}-${ep.endpoint}-${idx}`}
+              className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white/60 dark:bg-gray-900/40"
+            >
+              <div className="shrink-0">
+                <Badge variant="secondary" className="text-[10px] font-mono">
+                  {ep.method}
+                </Badge>
+              </div>
+              <code className="text-xs font-mono text-gray-900 dark:text-gray-100 break-all flex-1">
+                {ep.endpoint}
+              </code>
+              <p className="text-xs text-gray-600 dark:text-gray-400 sm:text-right sm:max-w-[45%]">
+                {ep.purpose}
+              </p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* Effort & Impact */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-purple-500" />
+            Effort & impact
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{integration.estimatedDays}</p>
+              <p className="text-xs text-gray-500">Days</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+              <p
+                className={cn('text-xl font-bold capitalize', {
+                  'text-emerald-600': integration.impactScore === 'high',
+                  'text-amber-600': integration.impactScore === 'medium',
+                  'text-gray-600': integration.impactScore === 'low',
+                })}
+              >
+                {integration.impactScore}
+              </p>
+              <p className="text-xs text-gray-500">Impact</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+              <p
+                className={cn('text-xl font-bold capitalize', {
+                  'text-red-600': integration.complexity === 'high',
+                  'text-amber-600': integration.complexity === 'medium',
+                  'text-emerald-600': integration.complexity === 'low',
+                })}
+              >
+                {integration.complexity}
+              </p>
+              <p className="text-xs text-gray-500">Complexity</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+              <div className="flex justify-center mb-0.5">
+                <StarRating rating={integration.popularity} />
+              </div>
+              <p className="text-xs text-gray-500">Popularity</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* What's Possible / Limitations */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="border-emerald-200 dark:border-emerald-800">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+              <CheckCircle2 className="w-4 h-4" />
+              What's possible
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-700 dark:text-gray-300">{integration.whatsPossible}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-amber-200 dark:border-amber-800">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2 text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="w-4 h-4" />
+              Limitations
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-700 dark:text-gray-300">{integration.limitations}</p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }
 
@@ -466,12 +545,16 @@ interface IntegrationRoadmapProps {
 // Main component
 export default function IntegrationRoadmap({ embedded = false }: IntegrationRoadmapProps) {
   const navigate = useNavigate();
+  const { integrationId } = useParams<{ integrationId?: string }>();
   const [query, setQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [selectedIntegration, setSelectedIntegration] = useState<IntegrationPlan | null>(null);
 
   const { getVoteState, toggleUpvote, userId } = useIntegrationUpvotes(integrationPlans.map((p) => p.id));
+  const selectedFromRoute = useMemo(() => {
+    if (!integrationId) return null;
+    return getIntegrationById(integrationId) ?? null;
+  }, [integrationId]);
 
   const categories = useMemo(() => {
     const unique = Array.from(new Set(integrationPlans.map((p) => p.category))).sort((a, b) => a.localeCompare(b));
@@ -497,8 +580,7 @@ export default function IntegrationRoadmap({ embedded = false }: IntegrationRoad
   const groupedByCategory = useMemo(() => {
     const groups: Record<string, IntegrationPlan[]> = {};
     filteredIntegrations.forEach((p) => {
-      if (!groups[p.category]) groups[p.category] = [];
-      groups[p.category].push(p);
+      (groups[p.category] ??= []).push(p);
     });
     // Sort categories by number of integrations (descending)
     return Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
@@ -517,6 +599,61 @@ export default function IntegrationRoadmap({ embedded = false }: IntegrationRoad
       toast.error(err?.message || 'Failed to upvote');
     });
   };
+
+  // If we’re on /roadmap/:integrationId, render the dedicated detail page.
+  if (integrationId) {
+    if (!selectedFromRoute) {
+      const notFound = (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/platform/integrations/roadmap')}
+              className="shrink-0"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Integration not found</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                No roadmap entry exists for <code className="font-mono">{integrationId}</code>.
+              </p>
+            </div>
+          </div>
+          <Card>
+            <CardContent className="p-4 text-sm text-gray-600 dark:text-gray-400">
+              Tip: the link is usually the integration ID (e.g. <code className="font-mono">slack</code>,{' '}
+              <code className="font-mono">hubspot</code>, <code className="font-mono">calendly</code>).
+            </CardContent>
+          </Card>
+        </div>
+      );
+
+      if (embedded) return <div className="space-y-6">{notFound}</div>;
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">{notFound}</div>
+        </div>
+      );
+    }
+
+    const vote = getVoteState(selectedFromRoute.id);
+    const detail = (
+      <IntegrationDetailPage
+        integration={selectedFromRoute}
+        vote={vote}
+        onToggleVote={() => handleToggleVote(selectedFromRoute)}
+      />
+    );
+
+    if (embedded) return <div className="space-y-6">{detail}</div>;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">{detail}</div>
+      </div>
+    );
+  }
 
   const content = (
     <>
@@ -672,7 +809,7 @@ export default function IntegrationRoadmap({ embedded = false }: IntegrationRoad
                   integration={integration}
                   vote={getVoteState(integration.id)}
                   onToggleVote={() => handleToggleVote(integration)}
-                  onSelect={() => setSelectedIntegration(integration)}
+                  onSelect={() => navigate(`/platform/integrations/roadmap/${integration.id}`)}
                 />
               ))}
             </div>
@@ -695,15 +832,6 @@ export default function IntegrationRoadmap({ embedded = false }: IntegrationRoad
           </div>
         )}
       </div>
-
-      {/* Detail Modal */}
-      <IntegrationDetailModal
-        integration={selectedIntegration}
-        vote={selectedIntegration ? getVoteState(selectedIntegration.id) : { hasVoted: false, votesCount: 0 }}
-        onToggleVote={() => selectedIntegration && handleToggleVote(selectedIntegration)}
-        open={!!selectedIntegration}
-        onClose={() => setSelectedIntegration(null)}
-      />
     </>
   );
 

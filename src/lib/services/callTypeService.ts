@@ -46,6 +46,19 @@ export interface UpdateCallTypeInput {
 }
 
 export class CallTypeService {
+  private static formatSupabaseError(err: unknown): string {
+    // supabase-js PostgrestError shape: { message, details, hint, code }
+    if (err && typeof err === 'object') {
+      const anyErr = err as any;
+      const code = anyErr.code ? ` (${anyErr.code})` : '';
+      const message = anyErr.message ? String(anyErr.message) : 'Unknown error';
+      const details = anyErr.details ? ` | details: ${String(anyErr.details)}` : '';
+      const hint = anyErr.hint ? ` | hint: ${String(anyErr.hint)}` : '';
+      return `${message}${code}${details}${hint}`;
+    }
+    return String(err);
+  }
+
   /**
    * Get all call types for an organization
    */
@@ -61,7 +74,7 @@ export class CallTypeService {
       if (error) throw error;
       return (data || []) as OrgCallType[];
     } catch (error) {
-      console.error('Error fetching call types:', error);
+      console.error('Error fetching call types:', CallTypeService.formatSupabaseError(error), error);
       throw error;
     }
   }
@@ -82,7 +95,7 @@ export class CallTypeService {
       if (error) throw error;
       return (data || []) as OrgCallType[];
     } catch (error) {
-      console.error('Error fetching active call types:', error);
+      console.error('Error fetching active call types:', CallTypeService.formatSupabaseError(error), error);
       throw error;
     }
   }
@@ -105,7 +118,7 @@ export class CallTypeService {
       }
       return data as OrgCallType;
     } catch (error) {
-      console.error('Error fetching call type:', error);
+      console.error('Error fetching call type:', CallTypeService.formatSupabaseError(error), error);
       throw error;
     }
   }
@@ -148,7 +161,7 @@ export class CallTypeService {
       if (error) throw error;
       return data as OrgCallType;
     } catch (error) {
-      console.error('Error creating call type:', error);
+      console.error('Error creating call type:', CallTypeService.formatSupabaseError(error), error);
       throw error;
     }
   }
@@ -173,7 +186,7 @@ export class CallTypeService {
       if (error) throw error;
       return data as OrgCallType;
     } catch (error) {
-      console.error('Error updating call type:', error);
+      console.error('Error updating call type:', CallTypeService.formatSupabaseError(error), error);
       throw error;
     }
   }
@@ -192,7 +205,7 @@ export class CallTypeService {
 
       if (error) throw error;
     } catch (error) {
-      console.error('Error deleting call type:', error);
+      console.error('Error deleting call type:', CallTypeService.formatSupabaseError(error), error);
       throw error;
     }
   }
@@ -221,7 +234,7 @@ export class CallTypeService {
         if (error) throw error;
       }
     } catch (error) {
-      console.error('Error reordering call types:', error);
+      console.error('Error reordering call types:', CallTypeService.formatSupabaseError(error), error);
       throw error;
     }
   }
@@ -237,7 +250,7 @@ export class CallTypeService {
 
       if (error) throw error;
     } catch (error) {
-      console.error('Error seeding default call types:', error);
+      console.error('Error seeding default call types:', CallTypeService.formatSupabaseError(error), error);
       throw error;
     }
   }
@@ -288,7 +301,7 @@ export class CallTypeService {
 
       if (error) throw error;
     } catch (error) {
-      console.error('Error updating meeting call type:', error);
+      console.error('Error updating meeting call type:', CallTypeService.formatSupabaseError(error), error);
       throw error;
     }
   }

@@ -5,6 +5,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 import { buildMeetingDebriefMessage, type MeetingDebriefData } from '../_shared/slackBlocks.ts';
+import { getAuthContext, requireOrgRole } from '../_shared/edgeAuth.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -19,14 +20,29 @@ interface MeetingData {
   duration_minutes?: number;
   attendees?: string[];
   owner_user_id: string;
-  org_id?: string;
-  deal_id?: string;
+  company_id?: string | null;
   deal?: {
     id: string;
-    title: string;
-    stage: string;
+    name: string;
+    stage_id: string;
     value: number;
   };
+}
+
+function extractJsonObject(text: string): string | null {
+  if (!text) return null;
+  let s = String(text).trim();
+
+  // Strip fenced code blocks: ```json ... ``` or ``` ... ```
+  if (s.startsWith('```')) {
+    s = s.replace(/^```[a-zA-Z0-9_-]*\s*/m, '').replace(/```$/m, '').trim();
+  }
+
+  // If still not valid JSON, try to locate the first {...} object.
+  const start = s.indexOf('{');
+  const end = s.lastIndexOf('}');
+  if (start >= 0 && end > start) return s.slice(start, end + 1).trim();
+  return null;
 }
 
 /**
@@ -42,8 +58,18 @@ async function analyzeMeeting(meeting: MeetingData): Promise<{
   coachingInsight: string;
   keyQuotes: string[];
 }> {
+  // Fail-soft: this is a Slack notification. If AI is not configured, still send a useful message.
   if (!anthropicApiKey) {
-    throw new Error('ANTHROPIC_API_KEY not configured');
+    return {
+      summary: meeting.summary || 'Meeting summary unavailable',
+      sentiment: 'neutral',
+      sentimentScore: 50,
+      talkTimeRep: 40,
+      talkTimeCustomer: 60,
+      actionItems: [],
+      coachingInsight: 'Review the meeting summary and add follow-up tasks.',
+      keyQuotes: [],
+    };
   }
 
   const transcript = meeting.transcript || meeting.summary || 'No transcript available';
@@ -75,7 +101,7 @@ Return ONLY valid JSON with no additional text.`,
 MEETING: ${meeting.title}
 ATTENDEES: ${attendees}
 DURATION: ${meeting.duration_minutes || 30} minutes
-${meeting.deal ? `DEAL: ${meeting.deal.title} (Stage: ${meeting.deal.stage}, Value: $${meeting.deal.value?.toLocaleString()})` : ''}
+${meeting.deal ? `DEAL: ${meeting.deal.name} (Stage: ${meeting.deal.stage_id}, Value: $${meeting.deal.value?.toLocaleString()})` : ''}
 
 TRANSCRIPT:
 ${transcript.substring(0, 15000)}
@@ -104,7 +130,8 @@ Return your analysis as JSON with this exact structure:
   const content = result.content[0]?.text;
 
   try {
-    return JSON.parse(content);
+    const candidate = extractJsonObject(content) ?? content;
+    return JSON.parse(candidate);
   } catch {
     console.error('Failed to parse AI response:', content);
     // Return default structure
@@ -126,8 +153,17 @@ Return your analysis as JSON with this exact structure:
  */
 async function getSlackConfig(
   supabase: ReturnType<typeof createClient>,
-  orgId: string
-): Promise<{ botToken: string; settings: { channelId?: string; deliveryMethod: string } } | null> {
+  orgId: string,
+  options?: { isTest?: boolean }
+): Promise<{
+  botToken: string;
+  settings: {
+    channelId?: string;
+    deliveryMethod: string;
+    dmAudience?: string;
+    stakeholderSlackIds?: string[];
+  };
+} | null> {
   // Get org Slack settings
   const { data: orgSettings } = await supabase
     .from('slack_org_settings')
@@ -144,14 +180,23 @@ async function getSlackConfig(
   // Get notification settings for meeting_debrief
   const { data: notifSettings } = await supabase
     .from('slack_notification_settings')
-    .select('channel_id, delivery_method')
+    .select('channel_id, delivery_method, is_enabled, dm_audience, stakeholder_slack_ids')
     .eq('org_id', orgId)
     .eq('feature', 'meeting_debrief')
-    .eq('is_enabled', true)
-    .single();
+    .maybeSingle();
 
-  if (!notifSettings) {
+  if (!notifSettings || notifSettings.is_enabled === false) {
     console.log('Meeting debrief notifications not enabled for org:', orgId);
+    if (options?.isTest) {
+      // Allow test sends from the demo UI even if org hasn't configured meeting_debrief yet.
+      return {
+        botToken: orgSettings.bot_access_token,
+        settings: {
+          deliveryMethod: 'dm',
+          channelId: undefined,
+        },
+      };
+    }
     return null;
   }
 
@@ -160,6 +205,8 @@ async function getSlackConfig(
     settings: {
       channelId: notifSettings.channel_id,
       deliveryMethod: notifSettings.delivery_method || 'channel',
+      dmAudience: (notifSettings as any)?.dm_audience || 'owner',
+      stakeholderSlackIds: ((notifSettings as any)?.stakeholder_slack_ids as string[] | null | undefined) || [],
     },
   };
 }
@@ -206,6 +253,30 @@ async function postToSlack(
   return response.json();
 }
 
+async function listChannels(botToken: string): Promise<Array<{ id: string; name: string }>> {
+  const res = await fetch('https://slack.com/api/conversations.list?limit=200&types=public_channel,private_channel', {
+    headers: { Authorization: `Bearer ${botToken}` },
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Failed to list channels');
+  return (json.channels || []).map((c: any) => ({ id: c.id, name: c.name }));
+}
+
+async function joinChannel(botToken: string, channel: string): Promise<void> {
+  const res = await fetch('https://slack.com/api/conversations.join', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${botToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ channel }),
+  });
+  const json = await res.json();
+  if (!json.ok && json.error !== 'method_not_supported_for_channel_type') {
+    throw new Error(json.error || 'Failed to join channel');
+  }
+}
+
 /**
  * Send DM to Slack user
  */
@@ -213,7 +284,7 @@ async function sendSlackDM(
   botToken: string,
   userId: string,
   message: { blocks: unknown[]; text: string }
-): Promise<{ ok: boolean; ts?: string; error?: string }> {
+): Promise<{ ok: boolean; ts?: string; error?: string; channelId?: string }> {
   // Open DM channel
   const openResponse = await fetch('https://slack.com/api/conversations.open', {
     method: 'POST',
@@ -230,7 +301,9 @@ async function sendSlackDM(
   }
 
   // Send message to DM channel
-  return postToSlack(botToken, openResult.channel.id, message);
+  const dmChannelId = openResult.channel.id as string | undefined;
+  const res = await postToSlack(botToken, openResult.channel.id, message);
+  return { ...res, channelId: dmChannelId };
 }
 
 /**
@@ -263,9 +336,11 @@ serve(async (req) => {
   }
 
   try {
-    const { meetingId, orgId } = await req.json();
+    const { meetingId, orgId, isTest } = await req.json();
+    const requestId = crypto.randomUUID();
+    console.log('[slack-post-meeting] start', { requestId, meetingId, orgId, isTest: !!isTest });
 
-    if (!meetingId) {
+    if (!meetingId && !isTest) {
       return new Response(
         JSON.stringify({ error: 'meetingId required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -273,39 +348,63 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const auth = await getAuthContext(req, supabase, supabaseServiceKey);
+    console.log('[slack-post-meeting] auth', { requestId, mode: auth.mode, userId: auth.userId, isPlatformAdmin: auth.isPlatformAdmin });
 
-    // Fetch meeting data
-    const { data: meeting, error: meetingError } = await supabase
-      .from('meetings')
-      .select(`
-        id,
-        title,
-        transcript,
-        summary,
-        duration_minutes,
-        attendees,
-        owner_user_id,
-        org_id,
-        deal_id,
-        deals:deal_id (
+    // Fetch meeting data (schema-safe: our `meetings` table does NOT have `deal_id`, `attendees`, or `transcript`)
+    // and there is no PostgREST relationship `meetings -> deals`.
+    let meeting: any | null = null;
+    let meetingError: any | null = null;
+
+    if (meetingId) {
+      const res = await supabase
+        .from('meetings')
+        .select(`
           id,
           title,
-          stage,
-          value
-        )
-      `)
-      .eq('id', meetingId)
-      .single();
+          transcript_text,
+          summary,
+          duration_minutes,
+          owner_user_id,
+          company_id,
+          meeting_attendees (
+            name,
+            email,
+            is_external
+          )
+        `)
+        .eq('id', meetingId)
+        .single();
+      meeting = res.data;
+      meetingError = res.error;
+    }
 
-    if (meetingError || !meeting) {
+    if ((meetingError || !meeting) && !isTest) {
+      // Avoid returning 404 here because it gets misinterpreted as "function not deployed" on the client.
+      // Instead, return a structured error with HTTP 200 so the UI can show the real failure reason.
       console.error('Meeting not found:', meetingError);
       return new Response(
-        JSON.stringify({ error: 'Meeting not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Meeting not found', details: meetingError }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const effectiveOrgId = orgId || meeting.org_id;
+    // If this is a test run and we couldn't fetch a real meeting, synthesize minimal sample data.
+    if (!meeting) {
+      meeting = {
+        id: meetingId || 'test-meeting',
+        title: 'Test Meeting Debrief',
+        transcript_text:
+          'Sample transcript: We discussed goals, pricing, timeline, and next steps. Customer asked about onboarding, integrations, and contract terms.',
+        summary: 'Sample meeting summary.',
+        duration_minutes: 30,
+        owner_user_id: null,
+        company_id: null,
+        meeting_attendees: [{ name: 'Sample Customer', email: 'customer@example.com', is_external: true }],
+      };
+    }
+
+    const effectiveOrgId = orgId;
     if (!effectiveOrgId) {
       return new Response(
         JSON.stringify({ error: 'Org ID required' }),
@@ -313,48 +412,104 @@ serve(async (req) => {
       );
     }
 
-    // Check if already sent
-    const { data: existingSent } = await supabase
-      .from('slack_notifications_sent')
-      .select('id')
-      .eq('org_id', effectiveOrgId)
-      .eq('feature', 'meeting_debrief')
-      .eq('entity_id', meetingId)
-      .limit(1);
-
-    if (existingSent && existingSent.length > 0) {
-      console.log('Meeting debrief already sent for:', meetingId);
-      return new Response(
-        JSON.stringify({ success: true, message: 'Already sent' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    // External release hardening: only org admins (or platform admins) can trigger
+    // meeting debrief notifications for an org via this endpoint.
+    if (auth.mode === 'user' && auth.userId && !auth.isPlatformAdmin) {
+      await requireOrgRole(
+        supabase,
+        effectiveOrgId,
+        auth.userId,
+        isTest ? ['owner', 'admin', 'member', 'readonly'] : ['owner', 'admin']
       );
     }
 
-    // Get Slack configuration
-    const slackConfig = await getSlackConfig(supabase, effectiveOrgId);
+    // Check if already sent (skip for tests)
+    if (!isTest && meetingId) {
+      const { data: existingSent } = await supabase
+        .from('slack_notifications_sent')
+        .select('id')
+        .eq('org_id', effectiveOrgId)
+        .eq('feature', 'meeting_debrief')
+        .eq('entity_id', meetingId)
+        .limit(1);
+
+      if (existingSent && existingSent.length > 0) {
+        console.log('Meeting debrief already sent for:', meetingId);
+        return new Response(
+          JSON.stringify({ success: true, message: 'Already sent' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // Get Slack configuration (in test mode we allow fallback delivery even if meeting_debrief isn't configured yet)
+    const slackConfig = await getSlackConfig(supabase, effectiveOrgId, { isTest: !!isTest });
     if (!slackConfig) {
       return new Response(
-        JSON.stringify({ success: false, message: 'Slack not configured or feature disabled' }),
+        JSON.stringify({ success: false, error: 'Slack not configured or feature disabled', requestId }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // Best-effort: attach a related deal by company name (our schema doesn't have meeting->deal FK)
+    let deal: MeetingData['deal'] | undefined = undefined;
+    try {
+      if (meeting.company_id) {
+        const { data: company } = await supabase
+          .from('companies')
+          .select('name')
+          .eq('id', meeting.company_id)
+          .maybeSingle();
+
+        const companyName = (company as any)?.name as string | undefined;
+        if (companyName) {
+          const { data: deals } = await supabase
+            .from('deals')
+            .select('id, name, value, stage_id')
+            .ilike('company', `%${companyName}%`)
+            .order('updated_at', { ascending: false })
+            .limit(1);
+
+          const d0 = (deals as any[])?.[0];
+          if (d0) {
+            deal = { id: d0.id, name: d0.name, stage_id: d0.stage_id, value: d0.value };
+          }
+        }
+      }
+    } catch (e) {
+      // Non-fatal: deal enrichment is optional
+      console.log('Deal enrichment skipped:', (e as any)?.message || e);
+    }
+
+    const attendees: string[] = Array.isArray(meeting.meeting_attendees)
+      ? meeting.meeting_attendees
+          .map((a: any) => (a?.email ? `${a?.name || 'Attendee'} <${a.email}>` : a?.name))
+          .filter(Boolean)
+      : [];
+
     // Analyze meeting with AI
-    console.log('Analyzing meeting:', meetingId);
+    console.log('Analyzing meeting:', meetingId || meeting?.id);
     const analysis = await analyzeMeeting({
-      ...meeting,
-      deal: meeting.deals as MeetingData['deal'],
+      id: meeting.id,
+      title: meeting.title || 'Untitled Meeting',
+      transcript: meeting.transcript_text || undefined,
+      summary: meeting.summary || undefined,
+      duration_minutes: meeting.duration_minutes || 30,
+      attendees,
+      owner_user_id: meeting.owner_user_id || auth.userId || 'unknown',
+      company_id: meeting.company_id || null,
+      deal,
     });
 
     // Build Slack message
     const debriefData: MeetingDebriefData = {
       meetingTitle: meeting.title || 'Untitled Meeting',
       meetingId: meeting.id,
-      attendees: meeting.attendees || [],
+      attendees,
       duration: meeting.duration_minutes || 30,
-      dealName: (meeting.deals as { title?: string })?.title,
-      dealId: meeting.deal_id || undefined,
-      dealStage: (meeting.deals as { stage?: string })?.stage,
+      dealName: (deal as { name?: string } | undefined)?.name,
+      dealId: (deal as { id?: string } | undefined)?.id,
+      dealStage: (deal as { stage_id?: string } | undefined)?.stage_id,
       summary: analysis.summary,
       sentiment: analysis.sentiment,
       sentimentScore: analysis.sentimentScore,
@@ -368,69 +523,202 @@ serve(async (req) => {
     const slackMessage = buildMeetingDebriefMessage(debriefData);
 
     // Send to Slack
-    let result: { ok: boolean; ts?: string; error?: string };
-    let recipientId: string;
-    let recipientType: string;
-    let channelId: string;
+    let result: { ok: boolean; ts?: string; error?: string } | null = null;
+    let recipientId: string | undefined;
+    let recipientType: string | undefined;
+    let channelId: string | undefined;
+    let dmResults: Array<{ slackUserId: string; ok: boolean; ts?: string; error?: string; channelId?: string }> | undefined;
 
-    if (slackConfig.settings.deliveryMethod === 'dm') {
-      // Send DM to meeting owner
-      const ownerSlackId = await getSlackUserId(supabase, effectiveOrgId, meeting.owner_user_id);
-      if (!ownerSlackId) {
-        console.log('No Slack mapping for meeting owner');
-        return new Response(
-          JSON.stringify({ success: false, message: 'Owner not mapped to Slack' }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+    const deliveryMethodRaw = String(slackConfig.settings.deliveryMethod || 'channel');
+    const deliveryMethod =
+      deliveryMethodRaw === 'dm' || deliveryMethodRaw === 'both' || deliveryMethodRaw === 'channel'
+        ? (deliveryMethodRaw as 'channel' | 'dm' | 'both')
+        : ('channel' as const);
+    const sendToDm = deliveryMethod === 'dm' || deliveryMethod === 'both';
+    const sendToChannel = deliveryMethod === 'channel' || deliveryMethod === 'both';
+
+    if (sendToDm) {
+      // DM recipients: meeting owner and/or configured stakeholders
+      const dmAudienceRaw = String(slackConfig.settings.dmAudience || 'owner');
+      const dmAudience =
+        dmAudienceRaw === 'owner' || dmAudienceRaw === 'stakeholders' || dmAudienceRaw === 'both'
+          ? (dmAudienceRaw as 'owner' | 'stakeholders' | 'both')
+          : ('owner' as const);
+
+      const includeOwner = dmAudience === 'owner' || dmAudience === 'both';
+      const includeStakeholders = dmAudience === 'stakeholders' || dmAudience === 'both';
+
+      const recipients = new Set<string>();
+
+      // Safety: in test mode, DM only the requester (avoid spamming stakeholders)
+      if (isTest) {
+        const requesterUserId = auth.userId;
+        if (requesterUserId) {
+          const requesterSlackId = await getSlackUserId(supabase, effectiveOrgId, requesterUserId);
+          if (requesterSlackId) recipients.add(requesterSlackId);
+        }
+      } else {
+        if (includeOwner) {
+          const ownerUserId = meeting.owner_user_id || auth.userId;
+          if (ownerUserId) {
+            const ownerSlackId = await getSlackUserId(supabase, effectiveOrgId, ownerUserId);
+            if (ownerSlackId) recipients.add(ownerSlackId);
+          }
+        }
+        if (includeStakeholders) {
+          for (const sid of (slackConfig.settings.stakeholderSlackIds || []).filter(Boolean)) {
+            recipients.add(String(sid));
+          }
+        }
       }
-      result = await sendSlackDM(slackConfig.botToken, ownerSlackId, slackMessage);
-      recipientId = ownerSlackId;
-      recipientType = 'user';
-      channelId = ownerSlackId; // DM channel
-    } else {
+
+      const recipientSlackIds = Array.from(recipients);
+      if (recipientSlackIds.length === 0) {
+        if (sendToChannel && slackConfig.settings.channelId) {
+          // Fall back to channel delivery if configured
+        } else {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: isTest ? 'No Slack mapping for requester (cannot DM test)' : 'No DM recipients configured/mapped',
+              requestId,
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      if (recipientSlackIds.length > 0) {
+        dmResults = [];
+        for (const slackUserId of recipientSlackIds) {
+          const dmRes = await sendSlackDM(slackConfig.botToken, slackUserId, slackMessage);
+          dmResults.push({ slackUserId, ...dmRes });
+        }
+
+        const firstOk = dmResults.find((r) => r.ok);
+        if (firstOk) {
+          result = { ok: true, ts: firstOk.ts };
+          recipientId = firstOk.slackUserId;
+          recipientType = 'user';
+          channelId = firstOk.channelId; // DM channel id
+        } else {
+          // All DMs failed; if we can send to channel and have a channel, fall through to channel send below.
+          if (!sendToChannel) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: dmResults[0]?.error || 'Slack DM failed',
+                requestId,
+              }),
+              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+      }
+    }
+
+    // If DM path intentionally fell back to channel in test mode, execute the channel send now.
+    if (!result && sendToChannel) {
       // Send to channel
       if (!slackConfig.settings.channelId) {
-        return new Response(
-          JSON.stringify({ success: false, message: 'No channel configured' }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        if (!isTest) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'No channel configured', requestId }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const channels = await listChannels(slackConfig.botToken);
+        const preferred =
+          channels.find((c) => c.name === 'general') ||
+          channels.find((c) => c.name === 'random') ||
+          channels[0];
+        if (!preferred) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'No channels available for Slack bot', requestId }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        slackConfig.settings.channelId = preferred.id;
       }
       result = await postToSlack(slackConfig.botToken, slackConfig.settings.channelId, slackMessage);
+      if (!result.ok && result.error === 'not_in_channel') {
+        try {
+          await joinChannel(slackConfig.botToken, slackConfig.settings.channelId);
+        } catch {
+          // ignore
+        }
+        result = await postToSlack(slackConfig.botToken, slackConfig.settings.channelId, slackMessage);
+      }
       recipientId = slackConfig.settings.channelId;
       recipientType = 'channel';
       channelId = slackConfig.settings.channelId;
     }
 
-    if (!result.ok) {
-      console.error('Slack API error:', result.error);
+    if (!result || !result.ok) {
+      console.error('Slack API error:', result?.error || 'unknown');
       return new Response(
-        JSON.stringify({ success: false, error: result.error }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          success: false,
+          error: result?.error || 'Slack API error',
+          requestId,
+          ...(result?.error === 'invalid_blocks' ? { debug: { slackMessage } } : {}),
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Record the notification
-    await recordNotification(
-      supabase,
-      effectiveOrgId,
-      meetingId,
-      recipientType,
-      recipientId,
-      result.ts || '',
-      channelId
-    );
+    // Record the notification (skip for tests to avoid requiring a real meeting id)
+    if (!isTest && meetingId) {
+      if (recipientType === 'user' && dmResults && dmResults.length > 0) {
+        for (const r of dmResults.filter((x) => x.ok && x.ts && x.channelId)) {
+          await recordNotification(
+            supabase,
+            effectiveOrgId,
+            meetingId,
+            'user',
+            r.slackUserId,
+            r.ts || '',
+            r.channelId || ''
+          );
+        }
+      } else {
+        await recordNotification(
+          supabase,
+          effectiveOrgId,
+          meetingId,
+          recipientType,
+          recipientId,
+          result.ts || '',
+          channelId
+        );
+      }
+    }
 
-    console.log('Meeting debrief posted successfully:', meetingId);
+    console.log('Meeting debrief posted successfully:', meetingId, { channelId, recipientType });
     return new Response(
-      JSON.stringify({ success: true, slackTs: result.ts }),
+      JSON.stringify({ 
+        success: true, 
+        slackTs: result.ts, 
+        channelId,
+        recipientType,
+        deliveryMethod: recipientType === 'user' ? 'dm' : 'channel',
+        dmResults: dmResults
+          ? {
+              attempted: dmResults.length,
+              successCount: dmResults.filter((r) => r.ok).length,
+              failedCount: dmResults.filter((r) => !r.ok).length,
+            }
+          : undefined,
+        requestId,
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
     console.error('Error posting meeting debrief:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: false, error: error.message }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

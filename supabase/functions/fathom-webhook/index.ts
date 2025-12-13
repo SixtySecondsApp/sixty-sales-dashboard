@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { hmacSha256Hex, timingSafeEqual } from '../_shared/use60Signing.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,6 +27,34 @@ serve(async (req) => {
   const timestamp = new Date().toISOString()
   const requestId = crypto.randomUUID().substring(0, 8)
   try {
+    // External release hardening:
+    // Require either a valid internal proxy signature (preferred) OR a service-role bearer token.
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    const authHeader = req.headers.get('Authorization') || ''
+    const proxySecret = Deno.env.get('FATHOM_WEBHOOK_PROXY_SECRET') ?? ''
+
+    const use60Ts = req.headers.get('X-Use60-Timestamp') || ''
+    const use60Sig = req.headers.get('X-Use60-Signature') || ''
+
+    const allowServiceRole = serviceRoleKey && authHeader.trim() === `Bearer ${serviceRoleKey}`
+    let allowProxySig = false
+
+    // Read body as text once (needed for signature verification and JSON parsing)
+    const rawBody = await req.text()
+
+    if (proxySecret && use60Ts && use60Sig.startsWith('v1=')) {
+      const expected = await hmacSha256Hex(proxySecret, `v1:${use60Ts}:${rawBody}`)
+      const provided = use60Sig.slice('v1='.length).trim()
+      allowProxySig = timingSafeEqual(expected, provided)
+    }
+
+    if (!allowServiceRole && !allowProxySig) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized webhook' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -38,7 +67,7 @@ serve(async (req) => {
     )
 
     // Parse webhook payload
-    const payload = await req.json()
+    const payload = JSON.parse(rawBody)
 
     // Enhanced logging with full payload structure
     // Log raw payload for debugging (first 1000 chars)

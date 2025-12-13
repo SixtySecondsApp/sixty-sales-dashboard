@@ -3,13 +3,20 @@
 /**
  * Google Calendar Sync Edge Function
  * 
- * Incremental sync of Google Calendar events with user_sync_status tracking
- * Designed to be called from api-copilot when calendar queries need fresh data
+ * Incremental sync of Google Calendar events with user_sync_status tracking.
+ * Called from api-copilot when calendar queries need fresh data.
+ * 
+ * SECURITY:
+ * - POST only
+ * - User JWT authentication OR service-role with userId in body
+ * - No anonymous access
+ * - Org membership required for org-tagged operations
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+import { getCorsHeaders, handleCorsPreflightRequest, errorResponse, jsonResponse } from '../_shared/corsHelper.ts';
+import { authenticateRequest, getUserOrgId } from '../_shared/edgeAuth.ts';
 import { getGoogleIntegration } from '../_shared/googleOAuth.ts';
 
 interface SyncRequest {
@@ -17,96 +24,64 @@ interface SyncRequest {
   syncToken?: string;
   startDate?: string;
   endDate?: string;
-  userId?: string; // For internal service role calls
+  userId?: string; // Required for service-role calls
 }
 
 serve(async (req) => {
   // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) {
+    return preflightResponse;
   }
 
   if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse('Method not allowed', req, 405);
   }
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-    const authHeader = req.headers.get('Authorization');
-    const isInternalCall = req.headers.get('X-Internal-Call') === 'true';
-    
-    // Parse body once
-    const body: SyncRequest = await req.json();
-    
-    let user: any;
-    
-    // Handle internal service role calls
-    if (isInternalCall && authHeader?.includes(supabaseServiceKey)) {
-      if (!body.userId) {
-        return new Response(
-          JSON.stringify({ error: 'userId required for internal calls' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      // For internal calls, use userId directly
-      user = { id: body.userId };
-    } else {
-      // Standard user JWT authentication
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return new Response(
-          JSON.stringify({ error: 'Authorization header with Bearer token required' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
 
-      const jwt = authHeader.replace('Bearer ', '');
-      const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
-
-      const authClient = createClient(supabaseUrl, supabaseAnonKey, {
-        global: {
-          headers: { Authorization: authHeader },
-        },
-        auth: {
-          persistSession: false,
-        },
-      });
-
-      // Get user from JWT
-      const { data: userData, error: authError } = await authClient.auth.getUser(jwt);
-      if (authError || !userData) {
-        return new Response(
-          JSON.stringify({ error: 'Invalid or expired authentication token' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      user = userData;
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Server configuration error');
     }
 
+    // Parse body first to get userId for service-role calls
+    const body: SyncRequest = await req.json();
+
     // Create service role client for database operations
-    const client = createClient(
-      supabaseUrl,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+
+    // Authenticate request - supports both user JWT and service role
+    const { userId, mode } = await authenticateRequest(
+      req,
+      supabase,
+      supabaseServiceKey,
+      body.userId
     );
+
+    console.log(`[CALENDAR-SYNC] Authenticated as ${mode}, userId: ${userId}`);
 
     const { syncToken, startDate, endDate } = body;
 
     // Get or create user sync status
-    let { data: syncStatus } = await client
+    let { data: syncStatus } = await supabase
       .from('user_sync_status')
       .select('calendar_sync_token, calendar_last_synced_at')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
 
     if (!syncStatus) {
       // Create initial sync status record
-      const { data: newStatus } = await client
+      const { data: newStatus } = await supabase
         .from('user_sync_status')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           calendar_last_synced_at: null,
           calendar_sync_token: null,
         })
@@ -116,7 +91,7 @@ serve(async (req) => {
     }
 
     // Get Google OAuth tokens
-    const { accessToken } = await getGoogleIntegration(client, user.id);
+    const { accessToken } = await getGoogleIntegration(supabase, userId);
 
     // Determine sync parameters
     const calendarId = 'primary'; // Default to primary calendar
@@ -128,38 +103,14 @@ serve(async (req) => {
       endDate ||
       (currentSyncToken ? undefined : new Date(Date.now() + 180 * 86400000).toISOString());
 
-    // Get user's organization ID (optional - for future multi-tenancy support)
-    // NOTE: Multi-tenancy not yet implemented, so org_id can be null
-    let orgId: string | null = null;
-    try {
-      const { data: orgMembership } = await client
-        .from('organization_memberships')
-        .select('org_id')
-        .eq('user_id', user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (orgMembership?.org_id) {
-        orgId = orgMembership.org_id;
-      } else {
-        // Try to get default org
-        const { data: defaultOrg } = await client
-          .from('organizations')
-          .select('id')
-          .eq('is_default', true)
-          .limit(1)
-          .maybeSingle();
-        orgId = defaultOrg?.id || null;
-      }
-    } catch (error) {
-      console.error('[CALENDAR-SYNC] Failed to get org_id:', error);
-      // Continue - org_id is optional for single-tenant mode
-    }
+    // Get user's organization ID - NO DEFAULT FALLBACK
+    // Users without org membership will have null org_id
+    const orgId = await getUserOrgId(supabase, userId);
 
     console.log('[CALENDAR-SYNC] org_id status:', {
       found: !!orgId,
       value: orgId,
-      note: 'org_id is optional for single-tenant operation'
+      note: orgId ? 'User has org membership' : 'User has no org membership - events will not be tagged to org'
     });
 
     // Fetch calendar metadata to get timezone and name
@@ -189,30 +140,28 @@ serve(async (req) => {
 
     // Ensure calendar record exists and update timezone if detected
     const calendarPayload: any = {
-      user_id: user.id,
+      user_id: userId,
       external_id: calendarId,
-      name: calendarName, // Required field
+      name: calendarName,
       sync_enabled: true,
     };
     if (detectedTimezone) {
       calendarPayload.timezone = detectedTimezone;
     }
+    // Only set org_id if user has one - no fallback to default org
     if (orgId) {
       calendarPayload.org_id = orgId;
     }
 
     // Try to find existing calendar first
     let calRecord: any = null;
-    let queryBuilder = client
+    let queryBuilder = supabase
       .from('calendar_calendars')
-      .select('id, timezone')
-      .eq('user_id', user.id)
+      .select('id, timezone, org_id')
+      .eq('user_id', userId)
       .eq('external_id', calendarId);
     
-    if (orgId) {
-      queryBuilder = queryBuilder.eq('org_id', orgId);
-    }
-    
+    // Don't filter by org_id - find user's calendar regardless of org
     const { data: existingCal } = await queryBuilder.maybeSingle();
 
     if (existingCal?.id) {
@@ -224,11 +173,12 @@ serve(async (req) => {
       if (detectedTimezone) {
         updatePayload.timezone = detectedTimezone;
       }
+      // Only update org_id if user now has one and calendar doesn't
       if (orgId && !existingCal.org_id) {
         updatePayload.org_id = orgId;
       }
 
-      const { data: updatedCal, error: updateError } = await client
+      const { data: updatedCal, error: updateError } = await supabase
         .from('calendar_calendars')
         .update(updatePayload)
         .eq('id', existingCal.id)
@@ -242,7 +192,7 @@ serve(async (req) => {
       calRecord = updatedCal;
     } else {
       // Insert new calendar
-      const { data: insertedCal, error: insertError } = await client
+      const { data: insertedCal, error: insertError } = await supabase
         .from('calendar_calendars')
         .insert(calendarPayload)
         .select('id, timezone')
@@ -264,12 +214,11 @@ serve(async (req) => {
     // Update user timezone preference if we detected a timezone
     if (detectedTimezone) {
       try {
-        // Update user_settings preferences
-        await client
+        await supabase
           .from('user_settings')
           .upsert(
             {
-              user_id: user.id,
+              user_id: userId,
               preferences: { timezone: detectedTimezone },
             },
             { onConflict: 'user_id' }
@@ -281,6 +230,7 @@ serve(async (req) => {
         // Non-critical - continue with sync
       }
     }
+
     const stats = { created: 0, updated: 0, deleted: 0, skipped: 0 };
     let nextPageToken: string | undefined = undefined;
     let nextSyncToken: string | undefined = undefined;
@@ -357,7 +307,7 @@ serve(async (req) => {
           const isCancelled = ev.status === 'cancelled';
 
           const payload: any = {
-            user_id: user.id,
+            user_id: userId,
             calendar_id: calendarRecordId,
             external_id: ev.id,
             title: ev.summary || '(No title)',
@@ -381,19 +331,16 @@ serve(async (req) => {
             raw_data: ev,
           };
 
-          // Include org_id if available (optional - for future multi-tenancy)
-          // NOTE: org_id is nullable in database, safe to omit for single-tenant mode
+          // Only include org_id if user has one - no default fallback
           if (orgId) {
             payload.org_id = orgId;
           }
 
-          // Try upsert with ON CONFLICT first (works if migration is applied)
-          // Fallback to manual check/update/insert if ON CONFLICT fails
+          // Try upsert with ON CONFLICT
           let upsertedEvent: any = null;
           let upsertError: any = null;
 
-          // Always try upsert first, even without org_id
-          const result = await client
+          const result = await supabase
             .from('calendar_events')
             .upsert(payload, { onConflict: 'user_id,external_id' })
             .select('id')
@@ -401,22 +348,17 @@ serve(async (req) => {
           upsertedEvent = result.data;
           upsertError = result.error;
 
-          // If ON CONFLICT failed (likely migration not applied or constraint issue), use manual upsert
+          // If ON CONFLICT failed, use manual upsert
           if (upsertError && (upsertError.code === '42P10' || upsertError.message?.includes('ON CONFLICT'))) {
-            // Fallback: Check if event exists, then update or insert
-            const { data: existing, error: checkError } = await client
+            const { data: existing } = await supabase
               .from('calendar_events')
               .select('id')
-              .eq('user_id', user.id)
+              .eq('user_id', userId)
               .eq('external_id', ev.id)
               .maybeSingle();
 
-            if (checkError) {
-              console.error('Error checking for existing event:', checkError);
-              upsertError = checkError;
-            } else if (existing) {
-              // Update existing event
-              const { data, error } = await client
+            if (existing) {
+              const { data, error } = await supabase
                 .from('calendar_events')
                 .update(payload)
                 .eq('id', existing.id)
@@ -424,48 +366,23 @@ serve(async (req) => {
                 .single();
               upsertedEvent = data;
               upsertError = error;
-              if (error) {
-                console.error('Error updating existing event:', error);
-              }
             } else {
-              // Insert new event
-              const { data, error } = await client
+              const { data, error } = await supabase
                 .from('calendar_events')
                 .insert(payload)
                 .select('id')
                 .single();
               upsertedEvent = data;
               upsertError = error;
-              if (error) {
-                console.error('Error inserting new event:', error);
-              }
             }
           }
 
           if (upsertError || !upsertedEvent) {
-            // Improved error logging with full context
             console.error('[CALENDAR-SYNC] Failed to upsert event:', {
-              // Error details
-              errorObject: upsertError,
-              errorType: typeof upsertError,
               errorCode: upsertError?.code,
               errorMessage: upsertError?.message,
-              errorDetails: upsertError?.details,
-              errorHint: upsertError?.hint,
-              // Event context
               eventId: ev.id,
               eventTitle: ev.summary,
-              eventStart: ev.start?.dateTime || ev.start?.date,
-              // Payload context
-              userId: user.id,
-              calendarId: calendarRecordId,
-              hasOrgId: !!orgId,
-              orgId: orgId,
-              // Helpful debug info
-              payloadKeys: Object.keys(payload),
-              hasUpsertedEvent: !!upsertedEvent,
-              // Full error serialization
-              errorSerialized: JSON.stringify(upsertError, null, 2)
             });
             stats.skipped++;
             continue;
@@ -473,7 +390,7 @@ serve(async (req) => {
 
           const eventDbId = upsertedEvent.id;
 
-          // Track stats (rough estimate - we don't know if it was created or updated)
+          // Track stats
           if (isCancelled) {
             stats.deleted++;
           } else {
@@ -483,7 +400,7 @@ serve(async (req) => {
           // Upsert attendees
           if (Array.isArray(ev.attendees) && ev.attendees.length > 0) {
             for (const attendee of ev.attendees) {
-              await client
+              await supabase
                 .from('calendar_attendees')
                 .upsert(
                   {
@@ -520,13 +437,13 @@ serve(async (req) => {
       updatePayload.calendar_sync_token = nextSyncToken;
     }
 
-    await client
+    await supabase
       .from('user_sync_status')
       .update(updatePayload)
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
     // Also update calendar_calendars for backward compatibility
-    await client
+    await supabase
       .from('calendar_calendars')
       .update({
         last_synced_at: now,
@@ -534,29 +451,15 @@ serve(async (req) => {
       })
       .eq('id', calendarRecordId);
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        stats,
-        syncToken: nextSyncToken,
-        syncedAt: now,
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    return jsonResponse({
+      success: true,
+      stats,
+      syncToken: nextSyncToken,
+      syncedAt: now,
+    }, req);
+
   } catch (error: any) {
-    console.error('Calendar sync error:', error);
-    return new Response(
-      JSON.stringify({
-        error: error.message || 'Calendar sync failed',
-        details: error.stack,
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    console.error('[CALENDAR-SYNC] Error:', error);
+    return errorResponse(error.message || 'Calendar sync failed', req, 500);
   }
 });
-

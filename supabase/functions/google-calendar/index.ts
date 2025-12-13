@@ -1,11 +1,18 @@
+/**
+ * Google Calendar Edge Function
+ * 
+ * Provides Calendar API access for creating, listing, updating, and deleting events.
+ * 
+ * SECURITY:
+ * - POST only (no GET for API actions)
+ * - User JWT authentication OR service-role with userId in body
+ * - Allowlist-based CORS
+ */
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-};
+import { getCorsHeaders, handleCorsPreflightRequest, jsonResponse, errorResponse } from '../_shared/corsHelper.ts';
+import { authenticateRequest } from '../_shared/edgeAuth.ts';
 
 async function refreshAccessToken(refreshToken: string, supabase: any, userId: string): Promise<string> {
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
@@ -31,7 +38,6 @@ async function refreshAccessToken(refreshToken: string, supabase: any, userId: s
 
   const data = await response.json();
   
-  // Update the stored access token
   const expiresAt = new Date();
   expiresAt.setSeconds(expiresAt.getSeconds() + (data.expires_in || 3600));
   
@@ -53,8 +59,8 @@ interface CreateEventRequest {
   calendarId?: string;
   summary: string;
   description?: string;
-  startTime: string; // ISO 8601 format
-  endTime: string;   // ISO 8601 format
+  startTime: string;
+  endTime: string;
   attendees?: string[];
   location?: string;
 }
@@ -78,29 +84,26 @@ interface UpdateEventRequest {
 }
 
 serve(async (req) => {
-  // Handle CORS
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  // Handle CORS preflight
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) {
+    return preflightResponse;
   }
 
-  if (req.method !== 'POST' && req.method !== 'GET') {
-    return new Response('Method not allowed', { 
-      status: 405,
-      headers: corsHeaders 
-    });
+  // POST only
+  if (req.method !== 'POST') {
+    return errorResponse('Method not allowed. Use POST.', req, 405);
   }
 
   try {
-    // Get the authorization header
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('No authorization header');
-    }
-
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Server configuration error');
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         persistSession: false,
@@ -108,18 +111,31 @@ serve(async (req) => {
       },
     });
 
-    // Verify the JWT and get user
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    // Parse request
+    const url = new URL(req.url);
+    let action = url.searchParams.get('action');
+    const requestBody = await req.json();
     
-    if (userError || !user) {
-      throw new Error('Invalid authentication token');
+    // Backward compatibility: allow action in request body
+    if (!action && requestBody?.action) {
+      action = requestBody.action;
     }
+
+    // Authenticate - supports both user JWT and service role with userId
+    const { userId, mode } = await authenticateRequest(
+      req,
+      supabase,
+      supabaseServiceKey,
+      requestBody.userId
+    );
+
+    console.log(`[google-calendar] Authenticated as ${mode}, userId: ${userId}, action: ${action}`);
+
     // Get user's Google integration
     const { data: integration, error: integrationError } = await supabase
       .from('google_integrations')
-      .select('access_token, refresh_token, expires_at')
-      .eq('user_id', user.id)
+      .select('access_token, refresh_token, expires_at, id')
+      .eq('user_id', userId)
       .eq('is_active', true)
       .single();
 
@@ -133,20 +149,7 @@ serve(async (req) => {
     let accessToken = integration.access_token;
     
     if (expiresAt <= now) {
-      accessToken = await refreshAccessToken(integration.refresh_token, supabase, user.id);
-    }
-
-    // Parse request based on method and URL
-    const url = new URL(req.url);
-    let action = url.searchParams.get('action');
-
-    let requestBody: any = {};
-    if (req.method === 'POST') {
-      requestBody = await req.json();
-      // Backward compatibility: allow action in request body if not passed as query param
-      if (!action && requestBody?.action) {
-        action = requestBody.action;
-      }
+      accessToken = await refreshAccessToken(integration.refresh_token, supabase, userId);
     }
 
     let response;
@@ -184,38 +187,21 @@ serve(async (req) => {
     await supabase
       .from('google_service_logs')
       .insert({
-        integration_id: null, // We'd need to get this from the integration
+        integration_id: integration.id,
         service: 'calendar',
         action: action || 'unknown',
         status: 'success',
-        request_data: requestBody,
+        request_data: { action, userId },
         response_data: { success: true },
+      }).catch(() => {
+        // Non-critical
       });
 
-    return new Response(
-      JSON.stringify(response),
-      {
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        },
-      }
-    );
+    return jsonResponse(response, req);
 
-  } catch (error) {
-    return new Response(
-      JSON.stringify({ 
-        error: error.message || 'Internal server error',
-        details: 'Calendar service error'
-      }),
-      {
-        status: 400,
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        },
-      }
-    );
+  } catch (error: any) {
+    console.error('[google-calendar] Error:', error.message);
+    return errorResponse(error.message || 'Calendar service error', req, 400);
   }
 });
 
@@ -228,7 +214,7 @@ async function createEvent(accessToken: string, request: CreateEventRequest): Pr
     location: request.location,
     start: {
       dateTime: request.startTime,
-      timeZone: 'UTC', // We should get this from user preferences
+      timeZone: 'UTC',
     },
     end: {
       dateTime: request.endTime,
@@ -237,7 +223,7 @@ async function createEvent(accessToken: string, request: CreateEventRequest): Pr
     attendees: request.attendees?.map(email => ({ email })),
   };
 
-  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`, {
+  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -272,7 +258,7 @@ async function listEvents(accessToken: string, request: ListEventsRequest): Prom
   params.set('singleEvents', 'true');
   params.set('orderBy', 'startTime');
 
-  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?${params}`, {
+  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
     },
@@ -312,7 +298,7 @@ async function updateEvent(accessToken: string, request: UpdateEventRequest): Pr
     updateData.attendees = request.attendees.map(email => ({ email }));
   }
 
-  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${request.calendarId}/events/${request.eventId}`, {
+  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(request.calendarId)}/events/${request.eventId}`, {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -335,15 +321,15 @@ async function updateEvent(accessToken: string, request: UpdateEventRequest): Pr
 }
 
 async function deleteEvent(accessToken: string, calendarId: string, eventId: string): Promise<any> {
-  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${eventId}`, {
+  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`, {
     method: 'DELETE',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
     },
   });
 
-  if (!response.ok) {
-    const errorData = await response.json();
+  if (!response.ok && response.status !== 204) {
+    const errorData = await response.json().catch(() => ({}));
     throw new Error(`Calendar API error: ${errorData.error?.message || 'Unknown error'}`);
   }
   return {

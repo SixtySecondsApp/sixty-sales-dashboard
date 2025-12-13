@@ -536,15 +536,10 @@ export async function detectGhostingSignals(
 /**
  * Calculate comprehensive ghost risk assessment
  */
-export async function assessGhostRisk(
-  relationshipHealthId: string,
-  contactId: string,
-  userId: string,
-  healthScore: RelationshipHealthScore
-): Promise<GhostRiskAssessment> {
-  // Detect all signals
-  const signals = await detectGhostingSignals(relationshipHealthId, contactId, userId, healthScore);
-
+export function computeGhostRiskAssessmentFromSignals(
+  healthScore: RelationshipHealthScore,
+  signals: Array<Pick<GhostDetectionSignal, 'severity' | 'signal_type'>>
+): Omit<GhostRiskAssessment, 'signals'> {
   // Calculate ghost probability
   let ghostProbability = 0;
 
@@ -600,11 +595,22 @@ export async function assessGhostRisk(
     isGhostRisk: ghostProbability >= 40,
     ghostProbabilityPercent: Math.round(ghostProbability),
     daysUntilPredictedGhost,
-    signals,
     highestSeverity,
     recommendedAction,
     contextTrigger,
   };
+}
+
+export async function assessGhostRisk(
+  relationshipHealthId: string,
+  contactId: string,
+  userId: string,
+  healthScore: RelationshipHealthScore
+): Promise<GhostRiskAssessment> {
+  // Detect all signals
+  const signals = await detectGhostingSignals(relationshipHealthId, contactId, userId, healthScore);
+  const computed = computeGhostRiskAssessmentFromSignals(healthScore, signals);
+  return { ...computed, signals };
 }
 
 /**

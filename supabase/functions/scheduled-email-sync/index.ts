@@ -3,38 +3,48 @@
  * 
  * Daily incremental email sync for active users (logged in last 7 days).
  * Syncs last 24 hours of emails for CRM contacts only.
- * Called daily via GitHub Actions cron job.
+ * Called daily via GitHub Actions cron job or Vercel cron.
+ * 
+ * SECURITY:
+ * - POST only (no GET)
+ * - FAIL-CLOSED: Requires CRON_SECRET or service role authentication
+ * - No anonymous triggers allowed
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { verifyCronSecret, isServiceRoleAuth } from '../_shared/edgeAuth.ts';
+import { getCorsHeaders, handleCorsPreflightRequest, errorResponse, jsonResponse } from '../_shared/corsHelper.ts';
 
 serve(async (req) => {
   // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) {
+    return preflightResponse;
+  }
+
+  // POST only - no GET allowed for scheduled jobs
+  if (req.method !== 'POST') {
+    return errorResponse('Method not allowed. Use POST.', req, 405);
   }
 
   try {
-    // Verify cron secret (if set)
+    // SECURITY: Fail-closed authentication
+    // Must have valid CRON_SECRET OR service role key
     const cronSecret = Deno.env.get('CRON_SECRET');
-    const providedSecret = req.headers.get('x-cron-secret');
-    
-    if (cronSecret && providedSecret !== cronSecret) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    const authHeader = req.headers.get('Authorization');
+
+    const isCronAuth = verifyCronSecret(req, cronSecret);
+    const isServiceRole = isServiceRoleAuth(authHeader, supabaseServiceKey);
+
+    if (!isCronAuth && !isServiceRole) {
+      console.error('[scheduled-email-sync] Unauthorized access attempt');
+      return errorResponse('Unauthorized: valid CRON_SECRET or service role key required', req, 401);
     }
 
     // Initialize Supabase client with service role (bypasses RLS)
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Missing Supabase configuration');
@@ -55,7 +65,7 @@ serve(async (req) => {
       .from('profiles')
       .select(`
         id,
-        google_integrations!inner(id, is_active)
+        google_integrations!inner(id, is_active, access_token, refresh_token, expires_at)
       `)
       .gte('last_login_at', sevenDaysAgo.toISOString())
       .not('last_login_at', 'is', null)
@@ -66,14 +76,11 @@ serve(async (req) => {
     }
 
     if (!activeUsers || activeUsers.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'No active users with Gmail integration to sync',
-          usersProcessed: 0,
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({
+        success: true,
+        message: 'No active users with Gmail integration to sync',
+        usersProcessed: 0,
+      }, req);
     }
 
     // Sync emails for each active user
@@ -87,7 +94,6 @@ serve(async (req) => {
     for (const user of activeUsers) {
       try {
         // Get user's CRM contacts with emails
-        // NOTE: contacts table uses owner_id, not user_id
         const { data: contacts, error: contactsError } = await supabase
           .from('contacts')
           .select('id, email')
@@ -95,7 +101,8 @@ serve(async (req) => {
           .not('email', 'is', null);
 
         if (contactsError) {
-          throw new Error(`Failed to fetch contacts: ${contactsError.message}`);
+          results.errors.push(`User ${user.id}: Failed to fetch contacts - ${contactsError.message}`);
+          continue;
         }
 
         if (!contacts || contacts.length === 0) {
@@ -105,29 +112,55 @@ serve(async (req) => {
 
         results.contactsWithEmails += contacts.length;
 
+        // Get user's Google integration
+        const integration = (user as any).google_integrations;
+        if (!integration || !integration.access_token) {
+          results.errors.push(`User ${user.id}: No valid Google integration`);
+          continue;
+        }
+
+        // Check if token needs refresh
+        let accessToken = integration.access_token;
+        const expiresAt = new Date(integration.expires_at);
+        const now = new Date();
+
+        if (now >= expiresAt && integration.refresh_token) {
+          try {
+            accessToken = await refreshAccessToken(integration.refresh_token, supabase, user.id);
+          } catch (refreshError: any) {
+            results.errors.push(`User ${user.id}: Token refresh failed - ${refreshError.message}`);
+            continue;
+          }
+        }
+
         // Fetch emails from Gmail API (last 24 hours only for incremental sync)
         const oneDayAgo = new Date();
         oneDayAgo.setDate(oneDayAgo.getDate() - 1);
         const afterTimestamp = Math.floor(oneDayAgo.getTime() / 1000);
 
-        // Call Gmail edge function to fetch recent emails
-        const { data: gmailData, error: gmailError } = await supabase.functions.invoke('google-gmail', {
-          body: {
-            action: 'list',
-            query: `after:${afterTimestamp}`,
-            maxResults: 100, // Limit for daily sync
-            userId: user.id,
-          },
+        // Directly call Gmail API (avoiding supabase.functions.invoke auth issues)
+        const gmailParams = new URLSearchParams({
+          q: `after:${afterTimestamp}`,
+          maxResults: '100',
         });
 
-        if (gmailError) {
-          // If Gmail integration is not set up or has errors, skip this user
-          // Don't throw - continue with other users
-          results.errors.push(`User ${user.id} Gmail error: ${gmailError.message}`);
+        const gmailListResponse = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages?${gmailParams}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (!gmailListResponse.ok) {
+          const errorData = await gmailListResponse.json().catch(() => ({}));
+          results.errors.push(`User ${user.id}: Gmail API error - ${errorData.error?.message || gmailListResponse.statusText}`);
           continue;
         }
 
-        const messages = gmailData?.messages || [];
+        const gmailData = await gmailListResponse.json();
+        const messageIds = gmailData.messages || [];
 
         // Create a set of CRM contact emails for matching
         const crmEmails = new Set(
@@ -138,8 +171,24 @@ serve(async (req) => {
 
         // Process each email and store if it matches a CRM contact
         let emailsStoredForUser = 0;
-        for (const message of messages) {
+        
+        // Limit to first 20 messages for performance
+        for (const msgRef of messageIds.slice(0, 20)) {
           try {
+            // Fetch full message details
+            const msgResponse = await fetch(
+              `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgRef.id}`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                },
+              }
+            );
+
+            if (!msgResponse.ok) continue;
+
+            const message = await msgResponse.json();
+
             // Extract email addresses from headers
             const headers = message.payload?.headers || [];
             const fromHeader = headers.find((h: any) => h.name === 'From');
@@ -158,7 +207,7 @@ serve(async (req) => {
             // Check if email involves a CRM contact
             const normalizedFrom = fromEmail?.toLowerCase().trim();
             const matchesCRM = (normalizedFrom && crmEmails.has(normalizedFrom)) ||
-                               toEmails.some(e => crmEmails.has(e.toLowerCase().trim()));
+                               toEmails.some((e: string) => crmEmails.has(e.toLowerCase().trim()));
 
             if (!matchesCRM) {
               continue; // Skip non-CRM emails
@@ -183,14 +232,13 @@ serve(async (req) => {
               }
             }
 
-            // Store as communication event (without AI analysis for now)
-            // AI analysis can be done asynchronously later
+            // Store as communication event
             const { error: insertError } = await supabase
               .from('communication_events')
-              .insert({
+              .upsert({
                 user_id: user.id,
                 contact_id: contactId,
-                event_type: 'email_received', // Simplified - could detect sent vs received
+                event_type: 'email_received',
                 communication_date: dateHeader ? new Date(dateHeader.value).toISOString() : new Date().toISOString(),
                 subject: subjectHeader?.value || '',
                 summary: `Email: ${subjectHeader?.value || '(no subject)'}`,
@@ -201,16 +249,16 @@ serve(async (req) => {
                   gmail_message_id: message.id,
                   synced_at: new Date().toISOString(),
                 },
-              })
-              .select('id')
-              .single();
+              }, {
+                onConflict: 'external_id',
+              });
 
             if (!insertError) {
               emailsStoredForUser++;
             }
           } catch (emailError: any) {
             // Continue processing other emails even if one fails
-            console.error(`Error processing email ${message.id}:`, emailError);
+            console.error(`[scheduled-email-sync] Error processing email ${msgRef.id}:`, emailError);
           }
         }
 
@@ -221,23 +269,60 @@ serve(async (req) => {
       }
     }
 
-    return new Response(
-      JSON.stringify({
-        success: results.errors.length === 0,
-        ...results,
-        timestamp: new Date().toISOString(),
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({
+      success: results.errors.length === 0,
+      ...results,
+      timestamp: new Date().toISOString(),
+    }, req);
+
   } catch (error: any) {
-    console.error('Email sync error:', error);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message || 'Unknown error',
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error('[scheduled-email-sync] Error:', error);
+    return errorResponse(error.message || 'Unknown error', req, 500);
   }
 });
 
+/**
+ * Refresh Google access token
+ */
+async function refreshAccessToken(refreshToken: string, supabase: any, userId: string): Promise<string> {
+  const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
+  const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
+  
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Failed to refresh token: ${errorData.error_description || 'Unknown error'}`);
+  }
+
+  const data = await response.json();
+  
+  // Update the stored access token
+  const expiresAt = new Date();
+  expiresAt.setSeconds(expiresAt.getSeconds() + (data.expires_in || 3600));
+  
+  const { error: updateError } = await supabase
+    .from('google_integrations')
+    .update({
+      access_token: data.access_token,
+      expires_at: expiresAt.toISOString(),
+    })
+    .eq('user_id', userId);
+  
+  if (updateError) {
+    throw new Error('Failed to update access token in database');
+  }
+
+  return data.access_token;
+}

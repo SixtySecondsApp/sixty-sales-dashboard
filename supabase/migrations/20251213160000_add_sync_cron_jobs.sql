@@ -22,20 +22,15 @@ SELECT cron.schedule(
 -- Syncs all users with active Fathom integrations
 -- No webhook dependency - polls Fathom API directly
 -- ============================================================================
-SELECT cron.schedule(
-  'fathom-hourly-sync',
-  '0 * * * *',
-  $$
-  SELECT net.http_post(
-    url := 'https://ygdpgliavpxeugaajgrb.supabase.co/functions/v1/fathom-cron-sync',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlnZHBnbGlhdnB4ZXVnYWFqZ3JiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTE4OTQ2MSwiZXhwIjoyMDgwNzY1NDYxfQ.n9MVawseoWgWSu7H48-lgpvl3dUFMqofI7lWlbqmEfI'
-    ),
-    body := '{}'::jsonb
-  );
-  $$
-);
+-- IMPORTANT (SECURITY):
+-- Do NOT hardcode service role tokens in SQL.
+-- Use the safer config-based trigger from `20251213190000_fix_fathom_cron_config.sql`
+-- which reads the service role key from `cron_job_config` (service-role only).
+--
+-- If you need the hourly job, schedule the trigger function:
+--   SELECT cron.schedule('fathom-hourly-sync', '0 * * * *', $$ SELECT public.trigger_fathom_hourly_sync(); $$);
+--
+-- Or use an external cron (Vercel, etc.) with a dedicated secret header.
 
 -- ============================================================================
 -- NOTES:

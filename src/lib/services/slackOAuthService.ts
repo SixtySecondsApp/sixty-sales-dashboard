@@ -29,7 +29,10 @@ class SlackOAuthService {
    * Initialize Slack OAuth flow
    */
   initiateOAuth(userId: string, orgId?: string): string {
-    const clientId = import.meta.env.VITE_SLACK_CLIENT_ID || '417685783159.9470252829718';
+    const clientId = import.meta.env.VITE_SLACK_CLIENT_ID;
+    if (!clientId) {
+      throw new Error('Slack OAuth is not configured (missing VITE_SLACK_CLIENT_ID)');
+    }
     const redirectUri = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/slack-oauth-callback`;
 
     // Encode state with user and org information

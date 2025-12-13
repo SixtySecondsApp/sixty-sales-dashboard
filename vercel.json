@@ -163,6 +163,22 @@
     {
       "path": "/api/cron/fathom-token-refresh",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/google-context-sync",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/slack-sales-assistant",
+      "schedule": "2,17,32,47 * * * *"
+    },
+    {
+      "path": "/api/cron/slack-daily-digest",
+      "schedule": "5 8 * * *"
+    },
+    {
+      "path": "/api/cron/slack-deal-room-archive",
+      "schedule": "10 * * * *"
     }
   ]
 } 

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Loader2 } from 'lucide-react';
+import { ArrowRightLeft, Loader2 } from 'lucide-react';
+import { DEFAULT_SIXTY_ICON_URL } from '@/lib/utils/sixtyBranding';
 
 export type IntegrationStatus = 'active' | 'inactive' | 'error' | 'syncing' | 'coming_soon';
 
@@ -16,6 +17,10 @@ interface IntegrationCardProps {
   iconBgColor?: string;
   iconBorderColor?: string;
   footer?: React.ReactNode;
+  /** Optional override (e.g. org branding). */
+  sixtyLogoUrl?: string | null;
+  /** Defaults to true for integrations/connect experiences. */
+  showSixtyLogo?: boolean;
 }
 
 const statusConfig: Record<IntegrationStatus, { badge: string; text: string; dot?: boolean }> = {
@@ -43,6 +48,63 @@ const statusConfig: Record<IntegrationStatus, { badge: string; text: string; dot
   },
 };
 
+function IntegrationLogo({
+  logoUrl,
+  fallbackIcon,
+  name,
+  containerClassName,
+}: {
+  logoUrl?: string | null;
+  fallbackIcon?: React.ReactNode;
+  name: string;
+  containerClassName?: string;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  const [errored, setErrored] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+    setErrored(false);
+  }, [logoUrl]);
+
+  return (
+    <div
+      className={cn(
+        'relative w-12 h-12 rounded-xl flex items-center justify-center border overflow-hidden',
+        containerClassName
+      )}
+    >
+      {/* Fallback stays mounted to prevent flicker */}
+      <div
+        className={cn(
+          'absolute inset-0 flex items-center justify-center transition-opacity duration-150',
+          loaded && !errored ? 'opacity-0' : 'opacity-100'
+        )}
+      >
+        {fallbackIcon}
+      </div>
+
+      {logoUrl && !errored && (
+        <img
+          src={logoUrl}
+          alt={`${name} logo`}
+          className={cn(
+            'absolute inset-0 m-auto w-8 h-8 object-contain transition-opacity duration-150',
+            loaded ? 'opacity-100' : 'opacity-0'
+          )}
+          decoding="async"
+          loading="eager"
+          onLoad={() => setLoaded(true)}
+          onError={() => {
+            setErrored(true);
+            setLoaded(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 export function IntegrationCard({
   name,
   description,
@@ -55,11 +117,14 @@ export function IntegrationCard({
   iconBgColor = 'bg-gray-100 dark:bg-gray-800',
   iconBorderColor = 'border-gray-200 dark:border-gray-700',
   footer,
+  sixtyLogoUrl,
+  showSixtyLogo = true,
 }: IntegrationCardProps) {
   const config = statusConfig[status];
   const displayStatus = statusText || config.text;
   const isActive = status === 'active' || status === 'syncing';
   const isComingSoon = status === 'coming_soon';
+  const sixtyLogo = sixtyLogoUrl || DEFAULT_SIXTY_ICON_URL;
 
   return (
     <div className={cn(
@@ -68,26 +133,27 @@ export function IntegrationCard({
     )}>
       {/* Header with logo and status */}
       <div className="flex justify-between items-start mb-5">
-        <div
-          className={cn(
-            'w-12 h-12 rounded-xl flex items-center justify-center border overflow-hidden',
-            iconBgColor,
-            iconBorderColor
+        <div className="flex items-center gap-2">
+          {showSixtyLogo && (
+            <>
+              <div className="relative w-12 h-12 rounded-xl flex items-center justify-center border overflow-hidden bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
+                <img
+                  src={sixtyLogo}
+                  alt="Sixty logo"
+                  className="w-8 h-8 object-contain"
+                  decoding="async"
+                  loading="eager"
+                />
+              </div>
+              <ArrowRightLeft className="w-4 h-4 text-gray-400" />
+            </>
           )}
-        >
-          {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt={`${name} logo`}
-              className="w-8 h-8 object-contain"
-              onError={(e) => {
-                // Hide image on error, fallback icon will show
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          ) : (
-            fallbackIcon
-          )}
+          <IntegrationLogo
+            logoUrl={logoUrl}
+            fallbackIcon={fallbackIcon}
+            name={name}
+            containerClassName={cn(iconBgColor, iconBorderColor)}
+          />
         </div>
         <span
           className={cn(

@@ -607,3 +607,17 @@ export async function getAlertStats(userId: string): Promise<{
     return { total: 0, critical: 0, warning: 0, info: 0, byType: {} };
   }
 }
+
+// =====================================================
+// Testable helpers (pure rule evaluation / templating)
+// =====================================================
+
+/**
+ * Exposes internal, deterministic helpers for unit tests.
+ * These do not perform any I/O.
+ */
+export const __dealHealthAlertTestables = {
+  renderTemplate,
+  evaluateRuleConditions,
+  evaluateThreshold,
+};
