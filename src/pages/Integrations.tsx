@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -15,6 +15,7 @@ import {
   Bot,
   Sparkles,
   Info,
+  ChevronUp,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -34,6 +35,8 @@ import { SavvyCalConfigModal } from '@/components/integrations/SavvyCalConfigMod
 import { useGoogleIntegration } from '@/lib/stores/integrationStore';
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
 import { useIntegrationLogo } from '@/lib/hooks/useIntegrationLogo';
+import { useUser } from '@/lib/hooks/useUser';
+import { useIntegrationUpvotes } from '@/lib/hooks/useIntegrationUpvotes';
 
 // Integration definitions
 interface IntegrationConfig {
@@ -329,6 +332,16 @@ const suggestedIntegrations: IntegrationCategory[] = [
 
 export default function Integrations() {
   const [searchParams] = useSearchParams();
+  useUser(); // ensures auth/user is initialized (needed for upvotes under Clerk)
+
+  const allComingSoonIntegrationIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const cat of integrationCategories) ids.push(...cat.integrations.map((i) => i.id));
+    for (const cat of suggestedIntegrations) ids.push(...cat.integrations.map((i) => i.id));
+    return ids;
+  }, []);
+
+  const { getVoteState, toggleUpvote } = useIntegrationUpvotes(allComingSoonIntegrationIds);
 
   // Integration states
   const {
@@ -442,6 +455,7 @@ export default function Integrations() {
   }) => {
     const { logoUrl } = useIntegrationLogo(config.id);
     const status = isBuilt ? getIntegrationStatus(config.id) : 'coming_soon';
+    const vote = !isBuilt ? getVoteState(config.id) : null;
 
     return (
       <IntegrationCard
@@ -457,6 +471,43 @@ export default function Integrations() {
         }
         iconBgColor={config.iconBgColor}
         iconBorderColor={config.iconBorderColor}
+        footer={
+          !isBuilt ? (
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                Vote to prioritize
+              </div>
+              <button
+                type="button"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  try {
+                    await toggleUpvote({
+                      integrationId: config.id,
+                      integrationName: config.name,
+                      description: config.description,
+                    });
+                  } catch (err: any) {
+                    toast.error(err?.message || 'Failed to upvote');
+                  }
+                }}
+                disabled={vote?.isLoading}
+                className={[
+                  'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors',
+                  vote?.hasVoted
+                    ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700',
+                  vote?.isLoading ? 'opacity-60 cursor-not-allowed' : '',
+                ].join(' ')}
+                aria-label={`${vote?.hasVoted ? 'Remove upvote' : 'Upvote'} ${config.name} integration`}
+              >
+                <ChevronUp className="w-4 h-4" />
+                <span>{(vote?.votesCount ?? 0).toLocaleString()}</span>
+              </button>
+            </div>
+          ) : undefined
+        }
       />
     );
   };
@@ -568,6 +619,7 @@ export default function Integrations() {
             <CategorySection key={category.id} category={category} isBuilt={false} />
           ))}
         </div>
+
       </div>
 
       {/* Connect Modals */}

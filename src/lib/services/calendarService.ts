@@ -247,7 +247,7 @@ class CalendarService {
       let data: DatabaseCalendarEvent[] | null = null;
       let error: any = null;
 
-      // Try calling the RPC function first
+      // Try calling the RPC function first (fast path when installed)
       const rpcResult = await supabase.rpc('get_calendar_events_in_range', {
         p_user_id: user.user.id,
         p_start_date: startDate.toISOString(),
@@ -255,7 +255,17 @@ class CalendarService {
         p_calendar_ids: calendarIds || null,
       });
 
-      if (rpcResult.error && rpcResult.error.message?.includes('function') && rpcResult.error.message?.includes('does not exist')) {
+      // If the RPC doesn't exist in the target Supabase DB, fall back to a direct query.
+      // PostgREST commonly returns 404 with messages like "Could not find the function ...",
+      // so handle both patterns.
+      const rpcMissing =
+        !!rpcResult.error &&
+        (rpcResult.error.code === 'PGRST202' || // PostgREST "function not found"
+          rpcResult.error.message?.toLowerCase().includes('could not find the function') ||
+          (rpcResult.error.message?.toLowerCase().includes('function') &&
+            rpcResult.error.message?.toLowerCase().includes('does not exist')));
+
+      if (rpcMissing) {
         // Function doesn't exist, fall back to direct query
         let query = supabase
           .from('calendar_events')

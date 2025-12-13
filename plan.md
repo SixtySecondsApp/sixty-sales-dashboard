@@ -53,3 +53,16 @@
 ### Milestones
 - **State Sync Fixed** – `data.src` updates immediately when users upload or paste images.
 - **Mystic Img2Img Working** – Image Generator nodes render results using Image Input references.
+
+## Workstream: Slack Demo + Integration Roadmap UX
+
+### Objectives
+- Make `/platform/slack-demo` faster to use for end-to-end validation.
+- Make integration roadmap entries linkable per integration (e.g. `/platform/integrations/roadmap/slack`).
+- Ensure the Slack roadmap entry reflects shipped functionality (not just a generic plan).
+
+### Tasks
+- [x] Add left padding + “Test Slack connection” button on Slack demo.
+- [x] Add a recent-meetings picker so tests don’t require copy/pasting meeting IDs.
+- [x] Add per-integration roadmap routes (`/platform/integrations/roadmap/:integrationId`) and a “Copy link” button.
+- [x] Update Slack roadmap plan to include meeting debriefs, prep cards, daily digest, deal rooms, and user mapping.

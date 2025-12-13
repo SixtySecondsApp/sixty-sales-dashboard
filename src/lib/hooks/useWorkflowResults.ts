@@ -176,6 +176,27 @@ export interface WorkflowChecklistConfig {
   keywords: string[];
 }
 
+export interface CoachingFocusArea {
+  id: string;
+  name: string;
+  description: string;
+  weight: number; // 0-100, how much this area affects overall score
+  enabled: boolean;
+}
+
+export interface CoachingConfig {
+  focus_areas: CoachingFocusArea[];
+  scoring_thresholds: {
+    excellent: number; // e.g., 90
+    good: number;      // e.g., 75
+    needs_improvement: number; // e.g., 50
+  };
+  custom_prompt?: string; // Additional context for AI coaching
+  include_transcript_quotes: boolean;
+  include_improvement_tips: boolean;
+  compare_to_team_average: boolean;
+}
+
 export interface WorkflowConfig {
   checklist_items: WorkflowChecklistConfig[];
   notifications: {
@@ -189,6 +210,7 @@ export interface WorkflowConfig {
     update_pipeline_on_forward_movement?: boolean;
     create_follow_up_task?: boolean;
   };
+  coaching?: CoachingConfig;
 }
 
 export interface CallTypeWithWorkflow {

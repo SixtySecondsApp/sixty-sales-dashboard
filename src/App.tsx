@@ -140,7 +140,6 @@ const TeamSettings = lazyWithRetry(() => import('@/pages/settings/TeamSettings')
 const CoachingPreferences = lazyWithRetry(() => import('@/pages/settings/CoachingPreferences'));
 const AccountSettings = lazyWithRetry(() => import('@/pages/settings/AccountSettings'));
 const AppearanceSettings = lazyWithRetry(() => import('@/pages/settings/AppearanceSettings'));
-const ProposalsPage = lazyWithRetry(() => import('@/pages/settings/ProposalsPage'));
 const AIPersonalizationPage = lazyWithRetry(() => import('@/pages/settings/AIPersonalizationPage'));
 const SalesCoachingPage = lazyWithRetry(() => import('@/pages/settings/SalesCoachingPage'));
 const APIKeysPage = lazyWithRetry(() => import('@/pages/settings/APIKeysPage'));
@@ -150,6 +149,7 @@ const MeetingSyncPage = lazyWithRetry(() => import('@/pages/settings/MeetingSync
 const TeamMembersPage = lazyWithRetry(() => import('@/pages/settings/TeamMembersPage'));
 const CallTypeSettings = lazyWithRetry(() => import('@/pages/settings/CallTypeSettings'));
 const PipelineAutomationSettings = lazyWithRetry(() => import('@/pages/settings/PipelineAutomationSettings'));
+const FollowUpSettings = lazyWithRetry(() => import('@/pages/settings/FollowUpSettings'));
 const OrganizationSettingsPage = lazyWithRetry(() => import('@/pages/settings/OrganizationSettingsPage'));
 const TeamAnalytics = lazyWithRetry(() => import('@/pages/insights/TeamAnalytics'));
 const ContentTopics = lazyWithRetry(() => import('@/pages/insights/ContentTopics'));
@@ -176,6 +176,13 @@ const SlackDemo = lazyWithRetry(() => import('@/pages/admin/SlackDemo'));
 
 // Meeting Intelligence demo
 const MeetingIntelligenceDemo = lazyWithRetry(() => import('@/pages/admin/MeetingIntelligenceDemo'));
+const MeetingIntelligenceDemoSimple = lazyWithRetry(() => import('@/pages/admin/MeetingIntelligenceDemoSimple'));
+
+// Cron Jobs Admin
+const CronJobsAdmin = lazyWithRetry(() => import('@/pages/admin/CronJobsAdmin'));
+
+// Integration Roadmap
+const IntegrationRoadmap = lazyWithRetry(() => import('@/pages/platform/IntegrationRoadmap'));
 
 // Note: CompaniesPage and ContactsPage removed - routes now redirect to CRM
 
@@ -463,6 +470,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/integrations/google" element={<PlatformAdminRouteGuard><AppLayout><GoogleIntegrationTests /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/savvycal" element={<PlatformAdminRouteGuard><AppLayout><SettingsSavvyCal /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/booking-sources" element={<PlatformAdminRouteGuard><AppLayout><SettingsBookingSources /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/integrations/roadmap/:integrationId" element={<PlatformAdminRouteGuard><AppLayout><IntegrationRoadmap /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/integrations/roadmap" element={<PlatformAdminRouteGuard><AppLayout><IntegrationRoadmap /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Platform Admin - Security & Audit */}
                 <Route path="/platform/audit" element={<PlatformAdminRouteGuard><AppLayout><AuditLogs /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/usage" element={<PlatformAdminRouteGuard><AppLayout><SaasAdminDashboard /></AppLayout></PlatformAdminRouteGuard>} />
@@ -473,7 +482,12 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/launch-checklist" element={<PlatformAdminRouteGuard><AppLayout><LaunchChecklist /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/activation" element={<PlatformAdminRouteGuard><AppLayout><ActivationDashboard /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/slack-demo" element={<PlatformAdminRouteGuard><AppLayout><SlackDemo /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* Cron Jobs Admin - Monitor and manage scheduled jobs */}
+                <Route path="/platform/cron-jobs" element={<PlatformAdminRouteGuard><AppLayout><CronJobsAdmin /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* Meeting Intelligence full demo (internal-only) */}
                 <Route path="/platform/meeting-intelligence-demo" element={<InternalRouteGuard><AppLayout><MeetingIntelligenceDemo /></AppLayout></InternalRouteGuard>} />
+                {/* Lightweight import test page (internal-only) */}
+                <Route path="/platform/meeting-intelligence-demo-simple" element={<InternalRouteGuard><AppLayout><MeetingIntelligenceDemoSimple /></AppLayout></InternalRouteGuard>} />
                 {/* Platform Dashboard - MUST be last (catch-all for /platform) */}
                 <Route path="/platform" element={<PlatformAdminRouteGuard><AppLayout><PlatformDashboard /></AppLayout></PlatformAdminRouteGuard>} />
 
@@ -530,7 +544,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
                 <Route path="/settings/account" element={<AppLayout><AccountSettings /></AppLayout>} />
                 <Route path="/settings/appearance" element={<AppLayout><AppearanceSettings /></AppLayout>} />
-                <Route path="/settings/proposals" element={<AppLayout><ProposalsPage /></AppLayout>} />
+                <Route path="/settings/proposals" element={<Navigate to="/settings/follow-ups" replace />} />
                 <Route path="/settings/ai-personalization" element={<AppLayout><AIPersonalizationPage /></AppLayout>} />
                 <Route path="/settings/sales-coaching" element={<AppLayout><SalesCoachingPage /></AppLayout>} />
                 <Route path="/settings/api-keys" element={<AppLayout><APIKeysPage /></AppLayout>} />
@@ -547,6 +561,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/settings/task-sync" element={<AppLayout><TaskSyncSettings /></AppLayout>} />
                 <Route path="/settings/call-types" element={<AppLayout><CallTypeSettings /></AppLayout>} />
                 <Route path="/settings/pipeline-automation" element={<AppLayout><PipelineAutomationSettings /></AppLayout>} />
+                <Route path="/settings/follow-ups" element={<AppLayout><FollowUpSettings /></AppLayout>} />
+                <Route path="/settings/proposal-workflows" element={<Navigate to="/settings/follow-ups" replace />} />
                 <Route path="/settings/coaching" element={<AppLayout><CoachingPreferences /></AppLayout>} />
                 <Route path="/insights/team" element={<AppLayout><TeamAnalytics /></AppLayout>} />
                 <Route path="/insights/content-topics" element={<AppLayout><ContentTopics /></AppLayout>} />

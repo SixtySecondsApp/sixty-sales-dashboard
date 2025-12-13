@@ -13,7 +13,6 @@ import { motion } from 'framer-motion';
 import {
   Users,
   Building2,
-  CreditCard,
   BarChart3,
   Settings2,
   Shield,
@@ -29,28 +28,23 @@ import {
   TrendingUp,
   DollarSign,
   ChevronRight,
-  Activity,
   Layers,
   Globe,
-  LayoutDashboard,
-  PieChart,
   MessageSquare,
   Mail,
+  Brain,
+  Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useUserPermissions } from '@/contexts/UserPermissionsContext';
 import {
   getAdminDashboardStats,
   getCustomers,
 } from '@/lib/services/saasAdminService';
 import type { AdminDashboardStats, CustomerWithDetails } from '@/lib/types/saasAdmin';
 import { toast } from 'sonner';
-import MeetingsWaitlist from './MeetingsWaitlist';
-import SlackDemo from '@/pages/admin/SlackDemo';
 
 interface PlatformSection {
   id: string;
@@ -80,6 +74,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: Building2,
       href: '/platform/customers',
       color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30',
+    },
+    {
+      id: 'waitlist',
+      title: 'Waitlist Admin',
+      description: 'Manage meeting intelligence waitlist signups and approvals',
+      icon: Users,
+      href: '/platform/meetings-waitlist',
+      color: 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900/30',
+      badge: 'New',
     },
     {
       id: 'pricing',
@@ -162,6 +165,24 @@ const platformSections: Record<string, PlatformSection[]> = {
   ],
   'Integrations': [
     {
+      id: 'integration-roadmap',
+      title: 'Integration Roadmap',
+      description: 'Implementation plans for all coming-soon integrations (searchable)',
+      icon: Layers,
+      href: '/platform/integrations/roadmap',
+      color: 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900/30',
+      badge: 'New',
+    },
+    {
+      id: 'slack-demo',
+      title: 'Slack Demo',
+      description: 'Test Slack integration and notification workflows',
+      icon: MessageSquare,
+      href: '/platform/slack-demo',
+      color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30',
+      badge: 'New',
+    },
+    {
       id: 'google-integration',
       title: 'Google Integration',
       description: 'Test Calendar, Gmail, and OAuth integrations',
@@ -217,6 +238,24 @@ const platformSections: Record<string, PlatformSection[]> = {
   ],
   'Development Tools': [
     {
+      id: 'meeting-intelligence',
+      title: 'Meeting Intelligence Demo',
+      description: 'Test call type workflows, coaching, and pipeline automation',
+      icon: Brain,
+      href: '/platform/meeting-intelligence-demo',
+      color: 'text-violet-600 bg-violet-100 dark:bg-violet-900/30',
+      badge: 'New',
+    },
+    {
+      id: 'cron-jobs',
+      title: 'Cron Jobs',
+      description: 'Monitor and manage scheduled jobs with failure notifications',
+      icon: Clock,
+      href: '/platform/cron-jobs',
+      color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30',
+      badge: 'New',
+    },
+    {
       id: 'launch-checklist',
       title: 'Launch Checklist',
       description: 'Track MVP launch progress and task completion',
@@ -263,7 +302,7 @@ function formatCurrency(cents: number): string {
 
 export default function PlatformDashboard() {
   const navigate = useNavigate();
-  const { isPlatformAdmin } = useUserPermissions();
+  // Permission check is handled by route guard
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [customers, setCustomers] = useState<CustomerWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -353,38 +392,8 @@ export default function PlatformDashboard() {
           </Button>
         </div>
 
-        {/* Tabs */}
-        <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm">
-            <TabsTrigger
-              value="dashboard"
-              className="data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400"
-            >
-              <LayoutDashboard className="w-4 h-4 mr-2" />
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger
-              value="waitlist"
-              className="data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400"
-            >
-              <Users className="w-4 h-4 mr-2" />
-              Waitlist Admin
-              <Badge variant="outline" className="ml-2 text-xs">New</Badge>
-            </TabsTrigger>
-            <TabsTrigger
-              value="slack"
-              className="data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400"
-            >
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Slack Demo
-              <Badge variant="outline" className="ml-2 text-xs">New</Badge>
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Dashboard Tab */}
-          <TabsContent value="dashboard" className="space-y-8 mt-0">
-            {/* Stats Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {statCards.map((stat, index) => (
             <motion.div
               key={stat.label}
@@ -439,7 +448,14 @@ export default function PlatformDashboard() {
                         <div className={cn('p-3 rounded-xl', item.color)}>
                           <item.icon className="w-5 h-5" />
                         </div>
-                        <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+                        <div className="flex items-center gap-2">
+                          {item.badge && (
+                            <Badge variant="outline" className="text-xs">
+                              {item.badge}
+                            </Badge>
+                          )}
+                          <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+                        </div>
                       </div>
                       <CardTitle className="text-base mt-3">{item.title}</CardTitle>
                       <CardDescription className="text-sm">{item.description}</CardDescription>
@@ -493,18 +509,6 @@ export default function PlatformDashboard() {
                 </Card>
               </motion.div>
             )}
-          </TabsContent>
-
-          {/* Waitlist Admin Tab */}
-          <TabsContent value="waitlist" className="mt-0">
-            <MeetingsWaitlist />
-          </TabsContent>
-
-          {/* Slack Demo Tab */}
-          <TabsContent value="slack" className="mt-0">
-            <SlackDemo />
-          </TabsContent>
-        </Tabs>
       </div>
     </div>
   );

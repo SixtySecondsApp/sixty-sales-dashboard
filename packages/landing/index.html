@@ -138,6 +138,37 @@
       // Skip service worker for thumbnail pages (used by Browserless for screenshots)
       const isThumbnailPage = window.location.pathname.startsWith('/meetings/thumbnail/');
 
+      // DEV SAFETY:
+      // If a service worker was ever registered on this origin in the past (e.g. from a preview build),
+      // it can continue controlling pages on localhost and break Vite dynamic imports/HMR.
+      // In dev, proactively unregister any existing SWs and clear Cache Storage (does NOT touch auth).
+      if (isDevelopment) {
+        try {
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(async (regs) => {
+              if (!regs.length) return;
+
+              await Promise.all(regs.map((r) => r.unregister()));
+
+              // If the current page was controlled by an old SW, it will keep controlling until a reload.
+              // Reload once after cleanup to ensure Vite module fetches are no longer intercepted.
+              const flag = '__dev_sw_cleared__';
+              if (!sessionStorage.getItem(flag)) {
+                sessionStorage.setItem(flag, '1');
+                window.location.reload();
+              }
+            });
+          }
+          if ('caches' in window) {
+            caches.keys().then((names) => {
+              names.forEach((name) => caches.delete(name));
+            });
+          }
+        } catch (e) {
+          // Silent fail in dev
+        }
+      }
+
       if ('serviceWorker' in navigator && !isDevelopment && !isThumbnailPage) {
         window.addEventListener('load', () => {
           // Force update check on every page load

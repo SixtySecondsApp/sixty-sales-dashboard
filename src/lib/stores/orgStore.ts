@@ -146,9 +146,57 @@ export const useOrgStore = create<OrgStore>()(
             .map((m) => m.organization)
             .filter((org): org is Organization => org !== undefined);
 
-          // Set active org if not already set or if current active org is not in list
+          // Choose active org (priority order):
+          // 1) persisted activeOrgId if valid
+          // 2) VITE_DEFAULT_ORG_ID if it exists in memberships
+          // 3) org with name matching "Sixty Seconds" (case-insensitive) with most meetings
+          // 4) org with most meetings (fallback)
+          // 5) first org
           let activeOrgId = get().activeOrgId;
-          if (!activeOrgId || !orgs.find((o) => o.id === activeOrgId)) {
+
+          const isValidPersisted = !!activeOrgId && orgs.some((o) => o.id === activeOrgId);
+          if (!isValidPersisted) activeOrgId = null;
+
+          const envDefaultOrgId = getDefaultOrgId();
+          if (!activeOrgId && envDefaultOrgId && orgs.some((o) => o.id === envDefaultOrgId)) {
+            activeOrgId = envDefaultOrgId;
+          }
+
+          if (!activeOrgId && orgs.length > 1) {
+            // Count meetings per org (lightweight: head:true)
+            // Prefer orgs with transcripts since Meeting Intelligence relies on transcript data.
+            const counts = await Promise.all(
+              orgs.map(async (org) => {
+                try {
+                  const { count } = await supabase
+                    .from('meetings')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('org_id', org.id)
+                    .or('transcript.not.is.null,transcript_text.not.is.null');
+                  return { orgId: org.id, orgName: org.name, count: count ?? 0 };
+                } catch (e) {
+                  return { orgId: org.id, orgName: org.name, count: 0 };
+                }
+              })
+            );
+
+            const isSixtySeconds = (name: string) => /sixty\s*seconds/i.test(name);
+            const sixtySecondsOrgs = counts.filter((c) => isSixtySeconds(c.orgName));
+
+            const pickMax = (arr: typeof counts) =>
+              arr.reduce<{ orgId: string; orgName: string; count: number } | null>((best, cur) => {
+                if (!best) return cur;
+                if (cur.count > best.count) return cur;
+                return best;
+              }, null);
+
+            const bestSixty = pickMax(sixtySecondsOrgs);
+            const bestAny = pickMax(counts);
+
+            activeOrgId = bestSixty?.orgId || bestAny?.orgId || null;
+          }
+
+          if (!activeOrgId) {
             activeOrgId = orgs.length > 0 ? orgs[0].id : null;
           }
 

@@ -182,6 +182,17 @@ export default defineConfig({
       '@tanstack/react-query',
       'zustand',
       
+      // Radix UI (prebundle to avoid slow on-demand transforms / 504s in dev)
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-select',
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-popover',
+      '@radix-ui/react-alert-dialog',
+      '@radix-ui/react-tooltip',
+      '@radix-ui/react-label',
+      '@radix-ui/react-switch',
+
       // UI essentials
       'lucide-react',
       'clsx',
@@ -213,7 +224,6 @@ export default defineConfig({
     ],
     exclude: [
       // Don't pre-bundle heavy/rarely used libs
-      '@radix-ui/react-tabs',
       'framer-motion',
       
       // Test dependencies

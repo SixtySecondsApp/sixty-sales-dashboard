@@ -222,10 +222,17 @@ export const LEAD_FIELD_GROUPS: LeadFieldGroup[] = [
     ],
   },
   {
+    label: 'SavvyCal / Booking',
+    fields: [
+      { value: 'scheduler_name', label: 'Scheduler Name', hint: 'The person who booked (the lead)' },
+      { value: 'scheduler_email', label: 'Scheduler Email', hint: 'The lead\'s email' },
+      { value: 'organizer_name', label: 'Organizer/Host Name', hint: 'The sales rep - usually skip' },
+      { value: 'organizer_email', label: 'Organizer/Host Email', hint: 'The sales rep email - usually skip' },
+    ],
+  },
+  {
     label: 'Other',
     fields: [
-      { value: 'scheduler_name', label: 'Scheduler Name' },
-      { value: 'scheduler_email', label: 'Scheduler Email' },
       { value: 'tags', label: 'Tags (comma-separated)' },
     ],
   },
@@ -243,9 +250,14 @@ export const LEAD_FIELD_GROUPS: LeadFieldGroup[] = [
  * Keys are lead field names, values are arrays of possible CSV column names (lowercase)
  */
 export const AUTO_DETECT_PATTERNS: Record<string, string[]> = {
+  // Lead/prospect email - prioritize scheduler patterns for SavvyCal
   contact_email: [
-    'email', 'e-mail', 'mail', 'emailaddress', 'email_address', 'contact_email',
-    'contactemail', 'work_email', 'primary_email', 'email address',
+    'scheduler_email', 'scheduler email', 'scheduleremail', 'attendee_email',
+    'attendee email', 'attendeeemail', 'guest_email', 'guest email',
+    'booker_email', 'booker email', 'prospect_email', 'prospect email',
+    'lead_email', 'lead email', 'contact_email', 'contactemail',
+    'email', 'e-mail', 'mail', 'emailaddress', 'email_address',
+    'work_email', 'primary_email', 'email address',
   ],
   contact_first_name: [
     'first', 'firstname', 'first_name', 'fname', 'given', 'givenname',
@@ -290,8 +302,26 @@ export const AUTO_DETECT_PATTERNS: Record<string, string[]> = {
   external_id: [
     'id', 'external_id', 'lead_id', 'record_id', 'ref', 'reference',
   ],
+  // Scheduler = the person who booked (the lead) in SavvyCal terminology
   scheduler_name: [
-    'scheduler', 'booked_by', 'scheduled_by', 'rep', 'sales_rep', 'owner',
+    'scheduler_name', 'scheduler name', 'schedulername', 'scheduler',
+    'booked_by', 'booked by', 'booker_name', 'booker name',
+    'attendee_name', 'attendee name', 'guest_name', 'guest name',
+  ],
+  scheduler_email: [
+    'scheduler_email', 'scheduler email', 'scheduleremail',
+    'booker_email', 'booker email', 'attendee_email', 'attendee email',
+  ],
+  // Organizer = the sales rep in SavvyCal - typically skip or use for attribution
+  organizer_name: [
+    'organizer_name', 'organizer name', 'organizername', 'organizer',
+    'host_name', 'host name', 'rep_name', 'rep name', 'sales_rep',
+    'owner_name', 'owner name', 'owner',
+  ],
+  organizer_email: [
+    'organizer_email', 'organizer email', 'organizeremail',
+    'host_email', 'host email', 'rep_email', 'rep email',
+    'owner_email', 'owner email',
   ],
   tags: [
     'tags', 'labels', 'categories', 'keywords',

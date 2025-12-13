@@ -276,6 +276,8 @@ const MeetingsList: React.FC = () => {
     avgSentiment: 0,
     avgCoachRating: 0
   })
+  const [myMeetingsCount, setMyMeetingsCount] = useState(0)
+  const [teamMeetingsCount, setTeamMeetingsCount] = useState(0)
   const [thumbnailsEnsured, setThumbnailsEnsured] = useState(false)
   const autoSyncAttemptedRef = useRef(false)
 
@@ -415,6 +417,28 @@ const MeetingsList: React.FC = () => {
       const { count } = await countQuery
       setTotalCount(count || 0)
 
+      // Always fetch both counts for the toggle buttons
+      if (activeOrgId) {
+        // Get my meetings count
+        const { count: myCount } = await supabase
+          .from('meetings')
+          .select('*', { count: 'exact', head: true })
+          .eq('org_id', activeOrgId)
+          .or(`owner_user_id.eq.${user.id},owner_email.eq.${user.email}`)
+        setMyMeetingsCount(myCount || 0)
+
+        // Get team (all org) meetings count
+        const { count: teamCount } = await supabase
+          .from('meetings')
+          .select('*', { count: 'exact', head: true })
+          .eq('org_id', activeOrgId)
+        setTeamMeetingsCount(teamCount || 0)
+      } else {
+        // No org - all meetings are "my" meetings
+        setMyMeetingsCount(count || 0)
+        setTeamMeetingsCount(count || 0)
+      }
+
       // Now fetch paginated data
       const from = (currentPage - 1) * ITEMS_PER_PAGE
       const to = from + ITEMS_PER_PAGE - 1
@@ -548,7 +572,7 @@ const MeetingsList: React.FC = () => {
               className={scope === 'me' ? 'bg-gray-100 dark:bg-gray-800/60' : ''}
             >
               <User className="h-4 w-4 mr-1.5" />
-              My
+              My ({myMeetingsCount.toLocaleString()})
             </Button>
             <Button
               variant={scope === 'team' ? 'secondary' : 'ghost'}
@@ -557,7 +581,7 @@ const MeetingsList: React.FC = () => {
               className={scope === 'team' ? 'bg-gray-100 dark:bg-gray-800/60' : ''}
             >
               <Users className="h-4 w-4 mr-1.5" />
-              Team
+              Team ({teamMeetingsCount.toLocaleString()})
             </Button>
           </motion.div>
 

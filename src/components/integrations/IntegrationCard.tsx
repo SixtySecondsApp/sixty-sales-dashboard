@@ -15,6 +15,7 @@ interface IntegrationCardProps {
   actionLoading?: boolean;
   iconBgColor?: string;
   iconBorderColor?: string;
+  footer?: React.ReactNode;
 }
 
 const statusConfig: Record<IntegrationStatus, { badge: string; text: string; dot?: boolean }> = {
@@ -53,6 +54,7 @@ export function IntegrationCard({
   actionLoading,
   iconBgColor = 'bg-gray-100 dark:bg-gray-800',
   iconBorderColor = 'border-gray-200 dark:border-gray-700',
+  footer,
 }: IntegrationCardProps) {
   const config = statusConfig[status];
   const displayStatus = statusText || config.text;
@@ -109,6 +111,9 @@ export function IntegrationCard({
       {/* Title and description */}
       <h3 className="text-lg font-semibold mb-1 text-gray-900 dark:text-white">{name}</h3>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{description}</p>
+
+      {/* Optional footer (e.g. vote button) */}
+      {footer && <div className="mb-4">{footer}</div>}
 
       {/* Action button */}
       {isComingSoon ? (

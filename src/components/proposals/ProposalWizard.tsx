@@ -38,6 +38,12 @@ import {
 } from '@/lib/services/proposalService';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
+import { useOrgId } from '@/lib/contexts/OrgContext';
+import {
+  OrgProposalWorkflowService,
+  type OrgProposalWorkflow,
+  getWorkflowOutputTypes,
+} from '@/lib/services/orgProposalWorkflowService';
 
 const DESIGN_SYSTEM_SNIPPET = `<!-- DESIGN_SYSTEM_READY -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -287,6 +293,27 @@ export function ProposalWizard({
   const [quickModeSummary, setQuickModeSummary] = useState<string>('');
   const [quickModeEmail, setQuickModeEmail] = useState<string>('');
 
+  // Org-configurable workflows
+  const orgId = useOrgId();
+  const [workflows, setWorkflows] = useState<OrgProposalWorkflow[]>([]);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<OrgProposalWorkflow | null>(null);
+  const [workflowsLoading, setWorkflowsLoading] = useState(false);
+
+  // Fetch org workflows on mount
+  useEffect(() => {
+    if (orgId && open) {
+      setWorkflowsLoading(true);
+      OrgProposalWorkflowService.getActiveWorkflows(orgId)
+        .then(setWorkflows)
+        .catch((err) => {
+          console.error('[ProposalWizard] Failed to load workflows:', err);
+          // Fallback to empty array - will show legacy format selection
+          setWorkflows([]);
+        })
+        .finally(() => setWorkflowsLoading(false));
+    }
+  }, [orgId, open]);
+
   // Auto-scroll HTML code textarea to bottom while generating
   useEffect(() => {
     if (loading && previewTab === 'html' && htmlCodeTextareaRef.current) {
@@ -504,8 +531,8 @@ export function ProposalWizard({
           .eq('contact_id', contactId);
 
         const meetingIds = [
-          ...(meetingsByPrimary?.map(m => m.id) || []),
-          ...(meetingContacts?.map(mc => mc.meeting_id) || [])
+          ...(((meetingsByPrimary as Array<{ id: string }> | null) ?? []).map((m) => m.id)),
+          ...(((meetingContacts as Array<{ meeting_id: string }> | null) ?? []).map((mc) => mc.meeting_id)),
         ];
 
         if (meetingIds.length > 0) {
@@ -524,8 +551,9 @@ export function ProposalWizard({
           .eq('name', companyName)
           .single();
 
-        if (company?.id) {
-          query = query.eq('company_id', company.id).eq('owner_user_id', user.id);
+        const companyRow = company as { id: string } | null;
+        if (companyRow && companyRow.id) {
+          query = query.eq('company_id', companyRow.id).eq('owner_user_id', user.id);
         } else {
           setMeetings([]);
           setLoading(false);
@@ -543,13 +571,15 @@ export function ProposalWizard({
         throw meetingsError;
       }
 
-      if (!meetingsData || meetingsData.length === 0) {
+      const meetingsRows = (meetingsData as any[] | null) ?? [];
+
+      if (meetingsRows.length === 0) {
         setError('No meetings with transcripts found.');
         setMeetings([]);
       } else {
         // Fetch contacts for each meeting
         const meetingsWithContacts = await Promise.all(
-          meetingsData.map(async (meeting) => {
+          meetingsRows.map(async (meeting) => {
             // Fetch external contacts via meeting_contacts junction
             const { data: meetingContactsData } = await supabase
               .from('meeting_contacts')
@@ -566,11 +596,12 @@ export function ProposalWizard({
               `)
               .eq('meeting_id', meeting.id);
 
-            const contacts: MeetingContact[] = (meetingContactsData || [])
-              .filter(mc => mc.contacts)
-              .map(mc => ({
+            const meetingContactsRows = (meetingContactsData as any[] | null) ?? [];
+            const contacts: MeetingContact[] = meetingContactsRows
+              .filter((mc: any) => mc.contacts)
+              .map((mc: any) => ({
                 ...(mc.contacts as any),
-                is_primary: mc.is_primary || false
+                is_primary: !!mc.is_primary,
               }));
 
             return {
@@ -1148,10 +1179,14 @@ ${htmlContent}
     if (!finalContent || !selectedFormat) return;
 
     try {
+      // Persist only known DB types; email/markdown are generated outputs but stored as 'proposal'.
+      const persistedType: 'goals' | 'sow' | 'proposal' =
+        selectedFormat === 'sow' ? 'sow' : selectedFormat === 'proposal' ? 'proposal' : 'proposal';
+
       const saved = await saveProposal({
         meeting_id: Array.from(selectedMeetingIds)[0],
         contact_id: contactId,
-        type: selectedFormat,
+        type: persistedType,
         status: 'generated',
         content: finalContent,
         title: `${selectedFormat === 'sow' ? 'SOW' : selectedFormat === 'email' ? 'Email Proposal' : selectedFormat === 'markdown' ? 'Markdown Proposal' : 'Proposal'} - ${companyName || contactName || 'Untitled'}`,
@@ -1248,7 +1283,7 @@ ${htmlContent}
           // Prevent closing when clicking on any interactive element inside
           const target = e.target as HTMLElement;
           // Check if the click is actually inside the dialog content
-          const dialogContent = e.currentTarget;
+          const dialogContent = e.currentTarget as HTMLElement;
           if (dialogContent.contains(target)) {
             e.preventDefault();
             return;
@@ -1603,7 +1638,7 @@ ${htmlContent}
             ) : error ? (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
                 <p className="text-red-800 dark:text-red-200">{error}</p>
-                <Button onClick={analyzeFocusAreasFromTranscripts} className="mt-4" variant="default">
+                <Button onClick={() => analyzeFocusAreasFromTranscripts()} className="mt-4" variant="default">
                   Retry
                 </Button>
               </div>
@@ -1699,7 +1734,7 @@ ${htmlContent}
             ) : error ? (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
                 <p className="text-red-800 dark:text-red-200">{error}</p>
-                <Button onClick={loadTranscripts} className="mt-4" variant="default">
+                <Button onClick={() => loadTranscripts()} className="mt-4" variant="default">
                   Retry
                 </Button>
               </div>
@@ -1818,114 +1853,187 @@ ${htmlContent}
           </div>
         )}
 
-        {/* Step 4: Choose Format */}
+        {/* Step 4: Choose Format / Workflow */}
         {!showResumeDialog && step === 'choose_format' && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold mb-2">Choose Document Format</h3>
+            <h3 className="text-lg font-semibold mb-2">Choose Proposal Workflow</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-              Select the format for your proposal document.
+              Select a workflow to generate your proposal outputs.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card
-                className={`cursor-pointer transition-all hover:scale-105 ${
-                  selectedFormat === 'sow' ? 'ring-2 ring-blue-500' : ''
-                }`}
-                onClick={() => {
-                  setSelectedFormat('sow');
-                  setStep('configure_document');
-                }}
-              >
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="w-5 h-5" />
-                    Statement of Work
-                  </CardTitle>
-                  <CardDescription>
-                    A comprehensive SOW document in Markdown format
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Includes project objectives, proposed solution, pricing, timeline, and terms.
-                  </p>
-                </CardContent>
-              </Card>
 
-              <Card
-                className={`cursor-pointer transition-all hover:scale-105 ${
-                  selectedFormat === 'proposal' ? 'ring-2 ring-blue-500' : ''
-                }`}
-                onClick={() => {
-                  setSelectedFormat('proposal');
-                  setStep('configure_document');
-                }}
-              >
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileCode className="w-5 h-5" />
-                    HTML Proposal
-                  </CardTitle>
-                  <CardDescription>
-                    An interactive HTML presentation with modern design
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Beautiful, interactive proposal with slides, animations, and professional styling.
-                  </p>
-                </CardContent>
-              </Card>
+            {/* Loading state */}
+            {workflowsLoading && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600 dark:text-blue-400" />
+                <span className="ml-2 text-gray-600 dark:text-gray-400">Loading workflows...</span>
+              </div>
+            )}
 
-              <Card
-                className={`cursor-pointer transition-all hover:scale-105 ${
-                  selectedFormat === 'email' ? 'ring-2 ring-blue-500' : ''
-                }`}
-                onClick={() => {
-                  setSelectedFormat('email');
-                  setStep('configure_document');
-                }}
-              >
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Mail className="w-5 h-5" />
-                    Email Proposal
-                  </CardTitle>
-                  <CardDescription>
-                    A simple email proposal in Markdown format
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Professional email format ready to send directly to clients. Includes subject, overview, pricing, and next steps.
-                  </p>
-                </CardContent>
-              </Card>
+            {/* Org workflows */}
+            {!workflowsLoading && workflows.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {workflows.map((workflow) => {
+                  const outputTypes = getWorkflowOutputTypes(workflow);
+                  return (
+                    <Card
+                      key={workflow.id}
+                      className={`cursor-pointer transition-all hover:scale-105 ${
+                        selectedWorkflow?.id === workflow.id ? 'ring-2 ring-blue-500' : ''
+                      }`}
+                      onClick={() => {
+                        setSelectedWorkflow(workflow);
+                        // Set primary format based on workflow (for backwards compatibility)
+                        const primaryFormat: 'sow' | 'proposal' | 'email' | 'markdown' =
+                          workflow.include_html
+                            ? 'proposal'
+                            : workflow.include_sow
+                              ? 'sow'
+                              : workflow.include_email
+                                ? 'email'
+                                : workflow.include_markdown
+                                  ? 'markdown'
+                                  : // Safety: ensure downstream steps never receive null
+                                    'proposal';
+                        setSelectedFormat(primaryFormat);
+                        setStep('configure_document');
+                      }}
+                    >
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <FileText className="w-5 h-5" />
+                          {workflow.name}
+                          {workflow.is_default && (
+                            <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                              Default
+                            </span>
+                          )}
+                        </CardTitle>
+                        <CardDescription>
+                          {workflow.description || `Generates: ${outputTypes.join(', ')}`}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex flex-wrap gap-1.5">
+                          {outputTypes.map((type) => (
+                            <span
+                              key={type}
+                              className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-1 rounded"
+                            >
+                              {type}
+                            </span>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
 
-              <Card
-                className={`cursor-pointer transition-all hover:scale-105 ${
-                  selectedFormat === 'markdown' ? 'ring-2 ring-blue-500' : ''
-                }`}
-                onClick={() => {
-                  setSelectedFormat('markdown');
-                  setStep('configure_document');
-                }}
-              >
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="w-5 h-5" />
-                    Markdown Proposal
-                  </CardTitle>
-                  <CardDescription>
-                    A simple Markdown document proposal
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Clean, simple proposal in Markdown format. Easy to edit and share. Perfect for quick proposals.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+            {/* Fallback: Legacy format selection if no workflows */}
+            {!workflowsLoading && workflows.length === 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card
+                  className={`cursor-pointer transition-all hover:scale-105 ${
+                    selectedFormat === 'sow' ? 'ring-2 ring-blue-500' : ''
+                  }`}
+                  onClick={() => {
+                    setSelectedFormat('sow');
+                    setStep('configure_document');
+                  }}
+                >
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      Statement of Work
+                    </CardTitle>
+                    <CardDescription>
+                      A comprehensive SOW document in Markdown format
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Includes project objectives, proposed solution, pricing, timeline, and terms.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card
+                  className={`cursor-pointer transition-all hover:scale-105 ${
+                    selectedFormat === 'proposal' ? 'ring-2 ring-blue-500' : ''
+                  }`}
+                  onClick={() => {
+                    setSelectedFormat('proposal');
+                    setStep('configure_document');
+                  }}
+                >
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileCode className="w-5 h-5" />
+                      HTML Proposal
+                    </CardTitle>
+                    <CardDescription>
+                      An interactive HTML presentation with modern design
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Beautiful, interactive proposal with slides, animations, and professional styling.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card
+                  className={`cursor-pointer transition-all hover:scale-105 ${
+                    selectedFormat === 'email' ? 'ring-2 ring-blue-500' : ''
+                  }`}
+                  onClick={() => {
+                    setSelectedFormat('email');
+                    setStep('configure_document');
+                  }}
+                >
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Mail className="w-5 h-5" />
+                      Email Proposal
+                    </CardTitle>
+                    <CardDescription>
+                      A simple email proposal in Markdown format
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Professional email format ready to send directly to clients.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card
+                  className={`cursor-pointer transition-all hover:scale-105 ${
+                    selectedFormat === 'markdown' ? 'ring-2 ring-blue-500' : ''
+                  }`}
+                  onClick={() => {
+                    setSelectedFormat('markdown');
+                    setStep('configure_document');
+                  }}
+                >
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      Markdown Proposal
+                    </CardTitle>
+                    <CardDescription>
+                      A simple Markdown document proposal
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Clean, simple proposal in Markdown format. Easy to edit and share.
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
         )}
 

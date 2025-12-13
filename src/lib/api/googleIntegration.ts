@@ -56,12 +56,35 @@ export class GoogleIntegrationAPI {
       throw new Error('User not authenticated');
     }
 
-    // Try the RPC function first (preferred method)
-    const { data: rpcData, error: rpcError } = await supabase.rpc('get_my_google_integration');
+    // Try the RPC function first (preferred method), but cache "missing" to avoid spamming 404s
+    const rpcMissingKey = 'rpc_missing_get_my_google_integration';
+    const rpcMarkedMissing = (() => {
+      try {
+        return sessionStorage.getItem(rpcMissingKey) === 'true';
+      } catch {
+        return false;
+      }
+    })();
+
+    const { data: rpcData, error: rpcError } = rpcMarkedMissing
+      ? ({ data: null, error: { message: 'RPC missing (cached)' } } as any)
+      : await supabase.rpc('get_my_google_integration');
 
     if (!rpcError && rpcData) {
       // RPC returns an array, get the first item
       return Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    }
+
+    // If RPC is missing, remember it for this session
+    if (rpcError?.message) {
+      const msg = String(rpcError.message).toLowerCase();
+      if (msg.includes('could not find the function') || msg.includes('does not exist')) {
+        try {
+          sessionStorage.setItem(rpcMissingKey, 'true');
+        } catch {
+          // ignore
+        }
+      }
     }
 
     // If RPC fails, try direct query (this now works!)

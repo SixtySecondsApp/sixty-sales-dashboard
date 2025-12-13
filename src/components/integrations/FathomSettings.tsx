@@ -4,13 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, CheckCircle2, XCircle, RefreshCw, Calendar, Play, Trash2 } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, RefreshCw, Calendar, Play, Trash2, Copy, Zap, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FathomTokenTest } from '@/components/FathomTokenTest';
 import { toast } from 'sonner';
+
+// Production webhook URL (always use the branded domain)
+const WEBHOOK_URL = 'https://use60.com/api/webhooks/fathom';
 
 export function FathomSettings() {
   const {
@@ -33,6 +36,16 @@ export function FathomSettings() {
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
   const [deleteSyncedMeetings, setDeleteSyncedMeetings] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [showWebhookGuide, setShowWebhookGuide] = useState(true);
+
+  const copyWebhookUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(WEBHOOK_URL);
+      toast.success('Webhook URL copied to clipboard!');
+    } catch (err) {
+      toast.error('Failed to copy URL');
+    }
+  };
 
   const handleSync = async () => {
     setSyncing(true);
@@ -169,6 +182,80 @@ export function FathomSettings() {
                   </div>
                 </div>
               </div>
+
+              {/* Instant Sync Webhook Setup */}
+              <div className="rounded-lg border-2 border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/30 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                      <h4 className="font-semibold text-gray-900 dark:text-white">Enable Instant Meeting Sync</h4>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowWebhookGuide(!showWebhookGuide)}
+                      className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    >
+                      {showWebhookGuide ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+
+                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                    Add this webhook URL to Fathom so your meetings appear <strong>instantly</strong> when they finish recording — no waiting for scheduled syncs!
+                  </p>
+
+                  {/* Webhook URL with Copy Button */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-white dark:bg-slate-800 rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 font-mono text-sm text-gray-800 dark:text-gray-200 overflow-x-auto">
+                      {WEBHOOK_URL}
+                    </div>
+                    <Button
+                      onClick={copyWebhookUrl}
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 gap-2 border-amber-400 dark:border-amber-600 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copy
+                    </Button>
+                  </div>
+
+                  {showWebhookGuide && (
+                    <div className="mt-4 pt-4 border-t border-amber-200 dark:border-amber-700 space-y-3">
+                      <h5 className="font-medium text-sm text-gray-900 dark:text-white">How to set up in Fathom:</h5>
+                      <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                        <li>
+                          Go to{' '}
+                          <a
+                            href="https://fathom.video/settings/integrations"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-amber-700 dark:text-amber-400 hover:underline inline-flex items-center gap-1"
+                          >
+                            Fathom Settings → Integrations
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </li>
+                        <li>Find the <strong>Webhooks</strong> section and click <strong>Add Webhook</strong></li>
+                        <li>Paste the URL above into the webhook URL field</li>
+                        <li>Select event type: <strong>"Recording Ready"</strong> or <strong>"All Events"</strong></li>
+                        <li>Save the webhook configuration</li>
+                      </ol>
+
+                      <Alert className="bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-700">
+                        <Zap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <AlertDescription className="text-emerald-800 dark:text-emerald-200">
+                          <strong>Why add the webhook?</strong> Without it, meetings only sync on a schedule (hourly).
+                          With the webhook, Fathom notifies us the moment your meeting ends, so it appears in your CRM within seconds!
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+                  )}
+                </div>
 
               {/* Sync Status */}
               {syncState && (

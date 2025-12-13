@@ -32,6 +32,7 @@ import {
   Building2,
   Video,
   Phone,
+  Workflow,
 } from 'lucide-react';
 
 interface SettingsSection {
@@ -85,11 +86,12 @@ export default function Settings() {
       path: '/settings/api-keys',
     },
     {
-      id: 'proposals',
-      label: 'Proposals',
-      icon: FileText,
-      description: 'AI-powered proposal generation templates and settings',
-      path: '/settings/proposals',
+      id: 'follow-ups',
+      label: 'Follow Ups',
+      icon: Workflow,
+      description: 'Configure follow-up workflows, templates, and AI settings',
+      path: '/settings/follow-ups',
+      requiresOrgAdmin: true,
     },
     {
       id: 'task-sync',
@@ -154,7 +156,7 @@ export default function Settings() {
       ['account', 'appearance'].includes(s.id)
     );
     const aiSections = settingsSections.filter(s =>
-      ['ai-personalization', 'sales-coaching', 'api-keys', 'proposals', 'task-sync', 'meeting-sync'].includes(s.id)
+      ['ai-personalization', 'sales-coaching', 'api-keys', 'follow-ups', 'task-sync', 'meeting-sync', 'call-types'].includes(s.id)
     );
     const integrationSections = settingsSections.filter(s =>
       ['email-sync'].includes(s.id)

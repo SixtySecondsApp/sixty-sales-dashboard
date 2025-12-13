@@ -38,11 +38,18 @@ window.addEventListener('error', (event) => {
     (errorString.includes('typeerror') && errorString.includes('failed to fetch'));
   
   if (isChunkError) {
-    // Clear cache and reload after a short delay to allow logging
+    // In dev, surface the error (Vite overlay) rather than nuking storage/sessions.
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.warn('[dev] Chunk/dynamic import error detected; not clearing cache automatically.', event.error || event.message);
+      return;
+    }
+
+    // Production: clear cache and reload after a short delay to allow logging
     setTimeout(() => {
       clearCacheAndReload();
     }, 500);
-    
+
     // Prevent default error handling
     event.preventDefault();
   }
@@ -62,11 +69,18 @@ window.addEventListener('unhandledrejection', (event) => {
     (errorString.includes('typeerror') && errorString.includes('failed to fetch'));
   
   if (isChunkError) {
-    // Clear cache and reload after a short delay
+    // In dev, surface the error (Vite overlay) rather than nuking storage/sessions.
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.warn('[dev] Chunk/dynamic import rejection detected; not clearing cache automatically.', event.reason);
+      return;
+    }
+
+    // Production: clear cache and reload after a short delay
     setTimeout(() => {
       clearCacheAndReload();
     }, 500);
-    
+
     // Prevent default error handling
     event.preventDefault();
   }

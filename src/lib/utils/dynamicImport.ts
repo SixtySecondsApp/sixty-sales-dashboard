@@ -97,7 +97,7 @@ export async function retryableImport<T>(
       if ((isChunkError || isMissingFile) && clearCacheOnFailure) {
         // For production, auto-reload without prompt for better UX
         // In development, we might want to see the error
-        if (showUserPrompt && process.env.NODE_ENV === 'development') {
+        if (showUserPrompt && import.meta.env.DEV) {
           const userWantsRefresh = confirm(
             'Unable to load the requested page. This may be due to cached assets from a previous version.\n\n' +
             'Would you like to clear your cache and reload the page to fix this issue?'
@@ -108,6 +108,11 @@ export async function retryableImport<T>(
             return Promise.reject(new Error('Reloading page to clear cache'));
           }
         } else {
+          // In dev, don't auto-clear storage; it's noisy and can wipe sessions during iteration.
+          if (import.meta.env.DEV) {
+            return Promise.reject(lastError);
+          }
+
           // Auto-clear cache and reload (better UX for production)
           // Small delay to allow error logging
           setTimeout(() => {

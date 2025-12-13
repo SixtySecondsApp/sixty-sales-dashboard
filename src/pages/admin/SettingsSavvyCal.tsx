@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit, Save, XCircle, Upload, Search } from 'lucide-react';
+import { Plus, Trash2, Edit, Save, XCircle, Upload, Search, Copy, Zap, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,9 +7,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useUser } from '@/lib/hooks/useUser';
 import logger from '@/lib/utils/logger';
+
+// Production webhook URL (always use the branded domain)
+const WEBHOOK_URL = 'https://use60.com/api/webhooks/savvycal';
 
 type BookingSource = {
   id: string;
@@ -65,6 +69,16 @@ export default function SettingsSavvyCal() {
   const [isUploading, setIsUploading] = useState(false);
   const [isFetchingLink, setIsFetchingLink] = useState(false);
   const [lastFetchedLinkId, setLastFetchedLinkId] = useState<string | null>(null);
+  const [showWebhookGuide, setShowWebhookGuide] = useState(true);
+
+  const copyWebhookUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(WEBHOOK_URL);
+      toast.success('Webhook URL copied to clipboard!');
+    } catch (err) {
+      toast.error('Failed to copy URL');
+    }
+  };
 
   useEffect(() => {
     fetchBookingSources();
@@ -696,6 +710,92 @@ export default function SettingsSavvyCal() {
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
+        {/* Webhook Setup Card */}
+        <Card className="border-2 border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-purple-600 p-2 rounded-lg">
+                    <Zap className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Enable Instant Lead Sync</CardTitle>
+                    <CardDescription>
+                      Add this webhook to SavvyCal so new bookings appear instantly in your CRM
+                    </CardDescription>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowWebhookGuide(!showWebhookGuide)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  {showWebhookGuide ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                Add this webhook URL to your SavvyCal account so new bookings, cancellations, and reschedules appear <strong>instantly</strong> — no waiting for manual imports!
+              </p>
+
+              {/* Webhook URL with Copy Button */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-white dark:bg-slate-800 rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 font-mono text-sm text-gray-800 dark:text-gray-200 overflow-x-auto">
+                  {WEBHOOK_URL}
+                </div>
+                <Button
+                  onClick={copyWebhookUrl}
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-2 border-purple-400 dark:border-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                >
+                  <Copy className="h-4 w-4" />
+                  Copy
+                </Button>
+              </div>
+
+              {showWebhookGuide && (
+                <div className="mt-4 pt-4 border-t border-purple-200 dark:border-purple-700 space-y-3">
+                  <h5 className="font-medium text-sm text-gray-900 dark:text-white">How to set up in SavvyCal:</h5>
+                  <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                    <li>
+                      Go to{' '}
+                      <a
+                        href="https://savvycal.com/settings/integrations"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-purple-700 dark:text-purple-400 hover:underline inline-flex items-center gap-1"
+                      >
+                        SavvyCal Settings → Integrations
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </li>
+                    <li>In the <strong>Webhooks</strong> section, click the <strong>+</strong> button to add a webhook</li>
+                    <li>Paste the URL above into the endpoint URL field</li>
+                    <li>Select all event types you want to receive (recommended: <strong>All Events</strong>)</li>
+                    <li>Save your webhook configuration</li>
+                  </ol>
+
+                  <Alert className="bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-700">
+                    <Zap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <AlertDescription className="text-emerald-800 dark:text-emerald-200">
+                      <strong>Why add the webhook?</strong> Without it, you need to manually import bookings.
+                      With the webhook, SavvyCal notifies us the moment someone books, cancels, or reschedules —
+                      so your leads appear in seconds with automatic source tracking!
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+        {/* Source Mappings Card */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">

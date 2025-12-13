@@ -95,12 +95,17 @@ const categoryConfig = {
   },
 };
 
-const statusConfig = {
+const statusConfig: Record<string, { label: string; color: string; textColor: string }> = {
   pending: { label: 'To Do', color: 'bg-gray-500', textColor: 'text-gray-400' },
   in_progress: { label: 'In Progress', color: 'bg-blue-500', textColor: 'text-blue-400' },
   completed: { label: 'Done', color: 'bg-emerald-500', textColor: 'text-emerald-400' },
   blocked: { label: 'Blocked', color: 'bg-red-500', textColor: 'text-red-400' },
 };
+
+// Fallback for unknown status values
+const defaultStatusConfig = { label: 'Unknown', color: 'bg-gray-500', textColor: 'text-gray-400' };
+const getStatusConfig = (status: string | null | undefined) => 
+  statusConfig[status ?? ''] ?? defaultStatusConfig;
 
 export default function LaunchChecklist() {
   const navigate = useNavigate();
@@ -499,9 +504,9 @@ export default function LaunchChecklist() {
                                     )}
                                     <Badge
                                       variant="outline"
-                                      className={cn('text-xs', statusConfig[item.status].textColor)}
+                                      className={cn('text-xs', getStatusConfig(item.status).textColor)}
                                     >
-                                      {statusConfig[item.status].label}
+                                      {getStatusConfig(item.status).label}
                                     </Badge>
                                   </div>
                                 </div>
@@ -567,11 +572,11 @@ export default function LaunchChecklist() {
                                           className={cn(
                                             'px-2 py-1 text-xs rounded-full transition-colors',
                                             item.status === status
-                                              ? cn(statusConfig[status].color, 'text-white')
+                                              ? cn(getStatusConfig(status).color, 'text-white')
                                               : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
                                           )}
                                         >
-                                          {statusConfig[status].label}
+                                          {getStatusConfig(status).label}
                                         </button>
                                       ))}
                                     </div>

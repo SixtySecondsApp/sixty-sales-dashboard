@@ -29,6 +29,13 @@ import {
   Settings,
   ListChecks,
   Sparkles,
+  GraduationCap,
+  Target,
+  MessageCircle,
+  TrendingUp,
+  Users,
+  Lightbulb,
+  Quote,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -47,7 +54,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import type { WorkflowConfig, WorkflowChecklistConfig } from '@/lib/hooks/useWorkflowResults';
+import type { WorkflowConfig, WorkflowChecklistConfig, CoachingConfig, CoachingFocusArea } from '@/lib/hooks/useWorkflowResults';
 
 interface CallTypeWorkflowEditorProps {
   open: boolean;
@@ -76,6 +83,27 @@ const DEFAULT_CHECKLIST_ITEM: Omit<WorkflowChecklistConfig, 'id'> = {
   required: false,
   category: 'discovery',
   keywords: [],
+};
+
+const DEFAULT_FOCUS_AREAS: CoachingFocusArea[] = [
+  { id: 'rapport', name: 'Building Rapport', description: 'Establishing trust and connection with the prospect', weight: 15, enabled: true },
+  { id: 'discovery', name: 'Discovery & Questioning', description: 'Asking insightful questions to understand needs', weight: 25, enabled: true },
+  { id: 'value_prop', name: 'Value Proposition', description: 'Clearly articulating product/service value', weight: 20, enabled: true },
+  { id: 'objections', name: 'Objection Handling', description: 'Addressing concerns and pushback effectively', weight: 15, enabled: true },
+  { id: 'next_steps', name: 'Next Steps & Close', description: 'Securing commitment and clear next actions', weight: 15, enabled: true },
+  { id: 'listening', name: 'Active Listening', description: 'Demonstrating understanding and engagement', weight: 10, enabled: true },
+];
+
+const DEFAULT_COACHING_CONFIG: CoachingConfig = {
+  focus_areas: DEFAULT_FOCUS_AREAS,
+  scoring_thresholds: {
+    excellent: 85,
+    good: 70,
+    needs_improvement: 50,
+  },
+  include_transcript_quotes: true,
+  include_improvement_tips: true,
+  compare_to_team_average: false,
 };
 
 export function CallTypeWorkflowEditor({
@@ -115,6 +143,26 @@ export function CallTypeWorkflowEditor({
     currentConfig?.automations?.create_follow_up_task ?? false
   );
 
+  // Coaching settings state
+  const [coachingFocusAreas, setCoachingFocusAreas] = useState<CoachingFocusArea[]>(
+    currentConfig?.coaching?.focus_areas || DEFAULT_FOCUS_AREAS
+  );
+  const [scoringThresholds, setScoringThresholds] = useState(
+    currentConfig?.coaching?.scoring_thresholds || DEFAULT_COACHING_CONFIG.scoring_thresholds
+  );
+  const [customCoachingPrompt, setCustomCoachingPrompt] = useState(
+    currentConfig?.coaching?.custom_prompt || ''
+  );
+  const [includeTranscriptQuotes, setIncludeTranscriptQuotes] = useState(
+    currentConfig?.coaching?.include_transcript_quotes ?? true
+  );
+  const [includeImprovementTips, setIncludeImprovementTips] = useState(
+    currentConfig?.coaching?.include_improvement_tips ?? true
+  );
+  const [compareToTeamAverage, setCompareToTeamAverage] = useState(
+    currentConfig?.coaching?.compare_to_team_average ?? false
+  );
+
   // Reset state when dialog opens
   useEffect(() => {
     if (open) {
@@ -125,6 +173,13 @@ export function CallTypeWorkflowEditor({
       setNotificationDelay(currentConfig?.notifications?.on_missing_required?.delay_minutes ?? 15);
       setUpdatePipelineOnMovement(currentConfig?.automations?.update_pipeline_on_forward_movement ?? false);
       setCreateFollowUpTask(currentConfig?.automations?.create_follow_up_task ?? false);
+      // Coaching settings
+      setCoachingFocusAreas(currentConfig?.coaching?.focus_areas || DEFAULT_FOCUS_AREAS);
+      setScoringThresholds(currentConfig?.coaching?.scoring_thresholds || DEFAULT_COACHING_CONFIG.scoring_thresholds);
+      setCustomCoachingPrompt(currentConfig?.coaching?.custom_prompt || '');
+      setIncludeTranscriptQuotes(currentConfig?.coaching?.include_transcript_quotes ?? true);
+      setIncludeImprovementTips(currentConfig?.coaching?.include_improvement_tips ?? true);
+      setCompareToTeamAverage(currentConfig?.coaching?.compare_to_team_average ?? false);
     }
   }, [open, currentConfig, initialEnableCoaching]);
 
@@ -211,6 +266,17 @@ export function CallTypeWorkflowEditor({
           update_pipeline_on_forward_movement: updatePipelineOnMovement,
           create_follow_up_task: createFollowUpTask,
         },
+        // Only include coaching config if coaching is enabled
+        ...(enableCoaching && {
+          coaching: {
+            focus_areas: coachingFocusAreas,
+            scoring_thresholds: scoringThresholds,
+            custom_prompt: customCoachingPrompt || undefined,
+            include_transcript_quotes: includeTranscriptQuotes,
+            include_improvement_tips: includeImprovementTips,
+            compare_to_team_average: compareToTeamAverage,
+          },
+        }),
       };
 
       await onSave(config, enableCoaching);
@@ -260,11 +326,17 @@ export function CallTypeWorkflowEditor({
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className={cn("grid w-full", enableCoaching ? "grid-cols-4" : "grid-cols-3")}>
               <TabsTrigger value="checklist" className="flex items-center gap-2">
                 <ListChecks className="h-4 w-4" />
                 Checklist
               </TabsTrigger>
+              {enableCoaching && (
+                <TabsTrigger value="coaching" className="flex items-center gap-2">
+                  <GraduationCap className="h-4 w-4" />
+                  Coaching
+                </TabsTrigger>
+              )}
               <TabsTrigger value="notifications" className="flex items-center gap-2">
                 <Bell className="h-4 w-4" />
                 Notifications
@@ -314,6 +386,213 @@ export function CallTypeWorkflowEditor({
                 </div>
               )}
             </TabsContent>
+
+            {/* Coaching Tab - Only shown when coaching is enabled */}
+            {enableCoaching && (
+              <TabsContent value="coaching" className="mt-4 space-y-4">
+                {/* Focus Areas */}
+                <div className="p-4 rounded-lg border">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Target className="h-5 w-5 text-primary" />
+                    <div>
+                      <Label className="text-base">Focus Areas</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Configure which areas the AI evaluates and their importance
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {coachingFocusAreas.map((area) => (
+                      <div key={area.id} className="flex items-center gap-4 p-3 rounded-lg bg-muted/30">
+                        <Switch
+                          checked={area.enabled}
+                          onCheckedChange={(checked) => {
+                            setCoachingFocusAreas(prev =>
+                              prev.map(a => a.id === area.id ? { ...a, enabled: checked } : a)
+                            );
+                          }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm">{area.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">{area.description}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground">Weight:</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={area.weight}
+                            onChange={(e) => {
+                              const newWeight = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                              setCoachingFocusAreas(prev =>
+                                prev.map(a => a.id === area.id ? { ...a, weight: newWeight } : a)
+                              );
+                            }}
+                            className="w-16 h-8 text-center"
+                            disabled={!area.enabled}
+                          />
+                          <span className="text-xs text-muted-foreground">%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 text-xs text-muted-foreground flex items-center gap-2">
+                    <TrendingUp className="h-3 w-3" />
+                    Total weight: {coachingFocusAreas.filter(a => a.enabled).reduce((sum, a) => sum + a.weight, 0)}%
+                    {coachingFocusAreas.filter(a => a.enabled).reduce((sum, a) => sum + a.weight, 0) !== 100 && (
+                      <span className="text-amber-500">(should equal 100%)</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Scoring Thresholds */}
+                <div className="p-4 rounded-lg border">
+                  <div className="flex items-center gap-2 mb-4">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    <div>
+                      <Label className="text-base">Scoring Thresholds</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Define score ranges for performance ratings
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-green-500" />
+                        Excellent (≥)
+                      </Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={scoringThresholds.excellent}
+                        onChange={(e) => setScoringThresholds(prev => ({
+                          ...prev,
+                          excellent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0))
+                        }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-blue-500" />
+                        Good (≥)
+                      </Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={scoringThresholds.good}
+                        onChange={(e) => setScoringThresholds(prev => ({
+                          ...prev,
+                          good: Math.min(100, Math.max(0, parseInt(e.target.value) || 0))
+                        }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-amber-500" />
+                        Needs Work (≥)
+                      </Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={scoringThresholds.needs_improvement}
+                        onChange={(e) => setScoringThresholds(prev => ({
+                          ...prev,
+                          needs_improvement: Math.min(100, Math.max(0, parseInt(e.target.value) || 0))
+                        }))}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Scores below {scoringThresholds.needs_improvement} will be marked as "Critical"
+                  </p>
+                </div>
+
+                {/* Scorecard Options */}
+                <div className="p-4 rounded-lg border">
+                  <div className="flex items-center gap-2 mb-4">
+                    <MessageCircle className="h-5 w-5 text-primary" />
+                    <div>
+                      <Label className="text-base">Scorecard Options</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Configure what's included in coaching scorecards
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Quote className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <Label className="text-sm">Include Transcript Quotes</Label>
+                          <p className="text-xs text-muted-foreground">Show evidence from the call</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={includeTranscriptQuotes}
+                        onCheckedChange={setIncludeTranscriptQuotes}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Lightbulb className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <Label className="text-sm">Include Improvement Tips</Label>
+                          <p className="text-xs text-muted-foreground">AI-generated suggestions</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={includeImprovementTips}
+                        onCheckedChange={setIncludeImprovementTips}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <Label className="text-sm">Compare to Team Average</Label>
+                          <p className="text-xs text-muted-foreground">Show relative performance</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={compareToTeamAverage}
+                        onCheckedChange={setCompareToTeamAverage}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Custom Coaching Prompt */}
+                <div className="p-4 rounded-lg border">
+                  <div className="flex items-center gap-2 mb-4">
+                    <MessageCircle className="h-5 w-5 text-primary" />
+                    <div>
+                      <Label className="text-base">Custom Coaching Context</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Additional context for the AI when generating scorecards
+                      </p>
+                    </div>
+                  </div>
+
+                  <Textarea
+                    value={customCoachingPrompt}
+                    onChange={(e) => setCustomCoachingPrompt(e.target.value)}
+                    placeholder="E.g., 'Focus on consultative selling techniques. Our ideal call should establish budget within the first 10 minutes...'"
+                    rows={3}
+                  />
+                </div>
+              </TabsContent>
+            )}
 
             {/* Notifications Tab */}
             <TabsContent value="notifications" className="mt-4 space-y-4">

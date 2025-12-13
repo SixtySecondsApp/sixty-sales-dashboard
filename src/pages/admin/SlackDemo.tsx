@@ -5,7 +5,7 @@
  * Allows manually triggering each notification type with sample data.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +52,14 @@ interface TestResult {
   data?: unknown;
   timestamp: Date;
 }
+
+type MeetingPickerItem = {
+  id: string;
+  title: string | null;
+  meeting_start: string | null;
+  owner_email: string | null;
+  company?: { name?: string | null } | null;
+};
 
 function TestCard({
   title,
@@ -169,6 +177,14 @@ export default function SlackDemo() {
     newProbability: '45',
   });
 
+  // Quick testing + meeting selection helpers
+  const [connectionTestLoading, setConnectionTestLoading] = useState(false);
+  const [connectionTestResult, setConnectionTestResult] = useState<TestResult | null>(null);
+
+  const [meetingsLoading, setMeetingsLoading] = useState(false);
+  const [meetingSearch, setMeetingSearch] = useState('');
+  const [recentMeetings, setRecentMeetings] = useState<MeetingPickerItem[]>([]);
+
   const setLoadingState = (key: string, value: boolean) => {
     setLoading((prev) => ({ ...prev, [key]: value }));
   };
@@ -185,6 +201,111 @@ export default function SlackDemo() {
     }
 
     return data;
+  };
+
+  const loadRecentMeetings = async () => {
+    if (!user?.id) return;
+    setMeetingsLoading(true);
+    try {
+      let q = supabase
+        .from('meetings')
+        .select('id, title, meeting_start, owner_email, company:companies(name)')
+        .order('meeting_start', { ascending: false })
+        .limit(75);
+
+      if (activeOrgId) {
+        q = q.eq('org_id', activeOrgId);
+      } else if ((user as any)?.email) {
+        q = q.or(`owner_user_id.eq.${user.id},owner_email.eq.${(user as any).email}`);
+      } else {
+        q = q.eq('owner_user_id', user.id);
+      }
+
+      const { data, error } = await q;
+      if (error) throw error;
+      setRecentMeetings((data as any[]) || []);
+    } catch (e: any) {
+      // Non-fatal: meeting picker is just a convenience
+      setRecentMeetings([]);
+      toast.error(e?.message || 'Failed to load meetings');
+    } finally {
+      setMeetingsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!slackSettings?.is_connected) return;
+    void loadRecentMeetings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slackSettings?.is_connected, activeOrgId, user?.id]);
+
+  const filteredMeetings = useMemo(() => {
+    const q = meetingSearch.trim().toLowerCase();
+    if (!q) return recentMeetings;
+    return recentMeetings.filter((m) => {
+      const title = (m.title || '').toLowerCase();
+      const company = (m.company?.name || '').toLowerCase();
+      const email = (m.owner_email || '').toLowerCase();
+      return title.includes(q) || company.includes(q) || email.includes(q) || m.id.toLowerCase().includes(q);
+    });
+  }, [meetingSearch, recentMeetings]);
+
+  const testSlackConnectionQuick = async () => {
+    if (!user?.id) {
+      toast.error('You must be logged in');
+      return;
+    }
+    if (!activeOrgId) {
+      toast.error('No organization selected');
+      return;
+    }
+    if (!slackSettings?.is_connected) {
+      toast.error('Slack is not connected for this org');
+      return;
+    }
+
+    setConnectionTestLoading(true);
+    try {
+      // Prefer a real channel ID (Slack APIs are much happier with IDs)
+      const channelsRes = await invokeFunction('slack-list-channels', { orgId: activeOrgId });
+      const channels = (channelsRes as any)?.channels as Array<{ id: string; name: string }> | undefined;
+
+      const preferred =
+        channels?.find((c) => c.name === 'general') ||
+        channels?.find((c) => c.name === 'random') ||
+        (channels && channels.length ? channels[0] : null);
+
+      if (!preferred?.id) {
+        throw new Error('No Slack channels available (invite the bot to at least one channel)');
+      }
+
+      await slackOAuthService.sendMessage(
+        user.id,
+        preferred.id,
+        {
+          text: '✅ Sixty Slack connection test: bot can post messages successfully.',
+        },
+        slackSettings.slack_team_id || undefined
+      );
+
+      const result: TestResult = {
+        success: true,
+        message: `Test message sent to #${preferred.name}`,
+        timestamp: new Date(),
+      };
+      setConnectionTestResult(result);
+      toast.success(result.message);
+    } catch (e: any) {
+      const result: TestResult = {
+        success: false,
+        message: e?.message || 'Slack connection test failed',
+        timestamp: new Date(),
+      };
+      setConnectionTestResult(result);
+      toast.error(result.message);
+    } finally {
+      setConnectionTestLoading(false);
+    }
   };
 
   // Test handlers
@@ -367,7 +488,7 @@ export default function SlackDemo() {
 
   if (settingsLoading) {
     return (
-      <div className="container max-w-4xl py-8">
+      <div className="container max-w-4xl py-8 px-4 sm:px-6">
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -377,7 +498,7 @@ export default function SlackDemo() {
 
   if (!slackSettings?.is_connected) {
     return (
-      <div className="container max-w-4xl py-8 space-y-6">
+      <div className="container max-w-4xl py-8 px-4 sm:px-6 space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Slack Integration Demo</h1>
           <p className="text-muted-foreground mt-1">
@@ -437,14 +558,43 @@ export default function SlackDemo() {
   }
 
   return (
-    <div className="container max-w-4xl py-8 space-y-8">
+    <div className="container max-w-4xl py-8 px-4 sm:px-6 space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Slack Integration Demo</h1>
-        <p className="text-muted-foreground mt-1">
-          Test all Slack notification types with sample data. Each test will send a real message to
-          your configured Slack channel.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Slack Integration Demo</h1>
+          <p className="text-muted-foreground mt-1">
+            Quickly verify Slack connection, then test each notification type (real Slack messages).
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => void loadRecentMeetings()} disabled={meetingsLoading}>
+            {meetingsLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading meetings…
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh meetings
+              </>
+            )}
+          </Button>
+          <Button onClick={() => void testSlackConnectionQuick()} disabled={connectionTestLoading}>
+            {connectionTestLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Testing…
+              </>
+            ) : (
+              <>
+                <Play className="mr-2 h-4 w-4" />
+                Test Slack connection
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Connection Status */}
@@ -461,6 +611,19 @@ export default function SlackDemo() {
         </AlertDescription>
       </Alert>
 
+      {connectionTestResult && (
+        <Alert variant={connectionTestResult.success ? 'default' : 'destructive'}>
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>
+              <span className="font-medium">Connection test:</span> {connectionTestResult.message}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {connectionTestResult.timestamp.toLocaleTimeString()}
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Test Cards */}
       <div className="grid gap-6">
         {/* Meeting Debrief */}
@@ -474,17 +637,41 @@ export default function SlackDemo() {
         >
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label>Meeting ID (optional)</Label>
+              <Label>Meeting (optional)</Label>
               <Input
-                placeholder="Leave empty for test data"
-                value={meetingDebriefData.meetingId}
-                onChange={(e) =>
-                  setMeetingDebriefData({ ...meetingDebriefData, meetingId: e.target.value })
-                }
+                placeholder="Search recent meetings by title/company/email/id…"
+                value={meetingSearch}
+                onChange={(e) => setMeetingSearch(e.target.value)}
               />
+              <Select
+                value={meetingDebriefData.meetingId || undefined}
+                onValueChange={(value) => setMeetingDebriefData({ ...meetingDebriefData, meetingId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={meetingsLoading ? 'Loading meetings…' : 'Select a meeting (optional)'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredMeetings.slice(0, 75).map((m) => {
+                    const dt = m.meeting_start ? new Date(m.meeting_start).toLocaleString() : '';
+                    const company = m.company?.name ? ` • ${m.company.name}` : '';
+                    return (
+                      <SelectItem key={m.id} value={m.id}>
+                        {(m.title || 'Untitled meeting') + company + (dt ? ` • ${dt}` : '')}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Or paste meeting ID</Label>
+                <Input
+                  placeholder="Leave empty for test data"
+                  value={meetingDebriefData.meetingId}
+                  onChange={(e) => setMeetingDebriefData({ ...meetingDebriefData, meetingId: e.target.value })}
+                />
+              </div>
               <p className="text-xs text-muted-foreground">
-                Provide a real meeting ID to use actual transcript data, or leave empty for sample
-                data.
+                Pick a real meeting to use transcript data (best), or leave empty for sample data.
               </p>
             </div>
           </div>
@@ -522,13 +709,30 @@ export default function SlackDemo() {
         >
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Meeting ID (optional)</Label>
+              <Label>Meeting (optional)</Label>
+              <Select
+                value={meetingPrepData.meetingId || undefined}
+                onValueChange={(value) => setMeetingPrepData({ ...meetingPrepData, meetingId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={meetingsLoading ? 'Loading meetings…' : 'Select a meeting (optional)'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredMeetings.slice(0, 75).map((m) => {
+                    const dt = m.meeting_start ? new Date(m.meeting_start).toLocaleString() : '';
+                    const company = m.company?.name ? ` • ${m.company.name}` : '';
+                    return (
+                      <SelectItem key={m.id} value={m.id}>
+                        {(m.title || 'Untitled meeting') + company + (dt ? ` • ${dt}` : '')}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
               <Input
-                placeholder="Leave empty for test data"
+                placeholder="Or paste meeting ID"
                 value={meetingPrepData.meetingId}
-                onChange={(e) =>
-                  setMeetingPrepData({ ...meetingPrepData, meetingId: e.target.value })
-                }
+                onChange={(e) => setMeetingPrepData({ ...meetingPrepData, meetingId: e.target.value })}
               />
             </div>
             <div className="space-y-2">
