@@ -37,16 +37,97 @@ serve(async (req) => {
     if (userError || !user) {
       throw new Error('Unauthorized: Invalid token')
     }
-    // Get integration
-    const { data: integration, error: integrationError } = await supabase
-      .from('fathom_integrations')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .single()
+    // Prefer org-scoped integration; allow caller to pass org_id
+    const body = await req.json().catch(() => ({} as any))
+    let orgId: string | null = (body && typeof body.org_id === 'string' ? body.org_id : null)
 
-    if (integrationError || !integration) {
-      throw new Error('No active Fathom integration found')
+    if (!orgId) {
+      const { data: membership } = await supabase
+        .from('organization_memberships')
+        .select('org_id')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      orgId = membership?.org_id || null
+    } else {
+      const { data: membership } = await supabase
+        .from('organization_memberships')
+        .select('org_id')
+        .eq('org_id', orgId)
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle()
+      if (!membership) throw new Error('Forbidden: You are not a member of this organization')
+    }
+
+    let accessToken: string
+    let tokenExpiresAt: string | null = null
+    let scopes: string[] = ['public_api']
+    let integrationEmail: string | null = null
+    let integrationId: string | null = null
+
+    if (orgId) {
+      const { data: orgIntegration } = await supabase
+        .from('fathom_org_integrations')
+        .select('*')
+        .eq('org_id', orgId)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (orgIntegration) {
+        const { data: creds, error: credsError } = await supabase
+          .from('fathom_org_credentials')
+          .select('access_token, token_expires_at')
+          .eq('org_id', orgId)
+          .single()
+
+        if (credsError || !creds?.access_token) {
+          throw new Error('No active Fathom credentials found for this org (reconnect required)')
+        }
+
+        accessToken = creds.access_token
+        tokenExpiresAt = creds.token_expires_at || null
+        scopes = orgIntegration.scopes || ['public_api']
+        integrationEmail = orgIntegration.fathom_user_email || null
+        integrationId = orgIntegration.id
+      } else {
+        // Fall back to legacy per-user integration
+        const { data: integration, error: integrationError } = await supabase
+          .from('fathom_integrations')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .maybeSingle()
+
+        if (integrationError || !integration) {
+          throw new Error('No active Fathom integration found')
+        }
+
+        accessToken = integration.access_token
+        tokenExpiresAt = integration.token_expires_at || null
+        scopes = integration.scopes || ['public_api']
+        integrationEmail = integration.fathom_user_email || null
+        integrationId = integration.id
+      }
+    } else {
+      // No org resolved: legacy per-user integration only
+      const { data: integration, error: integrationError } = await supabase
+        .from('fathom_integrations')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (integrationError || !integration) {
+        throw new Error('No active Fathom integration found')
+      }
+
+      accessToken = integration.access_token
+      tokenExpiresAt = integration.token_expires_at || null
+      scopes = integration.scopes || ['public_api']
+      integrationEmail = integration.fathom_user_email || null
+      integrationId = integration.id
     }
 
     // STEP 1: Fetch user/team info from /me endpoint
@@ -55,7 +136,7 @@ serve(async (req) => {
     try {
       let meResponse = await fetch('https://api.fathom.ai/external/v1/me', {
         headers: {
-          'Authorization': `Bearer ${integration.access_token}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
       })
 
@@ -63,7 +144,7 @@ serve(async (req) => {
         // Try X-Api-Key fallback
         meResponse = await fetch('https://api.fathom.ai/external/v1/me', {
           headers: {
-            'X-Api-Key': integration.access_token,
+            'X-Api-Key': accessToken,
           },
         })
       }
@@ -86,14 +167,14 @@ serve(async (req) => {
     try {
       let teamsResponse = await fetch('https://api.fathom.ai/external/v1/teams', {
         headers: {
-          'Authorization': `Bearer ${integration.access_token}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
       })
 
       if (!teamsResponse.ok) {
         teamsResponse = await fetch('https://api.fathom.ai/external/v1/teams', {
           headers: {
-            'X-Api-Key': integration.access_token,
+            'X-Api-Key': accessToken,
           },
         })
       }
@@ -113,14 +194,14 @@ serve(async (req) => {
     // Try Bearer first (standard OAuth)
     let response = await fetch(testUrl, {
       headers: {
-        'Authorization': `Bearer ${integration.access_token}`,
+        'Authorization': `Bearer ${accessToken}`,
       },
     })
     // If Bearer fails with 401, try X-Api-Key
     if (response.status === 401) {
       response = await fetch(testUrl, {
         headers: {
-          'X-Api-Key': integration.access_token,
+          'X-Api-Key': accessToken,
         },
       })
     }
@@ -186,10 +267,11 @@ serve(async (req) => {
             ? '⚠️ Token works but may be connected to wrong workspace/team'
             : '✅ Token is valid and working!',
           integration: {
-            id: integration.id,
-            email: integration.fathom_user_email || userInfo?.email || 'Unknown',
-            expires_at: integration.token_expires_at,
-            scopes: integration.scopes,
+            id: integrationId,
+            org_id: orgId,
+            email: integrationEmail || userInfo?.email || 'Unknown',
+            expires_at: tokenExpiresAt,
+            scopes,
           },
           // NEW: Fathom account info from /me endpoint
           fathom_account: userInfo ? {

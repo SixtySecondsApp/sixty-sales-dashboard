@@ -23,7 +23,7 @@ type AuditResult = {
 
 async function tryCount(table: string, orgId?: string) {
   const tryWithOrg = async () => {
-    const { count, error } = await supabase
+    const { count, error } = await (supabase as any)
       .from(table)
       .select('id', { count: 'exact', head: true })
       .eq('org_id', orgId);
@@ -32,7 +32,7 @@ async function tryCount(table: string, orgId?: string) {
   };
 
   const tryWithoutOrg = async () => {
-    const { count, error } = await supabase.from(table).select('id', { count: 'exact', head: true });
+    const { count, error } = await (supabase as any).from(table).select('id', { count: 'exact', head: true });
     if (error) throw error;
     return count ?? 0;
   };
@@ -49,13 +49,13 @@ async function tryLatest(table: string, column: string, orgId?: string) {
   const query = (q: any) => q.not(column, 'is', null).order(column, { ascending: false }).limit(1);
 
   const tryWithOrg = async () => {
-    const { data, error } = await query(supabase.from(table).select(column).eq('org_id', orgId));
+    const { data, error } = await query((supabase as any).from(table).select(column).eq('org_id', orgId));
     if (error) throw error;
     return (data?.[0] as any)?.[column] as string | undefined;
   };
 
   const tryWithoutOrg = async () => {
-    const { data, error } = await query(supabase.from(table).select(column));
+    const { data, error } = await query((supabase as any).from(table).select(column));
     if (error) throw error;
     return (data?.[0] as any)?.[column] as string | undefined;
   };
@@ -135,7 +135,7 @@ export function SalesIntelligenceAuditPanel({
         run: async () => {
           let unresolved = 0;
           try {
-            const { count, error } = await supabase
+            const { count, error } = await (supabase as any)
               .from('deal_risk_signals')
               .select('id', { count: 'exact', head: true })
               .eq('is_resolved', false)
@@ -160,7 +160,7 @@ export function SalesIntelligenceAuditPanel({
         run: async () => {
           let pending = 0;
           try {
-            const { count, error } = await supabase
+            const { count, error } = await (supabase as any)
               .from('next_action_suggestions')
               .select('id', { count: 'exact', head: true })
               .eq('status', 'pending');

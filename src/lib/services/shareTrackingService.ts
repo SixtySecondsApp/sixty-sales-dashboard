@@ -143,7 +143,15 @@ export async function hasClaimedTwitterBoost(entryId: string): Promise<boolean> 
  * Track first LinkedIn share and grant 50-point boost
  * The database trigger will automatically recalculate total_points and effective_position
  */
-export async function trackLinkedInFirstShare(entryId: string): Promise<{ success: boolean; boosted: boolean }> {
+export async function trackLinkedInFirstShare(entryId: string): Promise<{
+  success: boolean;
+  boosted: boolean;
+  updatedEntry?: {
+    total_points: number;
+    effective_position: number;
+    linkedin_boost_claimed: boolean;
+  };
+}> {
   try {
     // Check if already claimed
     const alreadyClaimed = await hasClaimedLinkedInBoost(entryId);
@@ -202,7 +210,24 @@ export async function trackLinkedInFirstShare(entryId: string): Promise<{ succes
       });
     }
 
-    return { success: true, boosted: true };
+    // Fetch updated values so UI can update immediately (points/position recalculated by DB triggers)
+    const { data: updated } = await (supabase as any)
+      .from('meetings_waitlist')
+      .select('total_points, effective_position, linkedin_boost_claimed')
+      .eq('id', entryId)
+      .maybeSingle();
+
+    return updated
+      ? {
+          success: true,
+          boosted: true,
+          updatedEntry: {
+            total_points: updated.total_points,
+            effective_position: updated.effective_position,
+            linkedin_boost_claimed: updated.linkedin_boost_claimed,
+          },
+        }
+      : { success: true, boosted: true };
   } catch (err) {
     console.error('LinkedIn first share error:', err);
     return { success: false, boosted: false };
@@ -213,7 +238,15 @@ export async function trackLinkedInFirstShare(entryId: string): Promise<{ succes
  * Track first Twitter/X share and grant 50-point boost
  * The database trigger will automatically recalculate total_points and effective_position
  */
-export async function trackTwitterFirstShare(entryId: string): Promise<{ success: boolean; boosted: boolean }> {
+export async function trackTwitterFirstShare(entryId: string): Promise<{
+  success: boolean;
+  boosted: boolean;
+  updatedEntry?: {
+    total_points: number;
+    effective_position: number;
+    twitter_boost_claimed: boolean;
+  };
+}> {
   try {
     // Check if already claimed
     const alreadyClaimed = await hasClaimedTwitterBoost(entryId);
@@ -224,7 +257,7 @@ export async function trackTwitterFirstShare(entryId: string): Promise<{ success
     }
 
     // Get current entry data for analytics
-    const { data: entry, error: fetchError } = await supabase
+    const { data: entry, error: fetchError } = await (supabase as any)
       .from('meetings_waitlist')
       .select('effective_position, total_points')
       .eq('id', entryId)
@@ -239,7 +272,7 @@ export async function trackTwitterFirstShare(entryId: string): Promise<{ success
     // The trigger will automatically:
     // - Add 50 to total_points
     // - Recalculate effective_position
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from('meetings_waitlist')
       .update({
         twitter_boost_claimed: true,
@@ -253,7 +286,7 @@ export async function trackTwitterFirstShare(entryId: string): Promise<{ success
     }
 
     // Track the share with boost indicator
-    await supabase
+    await (supabase as any)
       .from('waitlist_shares')
       .insert({
         waitlist_entry_id: entryId,
@@ -272,7 +305,23 @@ export async function trackTwitterFirstShare(entryId: string): Promise<{ success
       });
     }
 
-    return { success: true, boosted: true };
+    const { data: updated } = await (supabase as any)
+      .from('meetings_waitlist')
+      .select('total_points, effective_position, twitter_boost_claimed')
+      .eq('id', entryId)
+      .maybeSingle();
+
+    return updated
+      ? {
+          success: true,
+          boosted: true,
+          updatedEntry: {
+            total_points: updated.total_points,
+            effective_position: updated.effective_position,
+            twitter_boost_claimed: updated.twitter_boost_claimed,
+          },
+        }
+      : { success: true, boosted: true };
   } catch (err) {
     console.error('Twitter first share error:', err);
     return { success: false, boosted: false };

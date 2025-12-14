@@ -6,6 +6,7 @@ import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
 import { useOnboardingProgress } from '@/lib/hooks/useOnboardingProgress';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/clientV2';
+import { useOrgStore } from '@/lib/stores/orgStore';
 import { toast } from 'sonner';
 
 interface FathomConnectionStepProps {
@@ -15,7 +16,8 @@ interface FathomConnectionStepProps {
 
 export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepProps) {
   const { user } = useAuth();
-  const { integration, connectFathom, loading: fathomLoading } = useFathomIntegration();
+  const activeOrgId = useOrgStore((s) => s.activeOrgId);
+  const { integration, connectFathom, loading: fathomLoading, canManage } = useFathomIntegration();
   const { markFathomConnected } = useOnboardingProgress();
   const [isConnecting, setIsConnecting] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
@@ -27,17 +29,17 @@ export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepPro
 
   // Poll for connection status after OAuth popup
   const pollForConnection = useCallback(async () => {
-    if (!user) return false;
+    if (!user || !activeOrgId) return false;
 
-    const { data } = await supabase
-      .from('fathom_integrations')
+    const { data } = await (supabase as any)
+      .from('fathom_org_integrations')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('org_id', activeOrgId)
       .eq('is_active', true)
       .maybeSingle();
 
     return data !== null;
-  }, [user]);
+  }, [user, activeOrgId]);
 
   const startPolling = useCallback(() => {
     setIsPolling(true);
@@ -99,6 +101,9 @@ export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepPro
   const handleConnect = async () => {
     try {
       setIsConnecting(true);
+      if (!canManage) {
+        throw new Error('Only organization owners/admins can connect Fathom during onboarding.')
+      }
       await connectFathom();
 
       // Start polling for connection status

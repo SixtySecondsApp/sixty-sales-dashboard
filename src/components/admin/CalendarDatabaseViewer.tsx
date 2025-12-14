@@ -52,7 +52,7 @@ export function CalendarDatabaseViewer() {
       }
 
       // Fetch events directly from database
-      const { data, error: fetchError } = await supabase
+      const { data, error: fetchError } = await (supabase as any)
         .from('calendar_events')
         .select('*')
         .eq('user_id', userData.user.id)
@@ -64,7 +64,7 @@ export function CalendarDatabaseViewer() {
         return;
       }
 
-      setEvents(data || []);
+      setEvents((data as CalendarEvent[]) || []);
     } catch (err: any) {
       setError(err.message);
     } finally {

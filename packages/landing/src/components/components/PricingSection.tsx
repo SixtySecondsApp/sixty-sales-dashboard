@@ -295,7 +295,8 @@ export function PricingSection() {
                       {feature.name}
                     </td>
                     <td className="py-4 px-6 text-center">
-                      <FeatureValue value={feature.starter} />
+                      {/* Starter is an alias for Solo */}
+                      <FeatureValue value={feature.solo} />
                     </td>
                     <td className="py-4 px-6 text-center bg-blue-500/5">
                       <FeatureValue value={feature.pro} highlight />

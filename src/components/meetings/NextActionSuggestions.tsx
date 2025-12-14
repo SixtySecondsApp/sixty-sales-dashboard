@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -48,7 +48,8 @@ interface NextActionSuggestion {
 }
 
 interface NextActionSuggestionsProps {
-  meetingId: string;
+  activityId: string;
+  activityType?: 'meeting' | 'call' | 'activity' | 'email' | 'proposal';
   suggestions: NextActionSuggestion[];
   onSuggestionUpdate: () => void;
   onTimestampClick?: (seconds: number) => void;
@@ -67,7 +68,8 @@ function formatTimestamp(seconds: number): string {
 }
 
 export function NextActionSuggestions({
-  meetingId,
+  activityId,
+  activityType = 'meeting',
   suggestions: initialSuggestions,
   onSuggestionUpdate,
   onTimestampClick,
@@ -77,6 +79,11 @@ export function NextActionSuggestions({
   const [loading, setLoading] = useState<string | null>(null);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [extractingMore, setExtractingMore] = useState(false);
+
+  // Keep local state in sync with prop updates (e.g. refetch)
+  useEffect(() => {
+    setSuggestions(initialSuggestions);
+  }, [initialSuggestions]);
 
   // Task category icon mapping
   const categoryIcons: Record<string, any> = {
@@ -196,16 +203,26 @@ export function NextActionSuggestions({
       const { data: existingData, error: fetchError } = await supabase
         .from('next_action_suggestions')
         .select('title, action_type, status')
-        .eq('activity_id', meetingId)
-        .eq('activity_type', 'meeting');
+        .eq('activity_id', activityId)
+        .eq('activity_type', activityType);
 
       if (fetchError) throw fetchError;
 
       // Also get tasks created from this meeting
-      const { data: existingTasks } = await supabase
-        .from('tasks')
-        .select('title, task_type, status')
-        .eq('meeting_id', meetingId);
+      let existingTasks: any[] = [];
+      if (activityType === 'meeting') {
+        const { data } = await supabase
+          .from('tasks')
+          .select('title, task_type, status')
+          .eq('meeting_id', activityId);
+        existingTasks = data || [];
+      } else if (activityType === 'call') {
+        const { data } = await supabase
+          .from('tasks')
+          .select('title, task_type, status')
+          .eq('call_id', activityId);
+        existingTasks = data || [];
+      }
 
       // Prepare context for duplicate prevention
       const existingContext = {
@@ -216,8 +233,8 @@ export function NextActionSuggestions({
       // Call the Edge Function with forceRegenerate and context
       const { data, error } = await supabase.functions.invoke('suggest-next-actions', {
         body: {
-          activityId: meetingId,
-          activityType: 'meeting',
+          activityId: activityId,
+          activityType: activityType,
           forceRegenerate: true,
           existingContext: existingContext
         }

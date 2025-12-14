@@ -118,7 +118,7 @@ export function CalendarSyncTest() {
 
       // Step 5: Test database function
       addStep({ name: 'Testing database function', status: 'running' });
-      const { data: rpcData, error: rpcError } = await supabase.rpc('get_calendar_events_in_range', {
+      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('get_calendar_events_in_range', {
         p_user_id: userData.user.id,
         p_start_date: startDate.toISOString(),
         p_end_date: endDate.toISOString(),
@@ -142,7 +142,7 @@ export function CalendarSyncTest() {
 
       // Step 6: Check calendar record
       addStep({ name: 'Checking calendar record', status: 'running' });
-      const { data: calendar, error: calendarError } = await supabase
+      const { data: calendar, error: calendarError } = await (supabase as any)
         .from('calendar_calendars')
         .select('*')
         .eq('user_id', userData.user.id)
@@ -158,11 +158,11 @@ export function CalendarSyncTest() {
         newSteps[5] = { 
           name: 'Checking calendar record', 
           status: 'success', 
-          message: `Calendar "${calendar.name}" configured`,
+          message: `Calendar "${(calendar as any).name}" configured`,
           details: {
-            id: calendar.id,
-            isPrimary: calendar.is_primary,
-            historicalSyncCompleted: calendar.historical_sync_completed
+            id: (calendar as any).id,
+            isPrimary: (calendar as any).is_primary,
+            historicalSyncCompleted: (calendar as any).historical_sync_completed
           }
         };
       }

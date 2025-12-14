@@ -34,6 +34,7 @@ export const TRANSCRIPT_ANALYSIS_USER_PROMPT = `Analyze this sales call transcri
 MEETING CONTEXT:
 - Title: \${meetingTitle}
 - Date: \${meetingDate}
+- Today's Date: ${new Date().toISOString().split('T')[0]}
 - Host: \${ownerEmail}
 
 TRANSCRIPT:
@@ -66,7 +67,7 @@ Please analyze the transcript and provide:
    - Title: Clear, specific description of what needs to be done
    - Assigned to: Person's name who should do it (sales rep name, customer name, or role like "Sales Team" or "Customer")
    - Assigned to email: Email address if mentioned, otherwise null
-   - Deadline: Date when it's due (relative to \${meetingDate}). Parse phrases like:
+   - Deadline: Date when it's due. Use TODAY'S DATE above as the default anchor for relative phrases unless the transcript explicitly ties the deadline to the meeting date. Parse phrases like:
      * "tomorrow" = 1 day from meeting date
      * "next week" = 7 days from meeting date
      * "end of week" = nearest Friday from meeting date

@@ -25,7 +25,7 @@ export function usePublicBrandingSettings() {
   const loadSettings = useCallback(async () => {
     try {
       // Fetch global settings (org_id IS NULL)
-      const { data: globalSettings, error: globalError } = await supabase
+      const { data: globalSettings, error: globalError } = await (supabase as any)
         .from('branding_settings')
         .select('*')
         .is('org_id', null)
@@ -76,7 +76,7 @@ export function useBrandingSettings() {
     try {
       // First try to get org-specific settings if we have an org
       if (orgId) {
-        const { data: orgSettings, error: orgError } = await supabase
+        const { data: orgSettings, error: orgError } = await (supabase as any)
           .from('branding_settings')
           .select('*')
           .eq('org_id', orgId)
@@ -95,7 +95,7 @@ export function useBrandingSettings() {
       }
 
       // Fallback to global settings (org_id IS NULL)
-      const { data: globalSettings, error: globalError } = await supabase
+      const { data: globalSettings, error: globalError } = await (supabase as any)
         .from('branding_settings')
         .select('*')
         .is('org_id', null)
@@ -164,7 +164,7 @@ export function useOrgBrandingSettings() {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('branding_settings')
         .select('*')
         .eq('org_id', orgId)

@@ -50,9 +50,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-
-// Production webhook URL
-const WEBHOOK_URL = 'https://use60.com/api/webhooks/fathom';
+import { useOrgStore } from '@/lib/stores/orgStore';
 
 interface FathomConfigModalProps {
   open: boolean;
@@ -60,6 +58,9 @@ interface FathomConfigModalProps {
 }
 
 export function FathomConfigModal({ open, onOpenChange }: FathomConfigModalProps) {
+  const activeOrgId = useOrgStore((s) => s.activeOrgId);
+  const WEBHOOK_URL = `${(import.meta as any)?.env?.VITE_PUBLIC_URL || window.location.origin}/api/webhooks/fathom${activeOrgId ? `?org_id=${encodeURIComponent(activeOrgId)}` : ''}`;
+
   const {
     integration,
     syncState,
@@ -67,6 +68,7 @@ export function FathomConfigModal({ open, onOpenChange }: FathomConfigModalProps
     lifetimeMeetingsCount,
     disconnectFathom,
     triggerSync,
+    canManage,
   } = useFathomIntegration();
 
   const [showWebhookDetails, setShowWebhookDetails] = useState(false);
@@ -207,9 +209,9 @@ export function FathomConfigModal({ open, onOpenChange }: FathomConfigModalProps
                 </span>
               </div>
               <div>
-                <span className="text-gray-500">Expires:</span>{' '}
+                <span className="text-gray-500">Last Sync:</span>{' '}
                 <span className="text-gray-900 dark:text-white">
-                  {integration && new Date(integration.token_expires_at).toLocaleDateString()}
+                  {integration?.last_sync_at ? new Date(integration.last_sync_at).toLocaleDateString() : 'Never'}
                 </span>
               </div>
               {integration?.scopes && (
@@ -392,6 +394,7 @@ export function FathomConfigModal({ open, onOpenChange }: FathomConfigModalProps
           buttonText="Disconnect"
           onAction={() => setShowDisconnectDialog(true)}
           isLoading={disconnecting}
+          disabled={!canManage}
         />
       </ConfigureModal>
 
@@ -497,7 +500,7 @@ export function FathomConfigModal({ open, onOpenChange }: FathomConfigModalProps
             <Button
               variant="destructive"
               onClick={handleDisconnect}
-              disabled={disconnecting}
+              disabled={disconnecting || !canManage}
             >
               {disconnecting ? (
                 <>

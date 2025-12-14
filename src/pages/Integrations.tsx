@@ -31,11 +31,13 @@ import { GoogleConfigModal } from '@/components/integrations/GoogleConfigModal';
 import { FathomConfigModal } from '@/components/integrations/FathomConfigModal';
 import { SavvyCalConfigModal } from '@/components/integrations/SavvyCalConfigModal';
 import { SlackConfigModal } from '@/components/integrations/SlackConfigModal';
+import { JustCallConfigModal } from '@/components/integrations/JustCallConfigModal';
 
 // Hooks and stores
 import { useGoogleIntegration } from '@/lib/stores/integrationStore';
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
 import { useSlackIntegration } from '@/lib/hooks/useSlackIntegration';
+import { useJustCallIntegration } from '@/lib/hooks/useJustCallIntegration';
 import { getIntegrationDomain, getLogoS3Url, useIntegrationLogo } from '@/lib/hooks/useIntegrationLogo';
 import { useUser } from '@/lib/hooks/useUser';
 import { IntegrationVoteState, useIntegrationUpvotes } from '@/lib/hooks/useIntegrationUpvotes';
@@ -298,6 +300,22 @@ const builtIntegrations: IntegrationConfig[] = [
     ),
     isBuilt: true,
   },
+  {
+    id: 'justcall',
+    name: 'JustCall',
+    description: 'Sync call recordings & transcripts.',
+    permissions: [
+      { title: 'Read calls', description: 'Backfill and sync call history.' },
+      { title: 'Read recordings', description: 'Stream call recordings securely.' },
+      { title: 'Read transcripts', description: 'Fetch JustCall IQ transcripts.' },
+      { title: 'Receive webhooks', description: 'Real-time call updates.' },
+    ],
+    brandColor: 'emerald',
+    iconBgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
+    iconBorderColor: 'border-emerald-100 dark:border-emerald-800/40',
+    fallbackIcon: <Phone className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />,
+    isBuilt: true,
+  },
 ];
 
 // =====================================================
@@ -373,7 +391,6 @@ const integrationCategories: IntegrationCategory[] = [
     tooltip: 'Logs call activities automatically with duration and outcome. Click-to-call from contact pages and syncs call recordings for coaching and compliance.',
     icon: <Phone className="w-5 h-5" />,
     integrations: [
-      { id: 'justcall', name: 'JustCall', description: 'Cloud phone for sales.', fallbackIcon: <Phone className="w-6 h-6 text-blue-500" /> },
       { id: 'ringover', name: 'Ringover', description: 'Business phone system.', fallbackIcon: <Phone className="w-6 h-6 text-green-500" /> },
       { id: 'cloudcall', name: 'CloudCall', description: 'CRM telephony integration.', fallbackIcon: <Phone className="w-6 h-6 text-cyan-500" /> },
       { id: '8x8', name: '8x8', description: 'Unified communications.', fallbackIcon: <Phone className="w-6 h-6 text-blue-600" /> },
@@ -516,7 +533,7 @@ export default function Integrations() {
     return ids;
   }, []);
 
-  const { getVoteState, toggleUpvote } = useIntegrationUpvotes(allComingSoonIntegrationIds);
+  const { getVoteState, toggleUpvote, roadmapSchemaAvailable } = useIntegrationUpvotes(allComingSoonIntegrationIds);
 
   // Integration states
   const {
@@ -530,6 +547,8 @@ export default function Integrations() {
   const { isConnected: fathomConnected, loading: fathomLoading, connectFathom } = useFathomIntegration();
 
   const { isConnected: slackConnected, loading: slackLoading, connectSlack } = useSlackIntegration();
+
+  const { isConnected: justcallConnected, loading: justcallLoading } = useJustCallIntegration();
 
   // Modal states
   const [activeConnectModal, setActiveConnectModal] = useState<string | null>(null);
@@ -571,6 +590,8 @@ export default function Integrations() {
         return 'inactive'; // Webhook-based, always show as inactive until configured
       case 'slack':
         return slackConnected ? 'active' : 'inactive';
+      case 'justcall':
+        return justcallConnected ? 'active' : 'inactive';
       default:
         return 'coming_soon';
     }
@@ -585,6 +606,11 @@ export default function Integrations() {
     if (status === 'active' || status === 'syncing') {
       setActiveConfigModal(integrationId);
     } else {
+      // JustCall is API-key based (no OAuth flow) so go straight to config.
+      if (integrationId === 'justcall') {
+        setActiveConfigModal('justcall');
+        return;
+      }
       setActiveConnectModal(integrationId);
     }
   };
@@ -603,8 +629,10 @@ export default function Integrations() {
           }
           break;
         case 'fathom':
-          await connectFathom();
-          setActiveConnectModal(null);
+          // connectFathom returns whether initiation succeeded (popup opened)
+          if (await connectFathom()) {
+            setActiveConnectModal(null);
+          }
           break;
         case 'savvycal':
           setActiveConnectModal(null);
@@ -613,6 +641,11 @@ export default function Integrations() {
         case 'slack':
           connectSlack();
           setActiveConnectModal(null);
+          break;
+        case 'justcall':
+          // JustCall does not support OAuth; go straight to API key/secret configuration.
+          setActiveConnectModal(null);
+          setActiveConfigModal('justcall');
           break;
         default:
           toast.info('Integration coming soon');
@@ -634,8 +667,9 @@ export default function Integrations() {
       'google-workspace': googleLoading,
       fathom: fathomLoading,
       slack: slackLoading,
+      justcall: justcallLoading,
     }),
-    [googleLoading, fathomLoading, slackLoading]
+    [googleLoading, fathomLoading, slackLoading, justcallLoading]
   );
 
   // Preload cached S3 logo URLs on page load to prevent any visible swap/flicker.
@@ -710,6 +744,11 @@ export default function Integrations() {
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
             We're working on these integrations. Vote for the ones you need most!
           </p>
+          {!roadmapSchemaAvailable && (
+            <div className="mb-6 rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+              Voting is currently unavailable in this environment (roadmap tables not deployed).
+            </div>
+          )}
 
           {integrationCategories.map((category) => (
             <CategorySection
@@ -786,6 +825,10 @@ export default function Integrations() {
       />
       <SlackConfigModal
         open={activeConfigModal === 'slack'}
+        onOpenChange={(open) => !open && setActiveConfigModal(null)}
+      />
+      <JustCallConfigModal
+        open={activeConfigModal === 'justcall'}
         onOpenChange={(open) => !open && setActiveConfigModal(null)}
       />
     </div>

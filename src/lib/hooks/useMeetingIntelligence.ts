@@ -40,7 +40,8 @@ export interface SearchFilters {
 }
 
 export interface SearchSource {
-  meeting_id: string;
+  source_type: 'meeting' | 'call';
+  source_id: string;
   title: string;
   date: string;
   company_name: string | null;
@@ -179,41 +180,67 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
       if (teamError) {
         console.warn('RPC get_team_members_with_connected_accounts not available:', teamError);
 
-        // Fallback: Get users who have active Fathom integrations
-        const { data: connectedUsers } = await untypedSupabase
-          .from('fathom_integrations')
-          .select('user_id, fathom_user_email')
-          .eq('is_active', true) as {
-            data: { user_id: string; fathom_user_email: string | null }[] | null;
-            error: Error | null;
-          };
+        // Fallback: Org-scoped membership list (Fathom is now org-scoped)
+        const { data: orgMembership } = await untypedSupabase
+          .from('organization_memberships')
+          .select('org_id')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle() as { data: { org_id: string } | null };
 
-        if (!connectedUsers || connectedUsers.length === 0) {
+        const orgId = orgMembership?.org_id;
+
+        if (!orgId) {
           setTeamMembers([]);
           return;
         }
 
-        const connectedUserIds = connectedUsers.map(u => u.user_id);
+        const { data: members } = await untypedSupabase
+          .from('organization_memberships')
+          .select('user_id')
+          .eq('org_id', orgId) as { data: { user_id: string }[] | null; error: Error | null };
 
-        // Get meeting counts for connected users
+        const memberIds = (members || []).map(m => m.user_id);
+        if (memberIds.length === 0) {
+          setTeamMembers([]);
+          return;
+        }
+
+        // Get basic profile info for display
+        const { data: profiles } = await untypedSupabase
+          .from('profiles')
+          .select('id, email, first_name, last_name')
+          .in('id', memberIds) as { data: any[] | null; error: Error | null };
+
+        const profileById = new Map<string, any>();
+        (profiles || []).forEach((p: any) => profileById.set(p.id, p));
+
+        // Get meeting counts for org members with transcripts
         const { data: meetingOwners } = await supabase
           .from('meetings')
           .select('owner_user_id')
           .not('transcript_text', 'is', null)
           .neq('transcript_text', '')
-          .in('owner_user_id', connectedUserIds) as {
+          .eq('org_id', orgId)
+          .in('owner_user_id', memberIds) as {
             data: { owner_user_id: string }[] | null;
             error: Error | null;
           };
 
         if (meetingOwners) {
-          // Build team members list from connected users only
-          const fallbackMembers: TeamMember[] = connectedUsers.map(connUser => {
-            const meetingCount = meetingOwners.filter(m => m.owner_user_id === connUser.user_id).length;
+          // Build team members list from org members only (only show users with meetings)
+          const fallbackMembers: TeamMember[] = memberIds.map((memberId) => {
+            const meetingCount = meetingOwners.filter(m => m.owner_user_id === memberId).length;
+            const prof = profileById.get(memberId);
+            const email = prof?.email || '';
+            const fullName = memberId === user.id
+              ? 'Me'
+              : ([prof?.first_name, prof?.last_name].filter(Boolean).join(' ') || (email ? email.split('@')[0] : 'Team Member'));
             return {
-              user_id: connUser.user_id,
-              email: connUser.fathom_user_email || '',
-              full_name: connUser.user_id === user.id ? 'Me' : (connUser.fathom_user_email?.split('@')[0] || 'Team Member'),
+              user_id: memberId,
+              email,
+              full_name: fullName,
               meeting_count: meetingCount,
               indexed_count: 0,
             };
@@ -342,11 +369,71 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
         };
       }
 
+      // Calls counts (always computed locally)
+      let totalCalls = 0;
+      let callsIndexed = 0;
+      let callsPending = 0;
+      let callsFailed = 0;
+
+      if (orgId) {
+        let callsQuery = supabase
+          .from('calls')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', orgId)
+          .not('transcript_text', 'is', null)
+          .neq('transcript_text', '');
+
+        if (targetUserId) {
+          callsQuery = callsQuery.eq('owner_user_id', targetUserId);
+        }
+
+        const { count } = await callsQuery;
+        totalCalls = count || 0;
+
+        let callsIndexedQuery = untypedSupabase
+          .from('call_file_search_index')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'indexed')
+          .eq('org_id', orgId);
+
+        if (targetUserId) {
+          callsIndexedQuery = callsIndexedQuery.eq('owner_user_id', targetUserId);
+        }
+
+        const { count: indexedCount } = await callsIndexedQuery;
+        callsIndexed = indexedCount || 0;
+
+        let callsPendingQuery = untypedSupabase
+          .from('call_index_queue')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', orgId);
+
+        if (targetUserId) {
+          callsPendingQuery = callsPendingQuery.eq('owner_user_id', targetUserId);
+        }
+
+        const { count: pendingCount } = await callsPendingQuery;
+        callsPending = pendingCount || 0;
+
+        let callsFailedQuery = untypedSupabase
+          .from('call_file_search_index')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'failed')
+          .eq('org_id', orgId);
+
+        if (targetUserId) {
+          callsFailedQuery = callsFailedQuery.eq('owner_user_id', targetUserId);
+        }
+
+        const { count: failedCount } = await callsFailedQuery;
+        callsFailed = failedCount || 0;
+      }
+
       setIndexStatus({
-        indexed: Number(statusData?.indexed_count) || storeData?.total_files || 0,
-        total: Number(statusData?.total_meetings) || 0,
-        pending: Number(statusData?.pending_count) || 0,
-        failed: Number(statusData?.failed_count) || 0,
+        indexed: (Number(statusData?.indexed_count) || 0) + callsIndexed || storeData?.total_files || 0,
+        total: (Number(statusData?.total_meetings) || 0) + totalCalls,
+        pending: (Number(statusData?.pending_count) || 0) + callsPending,
+        failed: (Number(statusData?.failed_count) || 0) + callsFailed,
         status: storeData?.status === 'syncing' ? 'syncing' :
                 storeData?.status === 'error' ? 'error' : 'idle',
         lastSyncAt: statusData?.last_indexed_at || storeData?.last_sync_at || null,
@@ -412,6 +499,39 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
       )
       .subscribe();
 
+    // Calls: index updates (filtered by owner_user_id)
+    const callIndexSubscription = supabase
+      .channel(`call_file_search_index_changes_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'call_file_search_index',
+          filter: `owner_user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchIndexStatus();
+        }
+      )
+      .subscribe();
+
+    const callQueueSubscription = supabase
+      .channel(`call_index_queue_changes_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'call_index_queue',
+          filter: `owner_user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchIndexStatus();
+        }
+      )
+      .subscribe();
+
     // Note: org_file_search_stores is org-wide and doesn't have user_id
     // This subscription remains unfiltered but is low-volume (one record per org)
     // and updates are infrequent. Could be filtered by org_id if we had it synchronously.
@@ -434,6 +554,8 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
       indexSubscription.unsubscribe();
       storeSubscription.unsubscribe();
       queueSubscription.unsubscribe();
+      callIndexSubscription.unsubscribe();
+      callQueueSubscription.unsubscribe();
     };
   }, [user, fetchIndexStatus]);
 
@@ -527,8 +649,8 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
       }
 
       if (!meetings || meetings.length === 0) {
-        toast.info('No meetings to index', {
-          description: 'Sync your Fathom meetings first to enable AI search.',
+        toast.info('No conversations to index', {
+          description: 'Sync your meetings/calls first to enable AI search.',
         });
 
         await untypedSupabase
@@ -540,7 +662,7 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
         return;
       }
 
-      toast.info(`Indexing ${meetings.length} meetings from all team members...`, {
+      toast.info(`Indexing conversations from all team members...`, {
         description: 'This may take a few minutes.',
       });
 
@@ -557,6 +679,35 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
 
       if (queueError) {
         console.error('Queue error:', queueError);
+      }
+
+      // Get ALL calls with transcripts (team-wide indexing)
+      const { data: calls, error: callsError } = await supabase
+        .from('calls')
+        .select('id, owner_user_id')
+        .eq('org_id', orgId)
+        .not('transcript_text', 'is', null)
+        .gt('transcript_text', '') as { data: { id: string; owner_user_id: string | null }[] | null; error: Error | null };
+
+      if (callsError) {
+        throw new Error(`Failed to fetch calls: ${callsError.message}`);
+      }
+
+      if (calls && calls.length > 0) {
+        const callQueueItems = calls.map(c => ({
+          call_id: c.id,
+          org_id: orgId,
+          owner_user_id: c.owner_user_id,
+          priority: 0,
+        }));
+
+        const { error: callQueueError } = await untypedSupabase
+          .from('call_index_queue')
+          .upsert(callQueueItems, { onConflict: 'call_id' });
+
+        if (callQueueError) {
+          console.error('Call queue error:', callQueueError);
+        }
       }
 
       // Trigger queue processor (process all, not just current user)
@@ -579,7 +730,7 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
         .eq('org_id', orgId);
 
       toast.success('Indexing complete', {
-        description: `Indexed ${result.succeeded || 0} meetings. ${result.failed || 0} failed.`,
+        description: `Indexed ${result.succeeded || 0} conversations. ${result.failed || 0} failed.`,
       });
 
       // Refresh status

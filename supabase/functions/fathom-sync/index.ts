@@ -30,6 +30,7 @@ interface SyncRequest {
   end_date?: string
   call_id?: string // For webhook-triggered single call sync
   user_id?: string // For webhook calls that explicitly pass user ID
+  org_id?: string // Org-scoped sync (preferred)
   limit?: number // Optional limit for test syncs (e.g., only sync last 5 calls)
   webhook_payload?: any // For webhook calls that pass the complete Fathom payload
   skip_thumbnails?: boolean // Skip thumbnail generation for faster syncs
@@ -91,7 +92,11 @@ interface FathomAnalytics {
 /**
  * Helper: Refresh OAuth access token if expired
  */
-async function refreshAccessToken(supabase: any, integration: any): Promise<string> {
+async function refreshAccessToken(
+  supabase: any,
+  integration: any,
+  scope: 'org' | 'user'
+): Promise<string> {
   const now = new Date()
   const expiresAt = new Date(integration.token_expires_at)
 
@@ -136,15 +141,19 @@ async function refreshAccessToken(supabase: any, integration: any): Promise<stri
   const newTokenExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
 
   // Update tokens in database
-  const { error: updateError } = await supabase
-    .from('fathom_integrations')
-    .update({
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token || integration.refresh_token, // Some OAuth providers don't issue new refresh tokens
-      token_expires_at: newTokenExpiresAt,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', integration.id)
+  const updatePayload = {
+    access_token: tokenData.access_token,
+    refresh_token: tokenData.refresh_token || integration.refresh_token, // Some OAuth providers don't issue new refresh tokens
+    token_expires_at: newTokenExpiresAt,
+    updated_at: new Date().toISOString(),
+  }
+
+  const updateQuery =
+    scope === 'org'
+      ? supabase.from('fathom_org_credentials').update(updatePayload).eq('org_id', integration.org_id)
+      : supabase.from('fathom_integrations').update(updatePayload).eq('id', integration.id)
+
+  const { error: updateError } = await updateQuery
 
   if (updateError) {
     throw new Error(`Failed to update refreshed tokens: ${updateError.message}`)
@@ -435,13 +444,17 @@ async function createGoogleDocForTranscript(supabase: any, userId: string, meeti
 }
 
 serve(async (req) => {
+  // For error handling: capture which sync state row to update
+  let syncStateOrgId: string | null = null
+  let syncStateUserId: string | null = null
+  let syncStateScope: 'org' | 'user' | null = null
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // Get authenticated user
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -456,29 +469,43 @@ serve(async (req) => {
     // Parse request body first
     const body: SyncRequest = await req.json()
 
-    // Get user ID - either from body (webhook) or from auth header
-    let userId: string
+    // Determine caller context
+    const authHeaderRaw = req.headers.get('Authorization')?.trim() || ''
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+    const isServiceRoleCall = !!serviceRoleKey && authHeaderRaw === `Bearer ${serviceRoleKey}`
+
+    // Resolve org/user from body and/or auth
+    let userId: string | null = null
+    let orgId: string | null = body.org_id || null
 
     if (body.user_id) {
       // SECURITY: only internal callers (service role) may specify user_id explicitly.
-      // Otherwise any unauthenticated client could sync arbitrary users.
-      const authHeader = req.headers.get('Authorization')?.trim() || ''
-      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-      if (!serviceRoleKey || authHeader !== `Bearer ${serviceRoleKey}`) {
-        throw new Error('Unauthorized: user_id can only be provided by internal callers')
-      }
-
-      // Internal call with explicit user_id
+      if (!isServiceRoleCall) throw new Error('Unauthorized: user_id can only be provided by internal callers')
       userId = body.user_id
+
+      // Legacy: if org_id isn't provided, use first org membership
+      if (!orgId) {
+        const { data: membership } = await supabase
+          .from('organization_memberships')
+          .select('org_id')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        orgId = membership?.org_id || null
+      }
+    } else if (orgId && isServiceRoleCall) {
+      // Internal org-scoped call (preferred for webhook/cron). No user context required.
+      userId = null
     } else {
       // Regular authenticated call
       const authHeader = req.headers.get('Authorization')
       if (!authHeader) {
-        throw new Error('Missing authorization header and no user_id in request')
+        throw new Error('Missing authorization header')
       }
 
       // Get user from token
-      const token = authHeader.replace('Bearer ', '')
+      const token = authHeader.replace('Bearer ', '').trim()
       const { data: { user }, error: userError } = await supabase.auth.getUser(token)
 
       if (userError || !user) {
@@ -486,34 +513,95 @@ serve(async (req) => {
       }
 
       userId = user.id
+
+      // If org_id isn't provided, use first membership. If it is provided, enforce membership.
+      if (!orgId) {
+        const { data: membership } = await supabase
+          .from('organization_memberships')
+          .select('org_id')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        orgId = membership?.org_id || null
+      } else {
+        const { data: membership } = await supabase
+          .from('organization_memberships')
+          .select('org_id')
+          .eq('org_id', orgId)
+          .eq('user_id', userId)
+          .limit(1)
+          .maybeSingle()
+        if (!membership) throw new Error('Forbidden: You are not a member of this organization')
+      }
     }
     const { sync_type, start_date, end_date, call_id, limit, webhook_payload, skip_thumbnails } = body
 
-    // Get active Fathom integration
-    const { data: integration, error: integrationError } = await supabase
-      .from('fathom_integrations')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .single()
+    // Load integration (org-scoped preferred; user-scoped fallback for legacy)
+    let integration: any = null
+    let integrationScope: 'org' | 'user' = 'org'
 
-    if (integrationError || !integration) {
-      const errorMessage = integration === null
-        ? 'No active Fathom integration found. Please go to Settings → Integrations and connect your Fathom account.'
-        : `Fathom integration error: ${integrationError?.message || 'Unknown error'}`
-      throw new Error(errorMessage)
+    if (orgId) {
+      const { data: orgIntegration, error: orgIntegrationError } = await supabase
+        .from('fathom_org_integrations')
+        .select('*')
+        .eq('org_id', orgId)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (!orgIntegrationError && orgIntegration) {
+        const { data: creds, error: credsError } = await supabase
+          .from('fathom_org_credentials')
+          .select('*')
+          .eq('org_id', orgId)
+          .single()
+
+        if (credsError) {
+          throw new Error(`Fathom credentials missing for org: ${credsError.message}`)
+        }
+
+        integration = {
+          ...orgIntegration,
+          ...creds,
+          org_id: orgId,
+          _scope: 'org',
+        }
+        integrationScope = 'org'
+      }
     }
 
-    // Get user's primary organization ID for RLS compliance
-    const { data: membership } = await supabase
-      .from('organization_memberships')
-      .select('org_id')
-      .eq('user_id', userId)
-      .limit(1)
-      .single()
+    // Legacy per-user fallback if org integration is not configured
+    if (!integration && userId) {
+      const { data: userIntegration, error: integrationError } = await supabase
+        .from('fathom_integrations')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .maybeSingle()
 
-    const userOrgId: string | null = membership?.org_id || null
-    console.log(`[fathom-sync] User ${userId} org_id: ${userOrgId}`)
+      if (integrationError) {
+        throw new Error(`Fathom integration error: ${integrationError.message}`)
+      }
+
+      if (userIntegration) {
+        integration = { ...userIntegration, _scope: 'user' }
+        integrationScope = 'user'
+      }
+    }
+
+    if (!integration) {
+      throw new Error('No active Fathom integration found. Please connect Fathom in Integrations.')
+    }
+
+    const effectiveUserIdForOwnership =
+      userId || integration.connected_by_user_id || integration.user_id || null
+
+    // Capture for error-state updates
+    syncStateOrgId = orgId
+    syncStateUserId = userId
+    syncStateScope = integrationScope
+
+    console.log(`[fathom-sync] scope=${integrationScope} org_id=${orgId || 'null'} user_id=${userId || 'null'}`)
 
     // ========================================================================
     // FREE TIER ENFORCEMENT: Check meeting limits before syncing
@@ -523,11 +611,11 @@ serve(async (req) => {
     let limitWarning: string | undefined
     const isOnboardingSync = sync_type === 'onboarding_fast' || sync_type === 'onboarding_background' || body.is_onboarding
     
-    if (userOrgId) {
-      meetingLimits = await checkMeetingLimits(supabase, userOrgId)
+    if (orgId) {
+      meetingLimits = await checkMeetingLimits(supabase, orgId)
       
       if (meetingLimits) {
-        console.log(`[fathom-sync] Meeting limits for org ${userOrgId}:`, {
+        console.log(`[fathom-sync] Meeting limits for org ${orgId}:`, {
           is_free_tier: meetingLimits.is_free_tier,
           new_meetings_used: meetingLimits.new_meetings_used,
           max_meetings: meetingLimits.max_meetings_per_month,
@@ -559,16 +647,25 @@ serve(async (req) => {
     }
 
     // Update sync state to 'syncing'
-    await supabase
-      .from('fathom_sync_state')
-      .upsert({
-        user_id: userId,
-        integration_id: integration.id,
-        sync_status: 'syncing',
-        last_sync_started_at: new Date().toISOString(),
-      }, {
-        onConflict: 'user_id',
-      })
+    if (integrationScope === 'org') {
+      await supabase
+        .from('fathom_org_sync_state')
+        .upsert({
+          org_id: orgId,
+          integration_id: integration.id,
+          sync_status: 'syncing',
+          last_sync_started_at: new Date().toISOString(),
+        }, { onConflict: 'org_id' })
+    } else if (userId) {
+      await supabase
+        .from('fathom_sync_state')
+        .upsert({
+          user_id: userId,
+          integration_id: integration.id,
+          sync_status: 'syncing',
+          last_sync_started_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' })
+    }
 
     let meetingsSynced = 0
     let totalMeetingsFound = 0
@@ -579,7 +676,8 @@ serve(async (req) => {
       // If webhook_payload is provided, use it directly
       if (webhook_payload) {
         // Webhook syncs are for new meetings (not historical)
-        const result = await syncSingleCall(supabase, userId, userOrgId, integration, webhook_payload, skip_thumbnails, false)
+        if (!effectiveUserIdForOwnership) throw new Error('Cannot resolve user context for webhook sync')
+        const result = await syncSingleCall(supabase, effectiveUserIdForOwnership, orgId, integration, webhook_payload, skip_thumbnails, false)
 
         if (result.success) {
           meetingsSynced = 1
@@ -590,7 +688,8 @@ serve(async (req) => {
         }
       } else if (call_id) {
         // Legacy: fetch single call by ID (not historical)
-        const result = await syncSingleCall(supabase, userId, userOrgId, integration, call_id, skip_thumbnails, false)
+        if (!effectiveUserIdForOwnership) throw new Error('Cannot resolve user context for webhook sync')
+        const result = await syncSingleCall(supabase, effectiveUserIdForOwnership, orgId, integration, call_id, skip_thumbnails, false)
 
         if (result.success) {
           meetingsSynced = 1
@@ -685,7 +784,8 @@ serve(async (req) => {
         for (const call of calls) {
           try {
             // Pass markAsHistorical flag for onboarding syncs
-            const result = await syncSingleCall(supabase, userId, userOrgId, integration, call, skip_thumbnails, markAsHistorical)
+            if (!effectiveUserIdForOwnership) throw new Error('Cannot resolve user context for sync')
+            const result = await syncSingleCall(supabase, effectiveUserIdForOwnership, orgId, integration, call, skip_thumbnails, markAsHistorical)
 
             if (result.success) {
               meetingsSynced++
@@ -720,7 +820,8 @@ serve(async (req) => {
           for (const call of retryCalls) {
             try {
               // Fallback retries also use markAsHistorical flag
-              const result = await syncSingleCall(supabase, userId, userOrgId, integration, call, skip_thumbnails, markAsHistorical)
+              if (!effectiveUserIdForOwnership) throw new Error('Cannot resolve user context for sync')
+              const result = await syncSingleCall(supabase, effectiveUserIdForOwnership, orgId, integration, call, skip_thumbnails, markAsHistorical)
               if (result.success) meetingsSynced++
             } catch (error) {
             }
@@ -730,19 +831,54 @@ serve(async (req) => {
     }
 
     // Update sync state to 'idle' with results
-    await supabase
-      .from('fathom_sync_state')
-      .update({
-        sync_status: 'idle',
-        last_sync_completed_at: new Date().toISOString(),
-        meetings_synced: meetingsSynced,
-        total_meetings_found: totalMeetingsFound,
-        last_sync_error: errors.length > 0 ? JSON.stringify(errors.slice(0, 10)) : null,
-      })
-      .eq('user_id', userId)
+    if (integrationScope === 'org') {
+      await supabase
+        .from('fathom_org_sync_state')
+        .update({
+          sync_status: 'idle',
+          last_successful_sync: new Date().toISOString(),
+          last_sync_completed_at: new Date().toISOString(),
+          meetings_synced: meetingsSynced,
+          total_meetings_found: totalMeetingsFound,
+          error_message: errors.length > 0 ? JSON.stringify(errors.slice(0, 10)) : null,
+        })
+        .eq('org_id', orgId)
+
+      // Update integration metadata
+      if (orgId) {
+        await supabase
+          .from('fathom_org_integrations')
+          .update({
+            last_sync_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('org_id', orgId)
+      }
+    } else if (userId) {
+      await supabase
+        .from('fathom_sync_state')
+        .update({
+          sync_status: 'idle',
+          last_sync_completed_at: new Date().toISOString(),
+          meetings_synced: meetingsSynced,
+          total_meetings_found: totalMeetingsFound,
+          last_sync_error: errors.length > 0 ? JSON.stringify(errors.slice(0, 10)) : null,
+        })
+        .eq('user_id', userId)
+
+      // Best-effort: update legacy integration metadata
+      await supabase
+        .from('fathom_integrations')
+        .update({
+          last_sync_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId)
+    }
 
     // USAGE LIMIT WARNING: Check if user is approaching their limit (80%) and send email
     if (meetingLimits && meetingLimits.is_free_tier && meetingsSynced > 0) {
+      const warningUserId: string | null = userId || integration.connected_by_user_id || null
       const newUsed = meetingLimits.new_meetings_used + meetingsSynced
       const usagePercent = (newUsed / meetingLimits.max_meetings_per_month) * 100
       
@@ -752,17 +888,20 @@ serve(async (req) => {
         
         // Check if we've already sent a warning email (to avoid spam)
         try {
+          if (!warningUserId) {
+            console.warn('[fathom-sync] Cannot send usage warning: no user context available')
+          } else {
           const { data: existingWarning } = await supabase
             .from('email_logs')
             .select('id')
-            .eq('user_id', userId)
+            .eq('user_id', warningUserId)
             .eq('email_type', 'meeting_limit_warning')
             .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()) // Last 7 days
             .limit(1)
           
           if (!existingWarning || existingWarning.length === 0) {
             // Get user email
-            const { data: userData } = await supabase.auth.admin.getUserById(userId)
+            const { data: userData } = await supabase.auth.admin.getUserById(warningUserId)
             
             if (userData?.user?.email) {
               // Fire-and-forget: Send warning email via encharge-email function
@@ -776,7 +915,7 @@ serve(async (req) => {
                   email_type: 'meeting_limit_warning',
                   to_email: userData.user.email,
                   to_name: userData.user.user_metadata?.full_name || userData.user.email.split('@')[0],
-                  user_id: userId,
+                  user_id: warningUserId,
                   data: {
                     meetings_used: newUsed,
                     meetings_limit: meetingLimits.max_meetings_per_month,
@@ -796,6 +935,7 @@ serve(async (req) => {
             }
           } else {
             console.log(`📧 Usage limit warning already sent recently, skipping`)
+          }
           }
         } catch (emailError) {
           console.error(`⚠️ Error checking/sending usage limit warning:`, emailError)
@@ -867,20 +1007,26 @@ serve(async (req) => {
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       )
 
-      const authHeader = req.headers.get('Authorization')
-      if (authHeader) {
-        const token = authHeader.replace('Bearer ', '')
-        const { data: { user } } = await supabase.auth.getUser(token)
+      const message = error instanceof Error ? error.message : 'Unknown error'
 
-        if (user) {
-          await supabase
-            .from('fathom_sync_state')
-            .update({
-              sync_status: 'error',
-              last_sync_error: error instanceof Error ? error.message : 'Unknown error',
-            })
-            .eq('user_id', user.id)
-        }
+      if (syncStateScope === 'org' && syncStateOrgId) {
+        await supabase
+          .from('fathom_org_sync_state')
+          .update({
+            sync_status: 'error',
+            error_message: message,
+            last_error_at: new Date().toISOString(),
+            last_sync_completed_at: new Date().toISOString(),
+          })
+          .eq('org_id', syncStateOrgId)
+      } else if (syncStateUserId) {
+        await supabase
+          .from('fathom_sync_state')
+          .update({
+            sync_status: 'error',
+            last_sync_error: message,
+          })
+          .eq('user_id', syncStateUserId)
       }
     } catch (updateError) {
     }
@@ -976,13 +1122,13 @@ async function fetchFathomCalls(
     let accessToken = integration.access_token
     if (supabase) {
       try {
-        accessToken = await refreshAccessToken(supabase, integration)
+        accessToken = await refreshAccessToken(supabase, integration, integration._scope === 'org' ? 'org' : 'user')
         // Update the integration object with the new token
         integration.access_token = accessToken
-        console.log(`✅ Token refreshed successfully for user ${integration.user_id}`)
+        console.log(`✅ Token refreshed successfully (${integration._scope || 'user'} scope)`)
       } catch (error) {
         // Log the error but continue with existing token
-        console.error(`⚠️ Token refresh failed for user ${integration.user_id}:`, error instanceof Error ? error.message : String(error))
+        console.error(`⚠️ Token refresh failed (${integration._scope || 'user'} scope):`, error instanceof Error ? error.message : String(error))
         console.error('Token refresh error details:', error)
         // Continue with existing token - it might still work
       }
@@ -1476,6 +1622,33 @@ async function syncSingleCall(
     if (!ownerResolved) {
     }
 
+    // Org safety: only assign owner_user_id if that user is actually a member of this org.
+    // Otherwise fall back to the integration connector (or the invoking user).
+    if (orgId && ownerUserId) {
+      try {
+        const { data: member } = await supabase
+          .from('organization_memberships')
+          .select('user_id')
+          .eq('org_id', orgId)
+          .eq('user_id', ownerUserId)
+          .limit(1)
+          .maybeSingle()
+
+        if (!member) {
+          const fallbackOwner = integration?.connected_by_user_id || userId
+          if (fallbackOwner && fallbackOwner !== ownerUserId) {
+            console.warn(
+              `[fathom-sync] Owner ${ownerUserId} is not a member of org ${orgId}; falling back to ${fallbackOwner}`
+            )
+            ownerUserId = fallbackOwner
+            ownerResolved = false
+          }
+        }
+      } catch {
+        // If the membership check fails, keep existing ownerUserId.
+      }
+    }
+
     // Calculate duration in minutes from recording start/end times
     const startTime = new Date(call.recording_start_time || call.scheduled_start_time)
     const endTime = new Date(call.recording_end_time || call.scheduled_end_time)
@@ -1625,14 +1798,14 @@ async function syncSingleCall(
     // REFRESH TOKEN BEFORE FETCHING TRANSCRIPT/SUMMARY
     // Webhook syncs don't go through fetchFathomCalls, so we need to refresh here
     try {
-      console.log(`🔄 Attempting token refresh for user ${integration.user_id} before fetching transcript`)
-      const refreshedToken = await refreshAccessToken(supabase, integration)
+      console.log(`🔄 Attempting token refresh (${integration._scope || 'user'} scope) before fetching transcript`)
+      const refreshedToken = await refreshAccessToken(supabase, integration, integration._scope === 'org' ? 'org' : 'user')
       // Update integration object with refreshed token for subsequent API calls
       integration.access_token = refreshedToken
-      console.log(`✅ Token refreshed successfully for user ${integration.user_id}`)
+      console.log(`✅ Token refreshed successfully (${integration._scope || 'user'} scope)`)
     } catch (error) {
       // Log the error but continue with existing token
-      console.error(`⚠️ Token refresh failed for user ${integration.user_id}:`, error instanceof Error ? error.message : String(error))
+      console.error(`⚠️ Token refresh failed (${integration._scope || 'user'} scope):`, error instanceof Error ? error.message : String(error))
       console.error('Token refresh error details:', error)
       // Continue with existing token - it might still work
     }

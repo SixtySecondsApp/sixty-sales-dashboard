@@ -56,7 +56,7 @@ export function LiveFeed() {
 
   const loadRecentActivity = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('meetings_waitlist')
         .select('id, full_name, referral_count, effective_position, created_at')
         .order('created_at', { ascending: false })

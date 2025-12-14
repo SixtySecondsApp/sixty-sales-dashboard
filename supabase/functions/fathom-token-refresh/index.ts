@@ -27,7 +27,8 @@ serve(async (req) => {
 
   const startTime = Date.now()
   const results: Array<{
-    user_id: string
+    org_id: string
+    connected_by_user_id: string | null
     email: string
     status: 'refreshed' | 'skipped' | 'failed' | 'needs_reconnect'
     message: string
@@ -48,37 +49,46 @@ serve(async (req) => {
       throw new Error('Missing FATHOM_CLIENT_ID or FATHOM_CLIENT_SECRET environment variables')
     }
 
-    // Fetch ALL active Fathom integrations
-    const { data: integrations, error: fetchError } = await supabase
-      .from('fathom_integrations')
-      .select('id, user_id, access_token, refresh_token, token_expires_at, fathom_user_email')
+    // Prefer org-scoped integrations
+    const { data: orgIntegrations, error: orgFetchError } = await supabase
+      .from('fathom_org_integrations')
+      .select('org_id, connected_by_user_id, fathom_user_email, is_active')
       .eq('is_active', true)
 
-    if (fetchError) {
-      throw new Error(`Failed to fetch integrations: ${fetchError.message}`)
+    if (orgFetchError) {
+      throw new Error(`Failed to fetch org integrations: ${orgFetchError.message}`)
     }
 
-    if (!integrations || integrations.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'No active Fathom integrations to refresh',
-          integrations_processed: 0,
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      )
-    }
+    const useOrgMode = !!orgIntegrations && orgIntegrations.length > 0
 
-    console.log(`[fathom-token-refresh] Processing ${integrations.length} integrations`)
+    if (useOrgMode) {
+      console.log(`[fathom-token-refresh] Processing ${orgIntegrations.length} org integrations`)
 
-    // Process each integration
-    for (const integration of integrations) {
-      try {
+      for (const integration of orgIntegrations) {
+        const orgId = (integration as any).org_id as string
+        const connectedBy = (integration as any).connected_by_user_id as string | null
+        const email = (integration as any).fathom_user_email || 'unknown'
+
+        try {
+          const { data: creds, error: credsError } = await supabase
+            .from('fathom_org_credentials')
+            .select('access_token, refresh_token, token_expires_at')
+            .eq('org_id', orgId)
+            .single()
+
+          if (credsError || !creds) {
+            results.push({
+              org_id: orgId,
+              connected_by_user_id: connectedBy,
+              email,
+              status: 'needs_reconnect',
+              message: `No org credentials available - org admin must reconnect (${credsError?.message || 'unknown'})`,
+            })
+            continue
+          }
+
         const now = new Date()
-        const expiresAt = new Date(integration.token_expires_at)
+        const expiresAt = new Date(creds.token_expires_at)
         const hoursUntilExpiry = (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60)
 
         // Always refresh if expiring within 24 hours, or proactively refresh to keep tokens alive
@@ -87,19 +97,21 @@ serve(async (req) => {
 
         if (!shouldRefresh) {
           results.push({
-            user_id: integration.user_id,
-            email: integration.fathom_user_email || 'unknown',
+            org_id: orgId,
+            connected_by_user_id: connectedBy,
+            email,
             status: 'skipped',
             message: `Token valid for ${Math.round(hoursUntilExpiry)} more hours`,
-            expires_at: integration.token_expires_at,
+            expires_at: creds.token_expires_at,
           })
           continue
         }
 
-        if (!integration.refresh_token) {
+        if (!creds.refresh_token) {
           results.push({
-            user_id: integration.user_id,
-            email: integration.fathom_user_email || 'unknown',
+            org_id: orgId,
+            connected_by_user_id: connectedBy,
+            email,
             status: 'needs_reconnect',
             message: 'No refresh token available - user must reconnect',
           })
@@ -107,11 +119,11 @@ serve(async (req) => {
         }
 
         // Refresh the token
-        console.log(`[fathom-token-refresh] Refreshing token for ${integration.fathom_user_email}`)
+        console.log(`[fathom-token-refresh] Refreshing token for org ${orgId} (${email})`)
 
         const tokenParams = new URLSearchParams({
           grant_type: 'refresh_token',
-          refresh_token: integration.refresh_token,
+          refresh_token: creds.refresh_token,
           client_id: clientId,
           client_secret: clientSecret,
         })
@@ -126,7 +138,7 @@ serve(async (req) => {
 
         if (!tokenResponse.ok) {
           const errorText = await tokenResponse.text()
-          console.error(`[fathom-token-refresh] Token refresh failed for ${integration.fathom_user_email}: ${errorText}`)
+          console.error(`[fathom-token-refresh] Token refresh failed for org ${orgId}: ${errorText}`)
 
           // Check if this is a permanent failure (invalid_grant means refresh token expired)
           const isPermFailure = errorText.includes('invalid_grant') ||
@@ -134,27 +146,29 @@ serve(async (req) => {
                                tokenResponse.status === 400
 
           if (isPermFailure) {
-            // Mark integration as needing reconnection
+            // Mark org integration as needing reconnection
             await supabase
-              .from('fathom_integrations')
+              .from('fathom_org_integrations')
               .update({
                 is_active: false,
                 updated_at: new Date().toISOString(),
               })
-              .eq('id', integration.id)
+              .eq('org_id', orgId)
 
             // TODO: Send email notification to user about reconnection needed
 
             results.push({
-              user_id: integration.user_id,
-              email: integration.fathom_user_email || 'unknown',
+              org_id: orgId,
+              connected_by_user_id: connectedBy,
+              email,
               status: 'needs_reconnect',
               message: `Refresh token expired - user must reconnect Fathom`,
             })
           } else {
             results.push({
-              user_id: integration.user_id,
-              email: integration.fathom_user_email || 'unknown',
+              org_id: orgId,
+              connected_by_user_id: connectedBy,
+              email,
               status: 'failed',
               message: `Token refresh failed: ${errorText.substring(0, 100)}`,
             })
@@ -170,19 +184,20 @@ serve(async (req) => {
 
         // Update tokens in database
         const { error: updateError } = await supabase
-          .from('fathom_integrations')
+          .from('fathom_org_credentials')
           .update({
             access_token: tokenData.access_token,
-            refresh_token: tokenData.refresh_token || integration.refresh_token, // Keep old if not provided
+            refresh_token: tokenData.refresh_token || creds.refresh_token, // Keep old if not provided
             token_expires_at: newTokenExpiresAt,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', integration.id)
+          .eq('org_id', orgId)
 
         if (updateError) {
           results.push({
-            user_id: integration.user_id,
-            email: integration.fathom_user_email || 'unknown',
+            org_id: orgId,
+            connected_by_user_id: connectedBy,
+            email,
             status: 'failed',
             message: `Database update failed: ${updateError.message}`,
           })
@@ -190,22 +205,165 @@ serve(async (req) => {
         }
 
         results.push({
-          user_id: integration.user_id,
-          email: integration.fathom_user_email || 'unknown',
+          org_id: orgId,
+          connected_by_user_id: connectedBy,
+          email,
           status: 'refreshed',
           message: 'Token refreshed successfully',
           expires_at: newTokenExpiresAt,
         })
 
-        console.log(`[fathom-token-refresh] ✅ Token refreshed for ${integration.fathom_user_email}`)
+        console.log(`[fathom-token-refresh] ✅ Token refreshed for org ${orgId} (${email})`)
 
       } catch (error) {
         results.push({
-          user_id: integration.user_id,
-          email: integration.fathom_user_email || 'unknown',
+          org_id: orgId,
+          connected_by_user_id: connectedBy,
+          email,
           status: 'failed',
           message: error instanceof Error ? error.message : 'Unknown error',
         })
+      }
+    }
+    } else {
+      // Legacy fallback: per-user integrations (pre-org rollout)
+      const { data: integrations, error: fetchError } = await supabase
+        .from('fathom_integrations')
+        .select('id, user_id, access_token, refresh_token, token_expires_at, fathom_user_email')
+        .eq('is_active', true)
+
+      if (fetchError) {
+        throw new Error(`Failed to fetch integrations: ${fetchError.message}`)
+      }
+
+      if (!integrations || integrations.length === 0) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: 'No active Fathom integrations to refresh',
+            integrations_processed: 0,
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        )
+      }
+
+      console.log(`[fathom-token-refresh] (legacy) Processing ${integrations.length} user integrations`)
+
+      for (const integration of integrations) {
+        try {
+          const now = new Date()
+          const expiresAt = new Date((integration as any).token_expires_at)
+          const hoursUntilExpiry = (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60)
+
+          const shouldRefresh = hoursUntilExpiry < 24 || true
+          if (!shouldRefresh) {
+            results.push({
+              org_id: 'legacy',
+              connected_by_user_id: (integration as any).user_id,
+              email: (integration as any).fathom_user_email || 'unknown',
+              status: 'skipped',
+              message: `Token valid for ${Math.round(hoursUntilExpiry)} more hours`,
+              expires_at: (integration as any).token_expires_at,
+            })
+            continue
+          }
+
+          if (!(integration as any).refresh_token) {
+            results.push({
+              org_id: 'legacy',
+              connected_by_user_id: (integration as any).user_id,
+              email: (integration as any).fathom_user_email || 'unknown',
+              status: 'needs_reconnect',
+              message: 'No refresh token available - user must reconnect',
+            })
+            continue
+          }
+
+          const tokenParams = new URLSearchParams({
+            grant_type: 'refresh_token',
+            refresh_token: (integration as any).refresh_token,
+            client_id: clientId,
+            client_secret: clientSecret,
+          })
+
+          const tokenResponse = await fetch('https://fathom.video/external/v1/oauth2/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: tokenParams.toString(),
+          })
+
+          if (!tokenResponse.ok) {
+            const errorText = await tokenResponse.text()
+            const isPermFailure = errorText.includes('invalid_grant') || errorText.includes('expired') || tokenResponse.status === 400
+            if (isPermFailure) {
+              await supabase
+                .from('fathom_integrations')
+                .update({ is_active: false, updated_at: new Date().toISOString() })
+                .eq('id', (integration as any).id)
+              results.push({
+                org_id: 'legacy',
+                connected_by_user_id: (integration as any).user_id,
+                email: (integration as any).fathom_user_email || 'unknown',
+                status: 'needs_reconnect',
+                message: 'Refresh token expired - user must reconnect Fathom',
+              })
+            } else {
+              results.push({
+                org_id: 'legacy',
+                connected_by_user_id: (integration as any).user_id,
+                email: (integration as any).fathom_user_email || 'unknown',
+                status: 'failed',
+                message: `Token refresh failed: ${errorText.substring(0, 100)}`,
+              })
+            }
+            continue
+          }
+
+          const tokenData = await tokenResponse.json()
+          const expiresIn = tokenData.expires_in || 3600
+          const newTokenExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
+
+          const { error: updateError } = await supabase
+            .from('fathom_integrations')
+            .update({
+              access_token: tokenData.access_token,
+              refresh_token: tokenData.refresh_token || (integration as any).refresh_token,
+              token_expires_at: newTokenExpiresAt,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', (integration as any).id)
+
+          if (updateError) {
+            results.push({
+              org_id: 'legacy',
+              connected_by_user_id: (integration as any).user_id,
+              email: (integration as any).fathom_user_email || 'unknown',
+              status: 'failed',
+              message: `Database update failed: ${updateError.message}`,
+            })
+            continue
+          }
+
+          results.push({
+            org_id: 'legacy',
+            connected_by_user_id: (integration as any).user_id,
+            email: (integration as any).fathom_user_email || 'unknown',
+            status: 'refreshed',
+            message: 'Token refreshed successfully',
+            expires_at: newTokenExpiresAt,
+          })
+        } catch (error) {
+          results.push({
+            org_id: 'legacy',
+            connected_by_user_id: (integration as any).user_id,
+            email: (integration as any).fathom_user_email || 'unknown',
+            status: 'failed',
+            message: error instanceof Error ? error.message : 'Unknown error',
+          })
+        }
       }
     }
 
@@ -223,7 +381,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         summary: {
-          total: integrations.length,
+          total: results.length,
           refreshed,
           skipped,
           failed,

@@ -55,7 +55,8 @@ interface ParsedQuery {
 interface SearchResult {
   answer: string
   sources: Array<{
-    meeting_id: string
+    source_type: 'meeting' | 'call'
+    source_id: string
     title: string
     date: string
     company_name: string | null
@@ -260,73 +261,120 @@ async function enrichResultsWithMetadata(
   supabase: any,
   dateFilters?: { date_from?: string; date_to?: string }
 ): Promise<Array<{
-  meeting_id: string
+  source_type: 'meeting' | 'call'
+  source_id: string
   title: string
   date: string
   company_name: string | null
   owner_name: string | null
   relevance_snippet: string
 }>> {
-  // Extract meeting IDs from grounding chunks
+  // Extract meeting + call IDs from grounding chunks
   const meetingIds: Set<string> = new Set()
+  const callIds: Set<string> = new Set()
   const snippetMap: Map<string, string> = new Map()
 
   for (const chunk of groundingChunks) {
     if (chunk.fileChunk?.fileName) {
-      // Extract meeting ID from file name (format: "meeting-{uuid}")
-      const match = chunk.fileChunk.fileName.match(/meeting-([a-f0-9-]+)/i)
-      if (match) {
-        meetingIds.add(match[1])
-        // Store snippet for this meeting
-        if (chunk.fileChunk.content && !snippetMap.has(match[1])) {
-          snippetMap.set(match[1], chunk.fileChunk.content.substring(0, 200) + '...')
+      const fileName = String(chunk.fileChunk.fileName)
+      const meetingMatch = fileName.match(/meeting-([a-f0-9-]+)/i)
+      const callMatch = fileName.match(/call-([a-f0-9-]+)/i)
+
+      if (meetingMatch) {
+        const id = meetingMatch[1]
+        meetingIds.add(id)
+        if (chunk.fileChunk.content && !snippetMap.has(`meeting:${id}`)) {
+          snippetMap.set(`meeting:${id}`, chunk.fileChunk.content.substring(0, 200) + '...')
+        }
+      } else if (callMatch) {
+        const id = callMatch[1]
+        callIds.add(id)
+        if (chunk.fileChunk.content && !snippetMap.has(`call:${id}`)) {
+          snippetMap.set(`call:${id}`, chunk.fileChunk.content.substring(0, 200) + '...')
         }
       }
     }
   }
 
-  if (meetingIds.size === 0) {
+  if (meetingIds.size === 0 && callIds.size === 0) {
     return []
   }
 
   // Determine the effective owner filter
   const effectiveOwnerUserId = ownerUserId === undefined ? currentUserId : ownerUserId
 
-  // Build query - include owner info for team-wide searches
-  // Note: Fetch company separately to avoid FK ambiguity error
-  let query = supabase
-    .from('meetings')
-    .select(`
-      id,
-      title,
-      meeting_start,
-      owner_user_id,
-      company_id
-    `)
-    .in('id', Array.from(meetingIds))
+  // Fetch meeting metadata (if any)
+  let meetings: any[] = []
+  if (meetingIds.size > 0) {
+    let query = supabase
+      .from('meetings')
+      .select(`
+        id,
+        title,
+        meeting_start,
+        owner_user_id,
+        company_id
+      `)
+      .in('id', Array.from(meetingIds))
 
-  // Apply owner filter only if not searching all team (null means all team)
-  if (effectiveOwnerUserId !== null) {
-    query = query.eq('owner_user_id', effectiveOwnerUserId)
+    if (effectiveOwnerUserId !== null) {
+      query = query.eq('owner_user_id', effectiveOwnerUserId)
+    }
+    if (dateFilters?.date_from) {
+      query = query.gte('meeting_start', dateFilters.date_from)
+    }
+    if (dateFilters?.date_to) {
+      query = query.lte('meeting_start', dateFilters.date_to + 'T23:59:59')
+    }
+
+    const { data: m, error } = await query
+    if (error) {
+      console.error('Failed to fetch meeting metadata:', error)
+    } else {
+      meetings = m || []
+    }
   }
 
-  // Apply date filters if present
-  if (dateFilters?.date_from) {
-    query = query.gte('meeting_start', dateFilters.date_from)
-  }
-  if (dateFilters?.date_to) {
-    query = query.lte('meeting_start', dateFilters.date_to + 'T23:59:59')
-  }
+  // Fetch call metadata (if any)
+  let calls: any[] = []
+  if (callIds.size > 0) {
+    let query = supabase
+      .from('calls')
+      .select(`
+        id,
+        direction,
+        started_at,
+        owner_user_id,
+        owner_email,
+        company_id,
+        from_number,
+        to_number
+      `)
+      .in('id', Array.from(callIds))
 
-  const { data: meetings, error } = await query
+    if (effectiveOwnerUserId !== null) {
+      query = query.eq('owner_user_id', effectiveOwnerUserId)
+    }
+    if (dateFilters?.date_from) {
+      query = query.gte('started_at', dateFilters.date_from)
+    }
+    if (dateFilters?.date_to) {
+      query = query.lte('started_at', dateFilters.date_to + 'T23:59:59')
+    }
 
-  if (error || !meetings) {
-    console.error('Failed to fetch meeting metadata:', error)
-    return []
+    const { data: c, error } = await query
+    if (error) {
+      console.error('Failed to fetch call metadata:', error)
+    } else {
+      calls = c || []
+    }
   }
 
   // Fetch company names separately to avoid FK ambiguity
-  const companyIds = [...new Set(meetings.map((m: any) => m.company_id).filter(Boolean))]
+  const companyIds = [...new Set([
+    ...meetings.map((m: any) => m.company_id).filter(Boolean),
+    ...calls.map((c: any) => c.company_id).filter(Boolean)
+  ])]
   let companyNames: Map<string, string> = new Map()
   if (companyIds.length > 0) {
     const { data: companies } = await supabase
@@ -360,16 +408,46 @@ async function enrichResultsWithMetadata(
     }
   }
 
-  return meetings.map((m: any) => ({
-    meeting_id: m.id,
+  const meetingSources = meetings.map((m: any) => ({
+    source_type: 'meeting' as const,
+    source_id: m.id,
     title: m.title || 'Untitled Meeting',
     date: m.meeting_start ? new Date(m.meeting_start).toISOString().split('T')[0] : '',
     company_name: m.company_id ? (companyNames.get(m.company_id) || null) : null,
     owner_name: effectiveOwnerUserId === null
       ? (ownerNames.get(m.owner_user_id) || 'Team Member')
       : null,
-    relevance_snippet: snippetMap.get(m.id) || ''
+    relevance_snippet: snippetMap.get(`meeting:${m.id}`) || ''
   }))
+
+  const callSources = calls.map((c: any) => {
+    const dir = String(c.direction || 'call')
+    const label = dir === 'inbound'
+      ? `Inbound call`
+      : dir === 'outbound'
+        ? `Outbound call`
+        : 'Call'
+
+    const title = c.company_id
+      ? `${label} · ${companyNames.get(c.company_id) || 'Company'}`
+      : label
+
+    const ownerLabel = (c.owner_email && typeof c.owner_email === 'string')
+      ? (c.owner_user_id === currentUserId ? 'Me' : (c.owner_email.split('@')[0] || 'Team Member'))
+      : (c.owner_user_id === currentUserId ? 'Me' : null)
+
+    return {
+      source_type: 'call' as const,
+      source_id: c.id,
+      title,
+      date: c.started_at ? new Date(c.started_at).toISOString().split('T')[0] : '',
+      company_name: c.company_id ? (companyNames.get(c.company_id) || null) : null,
+      owner_name: effectiveOwnerUserId === null ? (ownerLabel || 'Team Member') : null,
+      relevance_snippet: snippetMap.get(`call:${c.id}`) || ''
+    }
+  })
+
+  return [...meetingSources, ...callSources]
 }
 
 /**
@@ -439,11 +517,45 @@ async function fallbackSearch(
     // Company name filter would need a join lookup
   }
 
-  // Execute query
+  // Execute meeting query
   const { data: meetings, error } = await dbQuery.order('meeting_start', { ascending: false })
 
   if (error) {
     throw new Error(`Database query failed: ${error.message}`)
+  }
+
+  // Also fetch calls (basic keyword match)
+  let callsQuery = supabase
+    .from('calls')
+    .select(`
+      id,
+      direction,
+      started_at,
+      transcript_text,
+      summary,
+      owner_user_id,
+      owner_email,
+      company_id
+    `)
+    .not('transcript_text', 'is', null)
+    .limit(20)
+
+  if (effectiveOwnerUserId !== null) {
+    callsQuery = callsQuery.eq('owner_user_id', effectiveOwnerUserId)
+  }
+  if (mergedFilters.date_from) {
+    callsQuery = callsQuery.gte('started_at', mergedFilters.date_from)
+  }
+  if (mergedFilters.date_to) {
+    callsQuery = callsQuery.lte('started_at', mergedFilters.date_to + 'T23:59:59')
+  }
+  if (filters?.company_id) {
+    callsQuery = callsQuery.eq('company_id', filters.company_id)
+  }
+
+  const { data: calls, error: callsError } = await callsQuery.order('started_at', { ascending: false })
+  if (callsError) {
+    throw new Error(`Calls query failed: ${callsError.message}`)
   }
 
   // Simple keyword matching for basic relevance
@@ -453,8 +565,16 @@ async function fallbackSearch(
     return queryTerms.some(term => text.includes(term))
   }) || []
 
-  // Fetch company names separately to avoid FK ambiguity
-  const companyIds = [...new Set(relevantMeetings.map((m: any) => m.company_id).filter(Boolean))]
+  const relevantCalls = calls?.filter((c: any) => {
+    const text = `${c.summary || ''} ${c.transcript_text || ''}`.toLowerCase()
+    return queryTerms.some(term => text.includes(term))
+  }) || []
+
+  // Fetch company names separately
+  const companyIds = [...new Set([
+    ...relevantMeetings.map((m: any) => m.company_id).filter(Boolean),
+    ...relevantCalls.map((c: any) => c.company_id).filter(Boolean),
+  ])]
   let companyNames: Map<string, string> = new Map()
   if (companyIds.length > 0) {
     const { data: companies } = await supabase
@@ -467,7 +587,7 @@ async function fallbackSearch(
     }
   }
 
-  // Get owner names for team-wide searches
+  // Get owner names for team-wide searches (meetings)
   let ownerNames: Map<string, string> = new Map()
   if (effectiveOwnerUserId === null && relevantMeetings.length > 0) {
     const ownerIds = [...new Set(relevantMeetings.map((m: any) => m.owner_user_id))]
@@ -486,8 +606,9 @@ async function fallbackSearch(
     }
   }
 
-  const sources = relevantMeetings.slice(0, 5).map((m: any) => ({
-    meeting_id: m.id,
+  const meetingSources = relevantMeetings.slice(0, 5).map((m: any) => ({
+    source_type: 'meeting' as const,
+    source_id: m.id,
     title: m.title || 'Untitled Meeting',
     date: m.meeting_start ? new Date(m.meeting_start).toISOString().split('T')[0] : '',
     company_name: m.company_id ? (companyNames.get(m.company_id) || null) : null,
@@ -497,19 +618,40 @@ async function fallbackSearch(
     relevance_snippet: m.summary?.substring(0, 200) || m.transcript_text?.substring(0, 200) || ''
   }))
 
+  const callSources = relevantCalls.slice(0, 5).map((c: any) => {
+    const dir = String(c.direction || 'call')
+    const label = dir === 'inbound' ? 'Inbound call' : dir === 'outbound' ? 'Outbound call' : 'Call'
+    const title = c.company_id ? `${label} · ${companyNames.get(c.company_id) || 'Company'}` : label
+    const ownerLabel = (c.owner_email && typeof c.owner_email === 'string')
+      ? (c.owner_user_id === currentUserId ? 'Me' : (c.owner_email.split('@')[0] || 'Team Member'))
+      : (c.owner_user_id === currentUserId ? 'Me' : null)
+
+    return {
+      source_type: 'call' as const,
+      source_id: c.id,
+      title,
+      date: c.started_at ? new Date(c.started_at).toISOString().split('T')[0] : '',
+      company_name: c.company_id ? (companyNames.get(c.company_id) || null) : null,
+      owner_name: effectiveOwnerUserId === null ? (ownerLabel || 'Team Member') : null,
+      relevance_snippet: c.summary?.substring(0, 200) || c.transcript_text?.substring(0, 200) || ''
+    }
+  })
+
+  const sources = [...meetingSources, ...callSources]
+
   const scopeLabel = effectiveOwnerUserId === null
     ? 'team'
     : (effectiveOwnerUserId === currentUserId ? 'your' : 'filtered')
 
   return {
-    answer: relevantMeetings.length > 0
-      ? `Found ${relevantMeetings.length} potentially relevant ${scopeLabel} meetings. Note: Full semantic search is not available - showing basic keyword matches. To enable AI-powered search, please build the search index.`
-      : `No ${scopeLabel} meetings found matching your query. Try different search terms or check that meetings have been indexed.`,
+    answer: (relevantMeetings.length + relevantCalls.length) > 0
+      ? `Found ${relevantMeetings.length + relevantCalls.length} potentially relevant ${scopeLabel} conversations (meetings + calls). Note: Full semantic search is not available - showing basic keyword matches. To enable AI-powered search, please build the search index.`
+      : `No ${scopeLabel} conversations found matching your query. Try different search terms or check that conversations have been indexed.`,
     sources,
     query_metadata: {
       semantic_query: query,
       filters_applied: mergedFilters,
-      meetings_searched: meetings?.length || 0,
+      meetings_searched: (meetings?.length || 0) + (calls?.length || 0),
       response_time_ms: Date.now() - startTime
     }
   }

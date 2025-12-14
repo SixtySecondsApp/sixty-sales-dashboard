@@ -2,6 +2,9 @@ import React from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, ArrowRightLeft, Loader2 } from 'lucide-react';
@@ -58,6 +61,12 @@ export function ConnectModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md p-0 gap-0 overflow-hidden">
+        {/* Accessibility: Radix DialogContent requires Title + Description */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>Connect {integrationName}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+
         {/* Header with logos */}
         <div className="p-6 text-center border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
           <div className="flex items-center justify-center gap-4 mb-4">

@@ -19,7 +19,7 @@ interface IntegrationCardProps {
   footer?: React.ReactNode;
   /** Optional override (e.g. org branding). */
   sixtyLogoUrl?: string | null;
-  /** Defaults to true for integrations/connect experiences. */
+  /** Defaults to false – only show tool logo without Sixty branding. */
   showSixtyLogo?: boolean;
 }
 
@@ -118,7 +118,7 @@ export function IntegrationCard({
   iconBorderColor = 'border-gray-200 dark:border-gray-700',
   footer,
   sixtyLogoUrl,
-  showSixtyLogo = true,
+  showSixtyLogo = false,
 }: IntegrationCardProps) {
   const config = statusConfig[status];
   const displayStatus = statusText || config.text;

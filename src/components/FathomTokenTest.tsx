@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
+import { useOrgStore } from '@/lib/stores/orgStore';
 
 /**
  * Fathom Token Test Component
@@ -11,13 +12,16 @@ import { toast } from 'sonner';
 export function FathomTokenTest() {
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const activeOrgId = useOrgStore((s) => s.activeOrgId);
 
   const testToken = async () => {
     setTesting(true);
     setResult(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('test-fathom-token');
+      const { data, error } = await supabase.functions.invoke('test-fathom-token', {
+        body: { org_id: activeOrgId },
+      });
 
       if (error) {
         throw error;

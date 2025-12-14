@@ -29,7 +29,14 @@ function getAllowedOrigins(): string[] {
     'https://sixty.io',
     'https://www.sixty.io',
     'https://app.sixty.io',
+    'https://use60.com',
+    'https://www.use60.com',
+    'https://app.use60.com',
+    'https://sixtyseconds.video',
+    'https://www.sixtyseconds.video',
+    'https://app.sixtyseconds.video',
     'https://sixty-sales-dashboard.vercel.app',
+    '*.vercel.app',
   ];
   
   return [...defaults, ...prodDomains];
@@ -96,12 +103,33 @@ export function handleCorsPreflightRequest(req: Request): Response | null {
   if (req.method !== 'OPTIONS') {
     return null;
   }
-  
-  const corsHeaders = getCorsHeaders(req);
-  return new Response('ok', { 
-    status: 204,
-    headers: corsHeaders 
-  });
+
+  /**
+   * Preflight MUST never hard-fail.
+   * If preflight returns 4xx/5xx, the browser will abort the real request and
+   * Supabase JS surfaces it as "Failed to send a request to the Edge Function".
+   *
+   * We keep the allowlist enforcement on the actual request (via getCorsHeaders),
+   * but for OPTIONS we always respond 200 and echo requested headers/method.
+   */
+  const origin = req.headers.get('Origin');
+  const requestHeaders =
+    req.headers.get('Access-Control-Request-Headers') ||
+    'authorization, x-client-info, apikey, content-type, x-api-key, x-cron-secret, x-internal-call';
+  const requestMethod = req.headers.get('Access-Control-Request-Method') || 'POST';
+
+  const allowOrigin = origin || '*';
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Methods': `${requestMethod}, OPTIONS`,
+    'Access-Control-Allow-Headers': requestHeaders,
+    Vary: 'Origin',
+  };
+
+  // Only allow credentials when we can echo a specific origin (never with '*')
+  if (origin) headers['Access-Control-Allow-Credentials'] = 'true';
+
+  return new Response('ok', { status: 200, headers });
 }
 
 /**

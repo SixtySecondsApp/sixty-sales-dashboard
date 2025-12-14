@@ -161,7 +161,7 @@ export function GoogleIntegrationTests() {
         'Check Calendar Sync Status',
         'Calendar',
         async () => {
-          const { data, error } = await supabase
+          const { data, error } = await (supabase as any)
             .from('calendar_sync_logs')
             .select('*')
             .eq('user_id', user.id)
@@ -184,7 +184,7 @@ export function GoogleIntegrationTests() {
         'Check Calendar Events',
         'Calendar',
         async () => {
-          const { data, error, count } = await supabase
+          const { data, error, count } = await (supabase as any)
             .from('calendar_events')
             .select('*', { count: 'exact', head: false })
             .eq('user_id', user.id)
@@ -207,14 +207,14 @@ export function GoogleIntegrationTests() {
         'Calendar',
         async () => {
           // Check calendar_calendars table
-          const { data: calendars, error: calError } = await supabase
+          const { data: calendars, error: calError } = await (supabase as any)
             .from('calendar_calendars')
             .select('*')
             .eq('user_id', user.id)
             .maybeSingle();
           
           // Check if calendar_events has required columns
-          const { data: events, error: evError } = await supabase
+          const { data: events, error: evError } = await (supabase as any)
             .from('calendar_events')
             .select('id, calendar_id, external_id, title, start_time, end_time')
             .eq('user_id', user.id)

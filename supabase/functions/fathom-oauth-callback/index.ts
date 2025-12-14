@@ -105,6 +105,7 @@ serve(async (req) => {
     }
 
     const userId = stateRecord.user_id
+    const stateOrgId: string | null = (stateRecord as any).org_id || null
 
     // Delete used state
     await supabase
@@ -226,21 +227,36 @@ serve(async (req) => {
     const expiresIn = tokenData.expires_in || 3600 // Default 1 hour
     const tokenExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
 
-    // Store tokens in database
-    const { data: integration, error: insertError } = await supabase
-      .from('fathom_integrations')
+    // Resolve org_id from state (preferred), otherwise fall back to first membership (legacy states)
+    let orgId: string | null = stateOrgId
+    if (!orgId) {
+      const { data: membership } = await supabase
+        .from('organization_memberships')
+        .select('org_id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      orgId = membership?.org_id || null
+    }
+
+    if (!orgId) {
+      throw new Error('No organization could be resolved for this OAuth connection')
+    }
+
+    // Store org-scoped integration metadata (non-sensitive)
+    const { data: orgIntegration, error: insertError } = await supabase
+      .from('fathom_org_integrations')
       .upsert({
-        user_id: userId,
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
-        token_expires_at: tokenExpiresAt,
+        org_id: orgId,
+        connected_by_user_id: userId,
         fathom_user_id: fathomUserId,
         fathom_user_email: fathomUserEmail,
         scopes: tokenData.scope?.split(' ') || ['public_api'],
         is_active: true,
         last_sync_at: null,
       }, {
-        onConflict: 'user_id',
+        onConflict: 'org_id',
       })
       .select()
       .single()
@@ -248,17 +264,34 @@ serve(async (req) => {
     if (insertError) {
       throw new Error(`Failed to store integration: ${insertError.message}`)
     }
+
+    // Store org-scoped credentials (service role only)
+    const { error: credsError } = await supabase
+      .from('fathom_org_credentials')
+      .upsert({
+        org_id: orgId,
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        token_expires_at: tokenExpiresAt,
+      }, {
+        onConflict: 'org_id',
+      })
+
+    if (credsError) {
+      throw new Error(`Failed to store integration credentials: ${credsError.message}`)
+    }
+
     // Create initial sync state
     const { error: syncStateError } = await supabase
-      .from('fathom_sync_state')
+      .from('fathom_org_sync_state')
       .upsert({
-        user_id: userId,
-        integration_id: integration.id,
+        org_id: orgId,
+        integration_id: orgIntegration.id,
         sync_status: 'idle',
         meetings_synced: 0,
         total_meetings_found: 0,
       }, {
-        onConflict: 'user_id',
+        onConflict: 'org_id',
       })
 
     if (syncStateError) {
@@ -269,8 +302,9 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: true,
-          integration_id: integration.id,
+          integration_id: orgIntegration.id,
           user_id: userId,
+          org_id: orgId,
           message: 'Fathom integration connected successfully'
         }),
         {

@@ -346,7 +346,7 @@ export const GoogleIntegrationTestSuite: React.FC<GoogleIntegrationTestSuiteProp
           const { data: user } = await supabase.auth.getUser();
           if (!user?.user) throw new Error('User not authenticated');
           
-          const { data: events, error } = await supabase
+          const { data: events, error } = await (supabase as any)
             .from('calendar_events')
             .select('id, title, start_time, end_time, sync_status')
             .eq('user_id', user.user.id)
@@ -366,7 +366,7 @@ export const GoogleIntegrationTestSuite: React.FC<GoogleIntegrationTestSuiteProp
           const { data: user } = await supabase.auth.getUser();
           if (!user?.user) throw new Error('User not authenticated');
           
-          const { data: logs, error } = await supabase
+          const { data: logs, error } = await (supabase as any)
             .from('calendar_sync_logs')
             .select('id, sync_type, sync_status, started_at, completed_at, events_created')
             .eq('user_id', user.user.id)

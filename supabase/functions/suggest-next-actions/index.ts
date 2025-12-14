@@ -91,7 +91,13 @@ serve(async (req) => {
   }
 
   try {
-    const { activityId, activityType, userId, forceRegenerate, existingContext }: RequestBody = await req.json()
+    const {
+      activityId,
+      activityType,
+      userId: requestUserId,
+      forceRegenerate,
+      existingContext
+    }: RequestBody = await req.json()
 
     if (!activityId || !activityType) {
       return new Response(
@@ -146,20 +152,28 @@ serve(async (req) => {
       )
     }
 
-    // Get user ID for extraction rules (from meeting owner or context)
-    let userId: string | null = null
+    // Get user ID for extraction rules (from activity owner)
+    let ownerUserId: string | null = null
     if (context.type === 'meeting') {
       const { data: meeting } = await supabaseClient
         .from('meetings')
         .select('owner_user_id')
         .eq('id', context.id)
         .single()
-      userId = meeting?.owner_user_id || null
+      ownerUserId = meeting?.owner_user_id || null
+    } else if (context.type === 'call') {
+      const { data: call } = await supabaseClient
+        .from('calls')
+        .select('owner_user_id')
+        .eq('id', context.id)
+        .single()
+      ownerUserId = call?.owner_user_id || null
     }
 
     // Apply custom extraction rules first (Phase 6.3)
-    const ruleBasedSuggestions = userId && context.transcript
-      ? await applyExtractionRules(supabaseClient, userId, context.transcript, context)
+    const effectiveUserId = ownerUserId || requestUserId || null
+    const ruleBasedSuggestions = effectiveUserId && context.transcript
+      ? await applyExtractionRules(supabaseClient, effectiveUserId, context.transcript, context)
       : []
 
     // Generate AI suggestions using Claude Haiku 4.5
@@ -187,9 +201,10 @@ serve(async (req) => {
     const createdTasks = await autoCreateTasksFromSuggestions(
       supabaseClient,
       storedSuggestions,
-      context
+      context,
+      authHeader
     )
-    // Create notification for user if tasks were created
+    // Create notification for user if tasks were created (meetings only for now)
     if (createdTasks.length > 0 && context.type === 'meeting') {
       try {
         const taskIds = createdTasks.map(t => t.id);
@@ -330,6 +345,89 @@ async function fetchActivityContext(
       recent_activities: recentActivities
     }
 
+  } else if (activityType === 'call') {
+    // Fetch call with minimal related data. Avoid deep join typing by using small queries.
+    const { data: call, error } = await supabase
+      .from('calls')
+      .select('id, started_at, transcript_text, summary, company_id, contact_id, deal_id, owner_user_id')
+      .eq('id', activityId)
+      .single()
+
+    if (error || !call) {
+      return null
+    }
+
+    // Fetch related company/contact/deal (best-effort)
+    let company: any = null
+    if (call.company_id) {
+      const { data: comp } = await supabase
+        .from('companies')
+        .select('id, name, domain, size')
+        .eq('id', call.company_id)
+        .maybeSingle()
+      company = comp || null
+    }
+
+    let contact: any = null
+    if (call.contact_id) {
+      const { data: cont } = await supabase
+        .from('contacts')
+        .select('id, first_name, last_name, full_name, email, title')
+        .eq('id', call.contact_id)
+        .maybeSingle()
+      contact = cont || null
+    }
+
+    let deal: any = null
+    if (call.deal_id) {
+      const { data: d } = await supabase
+        .from('deals')
+        .select('id, title, stage, value')
+        .eq('id', call.deal_id)
+        .maybeSingle()
+      deal = d || null
+    } else if (call.company_id) {
+      // Best-effort: latest deal for company
+      const { data: d } = await supabase
+        .from('deals')
+        .select('id, title, stage, value')
+        .eq('company_id', call.company_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      deal = d || null
+    }
+
+    context = {
+      id: call.id,
+      type: 'call',
+      title: 'Call',
+      transcript: call.transcript_text,
+      summary: call.summary,
+      created_at: call.started_at,
+      deal: deal ? {
+        id: deal.id,
+        title: deal.title || '',
+        stage: deal.stage || '',
+        value: deal.value || 0
+      } : undefined,
+      company: company ? {
+        id: company.id,
+        name: company.name,
+        domain: company.domain,
+        size: company.size || ''
+      } : undefined,
+      contact: contact ? {
+        id: contact.id,
+        first_name: contact.first_name,
+        last_name: contact.last_name,
+        full_name: contact.full_name,
+        email: contact.email,
+        title: contact.title
+      } : undefined,
+      recent_activities: []
+    }
+
   } else if (activityType === 'activity') {
     // Fetch general activity
     const { data: activity, error } = await supabase
@@ -386,6 +484,8 @@ async function generateSuggestionsWithClaude(
     throw new Error('AI service not configured')
   }
 
+  const currentDate = new Date().toISOString().split('T')[0]
+
   // Build context for AI
   const contextSummary = buildContextSummary(context)
 
@@ -393,6 +493,8 @@ async function generateSuggestionsWithClaude(
   const systemPrompt = `You are an expert sales AI assistant analyzing customer interactions to suggest the most effective next actions for sales representatives.
 
 Your goal is to analyze the activity context and recommend 2-4 specific, actionable next steps that will move the deal forward.
+
+Today's date (UTC) is ${currentDate}. When proposing dates, assume the current year is the year in this date.
 
 Consider:
 - Buying signals and concerns mentioned
@@ -424,6 +526,8 @@ For each suggestion, provide:
 - Medium urgency: 3-5 days
 - Low urgency: 1-2 weeks
 - Consider mentioned timeframes (e.g., "budget meeting Friday" = set deadline before Friday)
+- Recommended_deadline MUST be a valid ISO 8601 timestamp
+- Recommended_deadline MUST NOT be in the past relative to today (${currentDate})
 
 **Timestamp Guidelines**:
 - If the transcript shows when a topic was discussed, estimate the seconds from start
@@ -458,6 +562,8 @@ Return ONLY a valid JSON array with no additional text.`
 
   const userPrompt = `Analyze this sales activity and suggest 2-4 next actions:
 
+Today's date (UTC): ${currentDate}
+
 ${contextSummary}${existingContextSummary}
 
 Return suggestions as a JSON array following this exact structure:
@@ -476,7 +582,8 @@ Return suggestions as a JSON array following this exact structure:
 IMPORTANT:
 - Use "task_category" not "action_type". Valid categories: call, email, meeting, follow_up, proposal, demo, general
 - Include "timestamp_seconds" if you can identify when this was discussed (omit if unsure)
-- timestamp_seconds should be the approximate seconds from start of meeting`
+- timestamp_seconds should be the approximate seconds from start of recording
+- recommended_deadline MUST NOT be before ${currentDate}`
   const model = Deno.env.get('CLAUDE_MODEL') || 'claude-haiku-4-5-20251001'
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -516,12 +623,13 @@ IMPORTANT:
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
       )
       
-      // Get user ID from context if available
-      const userId = context.userId || context.user_id
-      if (userId) {
+      // Best-effort: use request-provided or owner-derived id isn't available here.
+      // Cost tracking is optional, so we can safely skip if we can't determine a user.
+      const costUserId = (context as any).userId || (context as any).user_id
+      if (costUserId) {
         await logAICostEvent(
           supabaseClient,
-          userId,
+          costUserId,
           null, // Will be resolved from user
           'anthropic',
           model.includes('haiku') ? 'claude-haiku-4-5' : 'claude-sonnet-4',
@@ -530,7 +638,7 @@ IMPORTANT:
           'next_action_suggestions',
           {
             activity_type: context.type,
-            activity_id: context.activityId,
+            activity_id: context.id,
           }
         )
       }
@@ -712,7 +820,8 @@ function computeSafeDueDate(
 async function autoCreateTasksFromSuggestions(
   supabase: any,
   suggestions: any[],
-  context: ActivityContext
+  context: ActivityContext,
+  authHeader?: string | null
 ): Promise<any[]> {
   const createdTasks: any[] = []
 
@@ -725,6 +834,13 @@ async function autoCreateTasksFromSuggestions(
       .eq('id', context.id)
       .single()
     ownerId = meeting?.owner_user_id
+  } else if (context.type === 'call') {
+    const { data: call } = await supabase
+      .from('calls')
+      .select('owner_user_id')
+      .eq('id', context.id)
+      .single()
+    ownerId = call?.owner_user_id
   }
 
   if (!ownerId) {

@@ -59,6 +59,8 @@ const TABLE_GROUPS = {
   low: [
     'fathom_integrations',
     'fathom_sync_state',
+    'fathom_org_integrations',
+    'fathom_org_sync_state',
     'google_integrations',
     'branding_settings',
     'onboarding_progress',

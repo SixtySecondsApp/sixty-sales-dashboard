@@ -282,9 +282,13 @@ export default function MeetingIntelligence() {
     }
   };
 
-  // Navigate to meeting detail
-  const handleSourceClick = (meetingId: string) => {
-    navigate(`/meetings/${meetingId}`);
+  // Navigate to source detail
+  const handleSourceClick = (source: SearchSource) => {
+    if (source.source_type === 'call') {
+      navigate(`/calls/${source.source_id}`);
+      return;
+    }
+    navigate(`/meetings/${source.source_id}`);
   };
 
   // Use example query
@@ -327,10 +331,10 @@ export default function MeetingIntelligence() {
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {selectedUserId === null
-                    ? 'Search across all team meetings with AI'
+                    ? 'Search across all team conversations (meetings + calls) with AI'
                     : selectedUserId === 'me'
-                    ? 'Search across your meetings with AI'
-                    : `Search ${teamMembers.find(m => m.user_id === selectedUserId)?.full_name || 'team member'}'s meetings`}
+                    ? 'Search across your conversations (meetings + calls) with AI'
+                    : `Search ${teamMembers.find(m => m.user_id === selectedUserId)?.full_name || 'team member'}'s conversations`}
                 </p>
               </div>
             </div>
@@ -760,8 +764,8 @@ export default function MeetingIntelligence() {
                           <ExternalLink className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div>
-                          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Source Meetings</h3>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Click to view full meeting details</p>
+                          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Sources</h3>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Click to view the full conversation</p>
                         </div>
                       </div>
                       <Badge className="bg-blue-100/80 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200/50 dark:border-blue-500/20">
@@ -774,14 +778,14 @@ export default function MeetingIntelligence() {
                   <div className="p-4 space-y-3">
                     {results.sources.map((source, index) => (
                       <motion.div
-                        key={source.meeting_id}
+                        key={`${source.source_type}:${source.source_id}`}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.1 * index }}
                       >
                         <SourceCard
                           source={source}
-                          onClick={() => handleSourceClick(source.meeting_id)}
+                          onClick={() => handleSourceClick(source)}
                         />
                       </motion.div>
                     ))}

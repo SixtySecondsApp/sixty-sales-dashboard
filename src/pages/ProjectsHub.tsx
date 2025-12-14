@@ -6,6 +6,7 @@ import { useTasks } from '@/lib/hooks/useTasks';
 import { useUser } from '@/lib/hooks/useUser';
 import { Task, Company } from '@/lib/database/models';
 import TaskForm from '@/components/TaskForm';
+import { TaskQuickView } from '@/components/TaskQuickView';
 
 import { ProjectsToolbar } from '@/components/projects/ProjectsToolbar';
 import { CompanyTaskGroup } from '@/components/projects/CompanyTaskGroup';
@@ -146,6 +147,7 @@ export default function ProjectsHub() {
   const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [preselectedCompanyId, setPreselectedCompanyId] = useState<string | undefined>(undefined);
+  const [quickViewTask, setQuickViewTask] = useState<Task | null>(null);
 
   // Fetch all tasks (no specific filter to get all user's tasks)
   const { tasks, isLoading, error, fetchTasks, deleteTask, completeTask, uncompleteTask, updateTask } = useTasks();
@@ -221,7 +223,7 @@ export default function ProjectsHub() {
       
       if (!grouped.has(companyId)) {
         grouped.set(companyId, {
-          company: task.companies || null,
+          company: (task as any).company || null,
           tasks: []
         });
       }
@@ -255,9 +257,7 @@ export default function ProjectsHub() {
   }, []);
 
   const handleEditTask = useCallback((task: Task) => {
-    setEditingTask(task);
-    setPreselectedCompanyId(undefined);
-    setIsTaskFormOpen(true);
+    setQuickViewTask(task);
   }, []);
 
   const handleCloseTaskForm = useCallback(() => {
@@ -266,6 +266,13 @@ export default function ProjectsHub() {
     setPreselectedCompanyId(undefined);
     fetchTasks();
   }, [fetchTasks]);
+
+  const handleEditFromQuickView = useCallback((task: Task) => {
+    setQuickViewTask(null);
+    setEditingTask(task);
+    setPreselectedCompanyId(undefined);
+    setIsTaskFormOpen(true);
+  }, []);
 
   const handleCompleteTask = useCallback(async (task: Task) => {
     if (task.completed) {
@@ -407,6 +414,23 @@ export default function ProjectsHub() {
         isOpen={isTaskFormOpen}
         onClose={handleCloseTaskForm}
         companyId={preselectedCompanyId}
+      />
+
+      <TaskQuickView
+        open={Boolean(quickViewTask)}
+        onOpenChange={(open) => (!open ? setQuickViewTask(null) : undefined)}
+        task={quickViewTask}
+        onToggleComplete={async (t) => {
+          await handleCompleteTask(t);
+          setQuickViewTask(null);
+          fetchTasks();
+        }}
+        onEdit={handleEditFromQuickView}
+        onDelete={async (t) => {
+          await handleDeleteTask(t.id);
+          setQuickViewTask(null);
+          fetchTasks();
+        }}
       />
     </div>
   );

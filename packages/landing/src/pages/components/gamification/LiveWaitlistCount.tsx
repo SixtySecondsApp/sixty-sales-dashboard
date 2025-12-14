@@ -34,7 +34,7 @@ export function LiveWaitlistCount() {
   const loadCount = async () => {
     try {
       // Get total count
-      const { count: totalCount, error: countError } = await supabase
+      const { count: totalCount, error: countError } = await (supabase as any)
         .from('meetings_waitlist')
         .select('*', { count: 'exact', head: true });
 
@@ -43,7 +43,7 @@ export function LiveWaitlistCount() {
       setCount(totalCount || 0);
 
       // Get unique profile images for the overlapping avatars
-      const { data: profiles, error: profileError } = await supabase
+      const { data: profiles, error: profileError } = await (supabase as any)
         .from('meetings_waitlist')
         .select('profile_image_url')
         .not('profile_image_url', 'is', null)
@@ -53,7 +53,13 @@ export function LiveWaitlistCount() {
       if (profileError) throw profileError;
 
       // Get 4 unique profile images
-      const uniqueProfiles = [...new Set(profiles?.map((p: any) => p.profile_image_url).filter(Boolean) || [])];
+      const uniqueProfiles: string[] = [
+        ...new Set<string>(
+          ((profiles as any[]) || [])
+            .map((p: any) => String(p.profile_image_url || '').trim())
+            .filter(Boolean)
+        ),
+      ];
       setRecentProfiles(uniqueProfiles.slice(0, 4));
     } catch (err) {
       console.error('Failed to load waitlist count:', err);

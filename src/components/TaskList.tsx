@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
+import { TaskQuickView } from '@/components/TaskQuickView';
 
 interface TaskListProps {
   showCompleted?: boolean;
@@ -74,6 +75,7 @@ const TaskList: React.FC<TaskListProps> = ({
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [taskTypeFilter, setTaskTypeFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [quickViewTask, setQuickViewTask] = useState<Task | null>(null);
 
   // Build filters for the hook
   const filters = useMemo(() => {
@@ -449,7 +451,11 @@ const TaskList: React.FC<TaskListProps> = ({
                               : isTaskOverdue
                                 ? 'bg-red-50 dark:bg-red-500/5 border-red-300 dark:border-red-500/20'
                                 : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                          }`}>
+                          }`}
+                          onClick={() => setQuickViewTask(task)}
+                          role="button"
+                          tabIndex={0}
+                          >
                             <CardContent className={compactView ? 'p-3' : 'p-4'}>
                               <div className="flex items-start gap-3">
                                 {/* Checkbox */}
@@ -460,6 +466,7 @@ const TaskList: React.FC<TaskListProps> = ({
                                       ? 'bg-emerald-600 border-emerald-600 dark:bg-emerald-500 dark:border-emerald-500'
                                       : 'border-gray-400 dark:border-gray-600 hover:border-emerald-600 dark:hover:border-emerald-500'
                                   }`}
+                                  onClickCapture={(e) => e.stopPropagation()}
                                 >
                                   {task.completed && <Check className="w-3 h-3 text-white" />}
                                 </button>
@@ -582,7 +589,10 @@ const TaskList: React.FC<TaskListProps> = ({
                                             variant="ghost"
                                             size="sm"
                                             className="h-8 w-8 p-0 hover:bg-gray-200 dark:hover:bg-gray-700"
-                                            onClick={() => onEditTask(task)}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setQuickViewTask(task);
+                                            }}
                                           >
                                             <Edit className="w-4 h-4" />
                                           </Button>
@@ -591,7 +601,10 @@ const TaskList: React.FC<TaskListProps> = ({
                                           variant="ghost"
                                           size="sm"
                                           className="h-8 w-8 p-0 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400"
-                                          onClick={() => handleDeleteTask(task.id)}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteTask(task.id);
+                                          }}
                                         >
                                           <Trash2 className="w-4 h-4" />
                                         </Button>
@@ -629,6 +642,21 @@ const TaskList: React.FC<TaskListProps> = ({
           )}
         </div>
       )}
+
+      <TaskQuickView
+        open={Boolean(quickViewTask)}
+        onOpenChange={(open) => (!open ? setQuickViewTask(null) : undefined)}
+        task={quickViewTask}
+        onToggleComplete={async (t) => {
+          await handleCompleteTask(t);
+          setQuickViewTask(null);
+        }}
+        onEdit={onEditTask ? (t) => onEditTask(t) : undefined}
+        onDelete={async (t) => {
+          await handleDeleteTask(t.id);
+          setQuickViewTask(null);
+        }}
+      />
     </div>
   );
 };

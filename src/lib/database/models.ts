@@ -331,9 +331,12 @@ export interface Task {
   contact_id?: string;
   contact_email?: string;
   contact_name?: string;
-  company?: string; // Legacy field for backward compatibility
+  // Legacy field for backward compatibility; in some queries this is also a joined object
+  company?: string | Company;
   meeting_action_item_id?: string; // Link to Fathom meeting action item
   meeting_id?: string; // Direct reference to meeting
+  call_action_item_id?: string; // Link to Call action item
+  call_id?: string; // Direct reference to call
 
   // Metadata
   metadata?: Record<string, any>; // JSONB metadata field for structured data
@@ -344,6 +347,8 @@ export interface Task {
   assignee?: UserProfile;
   creator?: UserProfile;
   deal?: Deal;
+  contact?: Contact;
+  // Backwards compatibility for older codepaths
   companies?: Company;
   contacts?: Contact;
 }

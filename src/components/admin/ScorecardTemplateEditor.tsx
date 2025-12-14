@@ -30,11 +30,18 @@ import {
 import { cn } from '@/lib/utils';
 import type {
   CoachingScorecardTemplate,
-  ScorecardMetric,
+  MetricConfig,
   ChecklistItem,
-  ScriptFlowStep,
+  ScriptStep,
   MeetingType,
 } from '@/lib/types/meetingIntelligence';
+
+// Backwards-compatible aliases for older editor terminology.
+type ScorecardMetric = MetricConfig;
+type ScriptFlowStep = ScriptStep & {
+  key_questions?: string[];
+  duration_guidance?: string;
+};
 
 interface ScorecardTemplateEditorProps {
   template?: CoachingScorecardTemplate | null;
@@ -346,6 +353,7 @@ function MetricsEditor({
       id: `metric_${Date.now()}`,
       name: '',
       weight: 0,
+      enabled: true,
       ideal_range: { min: 0, max: 100 },
       description: '',
     };
@@ -489,6 +497,7 @@ function ChecklistEditor({
       question: '',
       required: false,
       category: 'discovery',
+      order: items.length,
     };
     onChange([...items, newItem]);
   };
@@ -711,6 +720,7 @@ function getDefaultMetrics(): ScorecardMetric[] {
       id: 'talk_time_ratio',
       name: 'Talk Time Ratio',
       weight: 25,
+      enabled: true,
       ideal_range: { min: 30, max: 50 },
       description: 'Percentage of time the rep spoke (ideal: listen more)',
     },
@@ -718,6 +728,7 @@ function getDefaultMetrics(): ScorecardMetric[] {
       id: 'discovery_questions',
       name: 'Discovery Questions',
       weight: 25,
+      enabled: true,
       ideal_range: { min: 5, max: 15 },
       description: 'Number of open-ended discovery questions asked',
     },
@@ -725,6 +736,7 @@ function getDefaultMetrics(): ScorecardMetric[] {
       id: 'monologue_score',
       name: 'Monologue Score',
       weight: 20,
+      enabled: true,
       ideal_range: { min: 0, max: 3 },
       description: 'Number of extended monologues (>90 seconds)',
     },
@@ -732,6 +744,7 @@ function getDefaultMetrics(): ScorecardMetric[] {
       id: 'checklist_completion',
       name: 'Checklist Completion',
       weight: 30,
+      enabled: true,
       ideal_range: { min: 80, max: 100 },
       description: 'Percentage of checklist items covered',
     },

@@ -7,6 +7,7 @@ import {
   Heart,
   Plus,
   Video,
+  PhoneCall,
   Activity
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,12 @@ export function CRMNavigation({ className }: CRMNavigationProps) {
       label: 'Meetings',
       href: '/meetings',
       description: 'Call recordings and analytics'
+    },
+    {
+      icon: PhoneCall,
+      label: 'Calls',
+      href: '/calls',
+      description: 'JustCall call recordings and transcripts'
     }
   ];
 
@@ -51,6 +58,7 @@ export function CRMNavigation({ className }: CRMNavigationProps) {
     if (location.pathname.includes('/contacts')) return 'Contacts';
     if (location.pathname.includes('/deals') || location.pathname.includes('/pipeline')) return 'Deals';
     if (location.pathname.includes('/meetings')) return 'Meetings';
+    if (location.pathname.includes('/calls')) return 'Calls';
     return 'CRM';
   };
 

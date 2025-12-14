@@ -25,7 +25,7 @@ const corsHeaders = {
 interface CreateTaskRequest {
   mode: 'auto' | 'manual'
   action_item_ids: string[]
-  source: 'ai_suggestion' | 'action_item'
+  source: 'ai_suggestion' | 'action_item' | 'call_action_item'
 }
 
 interface CreateTaskResponse {
@@ -33,6 +33,51 @@ interface CreateTaskResponse {
   tasks_created: number
   tasks: any[]
   errors?: Array<{ action_item_id: string, error: string }>
+}
+
+function clampNewTaskDueDate(args: {
+  proposed: string | null
+  anchorIso: string | null
+  now: Date
+}): { dueDateIso: string; originalDueDateIso: string | null; wasClamped: boolean } {
+  const { proposed, anchorIso, now } = args
+
+  const proposedDate = proposed ? new Date(proposed) : null
+  const anchorDate = anchorIso ? new Date(anchorIso) : null
+
+  const proposedValid = proposedDate && !isNaN(proposedDate.getTime())
+  const anchorValid = anchorDate && !isNaN(anchorDate.getTime())
+
+  // If proposed date is valid and in the future, use it.
+  if (proposedValid && proposedDate!.getTime() >= now.getTime()) {
+    return {
+      dueDateIso: proposedDate!.toISOString(),
+      originalDueDateIso: proposedDate!.toISOString(),
+      wasClamped: false,
+    }
+  }
+
+  // If proposed is in the past, compute an offset from the anchor when possible.
+  let offsetDays = 3
+  if (proposedValid && anchorValid) {
+    const diffDays = (proposedDate!.getTime() - anchorDate!.getTime()) / (1000 * 60 * 60 * 24)
+    // If diff is negative or suspiciously large, fall back to 3 days.
+    if (Number.isFinite(diffDays) && diffDays > 0) {
+      offsetDays = Math.round(diffDays)
+    }
+  }
+
+  // Clamp offset to 1..30 days to avoid absurd schedules from bad dates
+  offsetDays = Math.max(1, Math.min(30, offsetDays))
+
+  const next = new Date(now)
+  next.setDate(next.getDate() + offsetDays)
+
+  return {
+    dueDateIso: next.toISOString(),
+    originalDueDateIso: proposedValid ? proposedDate!.toISOString() : null,
+    wasClamped: true,
+  }
 }
 
 serve(async (req) => {
@@ -77,8 +122,8 @@ serve(async (req) => {
       throw new Error('mode must be "auto" or "manual"')
     }
 
-    if (!source || !['ai_suggestion', 'action_item'].includes(source)) {
-      throw new Error('source must be "ai_suggestion" or "action_item"')
+    if (!source || !['ai_suggestion', 'action_item', 'call_action_item'].includes(source)) {
+      throw new Error('source must be "ai_suggestion", "action_item", or "call_action_item"')
     }
 
     console.log(`[create-task-unified] Processing ${action_item_ids.length} items in ${mode} mode from ${source}`)
@@ -99,21 +144,21 @@ serve(async (req) => {
     console.log(`[create-task-unified] User auto-sync preferences:`, autoSyncPrefs)
 
     // Get action items from appropriate table
-    const tableName = source === 'ai_suggestion' ? 'next_action_suggestions' : 'meeting_action_items'
+    const tableName =
+      source === 'ai_suggestion'
+        ? 'next_action_suggestions'
+        : source === 'call_action_item'
+          ? 'call_action_items'
+          : 'meeting_action_items'
 
-    const { data: actionItems, error: fetchError } = await supabase
+    // Avoid deep generic instantiation in Supabase client typing.
+    // (Runtime behavior unchanged.)
+    const sb: any = supabase
+
+    // We fetch raw action items and enrich with meeting/call context below.
+    const { data: actionItems, error: fetchError } = await sb
       .from(tableName)
-      .select(`
-        *,
-        meeting:meetings(
-          id,
-          title,
-          company_id,
-          primary_contact_id,
-          owner_user_id,
-          meeting_start
-        )
-      `)
+      .select(`*`)
       .in('id', action_item_ids)
 
     if (fetchError) {
@@ -140,10 +185,51 @@ serve(async (req) => {
     const tasksCreated: any[] = []
     const errors: Array<{ action_item_id: string, error: string }> = []
 
+    async function loadMeetingContext(meetingId: string) {
+      const { data } = await sb
+        .from('meetings')
+        .select('id, title, company_id, primary_contact_id, owner_user_id, meeting_start')
+        .eq('id', meetingId)
+        .maybeSingle()
+      return data || null
+    }
+
+    async function loadCallContext(callId: string) {
+      const { data } = await sb
+        .from('calls')
+        .select('id, org_id, started_at, owner_user_id, owner_email, company_id, contact_id, deal_id')
+        .eq('id', callId)
+        .maybeSingle()
+      return data || null
+    }
+
     // Process each action item
     for (const actionItem of actionItems) {
       try {
         console.log(`[create-task-unified] Processing action item ${actionItem.id} (importance: ${actionItem.importance})`)
+
+        // Enrich meeting/call context (needed for assignment + linking)
+        let meetingCtx: any = null
+        let callCtx: any = null
+
+        if (source === 'ai_suggestion') {
+          // Suggestions can be for multiple activity types.
+          const activityType = String(actionItem.activity_type || '').toLowerCase()
+          if (activityType === 'meeting' && actionItem.activity_id) {
+            meetingCtx = await loadMeetingContext(actionItem.activity_id)
+          } else if (activityType === 'call' && actionItem.activity_id) {
+            callCtx = await loadCallContext(actionItem.activity_id)
+          }
+        } else if (source === 'call_action_item') {
+          if (actionItem.call_id) {
+            callCtx = await loadCallContext(actionItem.call_id)
+          }
+        } else {
+          // meeting_action_items
+          if (actionItem.meeting_id) {
+            meetingCtx = await loadMeetingContext(actionItem.meeting_id)
+          }
+        }
 
         // MODE-SPECIFIC LOGIC
         if (mode === 'auto') {
@@ -177,6 +263,13 @@ serve(async (req) => {
             .select('id')
             .eq('source', 'ai_suggestion')
             .contains('metadata', { suggestion_id: actionItem.id })
+            .maybeSingle()
+          existingTask = data
+        } else if (source === 'call_action_item') {
+          const { data } = await supabase
+            .from('tasks')
+            .select('id')
+            .eq('call_action_item_id', actionItem.id)
             .maybeSingle()
           existingTask = data
         } else {
@@ -224,10 +317,16 @@ serve(async (req) => {
           }
         }
 
-        // Fallback to meeting owner (NOT current user!)
-        if (!assignedTo && actionItem.meeting?.owner_user_id) {
-          assignedTo = actionItem.meeting.owner_user_id
-          console.log(`[create-task-unified] Falling back to meeting owner: ${assignedTo}`)
+        // Fallback to source owner (NOT current user!)
+        if (!assignedTo) {
+          const fallbackOwner =
+            (meetingCtx && meetingCtx.owner_user_id) ||
+            (callCtx && callCtx.owner_user_id) ||
+            null
+          if (fallbackOwner) {
+            assignedTo = fallbackOwner
+            console.log(`[create-task-unified] Falling back to activity owner: ${assignedTo}`)
+          }
         }
 
         // If still no valid assignee, REFUSE to create task
@@ -241,35 +340,27 @@ serve(async (req) => {
           continue
         }
 
-        // Calculate due date with stale deadline detection
+        // Calculate due date (with strict normalization to avoid “wrong year” / past-date bugs)
         let dueDate = null
         const now = new Date()
 
-        if (actionItem.due_date || actionItem.deadline_at) {
-          const proposedDueDate = new Date(actionItem.due_date || actionItem.deadline_at)
-          const meetingDate = actionItem.meeting?.meeting_start ? new Date(actionItem.meeting.meeting_start) : null
+        const rawProposed = (actionItem.due_date || actionItem.deadline_at || actionItem.recommended_deadline || null) as string | null
+        const anchorIso =
+          (meetingCtx?.meeting_start as string | null) ||
+          (callCtx?.started_at as string | null) ||
+          null
 
-          // Check if this is a stale deadline (meeting >30 days old AND due date is in the past)
-          const meetingAge = meetingDate ? (now.getTime() - meetingDate.getTime()) / (1000 * 60 * 60 * 24) : 0
-          const isStaleDeadline = meetingAge > 30 && proposedDueDate < now
+        const normalized = clampNewTaskDueDate({
+          proposed: rawProposed,
+          anchorIso,
+          now
+        })
 
-          if (isStaleDeadline) {
-            // Stale deadline detected - recalculate relative to today
-            const originalOffset = meetingDate ? (proposedDueDate.getTime() - meetingDate.getTime()) / (1000 * 60 * 60 * 24) : 3
-            const adjustedOffset = Math.max(1, Math.min(30, Math.round(originalOffset)))
-            const newDueDate = new Date()
-            newDueDate.setDate(newDueDate.getDate() + adjustedOffset)
-            dueDate = newDueDate.toISOString()
-            console.log(`[create-task-unified] Stale deadline detected - adjusted from ${proposedDueDate.toISOString()} to ${dueDate}`)
-          } else {
-            dueDate = actionItem.due_date || actionItem.deadline_at
-          }
-        } else {
-          // No due date provided - default to 3 days from now
-          const threeDays = new Date()
-          threeDays.setDate(threeDays.getDate() + 3)
-          dueDate = threeDays.toISOString()
-          console.log(`[create-task-unified] No deadline provided - defaulting to 3 days: ${dueDate}`)
+        dueDate = normalized.dueDateIso
+        if (normalized.wasClamped) {
+          console.log(
+            `[create-task-unified] Due date clamped from ${rawProposed || 'null'} to ${dueDate} (anchor=${anchorIso || 'none'})`
+          )
         }
 
         // Map category to task_type
@@ -288,31 +379,54 @@ serve(async (req) => {
         // IMPORTANT: Two different linking patterns:
         // 1. AI suggestions: Link via metadata->>'suggestion_id' (no FK constraint)
         // 2. Meeting action items: Link via meeting_action_item_id FK
+        const meetingTitle = meetingCtx?.title || null
+        const callLabel = callCtx?.started_at
+          ? `Call (${new Date(callCtx.started_at).toISOString().slice(0, 10)})`
+          : 'Call'
+
+        const taskDescriptionHeader =
+          source === 'call_action_item'
+            ? `Action item from call: ${callLabel}`
+            : meetingTitle
+              ? `Action item from meeting: ${meetingTitle}`
+              : `Action item from ${source}`
+
         const { data: newTask, error: taskError } = await supabase
           .from('tasks')
           .insert({
             title: actionItem.title || actionItem.description,
-            description: `Action item from meeting: ${actionItem.meeting?.title}\n\n${actionItem.description || ''}`,
+            description: `${taskDescriptionHeader}\n\n${actionItem.description || ''}`,
             due_date: dueDate,
             priority: actionItem.priority || 'medium',
             status: actionItem.completed ? 'completed' : 'pending',
             task_type: taskType,
             assigned_to: assignedTo,
             created_by: user.id,
-            company_id: actionItem.meeting?.company_id,
-            contact_id: actionItem.meeting?.primary_contact_id,
-            meeting_id: actionItem.meeting_id,
-            // Only set FK for meeting action items (not AI suggestions)
+            company_id: meetingCtx?.company_id || callCtx?.company_id || null,
+            contact_id: meetingCtx?.primary_contact_id || callCtx?.contact_id || null,
+            deal_id: callCtx?.deal_id || null,
+            meeting_id: meetingCtx?.id || (source === 'action_item' ? actionItem.meeting_id : null),
+            call_id: callCtx?.id || null,
+            // Only set FK for the matching source type
             meeting_action_item_id: source === 'action_item' ? actionItem.id : null,
-            source: source === 'ai_suggestion' ? 'ai_suggestion' : 'fathom_action_item',
+            call_action_item_id: source === 'call_action_item' ? actionItem.id : null,
+            source:
+              source === 'ai_suggestion'
+                ? 'ai_suggestion'
+                : source === 'call_action_item'
+                  ? 'justcall_action_item'
+                  : 'fathom_action_item',
             importance: actionItem.importance,  // Store importance
             metadata: {
               action_item_id: actionItem.id,
               suggestion_id: source === 'ai_suggestion' ? actionItem.id : null,
-              fathom_meeting_id: actionItem.meeting_id,
+              fathom_meeting_id: meetingCtx?.id || (source === 'action_item' ? actionItem.meeting_id : null),
+              call_id: callCtx?.id || (source === 'call_action_item' ? actionItem.call_id : null),
               confidence_score: actionItem.confidence_score,
               recording_timestamp: actionItem.recording_timestamp,
-              recording_playback_url: actionItem.recording_playback_url
+              recording_playback_url: actionItem.recording_playback_url,
+              original_due_date: normalized.originalDueDateIso,
+              due_date_was_clamped: normalized.wasClamped
             }
           })
           .select()

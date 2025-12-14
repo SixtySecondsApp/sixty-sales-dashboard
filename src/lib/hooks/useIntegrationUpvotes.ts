@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
-import { useUser } from '@/lib/hooks/useUser';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import logger from '@/lib/utils/logger';
 
 export interface IntegrationVoteState {
@@ -29,19 +29,46 @@ function isNotFoundError(error: any): boolean {
   );
 }
 
+function isMissingRoadmapTableError(error: any): boolean {
+  // When the table isn't deployed/exposed in the current Supabase project, PostgREST returns 404.
+  const msg = String(error?.message || '').toLowerCase();
+  const details = String(error?.details || '').toLowerCase();
+  const hint = String(error?.hint || '').toLowerCase();
+  const code = String(error?.code || '').toLowerCase();
+  const status = Number(error?.status || error?.statusCode || error?.response?.status || 0);
+
+  if (status === 404) return true;
+  if (code.includes('pgrst')) {
+    // These messages vary between PostgREST versions.
+    return (
+      msg.includes('could not find the table') ||
+      msg.includes('schema cache') ||
+      msg.includes('not found in the schema cache') ||
+      details.includes('schema cache') ||
+      hint.includes('schema cache')
+    );
+  }
+
+  // Fallback: look for common text
+  return msg.includes('roadmap_suggestions') && msg.includes('not found');
+}
+
 /**
  * Upvotes for integrations, backed by existing roadmap tables:
  * - `roadmap_suggestions` row per integration (keyed by `hub_task_code = integration:<id>`)
  * - `roadmap_votes` row per (user, suggestion)
  */
 export function useIntegrationUpvotes(integrationIds: string[]) {
-  const { userData } = useUser();
-  const userId = userData?.id || null;
+  // IMPORTANT: In Clerk auth mode, Supabase sessions are disabled and `useUser()` can be null.
+  // `useAuth()` provides a stable mapped Supabase user id across auth implementations.
+  const { userId, isAuthenticated, loading: authLoading } = useAuth();
 
   const uniqueIds = useMemo(() => Array.from(new Set(integrationIds)).filter(Boolean), [integrationIds]);
 
   const [stateByIntegrationId, setStateByIntegrationId] = useState<Record<string, IntegrationVoteState>>({});
   const [loading, setLoading] = useState(false);
+  const [roadmapSchemaAvailable, setRoadmapSchemaAvailable] = useState(true);
+  const hasLoggedSchemaMissingRef = useRef(false);
 
   // Use ref to always have access to current state in callbacks (avoids stale closure)
   const stateRef = useRef(stateByIntegrationId);
@@ -62,6 +89,7 @@ export function useIntegrationUpvotes(integrationIds: string[]) {
   const refresh = useCallback(async () => {
     ensureDefaults();
     if (!uniqueIds.length) return;
+    if (!roadmapSchemaAvailable) return;
 
     setLoading(true);
     try {
@@ -113,6 +141,17 @@ export function useIntegrationUpvotes(integrationIds: string[]) {
         return next;
       });
     } catch (err) {
+      if (isMissingRoadmapTableError(err)) {
+        setRoadmapSchemaAvailable(false);
+        if (!hasLoggedSchemaMissingRef.current) {
+          hasLoggedSchemaMissingRef.current = true;
+          logger.warn(
+            'Integration upvotes disabled: roadmap tables not found in this Supabase project. Did you run the roadmap migrations?',
+            err
+          );
+        }
+        return;
+      }
       logger.error('Failed to refresh integration upvotes', err);
     } finally {
       setLoading(false);
@@ -129,7 +168,13 @@ export function useIntegrationUpvotes(integrationIds: string[]) {
       const { integrationId, integrationName, description } = params;
 
       if (!integrationId) return;
-      if (!userId) {
+      if (!roadmapSchemaAvailable) {
+        throw new Error('Voting is not configured in this environment yet.');
+      }
+      if (authLoading) {
+        throw new Error('Finishing sign-in… try again in a second.');
+      }
+      if (!isAuthenticated || !userId) {
         throw new Error('Please sign in to upvote integrations.');
       }
 
@@ -263,6 +308,9 @@ export function useIntegrationUpvotes(integrationIds: string[]) {
         if (isNotFoundError(err)) {
           await refresh();
         }
+        if (isMissingRoadmapTableError(err)) {
+          setRoadmapSchemaAvailable(false);
+        }
         throw err;
       } finally {
         setStateByIntegrationId((prev) => ({
@@ -271,7 +319,7 @@ export function useIntegrationUpvotes(integrationIds: string[]) {
         }));
       }
     },
-    [refresh, userId]
+    [authLoading, isAuthenticated, refresh, roadmapSchemaAvailable, userId]
   );
 
   const getVoteState = useCallback(
@@ -281,6 +329,7 @@ export function useIntegrationUpvotes(integrationIds: string[]) {
 
   return {
     loading,
+    roadmapSchemaAvailable,
     getVoteState,
     toggleUpvote,
     refresh,

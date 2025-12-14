@@ -23,7 +23,7 @@ type PanelResult = {
 };
 
 async function safeCount(table: string, filters: Array<[string, string, any]> = []) {
-  let q: any = supabase.from(table).select('id', { count: 'exact', head: true });
+  let q: any = (supabase as any).from(table).select('id', { count: 'exact', head: true });
   for (const [op, col, val] of filters) {
     if (op === 'eq') q = q.eq(col, val);
     if (op === 'neq') q = q.neq(col, val);
@@ -36,7 +36,7 @@ async function safeCount(table: string, filters: Array<[string, string, any]> = 
 }
 
 async function safeLatestTimestamp(table: string, column: string, filters: Array<[string, string, any]> = []) {
-  let q: any = supabase.from(table).select(column).not(column, 'is', null).order(column, { ascending: false }).limit(1);
+  let q: any = (supabase as any).from(table).select(column).not(column, 'is', null).order(column, { ascending: false }).limit(1);
   for (const [op, col, val] of filters) {
     if (op === 'eq') q = q.eq(col, val);
     if (op === 'neq') q = q.neq(col, val);

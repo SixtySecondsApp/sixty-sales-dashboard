@@ -40,7 +40,8 @@ export function RecentLinkedInShares() {
 
   async function fetchRecentShares() {
     try {
-      const { data, error } = await supabase
+      // Cast to any: waitlist tables aren't part of the main app DB type surface.
+      const { data, error } = await (supabase as any)
         .from('waitlist_shares')
         .select(`
           shared_at,

@@ -11,6 +11,7 @@
 import {
   Activity,
   Video,
+  PhoneCall,
   Sparkles,
   Layers,
   BarChart3,
@@ -156,6 +157,15 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     showInNav: true,
     navSection: 'main',
     order: 11,
+  },
+  {
+    path: '/calls',
+    access: 'internal',
+    label: 'Calls',
+    icon: PhoneCall,
+    showInNav: true,
+    navSection: 'main',
+    order: 11.5,
   },
   {
     path: '/activity',

@@ -94,7 +94,7 @@ export default function EarlyAccessLanding() {
 
   const fetchWaitlistCount = async () => {
     try {
-      const { count, error } = await supabase
+      const { count, error } = await (supabase as any)
         .from('meetings_waitlist')
         .select('*', { count: 'exact', head: true });
 
@@ -130,7 +130,7 @@ export default function EarlyAccessLanding() {
         crm_tool: formData.crm_tool || null
       };
 
-      const { data: entry, error } = await supabase
+      const { data: entry, error } = await (supabase as any)
         .from('meetings_waitlist')
         .insert([cleanData])
         .select()
@@ -144,7 +144,7 @@ export default function EarlyAccessLanding() {
       }
 
       // Show the gamified success page
-      setSuccessEntry(entry as WaitlistEntry);
+      setSuccessEntry(entry as unknown as WaitlistEntry);
     } catch (err: any) {
       // Preserve form data on error - don't clear fields
       setFormData(currentFormData);
@@ -188,7 +188,7 @@ export default function EarlyAccessLanding() {
         crm_tool: ctaFormData.crm_tool || null
       };
 
-      const { data: entry, error } = await supabase
+      const { data: entry, error } = await (supabase as any)
         .from('meetings_waitlist')
         .insert([cleanData])
         .select()
@@ -202,7 +202,7 @@ export default function EarlyAccessLanding() {
       }
 
       // Show the gamified success page
-      setSuccessEntry(entry as WaitlistEntry);
+      setSuccessEntry(entry as unknown as WaitlistEntry);
       setShowCtaModal(false);
       setCtaEmail('');
     } catch (err: any) {

@@ -20,7 +20,7 @@ const BATCH_SIZE = 10
 const MAX_ATTEMPTS = 3
 const BACKOFF_BASE_MS = 5000 // 5 seconds
 
-interface QueueItem {
+interface MeetingQueueItem {
   id: string
   meeting_id: string
   user_id: string
@@ -31,9 +31,26 @@ interface QueueItem {
   created_at: string
 }
 
+interface CallQueueItem {
+  id: string
+  call_id: string
+  org_id: string
+  owner_user_id: string | null
+  priority: number
+  attempts: number
+  max_attempts: number
+  last_attempt_at: string | null
+  created_at: string
+}
+
+type QueueItem =
+  | (MeetingQueueItem & { kind: 'meeting' })
+  | (CallQueueItem & { kind: 'call' })
+
 interface ProcessResult {
   success: boolean
-  meeting_id: string
+  source_type: 'meeting' | 'call'
+  source_id: string
   message: string
 }
 
@@ -55,6 +72,24 @@ interface MeetingDocument {
   action_items: string[]
   talk_time_rep_pct: number | null
   talk_time_customer_pct: number | null
+}
+
+interface CallDocument {
+  call_id: string
+  title: string
+  date: string
+  direction: string
+  status: string | null
+  from_number: string | null
+  to_number: string | null
+  owner_email: string | null
+  company_name: string | null
+  company_id: string | null
+  contact_name: string | null
+  contact_id: string | null
+  duration_seconds: number | null
+  transcript: string
+  summary: string | null
 }
 
 /**
@@ -188,6 +223,144 @@ function buildMeetingDocument(meeting: any): MeetingDocument {
     talk_time_rep_pct: meeting.talk_time_rep_pct,
     talk_time_customer_pct: meeting.talk_time_customer_pct
   }
+}
+
+function buildCallDocument(call: any): CallDocument {
+  const startedAt = call.started_at ? new Date(call.started_at) : null
+  const titleBase = call.direction === 'inbound'
+    ? `Inbound call`
+    : call.direction === 'outbound'
+      ? `Outbound call`
+      : 'Call'
+
+  const contactLabel = call.contact?.name || call.contact?.email || null
+  const companyLabel = call.company?.name || null
+
+  return {
+    call_id: call.id,
+    title: companyLabel ? `${titleBase} · ${companyLabel}` : titleBase,
+    date: startedAt ? startedAt.toISOString().split('T')[0] : '',
+    direction: call.direction || 'unknown',
+    status: call.status || null,
+    from_number: call.from_number || null,
+    to_number: call.to_number || null,
+    owner_email: call.owner_email || null,
+    company_name: companyLabel,
+    company_id: call.company_id || null,
+    contact_name: contactLabel,
+    contact_id: call.contact_id || null,
+    duration_seconds: call.duration_seconds ?? null,
+    transcript: call.transcript_text || '',
+    summary: call.summary || null
+  }
+}
+
+async function uploadCallToFileSearch(
+  storeName: string,
+  callId: string,
+  document: CallDocument,
+  orgId: string,
+  geminiApiKey: string
+): Promise<string> {
+  const content = JSON.stringify(document, null, 2)
+  const displayName = `call-${callId}.json`
+
+  console.log(`Uploading file: ${displayName}, content length: ${content.length}`)
+
+  // Step 1: Start resumable upload to get upload URI
+  const startResponse = await fetch(
+    `${GEMINI_UPLOAD_BASE}/files?key=${geminiApiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'X-Goog-Upload-Protocol': 'resumable',
+        'X-Goog-Upload-Command': 'start',
+        'X-Goog-Upload-Header-Content-Length': String(new TextEncoder().encode(content).length),
+        'X-Goog-Upload-Header-Content-Type': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        file: {
+          displayName: displayName
+        }
+      })
+    }
+  )
+
+  if (!startResponse.ok) {
+    const errorText = await startResponse.text()
+    console.error(`Start upload failed - Status: ${startResponse.status}, Body: ${errorText}`)
+    throw new Error(`Failed to start upload (${startResponse.status}): ${errorText}`)
+  }
+
+  const uploadUrl = startResponse.headers.get('X-Goog-Upload-URL')
+  if (!uploadUrl) {
+    throw new Error('No upload URL returned from start request')
+  }
+
+  // Step 2: Upload the actual file content
+  const uploadResponse = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'X-Goog-Upload-Command': 'upload, finalize',
+      'X-Goog-Upload-Offset': '0',
+      'Content-Type': 'application/json'
+    },
+    body: content
+  })
+
+  if (!uploadResponse.ok) {
+    const errorText = await uploadResponse.text()
+    console.error(`Files API upload failed - Status: ${uploadResponse.status}, Body: ${errorText}`)
+    throw new Error(`Failed to upload file (${uploadResponse.status}): ${errorText || 'No error details'}`)
+  }
+
+  const fileData = await uploadResponse.json()
+  const fileName = fileData.file?.name || fileData.name
+
+  if (!fileName) {
+    throw new Error('No file name returned from Files API')
+  }
+
+  console.log(`File uploaded successfully: ${fileName}`)
+
+  // Import file to File Search Store with metadata (reuse meeting filter keys where possible)
+  const customMetadata: Array<{ key: string; string_value?: string; numeric_value?: number }> = []
+
+  if (document.company_id) {
+    customMetadata.push({ key: 'company_id', string_value: document.company_id })
+  }
+  if (document.date) {
+    customMetadata.push({ key: 'meeting_date', string_value: document.date })
+  }
+
+  customMetadata.push({ key: 'has_action_items', string_value: 'false' })
+  customMetadata.push({ key: 'source_type', string_value: 'call' })
+  customMetadata.push({ key: 'call_id', string_value: callId })
+  customMetadata.push({ key: 'org_id', string_value: orgId })
+
+  const importResponse = await fetch(
+    `${GEMINI_API_BASE}/${storeName}:importFile?key=${geminiApiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: fileName,
+        customMetadata: customMetadata
+      })
+    }
+  )
+
+  if (!importResponse.ok) {
+    const errorText = await importResponse.text()
+    console.error(`File Search import failed - Status: ${importResponse.status}, Body: ${errorText}`)
+    throw new Error(`Failed to import to File Search (${importResponse.status}): ${errorText || 'No error details'}`)
+  }
+
+  const importData = await importResponse.json()
+  console.log(`File imported to store successfully: ${JSON.stringify(importData)}`)
+
+  return fileName
 }
 
 /**
@@ -324,21 +497,177 @@ async function processQueueItem(
   try {
     // Update attempt count
     await supabase
-      .from('meeting_index_queue')
+      .from(item.kind === 'call' ? 'call_index_queue' : 'meeting_index_queue')
       .update({
         attempts: item.attempts + 1,
         last_attempt_at: new Date().toISOString()
       })
       .eq('id', item.id)
 
-    // Get user's organization
-    const orgId = await getUserOrgId(item.user_id, supabase)
+    // Resolve orgId
+    const orgId = item.kind === 'call'
+      ? item.org_id
+      : await getUserOrgId(item.user_id, supabase)
+
     if (!orgId) {
-      throw new Error(`User ${item.user_id} is not a member of any organization`)
+      throw new Error(`Unable to resolve organization for queue item`)
     }
 
     // Get or create store for organization
     const storeName = await getOrCreateOrgStore(orgId, supabase, geminiApiKey)
+
+    // -------------------------------
+    // CALLS
+    // -------------------------------
+    if (item.kind === 'call') {
+      // Fetch call data
+      const { data: call, error: callError } = await supabase
+        .from('calls')
+        .select(`
+          id,
+          org_id,
+          direction,
+          status,
+          started_at,
+          duration_seconds,
+          from_number,
+          to_number,
+          owner_user_id,
+          owner_email,
+          company_id,
+          contact_id,
+          transcript_text,
+          summary
+        `)
+        .eq('id', item.call_id)
+        .single()
+
+      if (callError || !call) {
+        throw new Error(`Call not found: ${callError?.message || 'Unknown error'}`)
+      }
+
+      // Fetch company separately
+      let company: { id: string; name: string } | null = null
+      if (call.company_id) {
+        const { data: companyData } = await supabase
+          .from('companies')
+          .select('id, name')
+          .eq('id', call.company_id)
+          .single()
+        company = companyData
+      }
+
+      // Fetch contact separately
+      let contact: { id: string; name: string; email: string } | null = null
+      if (call.contact_id) {
+        const { data: contactData } = await supabase
+          .from('contacts')
+          .select('id, name, email')
+          .eq('id', call.contact_id)
+          .single()
+        contact = contactData
+      }
+
+      const callWithRelations = { ...call, company, contact }
+
+      if (!call.transcript_text || call.transcript_text.length < 100) {
+        await supabase
+          .from('call_index_queue')
+          .delete()
+          .eq('id', item.id)
+
+        return {
+          success: false,
+          source_type: 'call',
+          source_id: item.call_id,
+          message: 'Call has no transcript or transcript too short - removed from queue'
+        }
+      }
+
+      const document = buildCallDocument(callWithRelations)
+
+      // content hash
+      const contentStr = JSON.stringify(document)
+      const encoder = new TextEncoder()
+      const data = encoder.encode(contentStr)
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      const contentHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+
+      const effectiveOwnerId = item.owner_user_id || call.owner_user_id || null
+
+      const { data: existingIndex } = await supabase
+        .from('call_file_search_index')
+        .select('content_hash')
+        .eq('call_id', item.call_id)
+        .eq('owner_user_id', effectiveOwnerId)
+        .single()
+
+      if (existingIndex?.content_hash === contentHash) {
+        await supabase.from('call_index_queue').delete().eq('id', item.id)
+        return {
+          success: true,
+          source_type: 'call',
+          source_id: item.call_id,
+          message: 'Already indexed with same content'
+        }
+      }
+
+      await supabase
+        .from('call_file_search_index')
+        .upsert({
+          call_id: item.call_id,
+          owner_user_id: effectiveOwnerId,
+          org_id: orgId,
+          store_name: storeName,
+          status: 'indexing',
+          content_hash: contentHash
+        }, { onConflict: 'call_id,owner_user_id' })
+
+      const fileName = await uploadCallToFileSearch(storeName, item.call_id, document, orgId, geminiApiKey)
+
+      await supabase
+        .from('call_file_search_index')
+        .update({
+          file_name: fileName,
+          status: 'indexed',
+          indexed_at: new Date().toISOString(),
+          error_message: null
+        })
+        .eq('call_id', item.call_id)
+        .eq('owner_user_id', effectiveOwnerId)
+
+      // Update org store file count (meetings + calls)
+      const { count: meetingIndexCount } = await supabase
+        .from('meeting_file_search_index')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId)
+        .eq('status', 'indexed')
+
+      const { count: callIndexCount } = await supabase
+        .from('call_file_search_index')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId)
+        .eq('status', 'indexed')
+
+      await supabase
+        .from('org_file_search_stores')
+        .update({
+          total_files: (meetingIndexCount || 0) + (callIndexCount || 0),
+          last_sync_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('org_id', orgId)
+
+      await supabase.from('call_index_queue').delete().eq('id', item.id)
+
+      return {
+        success: true,
+        source_type: 'call',
+        source_id: item.call_id,
+        message: 'Successfully indexed'
+      }
+    }
 
     // Fetch meeting data (without ambiguous FK joins)
     const { data: meeting, error: meetingError } = await supabase
@@ -405,7 +734,8 @@ async function processQueueItem(
 
       return {
         success: false,
-        meeting_id: item.meeting_id,
+        source_type: 'meeting',
+        source_id: item.meeting_id,
         message: 'Meeting has no transcript or transcript too short - removed from queue'
       }
     }
@@ -438,7 +768,8 @@ async function processQueueItem(
 
       return {
         success: true,
-        meeting_id: item.meeting_id,
+        source_type: 'meeting',
+        source_id: item.meeting_id,
         message: 'Already indexed with same content'
       }
     }
@@ -470,9 +801,15 @@ async function processQueueItem(
       .eq('meeting_id', item.meeting_id)
       .eq('user_id', item.user_id)
 
-    // Update org store file count
-    const { count: indexCount } = await supabase
+    // Update org store file count (meetings + calls)
+    const { count: meetingIndexCount } = await supabase
       .from('meeting_file_search_index')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', orgId)
+      .eq('status', 'indexed')
+
+    const { count: callIndexCount } = await supabase
+      .from('call_file_search_index')
       .select('id', { count: 'exact', head: true })
       .eq('org_id', orgId)
       .eq('status', 'indexed')
@@ -480,7 +817,7 @@ async function processQueueItem(
     await supabase
       .from('org_file_search_stores')
       .update({
-        total_files: indexCount || 0,
+        total_files: (meetingIndexCount || 0) + (callIndexCount || 0),
         last_sync_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -494,12 +831,40 @@ async function processQueueItem(
 
     return {
       success: true,
-      meeting_id: item.meeting_id,
+      source_type: 'meeting',
+      source_id: item.meeting_id,
       message: 'Successfully indexed'
     }
 
   } catch (error) {
-    // Update index status to failed
+    if (item.kind === 'call') {
+      const effectiveOwnerId = item.owner_user_id || null
+      await supabase
+        .from('call_file_search_index')
+        .upsert({
+          call_id: item.call_id,
+          owner_user_id: effectiveOwnerId,
+          store_name: '',
+          status: 'failed',
+          error_message: error.message
+        }, { onConflict: 'call_id,owner_user_id' })
+
+      if (item.attempts + 1 >= item.max_attempts) {
+        await supabase
+          .from('call_index_queue')
+          .update({ error_message: `Max attempts reached: ${error.message}` })
+          .eq('id', item.id)
+      }
+
+      return {
+        success: false,
+        source_type: 'call',
+        source_id: item.call_id,
+        message: error.message
+      }
+    }
+
+    // Meeting failure
     await supabase
       .from('meeting_file_search_index')
       .upsert({
@@ -510,20 +875,17 @@ async function processQueueItem(
         error_message: error.message
       }, { onConflict: 'meeting_id,user_id' })
 
-    // Check if max attempts reached
     if (item.attempts + 1 >= item.max_attempts) {
-      // Update queue item with error but don't delete (for debugging)
       await supabase
         .from('meeting_index_queue')
-        .update({
-          error_message: `Max attempts reached: ${error.message}`
-        })
+        .update({ error_message: `Max attempts reached: ${error.message}` })
         .eq('id', item.id)
     }
 
     return {
       success: false,
-      meeting_id: item.meeting_id,
+      source_type: 'meeting',
+      source_id: item.meeting_id,
       message: error.message
     }
   }
@@ -562,8 +924,8 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Fetch queue items
-    let query = supabaseClient
+    // Fetch queue items (meetings + calls)
+    let meetingQuery = supabaseClient
       .from('meeting_index_queue')
       .select('*')
       .lt('attempts', MAX_ATTEMPTS)
@@ -572,19 +934,46 @@ serve(async (req) => {
       .limit(limit)
 
     if (userId) {
-      query = query.eq('user_id', userId)
+      meetingQuery = meetingQuery.eq('user_id', userId)
     }
 
-    const { data: queueItems, error: queueError } = await query
+    let callQuery = supabaseClient
+      .from('call_index_queue')
+      .select('*')
+      .lt('attempts', MAX_ATTEMPTS)
+      .order('priority', { ascending: false })
+      .order('created_at', { ascending: true })
+      .limit(limit)
 
-    if (queueError) {
+    if (userId) {
+      callQuery = callQuery.eq('owner_user_id', userId)
+    }
+
+    const [{ data: meetingItems, error: meetingErr }, { data: callItems, error: callErr }] = await Promise.all([
+      meetingQuery,
+      callQuery
+    ])
+
+    if (meetingErr || callErr) {
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch queue', details: queueError.message }),
+        JSON.stringify({ error: 'Failed to fetch queue', details: meetingErr?.message || callErr?.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    if (!queueItems || queueItems.length === 0) {
+    const queueItems: QueueItem[] = [
+      ...((meetingItems || []).map((i: any) => ({ ...i, kind: 'meeting' }))),
+      ...((callItems || []).map((i: any) => ({ ...i, kind: 'call' })))
+    ]
+      .sort((a: any, b: any) => {
+        // Higher priority first, then oldest first
+        const p = (b.priority || 0) - (a.priority || 0)
+        if (p !== 0) return p
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      })
+      .slice(0, limit)
+
+    if (queueItems.length === 0) {
       return new Response(
         JSON.stringify({
           success: true,

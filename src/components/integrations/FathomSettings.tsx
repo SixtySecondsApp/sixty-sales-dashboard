@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
+import { useOrgStore } from '@/lib/stores/orgStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -14,9 +15,11 @@ import { toast } from 'sonner';
 
 // Webhook URL should match the current environment domain.
 // Prefer an explicit public URL env var if set, otherwise fall back to window.location.origin.
-const WEBHOOK_URL = `${(import.meta as any)?.env?.VITE_PUBLIC_URL || window.location.origin}/api/webhooks/fathom`;
 
 export function FathomSettings() {
+  const activeOrgId = useOrgStore((s) => s.activeOrgId);
+  const WEBHOOK_URL = `${(import.meta as any)?.env?.VITE_PUBLIC_URL || window.location.origin}/api/webhooks/fathom${activeOrgId ? `?org_id=${encodeURIComponent(activeOrgId)}` : ''}`;
+
   const {
     integration,
     syncState,
@@ -24,6 +27,7 @@ export function FathomSettings() {
     error,
     isConnected,
     isSyncing,
+    canManage,
     lifetimeMeetingsCount,
     connectFathom,
     disconnectFathom,
@@ -141,9 +145,13 @@ export function FathomSettings() {
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Connect your Fathom account to enable automatic meeting sync, transcription access, and AI-generated insights.
               </p>
-              <Button onClick={connectFathom} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+              <Button
+                onClick={connectFathom}
+                disabled={!canManage}
+                className="gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60"
+              >
                 <Play className="h-4 w-4" />
-                Connect Fathom Account
+                {canManage ? 'Connect Fathom Account' : 'Connect Fathom (Admin only)'}
               </Button>
             </div>
           ) : (
@@ -177,9 +185,9 @@ export function FathomSettings() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Token Expires</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Last Sync</div>
                   <div className="font-medium text-gray-900 dark:text-white">
-                    {new Date(integration.token_expires_at).toLocaleDateString()}
+                    {integration.last_sync_at ? new Date(integration.last_sync_at).toLocaleDateString() : 'Never'}
                   </div>
                 </div>
               </div>
@@ -365,9 +373,10 @@ export function FathomSettings() {
               onClick={() => setShowDisconnectDialog(true)} 
               size="sm"
               className="gap-2"
+              disabled={!canManage}
             >
               <XCircle className="h-4 w-4" />
-              Disconnect Fathom
+              {canManage ? 'Disconnect Fathom' : 'Disconnect (Admin only)'}
             </Button>
           </CardFooter>
         )}
@@ -431,7 +440,7 @@ export function FathomSettings() {
                   setDisconnecting(false);
                 }
               }}
-              disabled={disconnecting}
+              disabled={disconnecting || !canManage}
               className="gap-2"
             >
               {disconnecting ? (

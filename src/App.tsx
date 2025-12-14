@@ -101,7 +101,8 @@ const MeetingsPage = lazyWithRetry(() => import('@/pages/MeetingsPage'));
 const MeetingIntelligence = lazyWithRetry(() => import('@/pages/MeetingIntelligence'));
 const MeetingSentimentAnalytics = lazyWithRetry(() => import('@/pages/MeetingSentimentAnalytics'));
 const FreepikFlow = lazyWithRetry(() => import('@/components/workflows/FreepikFlow'));
-const MeetingDetail = lazyWithRetry(() => import('@/pages/MeetingDetail').then(m => ({ default: m.MeetingDetail })));
+const Calls = lazyWithRetry(() => import('@/pages/Calls.tsx'));
+const CallDetail = lazyWithRetry(() => import('@/pages/CallDetail.tsx'));
 const DebugAuth = lazyWithRetry(() => import('@/pages/DebugAuth'));
 const AuthDebug = lazyWithRetry(() => import('@/pages/debug/AuthDebug'));
 const DebugPermissions = lazyWithRetry(() => import('@/pages/DebugPermissions'));
@@ -575,7 +576,9 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/meetings/*" element={<AppLayout><MeetingsPage /></AppLayout>} />
                 <Route path="/meetings/intelligence" element={<AppLayout><MeetingIntelligence /></AppLayout>} />
                 <Route path="/meetings/sentiment" element={<AppLayout><MeetingSentimentAnalytics /></AppLayout>} />
-                <Route path="/meetings/:id" element={<AppLayout><MeetingDetail /></AppLayout>} />
+                {/* Meeting detail is handled by nested routing in /meetings/* (src/pages/MeetingsPage.tsx) */}
+                <Route path="/calls" element={<AppLayout><Calls /></AppLayout>} />
+                <Route path="/calls/:id" element={<AppLayout><CallDetail /></AppLayout>} />
                 <Route path="/debug-meetings" element={<AppLayout><DebugMeetings /></AppLayout>} />
                 <Route path="/test-notifications" element={<AppLayout><TestNotifications /></AppLayout>} />
                 <Route path="/freepik-flow" element={<AppLayout><div className="h-[calc(100vh-4rem)]"><FreepikFlow /></div></AppLayout>} />

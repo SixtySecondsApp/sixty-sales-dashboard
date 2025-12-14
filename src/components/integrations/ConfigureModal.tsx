@@ -2,6 +2,9 @@ import React from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
@@ -46,6 +49,12 @@ export function ConfigureModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg p-0 gap-0 overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Accessibility: Radix Dialog requires a title and description */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>{integrationName} settings</DialogTitle>
+          <DialogDescription>Configure {integrationName} integration settings.</DialogDescription>
+        </DialogHeader>
+
         {/* Header */}
         <div className="p-5 border-b border-gray-100 dark:border-gray-800 flex items-center shrink-0">
           <div className="flex items-center gap-3">
@@ -243,6 +252,7 @@ interface DangerZoneProps {
   buttonText?: string;
   onAction: () => void;
   isLoading?: boolean;
+  disabled?: boolean;
 }
 
 export function DangerZone({
@@ -251,6 +261,7 @@ export function DangerZone({
   buttonText = 'Disconnect',
   onAction,
   isLoading = false,
+  disabled = false,
 }: DangerZoneProps) {
   return (
     <div className="pt-6 border-t border-gray-100 dark:border-gray-800">
@@ -266,7 +277,7 @@ export function DangerZone({
           variant="outline"
           size="sm"
           onClick={onAction}
-          disabled={isLoading}
+          disabled={isLoading || disabled}
           className="text-xs font-semibold bg-white dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/30"
         >
           {isLoading ? (

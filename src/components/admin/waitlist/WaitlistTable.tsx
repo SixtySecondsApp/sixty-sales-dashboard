@@ -14,7 +14,8 @@ interface WaitlistTableProps {
 
 export function WaitlistTable({ entries, isLoading, onRefresh, adminUserId }: WaitlistTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const adminHook = useWaitlistAdmin(adminUserId);
+  // Admin hook takes optional filters (not admin user id)
+  const adminHook = useWaitlistAdmin();
 
   // Filter entries based on search
   const filteredEntries = entries.filter(entry =>
@@ -24,17 +25,21 @@ export function WaitlistTable({ entries, isLoading, onRefresh, adminUserId }: Wa
   );
 
   const handleRelease = async (id: string) => {
-    const success = await adminHook.releaseUser(id);
-    if (success) {
+    try {
+      await adminHook.releaseUser(id);
       onRefresh();
+    } catch {
+      // toast handled in hook
     }
   };
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this entry?')) {
-      const success = await adminHook.deleteEntry(id);
-      if (success) {
+      try {
+        await adminHook.deleteEntry(id);
         onRefresh();
+      } catch {
+        // toast handled in hook
       }
     }
   };

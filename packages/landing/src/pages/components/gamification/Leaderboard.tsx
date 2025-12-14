@@ -51,7 +51,7 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
   const loadLeaderboard = async () => {
     try {
       // Load top 10
-      const { data: topData, error: topError } = await supabase
+      const { data: topData, error: topError } = await (supabase as any)
         .from('meetings_waitlist')
         .select('id, full_name, referral_count, linkedin_boost_claimed, twitter_boost_claimed, total_points, effective_position, profile_image_url')
         .order('total_points', { ascending: false })
@@ -66,7 +66,7 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
 
       // If not in top 10, fetch current user's data
       if (!userInTop10 && currentUserId) {
-        const { data: userData, error: userError } = await supabase
+        const { data: userData, error: userError } = await (supabase as any)
           .from('meetings_waitlist')
           .select('id, full_name, referral_count, linkedin_boost_claimed, twitter_boost_claimed, total_points, effective_position, profile_image_url')
           .eq('id', currentUserId)

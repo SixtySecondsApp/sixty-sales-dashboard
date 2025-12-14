@@ -69,6 +69,10 @@ serve(async (req) => {
     // Parse webhook payload
     const payload = JSON.parse(rawBody)
 
+    // Org routing (preferred): allow org_id in query string so webhook URLs can be org-specific.
+    const url = new URL(req.url)
+    const orgId = url.searchParams.get('org_id')
+
     // Enhanced logging with full payload structure
     // Log raw payload for debugging (first 1000 chars)
     const payloadStr = JSON.stringify(payload, null, 2)
@@ -90,7 +94,51 @@ serve(async (req) => {
         }
       )
     }
-    // Determine user_id from recorded_by email
+    // Preferred org-scoped sync: if org_id is provided, route directly to that org.
+    if (orgId) {
+      const syncUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fathom-sync`
+      const syncStartTime = Date.now()
+
+      const syncResponse = await fetch(syncUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sync_type: 'webhook',
+          org_id: orgId,
+          webhook_payload: payload,
+        }),
+      })
+
+      const syncDuration = Date.now() - syncStartTime
+
+      if (syncResponse.ok) {
+        const syncResult = await syncResponse.json()
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: 'Webhook processed successfully',
+            recording_id: recordingId,
+            org_id: orgId,
+            request_id: requestId,
+            sync_duration_ms: syncDuration,
+            sync_result: syncResult,
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        )
+      }
+
+      // Backwards-compatible fallback: if org-scoped sync failed, try legacy user lookup by email
+      const errorText = await syncResponse.text()
+      console.warn(`[fathom-webhook] Org-scoped sync failed (${syncResponse.status}). Falling back to legacy user routing.`, errorText.substring(0, 200))
+    }
+
+    // Legacy: Determine user_id from recorded_by email
     let userId: string | null = null
     const recordedByEmail = payload.recorded_by?.email
 
@@ -151,6 +199,8 @@ serve(async (req) => {
       body: JSON.stringify({
         sync_type: 'webhook',
         user_id: userId,
+        // Preserve org_id if it was provided so fathom-sync can use it for limits/ownership
+        org_id: orgId || undefined,
         // Pass the entire webhook payload as the call object
         // The sync function will process it directly
         webhook_payload: payload,
