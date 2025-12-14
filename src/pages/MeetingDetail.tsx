@@ -22,7 +22,6 @@ import { TalkTimeChart } from '@/components/meetings/analytics/TalkTimeChart';
 import { CoachingInsights } from '@/components/meetings/analytics/CoachingInsights';
 import { useActivationTracking } from '@/lib/hooks/useActivationTracking';
 import { useOnboardingProgress } from '@/lib/hooks/useOnboardingProgress';
-import { CallTypeBadge } from '@/components/meetings/CallTypeBadge';
 
 interface Meeting {
   id: string;
@@ -48,9 +47,6 @@ interface Meeting {
   primary_contact_id?: string | null;
   meeting_type?: 'discovery' | 'demo' | 'negotiation' | 'closing' | 'follow_up' | 'general' | null;
   classification_confidence?: number | null;
-  call_type_id?: string | null;
-  call_type_confidence?: number | null;
-  call_type_reasoning?: string | null;
   contact?: any;
   company?: any;
 }
@@ -891,15 +887,7 @@ export function MeetingDetail() {
         </div>
 
         <div className="flex flex-wrap gap-2 sm:flex-nowrap sm:flex-shrink-0">
-          {meeting.call_type_id ? (
-            <CallTypeBadge
-              callTypeId={meeting.call_type_id}
-              callTypeConfidence={meeting.call_type_confidence}
-              callTypeReasoning={meeting.call_type_reasoning}
-              meetingId={meeting.id}
-              showEdit={true}
-            />
-          ) : meeting.meeting_type ? (
+          {meeting.meeting_type && (
             <Badge 
               variant="outline" 
               className="capitalize bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border-blue-200 dark:border-blue-500/20"
@@ -911,7 +899,7 @@ export function MeetingDetail() {
                 </span>
               )}
             </Badge>
-          ) : null}
+          )}
           {meeting.sentiment_score !== null && (
             <Badge className={getSentimentColor(meeting.sentiment_score)}>
               {labelSentiment(meeting.sentiment_score)}

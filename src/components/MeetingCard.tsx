@@ -25,7 +25,6 @@ import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
 import { useNextActions } from '@/lib/hooks/useNextActions';
 import { supabase } from '@/lib/supabase/clientV2';
 import { getMeetingSummaryPlainText } from '@/lib/utils/meetingSummaryParser';
-import { CallTypeBadge } from '@/components/meetings/CallTypeBadge';
 
 interface Meeting {
   id: string;
@@ -50,9 +49,6 @@ interface Meeting {
   talk_time_rep_pct: number | null;
   talk_time_customer_pct: number | null;
   talk_time_judgement: string | null;
-  call_type_id?: string | null;
-  call_type_confidence?: number | null;
-  call_type_reasoning?: string | null;
   company?: {
     name: string;
     domain: string;
@@ -270,15 +266,6 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
                   />
                 )}
               </h3>
-              {meeting.call_type_id && (
-                <CallTypeBadge
-                  callTypeId={meeting.call_type_id}
-                  callTypeConfidence={meeting.call_type_confidence}
-                  callTypeReasoning={meeting.call_type_reasoning}
-                  meetingId={meeting.id}
-                  className="mt-1"
-                />
-              )}
               <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 {meeting.company && (
                   <>
@@ -442,15 +429,6 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
         <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors mb-1">
           {meeting.title}
         </h3>
-        {meeting.call_type_id && (
-          <CallTypeBadge
-            callTypeId={meeting.call_type_id}
-            callTypeConfidence={meeting.call_type_confidence}
-            callTypeReasoning={meeting.call_type_reasoning}
-            meetingId={meeting.id}
-            className="mb-2"
-          />
-        )}
         <div className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-300 mb-2">
           <Calendar className="w-3 h-3" />
           <span>{formatMeetingDate()} at {formatMeetingTime()}</span>

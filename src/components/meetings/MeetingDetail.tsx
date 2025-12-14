@@ -40,9 +40,6 @@ import { CoachingInsights } from '@/components/meetings/analytics/CoachingInsigh
 import { analyzeTalkTime, type TalkTimeMetrics } from '@/lib/services/coachingService'
 import { useOrg } from '@/lib/contexts/OrgContext'
 import { ActionItemsList } from '@/components/meetings/ActionItemsList'
-import { NextActionSuggestions } from '@/components/meetings/NextActionSuggestions'
-import { useNextActionSuggestions } from '@/lib/hooks/useNextActionSuggestions'
-import { MeetingSummaryDisplay } from '@/components/shared/MeetingSummaryDisplay'
 
 interface Meeting {
   id: string
@@ -102,8 +99,8 @@ interface ActionItem {
   ai_generated: boolean
   timestamp_seconds: number | null
   playback_url: string | null
-  linked_task_id?: string | null  // Changed from task_id to match new column name
-  is_sales_rep_task?: boolean | null  // New field to identify sales rep tasks
+  linked_task_id: string | null  // Changed from task_id to match new column name
+  is_sales_rep_task: boolean | null  // New field to identify sales rep tasks
 }
 
 function sentimentLabel(score: number | null): string {
@@ -157,14 +154,6 @@ const MeetingDetail: React.FC = () => {
   const [isExtracting, setIsExtracting] = useState(false)
   const [showProposalWizard, setShowProposalWizard] = useState(false)
 
-  // AI Suggestions (next_action_suggestions) for this meeting
-  const {
-    suggestions,
-    loading: suggestionsLoading,
-    refetch: refetchSuggestions,
-    pendingCount,
-  } = useNextActionSuggestions(id || '', 'meeting')
-
   useEffect(() => {
     if (id) {
       fetchMeetingDetails()
@@ -176,12 +165,8 @@ const MeetingDetail: React.FC = () => {
     
     setLoading(true)
     try {
-      // Supabase generic types can get extremely deep in complex query chains.
-      // Use an untyped alias to keep TS fast and stable (runtime behavior unchanged).
-      const sb: any = supabase
-
       // Fetch meeting details - using left joins for optional relationships
-      let detailQuery = sb
+      let detailQuery = supabase
         .from('meetings')
         .select('*')
         .eq('id', id)
@@ -205,7 +190,7 @@ const MeetingDetail: React.FC = () => {
       
       // Fetch company if exists
       if (meetingData.company_id) {
-        const { data: companyData } = await sb
+        const { data: companyData } = await supabase
           .from('companies')
           .select('id, name, domain')
           .eq('id', meetingData.company_id)
@@ -218,7 +203,7 @@ const MeetingDetail: React.FC = () => {
       
       // Fetch contact if exists
       if (meetingData.primary_contact_id) {
-        const { data: contactData } = await sb
+        const { data: contactData } = await supabase
           .from('contacts')
           .select('id, first_name, last_name, email')
           .eq('id', meetingData.primary_contact_id)
@@ -230,7 +215,7 @@ const MeetingDetail: React.FC = () => {
       }
       
       // Fetch meeting metrics
-      const { data: metricsData } = await sb
+      const { data: metricsData } = await supabase
         .from('meeting_metrics')
         .select('*')
         .eq('meeting_id', id)
@@ -248,7 +233,7 @@ const MeetingDetail: React.FC = () => {
       setMeeting(meetingData)
 
       // Fetch attendees
-      const { data: attendeesData, error: attendeesError } = await sb
+      const { data: attendeesData, error: attendeesError } = await supabase
         .from('meeting_attendees')
         .select('*')
         .eq('meeting_id', id)
@@ -257,7 +242,7 @@ const MeetingDetail: React.FC = () => {
       setAttendees(attendeesData || [])
 
       // Fetch action items
-      const { data: actionItemsData, error: actionItemsError } = await sb
+      const { data: actionItemsData, error: actionItemsError } = await supabase
         .from('meeting_action_items')
         .select('*')
         .eq('meeting_id', id)
@@ -281,10 +266,6 @@ const MeetingDetail: React.FC = () => {
       }
 
       try {
-        // Supabase generic types can get extremely deep in complex query chains.
-        // Use an untyped alias to keep TS fast and stable (runtime behavior unchanged).
-        const sb: any = supabase
-
         // Build embed URL from share_url or recording id
         let embedUrl: string | null = null
         if (meeting.share_url) {
@@ -301,12 +282,11 @@ const MeetingDetail: React.FC = () => {
         }
 
         let thumbnailUrl: string | null = null
-        let invokeData: any = null
 
         if (embedUrl) {
           // Choose a representative timestamp: midpoint, clamped to >=5s
           const midpointSeconds = Math.max(5, Math.floor((meeting.duration_minutes || 0) * 60 / 2))
-          const { data, error } = await sb.functions.invoke('generate-video-thumbnail-v2', {
+          const { data, error } = await supabase.functions.invoke('generate-video-thumbnail-v2', {
             body: {
               recording_id: meeting.fathom_recording_id,
               share_url: meeting.share_url,
@@ -315,7 +295,6 @@ const MeetingDetail: React.FC = () => {
               meeting_id: meeting.id,
             },
           })
-          invokeData = data
 
           if (!error && (data as any)?.success && (data as any)?.thumbnail_url) {
             thumbnailUrl = (data as any).thumbnail_url as string
@@ -329,9 +308,9 @@ const MeetingDetail: React.FC = () => {
         }
 
         // Persist only if service function didn't already write it
-        if (!(invokeData as any)?.db_updated) {
+        if (!(data as any)?.db_updated) {
           try {
-            await sb
+            await supabase
               .from('meetings')
               .update({ thumbnail_url: thumbnailUrl })
               .eq('id', meeting.id)
@@ -768,37 +747,6 @@ const MeetingDetail: React.FC = () => {
 
         {/* Right Sidebar */}
         <div className="col-span-12 lg:col-span-4 space-y-4">
-          {/* AI Suggestions (Proposed Tasks) */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3, delay: 0.35 }}
-            className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none hover:border-gray-300 dark:hover:border-gray-600/50 transition-all duration-200"
-          >
-            <div className="p-6">
-              <NextActionSuggestions
-                activityId={meeting?.id || ''}
-                activityType="meeting"
-                suggestions={suggestions}
-                onSuggestionUpdate={async () => {
-                  await refetchSuggestions()
-                }}
-                onTimestampClick={seekToTimestamp}
-                showPendingCount
-              />
-              {suggestionsLoading && suggestions.length === 0 && (
-                <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                  Loading AI suggestions…
-                </div>
-              )}
-              {!suggestionsLoading && pendingCount === 0 && suggestions.length > 0 && (
-                <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                  No pending suggestions.
-                </div>
-              )}
-            </div>
-          </motion.div>
-
           {/* Action Items - New Unified System */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
