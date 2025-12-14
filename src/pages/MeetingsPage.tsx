@@ -1,7 +1,7 @@
 import React from 'react'
 import { Routes, Route } from 'react-router-dom'
 import MeetingsList from '@/components/meetings/MeetingsList'
-import MeetingDetail from '@/components/meetings/MeetingDetail'
+import { MeetingDetail } from '@/pages/MeetingDetail'
 
 const MeetingsPage: React.FC = () => {
   return (
