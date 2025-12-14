@@ -106,6 +106,10 @@ serve(async (req) => {
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${SERVICE_ROLE_KEY}`,
+          "apikey": SERVICE_ROLE_KEY,
+          ...(Deno.env.get("CRON_SECRET")
+            ? { "x-cron-secret": Deno.env.get("CRON_SECRET") as string }
+            : {}),
         },
         body: JSON.stringify({ lead_ids: [leadId] }),
       });

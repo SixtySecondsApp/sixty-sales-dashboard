@@ -15,7 +15,13 @@ function normalizeBearer(authHeader: string | null): string | null {
   if (!authHeader) return null;
   const v = authHeader.trim();
   if (!v.toLowerCase().startsWith('bearer ')) return null;
-  return v.slice('bearer '.length).trim();
+  // Some proxies / runtimes can append additional auth schemes or duplicate values
+  // in a single Authorization header, comma-separated. We always treat the first
+  // Bearer token as the credential.
+  const remainder = v.slice('bearer '.length).trim();
+  // Split on comma OR any whitespace (defensive parsing).
+  const firstToken = remainder.split(/[,\s]+/)[0]?.trim() ?? '';
+  return firstToken || null;
 }
 
 /**

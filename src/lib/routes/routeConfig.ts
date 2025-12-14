@@ -512,6 +512,15 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     navSection: 'settings',
     order: 10,
   },
+  // JustCall Settings (Org Admin)
+  {
+    path: '/settings/integrations/justcall',
+    access: 'any',
+    label: 'JustCall Settings',
+    showInNav: false,
+    navSection: 'settings',
+    order: 11,
+  },
 
   // Legacy admin routes removed - now redirect to /platform in App.tsx
 ];

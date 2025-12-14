@@ -3,6 +3,105 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { hmacSha256Hex, timingSafeEqual } from '../_shared/use60Signing.ts';
 import { legacyCorsHeaders as corsHeaders } from '../_shared/corsHelper.ts';
 
+async function ensureCommunicationEvent(
+  supabase: ReturnType<typeof createClient>,
+  args: {
+    userId: string;
+    orgId: string;
+    callExternalId: string;
+    direction: 'inbound' | 'outbound' | 'unknown' | 'internal';
+    whenIso: string | null;
+    fromNumber: string | null;
+    toNumber: string | null;
+    durationSeconds: number | null;
+    hasRecording: boolean;
+  }
+): Promise<void> {
+  const eventType = args.direction === 'inbound' ? 'call_received' : 'call_made';
+  const direction = args.direction === 'inbound' ? 'inbound' : 'outbound';
+
+  const { data: existing } = await supabase
+    .from('communication_events')
+    .select('id')
+    .eq('user_id', args.userId)
+    .eq('external_id', args.callExternalId)
+    .eq('external_source', 'justcall')
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.id) return;
+
+  await supabase.from('communication_events').insert({
+    user_id: args.userId,
+    event_type: eventType,
+    direction,
+    subject: null,
+    body: null,
+    snippet: null,
+    external_id: args.callExternalId,
+    external_source: 'justcall',
+    metadata: {
+      org_id: args.orgId,
+      from_number: args.fromNumber,
+      to_number: args.toNumber,
+      duration_seconds: args.durationSeconds,
+      has_recording: args.hasRecording,
+    },
+    event_timestamp: args.whenIso || new Date().toISOString(),
+  });
+}
+
+async function ensureOutboundCallActivity(
+  supabase: ReturnType<typeof createClient>,
+  args: {
+    userId: string;
+    originalActivityId: string;
+    whenIso: string | null;
+    fromNumber: string | null;
+    toNumber: string | null;
+    durationSeconds: number | null;
+    externalId: string;
+    provider: string;
+    salesRep: string;
+  }
+): Promise<void> {
+  const { data: existing } = await supabase
+    .from('activities')
+    .select('id')
+    .eq('user_id', args.userId)
+    .eq('type', 'outbound')
+    .eq('outbound_type', 'call')
+    .eq('original_activity_id', args.originalActivityId)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.id) return;
+
+  const clientName = args.toNumber || args.fromNumber || 'Unknown';
+  const detailsParts = [
+    `Call (${args.provider})`,
+    args.fromNumber && args.toNumber ? `${args.fromNumber} → ${args.toNumber}` : null,
+    typeof args.durationSeconds === 'number' ? `duration=${args.durationSeconds}s` : null,
+    `external_id=${args.externalId}`,
+  ].filter(Boolean);
+
+  await supabase.from('activities').insert({
+    user_id: args.userId,
+    type: 'outbound',
+    status: 'completed',
+    priority: 'medium',
+    client_name: clientName,
+    sales_rep: args.salesRep,
+    details: detailsParts.join(' • '),
+    date: args.whenIso || new Date().toISOString(),
+    quantity: 1,
+    outbound_type: 'call',
+    contact_identifier: args.toNumber || args.fromNumber || null,
+    contact_identifier_type: 'phone',
+    original_activity_id: args.originalActivityId,
+  });
+}
+
 function parseTimestampToMs(v: string | null): number | null {
   if (!v) return null;
   const s = v.trim();
@@ -202,7 +301,7 @@ serve(async (req) => {
 
     const { data: integration } = await supabase
       .from('justcall_integrations')
-      .select('id, org_id, is_active, auth_type, webhook_token')
+      .select('id, org_id, is_active, auth_type, webhook_token, connected_by_user_id')
       .eq('webhook_token', token)
       .eq('is_active', true)
       .maybeSingle();
@@ -357,6 +456,36 @@ serve(async (req) => {
           },
           { onConflict: 'call_id' }
         );
+    }
+
+    // Log comm event + outbound activity
+    const effectiveUserId = ownerUserId || integration.connected_by_user_id || null;
+    if (effectiveUserId) {
+      await ensureCommunicationEvent(supabase, {
+        userId: effectiveUserId,
+        orgId: integration.org_id,
+        callExternalId: callFields.externalId,
+        direction: callFields.direction,
+        whenIso: callFields.startedAt,
+        fromNumber: callFields.fromNumber,
+        toNumber: callFields.toNumber,
+        durationSeconds: callFields.durationSeconds,
+        hasRecording,
+      });
+
+      if (callFields.direction === 'outbound') {
+        await ensureOutboundCallActivity(supabase, {
+          userId: effectiveUserId,
+          originalActivityId: callRow.id,
+          whenIso: callFields.startedAt,
+          fromNumber: callFields.fromNumber,
+          toNumber: callFields.toNumber,
+          durationSeconds: callFields.durationSeconds,
+          externalId: callFields.externalId,
+          provider: 'justcall',
+          salesRep: ownerEmail || callFields.agentEmail || 'JustCall',
+        });
+      }
     }
 
     // Update integration heartbeat

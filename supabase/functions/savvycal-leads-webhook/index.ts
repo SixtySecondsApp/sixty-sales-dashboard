@@ -627,6 +627,9 @@ async function processSavvyCalEvent(
           "Content-Type": "application/json",
           "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
           "apikey": SUPABASE_SERVICE_ROLE_KEY,
+          ...(Deno.env.get("CRON_SECRET")
+            ? { "x-cron-secret": Deno.env.get("CRON_SECRET") as string }
+            : {}),
         },
         body: JSON.stringify({ company_id: companyId }),
       }).then(async (res) => {
@@ -651,6 +654,9 @@ async function processSavvyCalEvent(
         "Content-Type": "application/json",
         "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        ...(Deno.env.get("CRON_SECRET")
+          ? { "x-cron-secret": Deno.env.get("CRON_SECRET") as string }
+          : {}),
       },
       body: JSON.stringify({ lead_id: leadData.id }),
     }).then(async (res) => {

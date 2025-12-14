@@ -48,7 +48,7 @@ type SmartTaskTemplateRow = {
   is_active: boolean | null;
   created_at: string | null;
   updated_at: string | null;
-  org_id?: string | null;
+  clerk_org_id?: string | null;
 };
 
 type MeetingRow = {
@@ -304,42 +304,27 @@ export default function TasksDemo() {
   }, [loadActivityDetail, loadActionItems, loadTasks, refetchSuggestions]);
 
   const loadSmartTaskTemplates = useCallback(async () => {
-    if (!orgId) return;
     setLoadingSmartTasks(true);
     setSmartTasksError(null);
     try {
-      // Prefer org-scoped templates. If the column doesn't exist (older schema), fall back safely.
-      let q = sb
+      // Current DB schema stores scoping via clerk_org_id (TEXT) and also supports global
+      // templates (NULL/empty clerk_org_id). For this demo page, we load all templates.
+      const { data, error } = await sb
         .from('smart_task_templates')
-        .select('id, trigger_activity_type, task_title, task_description, days_after_trigger, task_type, priority, is_active, created_at, updated_at, org_id')
+        .select('id, trigger_activity_type, task_title, task_description, days_after_trigger, task_type, priority, is_active, created_at, updated_at, clerk_org_id')
         .order('trigger_activity_type', { ascending: true })
         .order('days_after_trigger', { ascending: true })
         .order('task_title', { ascending: true });
 
-      q = q.eq('org_id', orgId);
-
-      const { data, error } = await q;
-      if (error) {
-        // fallback (non-org schema)
-        const { data: fallbackData, error: fallbackError } = await sb
-          .from('smart_task_templates')
-          .select('id, trigger_activity_type, task_title, task_description, days_after_trigger, task_type, priority, is_active, created_at, updated_at')
-          .order('trigger_activity_type', { ascending: true })
-          .order('days_after_trigger', { ascending: true })
-          .order('task_title', { ascending: true });
-        if (fallbackError) throw fallbackError;
-        setSmartTaskTemplates((fallbackData || []) as SmartTaskTemplateRow[]);
-        setSmartTasksError('Templates loaded without org scoping (org_id column not available).');
-      } else {
-        setSmartTaskTemplates((data || []) as SmartTaskTemplateRow[]);
-      }
+      if (error) throw error;
+      setSmartTaskTemplates((data || []) as SmartTaskTemplateRow[]);
     } catch (e: any) {
       setSmartTaskTemplates([]);
       setSmartTasksError(e?.message || 'Failed to load smart task templates');
     } finally {
       setLoadingSmartTasks(false);
     }
-  }, [orgId, sb]);
+  }, [sb]);
 
   useEffect(() => {
     loadActivityLists();

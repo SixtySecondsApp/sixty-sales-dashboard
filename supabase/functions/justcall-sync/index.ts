@@ -259,6 +259,58 @@ async function ensureCommunicationEvent(
   });
 }
 
+async function ensureOutboundCallActivity(
+  supabase: ReturnType<typeof createClient>,
+  args: {
+    userId: string;
+    originalActivityId: string;
+    whenIso: string | null;
+    fromNumber: string | null;
+    toNumber: string | null;
+    durationSeconds: number | null;
+    externalId: string;
+    provider: string;
+    salesRep: string;
+  }
+): Promise<void> {
+  // Dedupe: one outbound activity per call row
+  const { data: existing } = await supabase
+    .from('activities')
+    .select('id')
+    .eq('user_id', args.userId)
+    .eq('type', 'outbound')
+    .eq('outbound_type', 'call')
+    .eq('original_activity_id', args.originalActivityId)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.id) return;
+
+  const clientName = args.toNumber || args.fromNumber || 'Unknown';
+  const detailsParts = [
+    `Call (${args.provider})`,
+    args.fromNumber && args.toNumber ? `${args.fromNumber} → ${args.toNumber}` : null,
+    typeof args.durationSeconds === 'number' ? `duration=${args.durationSeconds}s` : null,
+    `external_id=${args.externalId}`,
+  ].filter(Boolean);
+
+  await supabase.from('activities').insert({
+    user_id: args.userId,
+    type: 'outbound',
+    status: 'completed',
+    priority: 'medium',
+    client_name: clientName,
+    sales_rep: args.salesRep,
+    details: detailsParts.join(' • '),
+    date: args.whenIso || new Date().toISOString(),
+    quantity: 1,
+    outbound_type: 'call',
+    contact_identifier: args.toNumber || args.fromNumber || null,
+    contact_identifier_type: 'phone',
+    original_activity_id: args.originalActivityId,
+  });
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: corsHeaders });
@@ -443,6 +495,21 @@ serve(async (req) => {
           hasRecording,
         });
         eventsLogged++;
+
+        // Also log outbound calls as outbound activities (Sales Dialer best practice).
+        if (mapped.direction === 'outbound') {
+          await ensureOutboundCallActivity(sb, {
+            userId: effectiveUserId,
+            originalActivityId: callRow.id,
+            whenIso: mapped.started_at,
+            fromNumber: mapped.from_number,
+            toNumber: mapped.to_number,
+            durationSeconds: mapped.duration_seconds,
+            externalId: mapped.external_id,
+            provider: 'justcall',
+            salesRep: owner.owner_email || mapped.agent_email || 'JustCall',
+          });
+        }
       }
     }
 

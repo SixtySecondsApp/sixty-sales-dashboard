@@ -38,3 +38,12 @@ verify_jwt = false
 
 [functions.justcall-search]
 verify_jwt = false
+
+# Internal automation triggered by webhooks / server-side jobs.
+# We disable platform JWT verification and enforce auth inside the function
+# (service role bearer token, optional CRON_SECRET, or user JWT checks).
+[functions.process-lead-prep]
+verify_jwt = false
+
+[functions.enrich-company]
+verify_jwt = false

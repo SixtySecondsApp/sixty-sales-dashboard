@@ -27,6 +27,31 @@ export function setClerkTokenGetter(getter: () => Promise<string | null>) {
   logger.log('🔐 Clerk token getter registered with Supabase client');
 }
 
+/**
+ * Get the current auth bearer token used for Supabase requests.
+ *
+ * - When Clerk auth is enabled, this returns the Clerk-provided Supabase JWT template token (if available).
+ * - When Clerk auth is disabled, this returns the Supabase session access token (if available).
+ *
+ * This is intentionally NOT a React hook, so it can be used anywhere (including non-React code).
+ */
+export async function getSupabaseAuthToken(): Promise<string | null> {
+  try {
+    // Clerk mode: prefer the injected token getter (Supabase JWT template)
+    if (USE_CLERK_AUTH) {
+      if (!clerkGetToken) return null;
+      return await clerkGetToken();
+    }
+
+    // Supabase Auth mode: use the current session access token
+    const client = getSupabaseClient();
+    const { data } = await client.auth.getSession();
+    return data?.session?.access_token || null;
+  } catch {
+    return null;
+  }
+}
+
 // Validate required environment variables
 if (!supabaseUrl || !supabasePublishableKey) {
   const isProduction = typeof window !== 'undefined' && 
@@ -114,6 +139,8 @@ function getSupabaseClient(): TypedSupabaseClient {
       }
     }
 
+    // Supabase client options typing can lag behind SDK capabilities (e.g. Functions URL override).
+    // Keep runtime behavior but avoid TS friction by casting.
     supabaseInstance = createClient<Database>(supabaseUrl, supabasePublishableKey, {
       auth: {
         // When Clerk auth is enabled, we don't need Supabase's session management
@@ -155,7 +182,7 @@ function getSupabaseClient(): TypedSupabaseClient {
           'X-Client-Info': 'sales-dashboard-v2'
         }
       }
-    });
+    } as any) as unknown as TypedSupabaseClient;
   }
   return supabaseInstance;
 }

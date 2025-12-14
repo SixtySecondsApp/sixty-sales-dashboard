@@ -1,9 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { getAuthContext } from "../_shared/edgeAuth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+type SupabaseClient = ReturnType<typeof createClient>;
 
 const JSON_HEADERS = {
   ...corsHeaders,
@@ -202,6 +205,10 @@ serve(async (req) => {
   }
 
   try {
+    // SECURITY (fail-closed): require service role, CRON_SECRET, or a valid user session.
+    // Platform JWT verification is disabled for this function because internal callers
+    // (e.g. other Edge Functions / webhooks) use the service role API key (sb_secret_*),
+    // which is not a user JWT.
     let requestPayload: Record<string, unknown> | null = null;
     try {
       requestPayload = await req.json();
@@ -220,7 +227,20 @@ serve(async (req) => {
       ? Array.from(new Set(requestedLeadIdsRaw.filter((id): id is string => typeof id === "string" && id.trim().length > 0)))
       : null;
 
-    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    try {
+      await getAuthContext(req, supabase, SERVICE_ROLE_KEY, {
+        cronSecret: Deno.env.get("CRON_SECRET") ?? undefined,
+      });
+    } catch (_authError) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized" }),
+        { status: 401, headers: JSON_HEADERS },
+      );
+    }
 
     // Fetch leads that need prep (optionally scoped to requested IDs)
     let leadsQuery = supabase

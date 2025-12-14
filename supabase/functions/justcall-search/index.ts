@@ -58,7 +58,12 @@ async function fetchPaged(args: {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: corsHeaders });
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ success: false, error: 'Method not allowed' }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -69,7 +74,7 @@ serve(async (req) => {
     const token = authHeader.replace(/^Bearer\\s+/i, '').trim();
     if (!token) {
       return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), {
-        status: 401,
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -77,7 +82,7 @@ serve(async (req) => {
     const { data: userData, error: userErr } = await sb.auth.getUser(token);
     if (userErr || !userData?.user) {
       return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), {
-        status: 401,
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -88,17 +93,24 @@ serve(async (req) => {
     if (!orgId) orgId = await getUserOrgId(sb, userId);
     if (!orgId) {
       return new Response(JSON.stringify({ success: false, error: 'Missing org_id' }), {
-        status: 400,
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    await requireOrgRole(sb, orgId, userId, ['owner', 'admin']);
+    try {
+      await requireOrgRole(sb, orgId, userId, ['owner', 'admin']);
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ success: false, error: e?.message || 'Unauthorized: insufficient permissions', org_id: orgId }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const callSid = typeof body.call_sid === 'string' ? body.call_sid.trim() : '';
     if (!callSid) {
       return new Response(JSON.stringify({ success: false, error: 'call_sid is required' }), {
-        status: 400,
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -166,8 +178,9 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (e) {
+    // Debug helper: return 200 so clients can display a useful payload instead of a generic "non-2xx" error.
     return new Response(JSON.stringify({ success: false, error: e?.message || 'Search failed' }), {
-      status: 500,
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
