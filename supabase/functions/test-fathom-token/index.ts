@@ -131,6 +131,11 @@ serve(async (req) => {
     }
 
     // STEP 1: Fetch user/team info from /me endpoint
+    //
+    // NOTE:
+    // In some auth modes / accounts, /me may return 404 even when the token is valid
+    // for /meetings and /teams. This should be treated as "non-fatal / not supported"
+    // rather than as an integration failure.
     let userInfo: any = null
     let userInfoError: string | null = null
     try {
@@ -155,7 +160,14 @@ serve(async (req) => {
       } else {
         const errorText = await meResponse.text()
         userInfoError = `Status ${meResponse.status}: ${errorText.substring(0, 200)}`
-        console.error('[test-fathom-token] /me error:', userInfoError)
+
+        // 404 here can be normal depending on token type / account / endpoint availability.
+        // Keep the error for visibility, but do not treat it as a "wrong workspace" signal.
+        if (meResponse.status === 404) {
+          console.warn('[test-fathom-token] /me returned 404 (non-fatal); continuing.')
+        } else {
+          console.error('[test-fathom-token] /me error:', userInfoError)
+        }
       }
     } catch (e) {
       userInfoError = e instanceof Error ? e.message : String(e)
@@ -257,15 +269,16 @@ serve(async (req) => {
         nextCursor = responseData.next_cursor || responseData.cursor
       }
 
-      // Determine if this looks like a different workspace (low meeting count, no user info)
-      const possibleWorkspaceIssue = meetingsCount < 20 && !userInfo?.email
+      // Workspace/team detection is inherently fuzzy. Avoid false alarms.
+      // Only warn when the token returns *zero* meetings (common symptom of wrong selection)
+      // or when we cannot retrieve teams at all.
+      const possibleWorkspaceIssue =
+        meetingsCount === 0 || (!teamsInfo && !!userInfoError && userInfoError.includes('Status 404'))
 
       return new Response(
         JSON.stringify({
           success: true,
-          message: possibleWorkspaceIssue
-            ? '⚠️ Token works but may be connected to wrong workspace/team'
-            : '✅ Token is valid and working!',
+          message: '✅ Token is valid and working!',
           integration: {
             id: integrationId,
             org_id: orgId,
@@ -298,8 +311,8 @@ serve(async (req) => {
           },
           // NEW: Diagnostic warning
           diagnostic: possibleWorkspaceIssue ? {
-            warning: 'Low meeting count detected. Your Fathom account may have connected to a different workspace/team than your main recordings.',
-            suggestion: 'Please disconnect and reconnect Fathom, making sure to select the correct team/workspace during OAuth authorization.',
+            warning: 'Token returned no meetings (or team info looks unavailable). This can indicate the wrong workspace/team selection during OAuth.',
+            suggestion: 'Disconnect and reconnect Fathom, and ensure you select the correct workspace/team during authorization.',
           } : null,
         }),
         {

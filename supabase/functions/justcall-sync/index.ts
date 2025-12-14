@@ -12,6 +12,8 @@ type SyncRequest = {
   limit?: number;
   max_pages?: number;
   process_transcript_queue?: boolean;
+  from_datetime?: string; // optional override (YYYY-MM-DD HH:MM:SS)
+  to_datetime?: string;   // optional override (YYYY-MM-DD HH:MM:SS)
 };
 
 function parseListResponse(json: any): { items: any[]; next: string | null } {
@@ -37,6 +39,11 @@ function toIsoOrNull(v: any): string | null {
   const t = d.getTime();
   if (!Number.isFinite(t)) return null;
   return d.toISOString();
+}
+
+function formatJustCallDateTimeUTC(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
 }
 
 function mapCall(call: any): {
@@ -68,7 +75,8 @@ function mapCall(call: any): {
     external_id,
     direction,
     status: call?.status ? String(call.status) : null,
-    started_at: toIsoOrNull(call?.start_time ?? call?.started_at ?? call?.startedAt),
+    // "time" appears in Sales Dialer payloads
+    started_at: toIsoOrNull(call?.start_time ?? call?.started_at ?? call?.startedAt ?? call?.time),
     ended_at: toIsoOrNull(call?.end_time ?? call?.ended_at ?? call?.endedAt),
     duration_seconds,
     from_number: call?.from ? String(call.from) : call?.from_number ? String(call.from_number) : null,
@@ -78,6 +86,98 @@ function mapCall(call: any): {
     recording_url: recording_url != null ? String(recording_url) : null,
     recording_mime: call?.recording_mime ? String(call.recording_mime) : null,
   };
+}
+
+async function fetchJustCallCalls(args: {
+  apiBase: string;
+  headers: Record<string, string>;
+  fromDt: string;
+  toDt: string;
+  limit: number;
+  maxPages: number;
+}): Promise<{ calls: any[]; pages: number }> {
+  const qs = new URLSearchParams({
+    per_page: '100',
+    page: '1',
+    // Prefer explicit platform for JustCall (platform=1) to avoid pulling Sales Dialer-only data.
+    platform: '1',
+    from_datetime: args.fromDt,
+    to_datetime: args.toDt,
+  });
+
+  let pageUrl: string | null = `${args.apiBase}/v2.1/calls?${qs.toString()}`;
+  const calls: any[] = [];
+  let pages = 0;
+
+  while (pageUrl && pages < args.maxPages && calls.length < args.limit) {
+    pages++;
+    const resp = await fetch(pageUrl, { headers: args.headers });
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => '');
+      throw new Error(`JustCall calls fetch failed (${resp.status}): ${txt}`);
+    }
+    const json = await resp.json().catch(() => ({} as any));
+    const { items, next } = parseListResponse(json);
+    for (const item of items) {
+      calls.push(item);
+      if (calls.length >= args.limit) break;
+    }
+    pageUrl = next;
+  }
+
+  return { calls, pages };
+}
+
+async function fetchSalesDialerCalls(args: {
+  apiBase: string;
+  headers: Record<string, string>;
+  fromDt: string;
+  toDt: string;
+  limit: number;
+  maxPages: number;
+}): Promise<{ calls: any[]; pages: number; error: { status: number; body: string } | null }> {
+  // Sales Dialer uses a separate endpoint (v1) and returns data[].
+  const endpoint = `${args.apiBase}/v1/autodialer/calls/list`;
+  const calls: any[] = [];
+  let pages = 0;
+  let err: { status: number; body: string } | null = null;
+
+  // Convert "YYYY-MM-DD HH:MM:SS" -> "YYYY-MM-DD"
+  const start_date = args.fromDt.split(' ')[0] || args.fromDt;
+  const end_date = args.toDt.split(' ')[0] || args.toDt;
+
+  for (let page = 1; page <= args.maxPages && calls.length < args.limit; page++) {
+    pages++;
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { ...args.headers, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        start_date,
+        end_date,
+        page,
+        per_page: 100,
+        order: 1, // desc
+      }),
+    });
+
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => '');
+      err = { status: resp.status, body: txt };
+      // Don't throw: return diagnostics so the UI can instruct the user.
+      return { calls: [], pages, error: err };
+    }
+
+    const json = await resp.json().catch(() => ({} as any));
+    const items: any[] = Array.isArray(json?.data) ? json.data : [];
+    for (const item of items) {
+      calls.push(item);
+      if (calls.length >= args.limit) break;
+    }
+
+    if (items.length < 100) break;
+  }
+
+  return { calls, pages, error: err };
 }
 
 async function resolveOwnerUserId(
@@ -199,7 +299,7 @@ serve(async (req) => {
     // Ensure active integration exists
     const { data: integration } = await sb
       .from('justcall_integrations')
-      .select('id, org_id, auth_type, is_active, connected_by_user_id')
+      .select('id, org_id, auth_type, is_active, connected_by_user_id, last_sync_at')
       .eq('org_id', orgId)
       .eq('is_active', true)
       .maybeSingle();
@@ -215,26 +315,48 @@ serve(async (req) => {
     const headers = await getJustCallAuthHeaders(sb, orgId);
 
     const apiBase = (Deno.env.get('JUSTCALL_API_BASE_URL') || 'https://api.justcall.io').replace(/\/$/, '');
-    let pageUrl: string | null = `${apiBase}/v2.1/calls?per_page=100&page=1`;
 
-    const calls: any[] = [];
-    let pages = 0;
+    // JustCall supports filtering by datetime range. Default to a 30-day lookback so
+    // orgs with no very-recent calls still import successfully (common during initial setup).
+    const now = new Date();
+    const defaultFrom = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    while (pageUrl && pages < maxPages && calls.length < limit) {
-      pages++;
-      const resp = await fetch(pageUrl, { headers });
-      if (!resp.ok) {
-        const txt = await resp.text().catch(() => '');
-        throw new Error(`JustCall calls fetch failed (${resp.status}): ${txt}`);
-      }
-      const json = await resp.json().catch(() => ({} as any));
-      const { items, next } = parseListResponse(json);
-      for (const item of items) {
-        calls.push(item);
-        if (calls.length >= limit) break;
-      }
-      pageUrl = next;
-    }
+    // Incremental sync: if we have last_sync_at, start slightly earlier for overlap.
+    const lastSync = integration?.last_sync_at ? new Date(integration.last_sync_at) : null;
+    const incrementalFrom = lastSync ? new Date(lastSync.getTime() - 24 * 60 * 60 * 1000) : null;
+
+    const fromOverride = typeof body.from_datetime === 'string' ? body.from_datetime.trim() : '';
+    const toOverride = typeof body.to_datetime === 'string' ? body.to_datetime.trim() : '';
+
+    const fromDt =
+      fromOverride ||
+      (syncType === 'incremental' && incrementalFrom ? formatJustCallDateTimeUTC(incrementalFrom) : formatJustCallDateTimeUTC(defaultFrom));
+    const toDt = toOverride || formatJustCallDateTimeUTC(now);
+
+    const { calls: justcallCalls, pages: justcallPages } = await fetchJustCallCalls({
+      apiBase,
+      headers,
+      fromDt,
+      toDt,
+      limit,
+      maxPages,
+    });
+
+    const {
+      calls: salesDialerCalls,
+      pages: salesDialerPages,
+      error: salesDialerError,
+    } = await fetchSalesDialerCalls({
+      apiBase,
+      headers,
+      fromDt,
+      toDt,
+      limit,
+      maxPages,
+    });
+
+    const calls: any[] = [...justcallCalls, ...salesDialerCalls];
+    const pages = justcallPages + salesDialerPages;
 
     let callsUpserted = 0;
     let eventsLogged = 0;
@@ -433,8 +555,13 @@ serve(async (req) => {
         success: true,
         sync_type: syncType,
         org_id: orgId,
+        from_datetime: fromDt,
+        to_datetime: toDt,
         pages_fetched: pages,
         calls_found: calls.length,
+        justcall_calls_found: justcallCalls.length,
+        sales_dialer_calls_found: salesDialerCalls.length,
+        sales_dialer_error: salesDialerError,
         calls_upserted: callsUpserted,
         communication_events_logged: eventsLogged,
         transcripts_queued: transcriptsQueued,

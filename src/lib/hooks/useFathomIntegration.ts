@@ -35,6 +35,9 @@ export function useFathomIntegration() {
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
   const activeOrgRole = useOrgStore((s) => s.activeOrgRole);
   const canManage = activeOrgRole === 'owner' || activeOrgRole === 'admin';
+  // Supabase typed client in this repo does not include all integration tables.
+  // Use a narrow escape hatch for these org-scoped integration tables.
+  const supabaseAny = supabase as any;
 
   const [integration, setIntegration] = useState<FathomOrgIntegration | null>(null);
   const [syncState, setSyncState] = useState<FathomOrgSyncState | null>(null);
@@ -58,7 +61,7 @@ export function useFathomIntegration() {
         setLoading(true);
         setError(null);
         // Get active org integration
-        const { data: integrationData, error: integrationError } = await supabase
+        const { data: integrationData, error: integrationError } = await supabaseAny
           .from('fathom_org_integrations')
           .select('*')
           .eq('org_id', activeOrgId)
@@ -72,7 +75,7 @@ export function useFathomIntegration() {
 
         // Get sync state if integration exists
         if (integrationData) {
-          const { data: syncData, error: syncError } = await supabase
+          const { data: syncData, error: syncError } = await supabaseAny
             .from('fathom_org_sync_state')
             .select('*')
             .eq('org_id', activeOrgId)
@@ -85,7 +88,7 @@ export function useFathomIntegration() {
           setSyncState(syncData);
 
           // Compute lifetime count of org Fathom meetings
-          const { count, error: countError } = await supabase
+          const { count, error: countError } = await supabaseAny
             .from('meetings')
             .select('id', { count: 'exact', head: true })
             .eq('org_id', activeOrgId)
@@ -107,7 +110,7 @@ export function useFathomIntegration() {
     fetchIntegration();
 
     // Subscribe to real-time updates
-    const integrationSubscription = supabase
+    const integrationSubscription = supabaseAny
       .channel('fathom_integrations_changes')
       .on(
         'postgres_changes',
@@ -127,7 +130,7 @@ export function useFathomIntegration() {
       )
       .subscribe();
 
-    const syncSubscription = supabase
+    const syncSubscription = supabaseAny
       .channel('fathom_sync_state_changes')
       .on(
         'postgres_changes',
@@ -148,7 +151,7 @@ export function useFathomIntegration() {
       .subscribe();
 
     // Listen for new meetings to refresh lifetime count
-    const meetingsSubscription = supabase
+    const meetingsSubscription = supabaseAny
       .channel('meetings_changes')
       .on(
         'postgres_changes',
@@ -159,7 +162,7 @@ export function useFathomIntegration() {
           filter: `org_id=eq.${activeOrgId}`,
         },
         async () => {
-          const { count } = await supabase
+          const { count } = await supabaseAny
             .from('meetings')
             .select('id', { count: 'exact', head: true })
             .eq('org_id', activeOrgId)
@@ -264,7 +267,7 @@ export function useFathomIntegration() {
 
           // Refresh integration data
           try {
-            const { data: integrationData } = await supabase
+            const { data: integrationData } = await supabaseAny
               .from('fathom_org_integrations')
               .select('*')
               .eq('org_id', activeOrgId)
@@ -274,7 +277,7 @@ export function useFathomIntegration() {
             setIntegration(integrationData);
 
             // Get sync state
-            const { data: syncData } = await supabase
+            const { data: syncData } = await supabaseAny
               .from('fathom_org_sync_state')
               .select('*')
               .eq('org_id', activeOrgId)
@@ -290,8 +293,20 @@ export function useFathomIntegration() {
       return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to connect';
-      setError(msg);
-      toast.error(msg);
+      // If the org is already connected, don't poison the UI with an "error" state.
+      // The expected next action is to open Configure instead of reconnecting.
+      const alreadyConnected =
+        msg.toLowerCase().includes('already has an active fathom connection') ||
+        msg.toLowerCase().includes('integration already exists');
+
+      if (!alreadyConnected) {
+        setError(msg);
+        toast.error(msg);
+      } else {
+        // Clear any previous error and guide the user.
+        setError(null);
+        toast.info('Fathom is already connected for this organization. Open Configure to manage it.');
+      }
       return false;
     }
   };
@@ -424,7 +439,7 @@ export function useFathomIntegration() {
       });
 
       // Refresh lifetime count after sync completes
-      const { count, error: countError } = await supabase
+      const { count, error: countError } = await supabaseAny
         .from('meetings')
         .select('id', { count: 'exact', head: true })
         .eq('org_id', activeOrgId)

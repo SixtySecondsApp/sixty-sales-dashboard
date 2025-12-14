@@ -125,7 +125,26 @@ export function useJustCallIntegration() {
       });
 
       if (resp.error) throw new Error(resp.error.message || 'JustCall sync failed');
-      toast.success('JustCall sync started');
+      const result: any = resp.data || {};
+      const callsFound = Number(result.calls_found ?? result.callsFound ?? 0);
+      const callsUpserted = Number(result.calls_upserted ?? result.callsUpserted ?? 0);
+      const transcriptsQueued = Number(result.transcripts_queued ?? result.transcriptsQueued ?? 0);
+      const salesDialerErr = result.sales_dialer_error as { status?: number; body?: string } | null | undefined;
+
+      if (Number.isFinite(callsFound) && callsFound === 0) {
+        if (salesDialerErr?.status) {
+          toast.error(
+            `JustCall sync completed: 0 calls found. Sales Dialer API error (${salesDialerErr.status}). ` +
+              `This usually means missing/incorrect API Secret or Sales Dialer access.`
+          );
+        } else {
+          toast.warning('JustCall sync completed: 0 calls found. Check your JustCall account/API key or widen the backfill range.');
+        }
+      } else if (Number.isFinite(callsUpserted)) {
+        toast.success(`JustCall sync completed: ${callsUpserted} calls imported${transcriptsQueued ? `, ${transcriptsQueued} transcripts queued` : ''}.`);
+      } else {
+        toast.success('JustCall sync completed');
+      }
       await refreshStatus();
       return resp.data;
     },

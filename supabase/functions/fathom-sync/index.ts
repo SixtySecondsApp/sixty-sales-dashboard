@@ -1727,13 +1727,44 @@ async function syncSingleCall(
     }
 
     // UPSERT meeting
-    const { data: meeting, error: meetingError } = await supabase
-      .from('meetings')
-      .upsert(meetingData, {
-        onConflict: 'fathom_recording_id',
-      })
-      .select()
-      .single()
+    //
+    // Preferred (org-scoped) conflict target is: (org_id, fathom_recording_id).
+    // If the database has not yet been migrated to add the matching unique index,
+    // Postgres throws: "there is no unique or exclusion constraint matching the ON CONFLICT specification".
+    //
+    // For backwards compatibility (single-org deployments / pre-migration DBs),
+    // we retry using the legacy conflict target: (fathom_recording_id).
+    const upsertMeeting = async (onConflict: string) => {
+      return await supabase
+        .from('meetings')
+        .upsert(meetingData, { onConflict })
+        .select()
+        .single()
+    }
+
+    let meeting: any = null
+    let meetingError: any = null
+
+    ;({
+      data: meeting,
+      error: meetingError,
+    } = await upsertMeeting('org_id,fathom_recording_id'))
+
+    if (
+      meetingError &&
+      (meetingError.code === '42P10' ||
+        String(meetingError.message || '').toLowerCase().includes('on conflict specification') ||
+        String(meetingError.message || '').toLowerCase().includes('no unique'))
+    ) {
+      console.warn(
+        `[fathom-sync] Meeting upsert conflict target not supported by DB yet; retrying legacy onConflict=fathom_recording_id (org_id=${orgId || 'null'}, recording_id=${String(call.recording_id)})`
+      )
+
+      ;({
+        data: meeting,
+        error: meetingError,
+      } = await upsertMeeting('fathom_recording_id'))
+    }
 
     if (meetingError) {
       throw new Error(`Failed to upsert meeting: ${meetingError.message}`)

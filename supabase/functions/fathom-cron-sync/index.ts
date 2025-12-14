@@ -123,58 +123,58 @@ serve(async (req) => {
       }
     } else {
       // Legacy fallback (pre-org integrations): keep old behavior
-      const { data: integrations, error: integrationsError } = await supabase
-        .from('fathom_integrations')
-        .select('id, user_id, fathom_user_email, token_expires_at')
-        .eq('is_active', true)
+    const { data: integrations, error: integrationsError } = await supabase
+      .from('fathom_integrations')
+      .select('id, user_id, fathom_user_email, token_expires_at')
+      .eq('is_active', true)
 
-      if (integrationsError) {
-        throw new Error(`Failed to fetch integrations: ${integrationsError.message}`)
-      }
+    if (integrationsError) {
+      throw new Error(`Failed to fetch integrations: ${integrationsError.message}`)
+    }
 
-      if (!integrations || integrations.length === 0) {
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: 'No active integrations',
+    if (!integrations || integrations.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'No active integrations',
             results: { ...results, total: 0 },
-          }),
-          { status: 200 }
-        )
-      }
+        }),
+        { status: 200 }
+      )
+    }
 
       results.total = integrations.length
 
-      for (const integration of integrations) {
-        try {
+    for (const integration of integrations) {
+      try {
           const tokenExpiresAt = new Date((integration as any).token_expires_at)
-          const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000)
+        const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000)
 
-          if (tokenExpiresAt < oneHourFromNow) {
+        if (tokenExpiresAt < oneHourFromNow) {
             results.errors.push({ id: (integration as any).user_id, error: 'Token expires within 1 hour' })
-            results.failed++
-            continue
-          }
+          results.failed++
+          continue
+        }
 
-          const syncUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fathom-sync`
-          const syncResponse = await fetch(syncUrl, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${serviceRoleKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
+        const syncUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fathom-sync`
+        const syncResponse = await fetch(syncUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${serviceRoleKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
               sync_type: 'incremental',
               user_id: (integration as any).user_id,
-            }),
-          })
+          }),
+        })
 
-          if (!syncResponse.ok) {
-            const errorText = await syncResponse.text()
-            throw new Error(`Sync failed (${syncResponse.status}): ${errorText}`)
-          }
+        if (!syncResponse.ok) {
+          const errorText = await syncResponse.text()
+          throw new Error(`Sync failed (${syncResponse.status}): ${errorText}`)
+        }
 
-          const syncResult = await syncResponse.json()
+        const syncResult = await syncResponse.json()
           await supabase.from('cron_job_logs').insert({
             job_name: 'fathom_hourly_sync',
             user_id: (integration as any).user_id,
@@ -182,8 +182,8 @@ serve(async (req) => {
             message: `Synced ${syncResult.meetings_synced || 0} meetings`,
           })
 
-          results.successful++
-        } catch (error) {
+        results.successful++
+      } catch (error) {
           results.errors.push({ id: (integration as any).user_id, error: error instanceof Error ? error.message : 'Unknown error' })
 
           await supabase.from('cron_job_logs').insert({
@@ -194,7 +194,7 @@ serve(async (req) => {
             error_details: error instanceof Error ? error.message : 'Unknown error',
           })
 
-          results.failed++
+        results.failed++
         }
       }
     }

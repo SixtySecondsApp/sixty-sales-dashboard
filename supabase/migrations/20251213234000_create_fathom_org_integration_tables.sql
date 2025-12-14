@@ -269,3 +269,4 @@ CREATE POLICY "fathom_org_sync_state_service_update"
 COMMENT ON TABLE public.fathom_org_integrations IS 'Org-scoped Fathom integration metadata (non-sensitive).';
 COMMENT ON TABLE public.fathom_org_credentials IS 'Org-scoped Fathom OAuth credentials (service-role-only).';
 COMMENT ON TABLE public.fathom_org_sync_state IS 'Tracks org-level Fathom sync progress and metrics.';
+

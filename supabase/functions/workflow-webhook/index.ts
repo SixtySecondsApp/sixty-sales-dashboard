@@ -234,8 +234,23 @@ function extractFathomId(payload: any): string | null {
 }
 
 async function processSummaryPayload(supabase: any, payload: any, fathomId: string, userId: string) {
+  // Resolve org_id for multi-tenant uniqueness (best-effort; required for upsert conflict target)
+  const { data: membership } = await supabase
+    .from('organization_memberships')
+    .select('org_id')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  const orgId = membership?.org_id || null
+  if (!orgId) {
+    throw new Error('Missing org_id for meeting upsert')
+  }
+
   // Upsert meeting record with all summary data
   const meetingData = {
+    org_id: orgId,
     fathom_recording_id: fathomId,
     title: payload.meeting?.title || payload.meeting_title,
     share_url: payload.recording?.recording_share_url,
@@ -266,7 +281,7 @@ async function processSummaryPayload(supabase: any, payload: any, fathomId: stri
   const { data: meeting, error } = await supabase
     .from('meetings')
     .upsert(meetingData, {
-      onConflict: 'fathom_recording_id'
+      onConflict: 'org_id,fathom_recording_id'
     })
     .select()
     .single()
@@ -293,11 +308,21 @@ async function processSummaryPayload(supabase: any, payload: any, fathomId: stri
 }
 
 async function processTranscriptPayload(supabase: any, payload: any, fathomId: string, userId: string) {
+  const { data: membership } = await supabase
+    .from('organization_memberships')
+    .select('org_id')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  const orgId = membership?.org_id || null
+
   // First, ensure meeting exists
   const { data: existingMeeting } = await supabase
     .from('meetings')
     .select('id')
     .eq('fathom_recording_id', fathomId)
+    .eq('org_id', orgId)
     .single()
 
   let meetingId = existingMeeting?.id
@@ -307,6 +332,7 @@ async function processTranscriptPayload(supabase: any, payload: any, fathomId: s
     const { data: newMeeting, error } = await supabase
       .from('meetings')
       .insert({
+        org_id: orgId,
         fathom_recording_id: fathomId,
         title: payload.meeting?.title || 'Meeting Transcript',
         meeting_start: payload.meeting?.scheduled_start_time,
@@ -344,11 +370,21 @@ async function processTranscriptPayload(supabase: any, payload: any, fathomId: s
 }
 
 async function processActionItemsPayload(supabase: any, payload: any, fathomId: string, userId: string) {
+  const { data: membership } = await supabase
+    .from('organization_memberships')
+    .select('org_id')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  const orgId = membership?.org_id || null
+
   // Get meeting by Fathom ID
   const { data: meeting } = await supabase
     .from('meetings')
     .select('id')
     .eq('fathom_recording_id', fathomId)
+    .eq('org_id', orgId)
     .single()
 
   if (!meeting) {

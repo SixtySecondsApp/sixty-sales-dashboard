@@ -119,6 +119,22 @@ async function handleSummary(supabase: any, data: any) {
       }
     }
 
+    // Resolve org_id (required for multi-tenant uniqueness)
+    let orgId: string | null = null
+    if (userId) {
+      const { data: membership } = await supabase
+        .from('organization_memberships')
+        .select('org_id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      orgId = membership?.org_id || null
+    }
+    if (!orgId) {
+      throw new Error('Missing org_id for meeting upsert')
+    }
+
     // Create meeting details
     const meetingDetails = {
       shareUrl: data.recording.recording_share_url,
@@ -129,6 +145,7 @@ async function handleSummary(supabase: any, data: any) {
     const { data: meeting, error: meetingError } = await supabase
       .from('meetings')
       .upsert({
+        org_id: orgId,
         fathom_recording_id: shareId,
         title: data.meeting.title,
         share_url: data.recording.recording_share_url,
@@ -142,7 +159,7 @@ async function handleSummary(supabase: any, data: any) {
         summary: data.ai_summary,
         updated_at: new Date().toISOString()
       }, {
-        onConflict: 'fathom_recording_id'
+        onConflict: 'org_id,fathom_recording_id'
       })
       .select()
       .single()

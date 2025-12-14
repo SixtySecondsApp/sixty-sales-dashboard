@@ -151,3 +151,4 @@ BEGIN
   GET DIAGNOSTICS v_migrated_count = ROW_COUNT;
   RAISE NOTICE 'Migrated org integrations; deactivated % extra user integrations', v_migrated_count;
 END $$;
+

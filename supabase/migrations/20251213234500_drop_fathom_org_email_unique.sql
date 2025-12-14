@@ -9,3 +9,4 @@
 -- ============================================================================
 
 DROP INDEX IF EXISTS public.uq_fathom_org_integrations_active_email;
+

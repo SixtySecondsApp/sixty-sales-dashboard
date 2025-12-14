@@ -964,7 +964,7 @@ export class WorkflowTestEngine {
       // Use upsert to handle conflicts
       const { data, error } = await supabase
         .from('meetings')
-        .upsert(meetingRecord, { onConflict: 'fathom_recording_id' })
+        .upsert(meetingRecord, { onConflict: 'org_id,fathom_recording_id' })
         .select()
         .single();
 

@@ -544,7 +544,12 @@ export default function Integrations() {
     connect: connectGoogle,
   } = useGoogleIntegration();
 
-  const { isConnected: fathomConnected, loading: fathomLoading, connectFathom } = useFathomIntegration();
+  const {
+    isConnected: fathomConnected,
+    loading: fathomLoading,
+    error: fathomError,
+    connectFathom,
+  } = useFathomIntegration();
 
   const { isConnected: slackConnected, loading: slackLoading, connectSlack } = useSlackIntegration();
 
@@ -585,7 +590,11 @@ export default function Integrations() {
         if (googleStatus === 'refreshing') return 'syncing';
         return googleConnected ? 'active' : 'inactive';
       case 'fathom':
-        return fathomConnected ? 'active' : 'inactive';
+        // If we're connected, always show Active even if there was a non-fatal error
+        // (e.g. user clicked Connect again and the Edge Function returned 400 "already connected").
+        if (fathomConnected) return 'active';
+        if (fathomError) return 'error';
+        return 'inactive';
       case 'savvycal':
         return 'inactive'; // Webhook-based, always show as inactive until configured
       case 'slack':
@@ -632,6 +641,11 @@ export default function Integrations() {
           // connectFathom returns whether initiation succeeded (popup opened)
           if (await connectFathom()) {
             setActiveConnectModal(null);
+          } else {
+            // If the org is already connected, guide user to Configure instead of leaving them stuck on Connect.
+            // connectFathom() will toast an info message in this case.
+            setActiveConnectModal(null);
+            setActiveConfigModal('fathom');
           }
           break;
         case 'savvycal':

@@ -254,10 +254,20 @@ serve(async (req) => {
 
     const callFields = extractCallFields(payload);
     if (!callFields.externalId) {
-      return new Response(JSON.stringify({ success: false, error: 'Missing call id in payload' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      // Don't hard-fail the webhook if a non-call event (e.g. SMS/WhatsApp) is accidentally subscribed.
+      // Returning 2xx prevents retries and avoids JustCall marking the webhook as unhealthy.
+      return new Response(
+        JSON.stringify({
+          success: true,
+          ignored: true,
+          reason: 'missing_call_id',
+          type: payload?.type ?? null,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     // Best-effort owner mapping by agent email -> profiles.email (org scoped)
