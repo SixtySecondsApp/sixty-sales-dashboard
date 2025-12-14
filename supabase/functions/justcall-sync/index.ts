@@ -96,16 +96,18 @@ async function fetchJustCallCalls(args: {
   limit: number;
   maxPages: number;
 }): Promise<{ calls: any[]; pages: number }> {
-  const qs = new URLSearchParams({
-    per_page: '100',
-    page: '1',
-    // Prefer explicit platform for JustCall (platform=1) to avoid pulling Sales Dialer-only data.
-    platform: '1',
-    from_datetime: args.fromDt,
-    to_datetime: args.toDt,
-  });
+  // NOTE: Do NOT force platform=1 here.
+  // Some accounts primarily use Sales Dialer; those calls may be excluded by platform filters.
+  // We rely on provider mapping on our side instead.
+  const qs = new URLSearchParams();
+  qs.set('per_page', '100');
+  qs.set('page', '1');
+  qs.set('from_datetime', args.fromDt);
+  qs.set('to_datetime', args.toDt);
 
-  let pageUrl: string | null = `${args.apiBase}/v2.1/calls?${qs.toString()}`;
+  // URLSearchParams encodes spaces as '+'; some APIs are picky. Replace with '%20'.
+  const query = qs.toString().replace(/\+/g, '%20');
+  let pageUrl: string | null = `${args.apiBase}/v2.1/calls?${query}`;
   const calls: any[] = [];
   let pages = 0;
 
@@ -168,6 +170,12 @@ async function fetchSalesDialerCalls(args: {
     }
 
     const json = await resp.json().catch(() => ({} as any));
+    // Sales Dialer sometimes returns 200 with a failure payload.
+    if (typeof json?.status === 'string' && json.status.toLowerCase() !== 'success') {
+      const msg = typeof json?.message === 'string' ? json.message : JSON.stringify(json);
+      err = { status: 200, body: msg };
+      return { calls: [], pages, error: err };
+    }
     const items: any[] = Array.isArray(json?.data) ? json.data : [];
     for (const item of items) {
       calls.push(item);

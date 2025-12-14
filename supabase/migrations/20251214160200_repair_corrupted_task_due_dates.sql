@@ -64,9 +64,9 @@ repaired AS (
     -- Try to preserve original offset relative to anchor; otherwise default to +3 days
     CASE
       WHEN meeting_anchor IS NOT NULL THEN
-        NOW() + make_interval(days => GREATEST(1, LEAST(30, ROUND(EXTRACT(EPOCH FROM (original_due_date - meeting_anchor)) / 86400)::INT)))
+        NOW() + make_interval(days => GREATEST(1, LEAST(30, ROUND(EXTRACT(EPOCH FROM (due_date - meeting_anchor)) / 86400)::INT)))
       WHEN call_anchor IS NOT NULL THEN
-        NOW() + make_interval(days => GREATEST(1, LEAST(30, ROUND(EXTRACT(EPOCH FROM (original_due_date - call_anchor)) / 86400)::INT)))
+        NOW() + make_interval(days => GREATEST(1, LEAST(30, ROUND(EXTRACT(EPOCH FROM (due_date - call_anchor)) / 86400)::INT)))
       ELSE
         NOW() + INTERVAL '3 days'
     END AS new_due_date

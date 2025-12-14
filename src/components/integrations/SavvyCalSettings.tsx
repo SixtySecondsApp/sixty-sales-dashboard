@@ -3,23 +3,56 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Copy, Zap, ExternalLink, ChevronDown, ChevronUp, Calendar, CheckCircle2 } from 'lucide-react';
+import { Copy, Zap, ExternalLink, ChevronDown, ChevronUp, Calendar, CheckCircle2, Loader2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
-
-// Production webhook URL (always use the branded domain)
-const WEBHOOK_URL = 'https://use60.com/api/webhooks/savvycal';
+import { useSavvyCalIntegration } from '@/lib/hooks/useSavvyCalIntegration';
 
 export function SavvyCalSettings() {
   const [showWebhookGuide, setShowWebhookGuide] = useState(true);
 
+  const {
+    isConnected,
+    hasApiToken,
+    webhookUrl,
+    webhookVerified,
+    webhookLastReceived,
+    loading,
+    checking,
+    checkWebhook,
+    canManage,
+  } = useSavvyCalIntegration();
+
   const copyWebhookUrl = async () => {
+    if (!webhookUrl) {
+      toast.error('Webhook URL not available. Please configure SavvyCal first.');
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(WEBHOOK_URL);
+      await navigator.clipboard.writeText(webhookUrl);
       toast.success('Webhook URL copied to clipboard!');
     } catch (err) {
       toast.error('Failed to copy URL');
     }
   };
+
+  const handleCheckWebhook = async () => {
+    try {
+      await checkWebhook();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to verify webhook');
+    }
+  };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <Card className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800/50 shadow-sm dark:shadow-none dark:backdrop-blur-xl">
+        <CardContent className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800/50 shadow-sm dark:shadow-none dark:backdrop-blur-xl">
@@ -36,9 +69,22 @@ export function SavvyCalSettings() {
               </CardDescription>
             </div>
           </div>
-          <Badge variant="outline" className="text-purple-600 border-purple-600">
-            Webhook
-          </Badge>
+          <div className="flex items-center gap-2">
+            {isConnected ? (
+              <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border-0">
+                <CheckCircle2 className="w-3 h-3 mr-1" />
+                Connected
+              </Badge>
+            ) : hasApiToken ? (
+              <Badge variant="outline" className="text-amber-600 border-amber-600">
+                Configuring
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-gray-500 border-gray-400">
+                Not Connected
+              </Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -48,7 +94,15 @@ export function SavvyCalSettings() {
           <AlertDescription className="text-purple-800 dark:text-purple-200">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="font-medium">Enable instant booking sync</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Enable instant booking sync</span>
+                  {webhookVerified && (
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs">
+                      <ShieldCheck className="w-3 h-3" />
+                      Verified
+                    </span>
+                  )}
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -64,19 +118,47 @@ export function SavvyCalSettings() {
               </div>
 
               {/* Webhook URL with copy button */}
-              <div className="flex items-center gap-2 p-2 bg-white dark:bg-gray-900/50 rounded border border-purple-200 dark:border-purple-700">
-                <code className="flex-1 text-xs text-purple-900 dark:text-purple-100 break-all font-mono">
-                  {WEBHOOK_URL}
-                </code>
+              {webhookUrl ? (
+                <div className="flex items-center gap-2 p-2 bg-white dark:bg-gray-900/50 rounded border border-purple-200 dark:border-purple-700">
+                  <code className="flex-1 text-xs text-purple-900 dark:text-purple-100 break-all font-mono">
+                    {webhookUrl}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={copyWebhookUrl}
+                    className="shrink-0 text-purple-600 hover:text-purple-700 hover:bg-purple-100 dark:text-purple-400 dark:hover:bg-purple-900/30"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-xs text-gray-600 dark:text-gray-400 italic">
+                  Configure SavvyCal on the{' '}
+                  <a href="/integrations" className="text-purple-600 dark:text-purple-400 hover:underline">
+                    Integrations page
+                  </a>{' '}
+                  to get your webhook URL.
+                </div>
+              )}
+
+              {/* Verify webhook button */}
+              {hasApiToken && webhookUrl && (
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  onClick={copyWebhookUrl}
-                  className="shrink-0 text-purple-600 hover:text-purple-700 hover:bg-purple-100 dark:text-purple-400 dark:hover:bg-purple-900/30"
+                  onClick={handleCheckWebhook}
+                  disabled={checking || !canManage}
+                  className="w-full border-purple-300 dark:border-purple-700"
                 >
-                  <Copy className="w-4 h-4" />
+                  {checking ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="w-4 h-4 mr-2" />
+                  )}
+                  Verify Webhook is Installed
                 </Button>
-              </div>
+              )}
 
               {/* Collapsible Guide */}
               {showWebhookGuide && (
@@ -112,12 +194,12 @@ export function SavvyCalSettings() {
                       <span>
                         Go to your{' '}
                         <a
-                          href="https://savvycal.com/app/settings/integrations/webhooks"
+                          href="https://savvycal.com/integrations"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="underline hover:text-purple-900 dark:hover:text-purple-100 inline-flex items-center gap-1"
                         >
-                          SavvyCal Webhooks settings
+                          SavvyCal Integrations page
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       </span>

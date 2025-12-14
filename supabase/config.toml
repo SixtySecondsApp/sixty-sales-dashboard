@@ -35,3 +35,6 @@ verify_jwt = false
 # Audio proxy is consumed by <audio> tags (Range requests) so we allow token via query string
 [functions.proxy-justcall-recording]
 verify_jwt = false
+
+[functions.justcall-search]
+verify_jwt = false

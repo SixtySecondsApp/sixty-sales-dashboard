@@ -6,6 +6,9 @@
  *
  * Branded URL: https://use60.com/api/webhooks/savvycal
  * Proxies to: {SUPABASE_URL}/functions/v1/savvycal-leads-webhook
+ *
+ * External-ready: Supports org-specific webhook tokens via ?token= query param.
+ * Legacy mode: If no token, falls back to global webhook secret for existing installs.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -38,6 +41,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new Error('Webhook endpoint not configured');
     }
 
+    // Extract org webhook token from query params (external-ready)
+    const orgToken = typeof req.query.token === 'string' ? req.query.token : null;
+
     // Get the raw body for signature verification
     const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
 
@@ -58,10 +64,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       forwardHeaders['SavvyCal-Signature'] = sig;
     }
 
-    // Proxy to Supabase Edge Function
-    const edgeFunctionUrl = `${supabaseUrl}/functions/v1/savvycal-leads-webhook`;
+    // Build edge function URL with optional token
+    let edgeFunctionUrl = `${supabaseUrl}/functions/v1/savvycal-leads-webhook`;
+    if (orgToken) {
+      edgeFunctionUrl += `?token=${encodeURIComponent(orgToken)}`;
+    }
 
-    console.log(`[savvycal-webhook-proxy] Forwarding webhook to ${edgeFunctionUrl}`);
+    console.log(`[savvycal-webhook-proxy] Forwarding webhook to ${edgeFunctionUrl}${orgToken ? ' (org-token)' : ' (legacy)'}`);
 
     const response = await fetch(edgeFunctionUrl, {
       method: 'POST',

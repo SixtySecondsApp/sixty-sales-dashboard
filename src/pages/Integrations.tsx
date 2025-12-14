@@ -38,6 +38,7 @@ import { useGoogleIntegration } from '@/lib/stores/integrationStore';
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
 import { useSlackIntegration } from '@/lib/hooks/useSlackIntegration';
 import { useJustCallIntegration } from '@/lib/hooks/useJustCallIntegration';
+import { useSavvyCalIntegration } from '@/lib/hooks/useSavvyCalIntegration';
 import { getIntegrationDomain, getLogoS3Url, useIntegrationLogo } from '@/lib/hooks/useIntegrationLogo';
 import { useUser } from '@/lib/hooks/useUser';
 import { IntegrationVoteState, useIntegrationUpvotes } from '@/lib/hooks/useIntegrationUpvotes';
@@ -555,6 +556,8 @@ export default function Integrations() {
 
   const { isConnected: justcallConnected, loading: justcallLoading } = useJustCallIntegration();
 
+  const { isConnected: savvycalConnected, loading: savvycalLoading, hasApiToken: savvycalHasApiToken } = useSavvyCalIntegration();
+
   // Modal states
   const [activeConnectModal, setActiveConnectModal] = useState<string | null>(null);
   const [activeConfigModal, setActiveConfigModal] = useState<string | null>(null);
@@ -596,7 +599,10 @@ export default function Integrations() {
         if (fathomError) return 'error';
         return 'inactive';
       case 'savvycal':
-        return 'inactive'; // Webhook-based, always show as inactive until configured
+        // Show as active if connected (has API token), syncing if API token exists but webhook not verified
+        if (savvycalConnected) return 'active';
+        if (savvycalHasApiToken) return 'syncing';
+        return 'inactive';
       case 'slack':
         return slackConnected ? 'active' : 'inactive';
       case 'justcall':
@@ -682,8 +688,9 @@ export default function Integrations() {
       fathom: fathomLoading,
       slack: slackLoading,
       justcall: justcallLoading,
+      savvycal: savvycalLoading,
     }),
-    [googleLoading, fathomLoading, slackLoading, justcallLoading]
+    [googleLoading, fathomLoading, slackLoading, justcallLoading, savvycalLoading]
   );
 
   // Preload cached S3 logo URLs on page load to prevent any visible swap/flicker.

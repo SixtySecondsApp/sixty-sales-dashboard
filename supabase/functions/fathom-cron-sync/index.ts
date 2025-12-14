@@ -10,19 +10,30 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
  */
 serve(async (req) => {
   try {
-    // Verify this is an internal cron request (basic security)
-    const authHeader = req.headers.get('Authorization')
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    // Authorize request as service-role.
+    //
+    // Previously this function compared the Authorization header to an env var (SUPABASE_SERVICE_ROLE_KEY).
+    // That is brittle because Supabase now supports multiple key formats (e.g. sb_secret_* and JWT) and
+    // secret UIs can introduce whitespace.
+    //
+    // Instead, validate the provided Bearer token by calling an admin-only endpoint. If it succeeds,
+    // the request is authorized and we use the provided token for all downstream Supabase calls.
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const authHeader = (req.headers.get('Authorization') ?? '').trim()
+    const providedToken = authHeader.toLowerCase().startsWith('bearer ')
+      ? authHeader.slice('Bearer '.length).trim()
+      : ''
 
-    if (!authHeader || !serviceRoleKey || authHeader.trim() !== `Bearer ${serviceRoleKey}`) {
+    if (!supabaseUrl || !providedToken) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized: Cron jobs must use service role key' }),
         { status: 401 }
       )
     }
+
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      supabaseUrl,
+      providedToken,
       {
         auth: {
           persistSession: false,
@@ -30,6 +41,17 @@ serve(async (req) => {
         }
       }
     )
+
+    // Admin-only probe to confirm this token is service role.
+    const { error: adminProbeError } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1 })
+    if (adminProbeError) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: Cron jobs must use service role key' }),
+        { status: 401 }
+      )
+    }
+
+    const serviceRoleKey = providedToken
 
     // Prefer org-scoped integrations
     const { data: orgIntegrations, error: orgIntegrationsError } = await supabase
@@ -48,6 +70,17 @@ serve(async (req) => {
       total: useOrgMode ? (orgIntegrations?.length || 0) : 0,
       successful: 0,
       failed: 0,
+      // Per-org/user detail so callers can see "0 meetings found" vs real failures.
+      details: [] as Array<{
+        id: string
+        sync_type: 'incremental' | 'manual'
+        meetings_synced: number
+        total_meetings_found: number
+        errors_count: number
+        errors_sample?: Array<{ call_id: string; error: string }>
+        db_meetings_total?: number
+        db_meetings_last_90d?: number
+      }>,
       errors: [] as Array<{ id: string; error: string }>,
     }
 
@@ -59,6 +92,26 @@ serve(async (req) => {
         const logUserId = (integration as any).connected_by_user_id as string | null
 
         try {
+          // Decide whether we need a catch-up sync.
+          // If the last successful sync is old/missing, run a manual (last-30-days) sync once
+          // to backfill meetings that were missed while cron/webhook were broken.
+          let syncType: 'incremental' | 'manual' = 'incremental'
+          try {
+            const { data: state } = await supabase
+              .from('fathom_org_sync_state')
+              .select('last_successful_sync')
+              .eq('org_id', orgId)
+              .maybeSingle()
+
+            const last = state?.last_successful_sync ? new Date(state.last_successful_sync) : null
+            const ageHours = last ? (Date.now() - last.getTime()) / (1000 * 60 * 60) : Infinity
+            if (!isFinite(ageHours) || ageHours > 36) {
+              syncType = 'manual'
+            }
+          } catch {
+            // If we can't read sync state for any reason, default to incremental.
+          }
+
           const { data: creds, error: credsError } = await supabase
             .from('fathom_org_credentials')
             .select('token_expires_at')
@@ -71,13 +124,11 @@ serve(async (req) => {
             continue
           }
 
-          const tokenExpiresAt = new Date(creds.token_expires_at)
-          const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000)
-          if (tokenExpiresAt < oneHourFromNow) {
-            results.errors.push({ id: orgId, error: 'Token expires within 1 hour' })
-            results.failed++
-            continue
-          }
+          // NOTE:
+          // Access tokens typically expire in ~1 hour. A previous implementation blocked syncing
+          // if token_expires_at was within 1 hour, which effectively disabled cron syncing for
+          // most orgs. The downstream `fathom-sync` function already refreshes tokens as needed,
+          // so we should always attempt the sync.
 
           const syncUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fathom-sync`
           const syncResponse = await fetch(syncUrl, {
@@ -87,7 +138,7 @@ serve(async (req) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              sync_type: 'incremental',
+              sync_type: syncType,
               org_id: orgId,
             }),
           })
@@ -104,6 +155,40 @@ serve(async (req) => {
             user_id: logUserId,
             status: 'success',
             message: `Org ${orgId}: Synced ${syncResult.meetings_synced || 0} meetings`,
+          })
+
+          // Optional: count meetings in DB for sanity (service role only).
+          let dbTotal: number | undefined
+          let dbLast90d: number | undefined
+          try {
+            const { count: c1 } = await supabase
+              .from('meetings')
+              .select('id', { count: 'exact', head: true })
+              .eq('org_id', orgId)
+              .not('fathom_recording_id', 'is', null)
+            if (typeof c1 === 'number') dbTotal = c1
+
+            const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+            const { count: c2 } = await supabase
+              .from('meetings')
+              .select('id', { count: 'exact', head: true })
+              .eq('org_id', orgId)
+              .not('fathom_recording_id', 'is', null)
+              .gte('meeting_start', since)
+            if (typeof c2 === 'number') dbLast90d = c2
+          } catch {
+            // ignore counting errors (non-fatal)
+          }
+
+          results.details.push({
+            id: orgId,
+            sync_type: syncType,
+            meetings_synced: Number(syncResult.meetings_synced || 0),
+            total_meetings_found: Number(syncResult.total_meetings_found || 0),
+            errors_count: Array.isArray(syncResult.errors) ? syncResult.errors.length : 0,
+            errors_sample: Array.isArray(syncResult.errors) ? syncResult.errors.slice(0, 3) : undefined,
+            db_meetings_total: dbTotal,
+            db_meetings_last_90d: dbLast90d,
           })
 
           results.successful++
@@ -147,14 +232,27 @@ serve(async (req) => {
 
     for (const integration of integrations) {
       try {
-          const tokenExpiresAt = new Date((integration as any).token_expires_at)
-        const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000)
+        let syncType: 'incremental' | 'manual' = 'incremental'
+        // If a user hasn't synced recently, do a manual backfill (last 30 days)
+        try {
+          const { data: state } = await supabase
+            .from('fathom_sync_state')
+            .select('last_sync_completed_at')
+            .eq('user_id', (integration as any).user_id)
+            .maybeSingle()
 
-        if (tokenExpiresAt < oneHourFromNow) {
-            results.errors.push({ id: (integration as any).user_id, error: 'Token expires within 1 hour' })
-          results.failed++
-          continue
+          const last = state?.last_sync_completed_at ? new Date(state.last_sync_completed_at) : null
+          const ageHours = last ? (Date.now() - last.getTime()) / (1000 * 60 * 60) : Infinity
+          if (!isFinite(ageHours) || ageHours > 36) {
+            syncType = 'manual'
+          }
+        } catch {
+          // ignore
         }
+
+        // NOTE:
+        // Access tokens typically expire in ~1 hour. Blocking sync when within 1 hour effectively
+        // disables cron syncing. Let `fathom-sync` refresh tokens as needed.
 
         const syncUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fathom-sync`
         const syncResponse = await fetch(syncUrl, {
@@ -164,7 +262,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-              sync_type: 'incremental',
+              sync_type: syncType,
               user_id: (integration as any).user_id,
           }),
         })
@@ -181,6 +279,15 @@ serve(async (req) => {
             status: 'success',
             message: `Synced ${syncResult.meetings_synced || 0} meetings`,
           })
+
+        results.details.push({
+          id: String((integration as any).user_id),
+          sync_type: syncType,
+          meetings_synced: Number(syncResult.meetings_synced || 0),
+          total_meetings_found: Number(syncResult.total_meetings_found || 0),
+          errors_count: Array.isArray(syncResult.errors) ? syncResult.errors.length : 0,
+          errors_sample: Array.isArray(syncResult.errors) ? syncResult.errors.slice(0, 3) : undefined,
+        })
 
         results.successful++
       } catch (error) {

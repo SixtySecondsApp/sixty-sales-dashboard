@@ -176,6 +176,7 @@ const SlackDemo = lazyWithRetry(() => import('@/pages/admin/SlackDemo'));
 // Meeting Intelligence demo
 const MeetingIntelligenceDemo = lazyWithRetry(() => import('@/pages/admin/MeetingIntelligenceDemo'));
 const MeetingIntelligenceDemoSimple = lazyWithRetry(() => import('@/pages/admin/MeetingIntelligenceDemoSimple'));
+const TasksDemo = lazyWithRetry(() => import('@/pages/admin/TasksDemo'));
 
 // Cron Jobs Admin
 const CronJobsAdmin = lazyWithRetry(() => import('@/pages/admin/CronJobsAdmin'));
@@ -491,6 +492,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/meeting-intelligence-demo" element={<InternalRouteGuard><AppLayout><MeetingIntelligenceDemo /></AppLayout></InternalRouteGuard>} />
                 {/* Lightweight import test page (internal-only) */}
                 <Route path="/platform/meeting-intelligence-demo-simple" element={<InternalRouteGuard><AppLayout><MeetingIntelligenceDemoSimple /></AppLayout></InternalRouteGuard>} />
+                {/* Tasks demo (internal-only): validate AI extraction + task creation */}
+                <Route path="/platform/tasks-demo" element={<InternalRouteGuard><AppLayout><TasksDemo /></AppLayout></InternalRouteGuard>} />
                 {/* Platform Dashboard - MUST be last (catch-all for /platform) */}
                 <Route path="/platform" element={<PlatformAdminRouteGuard><AppLayout><PlatformDashboard /></AppLayout></PlatformAdminRouteGuard>} />
 

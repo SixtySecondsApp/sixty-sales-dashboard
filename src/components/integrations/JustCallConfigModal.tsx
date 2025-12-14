@@ -48,6 +48,9 @@ export function JustCallConfigModal({ open, onOpenChange }: JustCallConfigModalP
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [debugCallSid, setDebugCallSid] = useState('');
+  const [debugResult, setDebugResult] = useState<string>('');
+  const [debugging, setDebugging] = useState(false);
 
   const copyWebhook = async () => {
     if (!webhookUrl) return;
@@ -91,6 +94,25 @@ export function JustCallConfigModal({ open, onOpenChange }: JustCallConfigModalP
       toast.error(e?.message || 'Disconnect failed');
     } finally {
       setDisconnecting(false);
+    }
+  };
+
+  const handleDebugSearch = async () => {
+    const sid = debugCallSid.trim();
+    if (!sid) return;
+    setDebugging(true);
+    setDebugResult('');
+    try {
+      const resp = await supabase.functions.invoke('justcall-search', {
+        body: { call_sid: sid },
+      });
+      if (resp.error) throw new Error(resp.error.message || 'Search failed');
+      setDebugResult(JSON.stringify(resp.data, null, 2));
+    } catch (e: any) {
+      setDebugResult(JSON.stringify({ success: false, error: e?.message || 'Search failed' }, null, 2));
+      toast.error(e?.message || 'Search failed');
+    } finally {
+      setDebugging(false);
     }
   };
 
@@ -222,6 +244,32 @@ export function JustCallConfigModal({ open, onOpenChange }: JustCallConfigModalP
         confirmDisabled={!canManage || disconnecting}
         icon={<Link2Off className="w-4 h-4" />}
       />
+
+      {canManage ? (
+        <ConfigSection title="Debug: find a call by SID">
+          <div className="space-y-3">
+            <div className="text-sm text-gray-700 dark:text-gray-300">
+              Paste a JustCall/Sales Dialer <span className="font-mono">Call SID</span> (e.g. <span className="font-mono">CA…</span>) to confirm the API can see it.
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                value={debugCallSid}
+                onChange={(e) => setDebugCallSid(e.target.value)}
+                placeholder="CA2bbf0812c3e64d430dd98e66d350118e"
+                className="font-mono text-xs"
+              />
+              <Button type="button" variant="outline" onClick={handleDebugSearch} disabled={debugging || !debugCallSid.trim()}>
+                {debugging ? 'Searching…' : 'Search'}
+              </Button>
+            </div>
+            {debugResult ? (
+              <pre className="max-h-64 overflow-auto rounded-lg border border-slate-200/70 dark:border-white/10 bg-slate-950/5 dark:bg-black/20 p-3 text-xs text-slate-800 dark:text-slate-200">
+                {debugResult}
+              </pre>
+            ) : null}
+          </div>
+        </ConfigSection>
+      ) : null}
     </ConfigureModal>
   );
 }

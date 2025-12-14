@@ -19,6 +19,7 @@ import { useOrg } from '@/lib/contexts/OrgContext';
 import { useUserPermissions } from '@/contexts/UserPermissionsContext';
 import { useMemo } from 'react';
 import { useSlackOrgSettings } from '@/lib/hooks/useSlackSettings';
+import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
 import {
   User,
   Palette,
@@ -52,6 +53,9 @@ export default function Settings() {
   const { isPlatformAdmin } = useUserPermissions();
   const { data: slackOrgSettings, isLoading: slackOrgLoading, error: slackOrgError } = useSlackOrgSettings();
   const isSlackConnected = !slackOrgLoading && !slackOrgError && slackOrgSettings?.is_connected === true;
+  
+  const { isConnected: isFathomConnected, loading: fathomLoading } = useFathomIntegration();
+  const showFathomSettings = !fathomLoading && isFathomConnected;
 
   const allSettingsSections: SettingsSection[] = [
     {
@@ -175,23 +179,28 @@ export default function Settings() {
       if (section.id === 'slack') {
         return isSlackConnected;
       }
+      // Meeting Sync settings should only appear when Fathom is connected.
+      if (section.id === 'meeting-sync') {
+        return showFathomSettings;
+      }
       if (section.requiresOrgAdmin) {
         // Allow org admins AND platform admins to see team settings
         return permissions.canManageTeam || permissions.canManageSettings || isPlatformAdmin;
       }
       return true;
     });
-  }, [allSettingsSections, permissions, isPlatformAdmin, isSlackConnected]);
+  }, [allSettingsSections, permissions, isPlatformAdmin, isSlackConnected, showFathomSettings]);
 
   const categories = useMemo(() => {
     const personalSections = settingsSections.filter(s =>
       ['account', 'appearance'].includes(s.id)
     );
     const aiSections = settingsSections.filter(s =>
-      ['ai-personalization', 'sales-coaching', 'api-keys', 'follow-ups', 'task-sync', 'meeting-sync', 'call-types'].includes(s.id)
+      ['ai-personalization', 'sales-coaching', 'api-keys', 'follow-ups', 'task-sync', 'call-types'].includes(s.id)
     );
+    // Meeting Sync is now under Integrations (only shown when Fathom is connected)
     const integrationSections = settingsSections.filter(s =>
-      ['email-sync', 'slack'].includes(s.id)
+      ['email-sync', 'slack', 'meeting-sync'].includes(s.id)
     );
     const teamSections = settingsSections.filter(s =>
       ['team-members', 'organization', 'branding', 'billing'].includes(s.id)

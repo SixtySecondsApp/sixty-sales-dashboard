@@ -12,18 +12,31 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Verify cron secret
+  // Verify cron secret OR allow Vercel Cron header.
+  // IMPORTANT: Vercel Cron calls do NOT include our custom x-cron-secret header.
+  // If CRON_SECRET is set and we require it unconditionally, the cron job will 401
+  // and background meeting sync will silently stop.
   const cronSecret = process.env.CRON_SECRET;
   const providedSecret = req.headers['x-cron-secret'] || (req.query?.secret as string);
 
+  const cronHeader = req.headers['x-vercel-cron'];
+
+  // If a CRON_SECRET is configured, require either:
+  // - matching secret (manual trigger), OR
+  // - Vercel Cron header (scheduled trigger)
   if (cronSecret && providedSecret !== cronSecret) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    if (!cronHeader) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
   }
 
-  // Verify this is a Vercel cron job
-  const cronHeader = req.headers['x-vercel-cron'];
+  // If no CRON_SECRET is configured, still require *some* auth signal:
+  // - Vercel Cron header, OR
+  // - a provided secret (useful for local/manual testing)
   if (!cronHeader && !providedSecret) {
-    return res.status(401).json({ error: 'Unauthorized: Must be called by Vercel cron or with secret' });
+    return res.status(401).json({
+      error: 'Unauthorized: Must be called by Vercel cron or with secret',
+    });
   }
 
   try {
@@ -52,7 +65,18 @@ export default async function handler(req: any, res: any) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Edge function error: ${response.status} - ${errorText}`);
+      // Help debugging env mismatches without exposing secrets.
+      // Common root cause: Vercel SUPABASE_SERVICE_ROLE_KEY doesn't match the Supabase project at SUPABASE_URL.
+      const supabaseHost = (() => {
+        try {
+          return new URL(supabaseUrl).host;
+        } catch {
+          return supabaseUrl;
+        }
+      })();
+      throw new Error(
+        `Edge function error: ${response.status} - ${errorText} (supabase_host=${supabaseHost})`
+      );
     }
 
     const data = await response.json();

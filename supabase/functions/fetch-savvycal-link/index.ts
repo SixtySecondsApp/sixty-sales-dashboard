@@ -1,10 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { getUserOrgId, requireOrgRole } from "../_shared/edgeAuth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const SAVVYCAL_API_TOKEN = Deno.env.get("SAVVYCAL_API_TOKEN") ?? 
+// Legacy fallback token (for backwards compatibility)
+const LEGACY_SAVVYCAL_API_TOKEN = Deno.env.get("SAVVYCAL_API_TOKEN") ?? 
                           Deno.env.get("SAVVYCAL_SECRET_KEY") ?? "";
 
 const JSON_HEADERS = {
@@ -28,16 +30,7 @@ serve(async (req) => {
   }
 
   try {
-    if (!SAVVYCAL_API_TOKEN) {
-      return new Response(
-        JSON.stringify({ 
-          error: "SavvyCal API token not configured. Set SAVVYCAL_API_TOKEN environment variable." 
-        }),
-        { status: 500, headers: JSON_HEADERS }
-      );
-    }
-
-    const { link_id } = await req.json();
+    const { link_id, org_id: explicitOrgId } = await req.json();
 
     if (!link_id) {
       return new Response(
@@ -46,10 +39,71 @@ serve(async (req) => {
       );
     }
 
+    // Initialize clients
+    const anon = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
+      global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
+    });
+    const service = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    // Try to get authenticated user
+    const { data: authData } = await anon.auth.getUser();
+    const user = authData?.user;
+
+    let apiToken: string | null = null;
+    let orgId: string | null = explicitOrgId ?? null;
+
+    // If user is authenticated, get their org's API token
+    if (user) {
+      if (!orgId) {
+        orgId = await getUserOrgId(service, user.id);
+      }
+
+      if (orgId) {
+        // Verify user is org admin/owner for this operation
+        await requireOrgRole(service, orgId, user.id, ["owner", "admin", "member"]);
+
+        // Get org's SavvyCal integration
+        const { data: integration } = await service
+          .from("savvycal_integrations")
+          .select("id")
+          .eq("org_id", orgId)
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (integration) {
+          const { data: secrets } = await service
+            .from("savvycal_integration_secrets")
+            .select("api_token")
+            .eq("integration_id", integration.id)
+            .maybeSingle();
+
+          if (secrets?.api_token) {
+            apiToken = secrets.api_token;
+          }
+        }
+      }
+    }
+
+    // Fall back to legacy global token if no org token found
+    if (!apiToken) {
+      apiToken = LEGACY_SAVVYCAL_API_TOKEN;
+    }
+
+    if (!apiToken) {
+      return new Response(
+        JSON.stringify({ 
+          error: "SavvyCal API token not configured. Please configure your SavvyCal integration or set SAVVYCAL_API_TOKEN environment variable." 
+        }),
+        { status: 500, headers: JSON_HEADERS }
+      );
+    }
+
     // Fetch link details from SavvyCal API
     const response = await fetch(`https://api.savvycal.com/v1/links/${link_id}`, {
       headers: {
-        Authorization: `Bearer ${SAVVYCAL_API_TOKEN}`,
+        Authorization: `Bearer ${apiToken}`,
         Accept: "application/json",
       },
     });
@@ -94,6 +148,7 @@ serve(async (req) => {
           description: link.description,
           url: link.url || `https://savvycal.com/${link.slug}`,
         },
+        org_id: orgId,
       }),
       { status: 200, headers: JSON_HEADERS }
     );
@@ -106,8 +161,3 @@ serve(async (req) => {
     );
   }
 });
-
-
-
-
-

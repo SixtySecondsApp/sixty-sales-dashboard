@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit, Save, XCircle, Upload, Search, Copy, Zap, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, Edit, Save, XCircle, Upload, Search, Copy, Zap, ExternalLink, ChevronDown, ChevronUp, Loader2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,10 +11,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useUser } from '@/lib/hooks/useUser';
 import { useOrg } from '@/lib/contexts/OrgContext';
+import { useSavvyCalIntegration } from '@/lib/hooks/useSavvyCalIntegration';
 import logger from '@/lib/utils/logger';
-
-// Production webhook URL (always use the branded domain)
-const WEBHOOK_URL = 'https://use60.com/api/webhooks/savvycal';
 
 type BookingSource = {
   id: string;
@@ -75,12 +73,34 @@ export default function SettingsSavvyCal() {
   const [lastFetchedLinkId, setLastFetchedLinkId] = useState<string | null>(null);
   const [showWebhookGuide, setShowWebhookGuide] = useState(true);
 
+  // Use org-specific SavvyCal integration
+  const {
+    webhookUrl,
+    webhookVerified,
+    hasApiToken,
+    checking: webhookChecking,
+    checkWebhook,
+    canManage,
+  } = useSavvyCalIntegration();
+
   const copyWebhookUrl = async () => {
+    if (!webhookUrl) {
+      toast.error('Webhook URL not available. Please configure SavvyCal on the Integrations page first.');
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(WEBHOOK_URL);
+      await navigator.clipboard.writeText(webhookUrl);
       toast.success('Webhook URL copied to clipboard!');
     } catch (err) {
       toast.error('Failed to copy URL');
+    }
+  };
+
+  const handleCheckWebhook = async () => {
+    try {
+      await checkWebhook();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to verify webhook');
     }
   };
 
@@ -749,20 +769,56 @@ export default function SettingsSavvyCal() {
               </p>
 
               {/* Webhook URL with Copy Button */}
-              <div className="flex items-center gap-2">
-                <div className="flex-1 bg-white dark:bg-slate-800 rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 font-mono text-sm text-gray-800 dark:text-gray-200 overflow-x-auto">
-                  {WEBHOOK_URL}
+              {webhookUrl ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-white dark:bg-slate-800 rounded-md border border-gray-300 dark:border-slate-600 px-3 py-2 font-mono text-sm text-gray-800 dark:text-gray-200 overflow-x-auto">
+                      {webhookUrl}
+                    </div>
+                    <Button
+                      onClick={copyWebhookUrl}
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 gap-2 border-purple-400 dark:border-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copy
+                    </Button>
+                  </div>
+                  {webhookVerified && (
+                    <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Webhook verified in SavvyCal</span>
+                    </div>
+                  )}
+                  {hasApiToken && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCheckWebhook}
+                      disabled={webhookChecking || !canManage}
+                      className="mt-2"
+                    >
+                      {webhookChecking ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <ShieldCheck className="w-4 h-4 mr-2" />
+                      )}
+                      Verify Webhook is Installed
+                    </Button>
+                  )}
                 </div>
-                <Button
-                  onClick={copyWebhookUrl}
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 gap-2 border-purple-400 dark:border-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30"
-                >
-                  <Copy className="h-4 w-4" />
-                  Copy
-                </Button>
-              </div>
+              ) : (
+                <Alert className="bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-700">
+                  <AlertDescription className="text-amber-800 dark:text-amber-200 text-sm">
+                    <strong>Webhook URL not available.</strong> Please configure your SavvyCal API token on the{' '}
+                    <a href="/integrations" className="underline hover:text-amber-900 dark:hover:text-amber-100">
+                      Integrations page
+                    </a>{' '}
+                    to get your organization's unique webhook URL.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               {showWebhookGuide && (
                 <div className="mt-4 pt-4 border-t border-purple-200 dark:border-purple-700 space-y-3">
@@ -771,12 +827,12 @@ export default function SettingsSavvyCal() {
                     <li>
                       Go to{' '}
                       <a
-                        href="https://savvycal.com/settings/integrations"
+                        href="https://savvycal.com/integrations"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-purple-700 dark:text-purple-400 hover:underline inline-flex items-center gap-1"
                       >
-                        SavvyCal Settings → Integrations
+                        SavvyCal Integrations page
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     </li>

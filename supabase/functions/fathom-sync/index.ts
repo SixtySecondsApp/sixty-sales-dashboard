@@ -471,8 +471,35 @@ serve(async (req) => {
 
     // Determine caller context
     const authHeaderRaw = req.headers.get('Authorization')?.trim() || ''
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-    const isServiceRoleCall = !!serviceRoleKey && authHeaderRaw === `Bearer ${serviceRoleKey}`
+    const serviceRoleKey = (Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '').trim()
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+
+    const bearerToken =
+      authHeaderRaw.toLowerCase().startsWith('bearer ')
+        ? authHeaderRaw.slice('Bearer '.length).trim()
+        : ''
+
+    // IMPORTANT:
+    // Supabase service-role keys can be stored/represented in different formats (JWT vs `sb_secret_*`)
+    // and env UIs sometimes introduce whitespace. Relying on a strict string match can break internal
+    // calls (cron/webhooks) and cause "Unauthorized: Invalid token" errors when we incorrectly treat
+    // service-role calls as end-user calls.
+    //
+    // We first try the fast path (exact match to env key). If that fails, we verify service-role by
+    // probing an admin-only endpoint using the provided Bearer token.
+    let isServiceRoleCall = !!serviceRoleKey && !!bearerToken && bearerToken === serviceRoleKey
+
+    if (!isServiceRoleCall && bearerToken && supabaseUrl) {
+      try {
+        const probe = createClient(supabaseUrl, bearerToken, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        })
+        const { error: probeError } = await probe.auth.admin.listUsers({ page: 1, perPage: 1 })
+        if (!probeError) isServiceRoleCall = true
+      } catch {
+        // ignore probe failures; treat as non-service-role
+      }
+    }
 
     // Resolve org/user from body and/or auth
     let userId: string | null = null
@@ -1573,27 +1600,132 @@ async function syncSingleCall(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Call object already contains all necessary data from bulk API
-    // Helper: resolve the meeting owner user by email (robust across payload variants)
+    
+    // Helper: resolve owner from fathom_user_mappings table first (new mapping system)
+    async function resolveOwnerFromFathomMapping(email: string | null | undefined): Promise<string | null> {
+      if (!email || !orgId) return null
+      try {
+        const normalizedEmail = email.toLowerCase().trim()
+        const { data: mapping, error } = await supabase
+          .from('fathom_user_mappings')
+          .select('sixty_user_id')
+          .eq('org_id', orgId)
+          .eq('fathom_user_email', normalizedEmail)
+          .maybeSingle()
+        
+        if (!error && mapping?.sixty_user_id) {
+          console.log(`[fathom-sync] Resolved owner via fathom_user_mappings: ${email} -> ${mapping.sixty_user_id}`)
+          return mapping.sixty_user_id
+        }
+      } catch (e) {
+        console.warn(`[fathom-sync] Error checking fathom_user_mappings:`, e)
+      }
+      return null
+    }
+
+    // Helper: resolve the meeting owner user by email via profiles (legacy fallback)
     async function resolveOwnerUserIdFromEmail(email: string | null | undefined): Promise<string | null> {
       if (!email) return null
+      const normalizedEmail = email.toLowerCase().trim()
       try {
         // Query profiles table (auth.users is not directly accessible in edge functions)
+        // Use maybeSingle() instead of single() to avoid throwing when no row exists
         const { data: prof, error: profError } = await supabase
           .from('profiles')
           .select('id, email, first_name, last_name')
-          .eq('email', email)
-          .single()
+          .eq('email', normalizedEmail)
+          .maybeSingle()
+
+        if (profError) {
+          console.warn(`[fathom-sync] Error looking up profile for ${normalizedEmail}:`, profError.message)
+          return null
+        }
 
         if (prof?.id) {
           const fullName = [prof.first_name, prof.last_name].filter(Boolean).join(' ') || prof.email
+          console.log(`[fathom-sync] Found profile for ${normalizedEmail}: ${fullName} (${prof.id})`)
           return prof.id
         }
 
-        if (profError) {
-        }
+        console.log(`[fathom-sync] No profile found for email: ${normalizedEmail}`)
       } catch (e) {
+        console.error(`[fathom-sync] Exception looking up profile for ${normalizedEmail}:`, e)
       }
       return null
+    }
+
+    // Helper: upsert fathom_user_mappings row for discovered owner emails
+    // This populates the mapping table for the admin UI even if not yet mapped
+    async function upsertFathomUserMapping(
+      email: string,
+      name: string | null,
+      sixtyUserId: string | null,
+      isAutoMatched: boolean
+    ): Promise<void> {
+      if (!orgId) return
+      try {
+        const normalizedEmail = email.toLowerCase().trim()
+        
+        // First check if a mapping already exists
+        const { data: existingMapping, error: lookupError } = await supabase
+          .from('fathom_user_mappings')
+          .select('id, sixty_user_id')
+          .eq('org_id', orgId)
+          .eq('fathom_user_email', normalizedEmail)
+          .maybeSingle()
+        
+        if (lookupError) {
+          console.warn(`[fathom-sync] Error looking up fathom_user_mappings for ${normalizedEmail}:`, lookupError.message)
+        }
+        
+        if (existingMapping) {
+          // Mapping exists - only update last_seen_at (and name if provided)
+          // IMPORTANT: Don't overwrite sixty_user_id if it's already set (manual or auto-mapped)
+          const updateData: Record<string, any> = {
+            last_seen_at: new Date().toISOString(),
+          }
+          if (name) {
+            updateData.fathom_user_name = name
+          }
+          // Only update sixty_user_id if it's currently null AND we have a new value
+          if (!existingMapping.sixty_user_id && sixtyUserId) {
+            updateData.sixty_user_id = sixtyUserId
+            updateData.is_auto_matched = isAutoMatched
+            console.log(`[fathom-sync] Auto-mapping ${normalizedEmail} -> ${sixtyUserId}`)
+          }
+          
+          const { error: updateError } = await supabase
+            .from('fathom_user_mappings')
+            .update(updateData)
+            .eq('id', existingMapping.id)
+          
+          if (updateError) {
+            console.warn(`[fathom-sync] Error updating fathom_user_mappings for ${normalizedEmail}:`, updateError.message)
+          } else {
+            console.log(`[fathom-sync] Updated fathom_user_mappings: ${normalizedEmail}`)
+          }
+        } else {
+          // No existing mapping - insert new row
+          const { error: insertError } = await supabase
+            .from('fathom_user_mappings')
+            .insert({
+              org_id: orgId,
+              fathom_user_email: normalizedEmail,
+              fathom_user_name: name,
+              sixty_user_id: sixtyUserId,
+              is_auto_matched: isAutoMatched,
+              last_seen_at: new Date().toISOString(),
+            })
+          
+          if (insertError) {
+            console.warn(`[fathom-sync] Error inserting fathom_user_mappings for ${normalizedEmail}:`, insertError.message)
+          } else {
+            console.log(`[fathom-sync] Inserted fathom_user_mappings: ${normalizedEmail} (mapped=${!!sixtyUserId}, auto=${isAutoMatched})`)
+          }
+        }
+      } catch (e) {
+        console.warn(`[fathom-sync] Error upserting fathom_user_mappings:`, e)
+      }
     }
 
     // Resolve meeting owner from multiple possible fields
@@ -1608,18 +1740,59 @@ async function syncSingleCall(
       (Array.isArray(call?.calendar_invitees) ? (call.calendar_invitees.find((p: any) => p?.is_host)?.email) : undefined),
     ]
     let ownerEmailCandidate: string | null = null
+    const fathomUserName = call?.recorded_by?.name || call?.host_name || null
+    
+    // DEBUG: Log all possible owner emails for this meeting
+    const validEmails = possibleOwnerEmails.filter(Boolean)
+    console.log(`[fathom-sync] Meeting "${call?.title || 'Untitled'}" - possible owner emails:`, validEmails.length > 0 ? validEmails : 'NONE FOUND')
+    if (call?.recorded_by) {
+      console.log(`[fathom-sync] recorded_by:`, JSON.stringify(call.recorded_by))
+    }
+
+    // STEP 1: Try to resolve via fathom_user_mappings first (explicit mappings)
     for (const em of possibleOwnerEmails) {
-      const uid = await resolveOwnerUserIdFromEmail(em)
-      if (uid) {
-        ownerUserId = uid
+      if (!em) continue
+      const mappedUserId = await resolveOwnerFromFathomMapping(em)
+      if (mappedUserId) {
+        ownerUserId = mappedUserId
         ownerResolved = true
-        ownerEmailCandidate = em || null
+        ownerEmailCandidate = em
         break
       }
-      if (!ownerEmailCandidate && em) ownerEmailCandidate = em
+      if (!ownerEmailCandidate) ownerEmailCandidate = em
+    }
+
+    // STEP 2: If no explicit mapping, fall back to profile email matching
+    if (!ownerResolved) {
+      for (const em of possibleOwnerEmails) {
+        if (!em) continue
+        const uid = await resolveOwnerUserIdFromEmail(em)
+        if (uid) {
+          ownerUserId = uid
+          ownerResolved = true
+          ownerEmailCandidate = em
+          
+          // AUTO-MATCH: If we found a profile match, auto-upsert the mapping
+          // This creates the mapping so future syncs use the mapping table
+          await upsertFathomUserMapping(em, fathomUserName, uid, true /* isAutoMatched */)
+          console.log(`[fathom-sync] Auto-matched and created mapping: ${em} -> ${uid}`)
+          break
+        }
+        if (!ownerEmailCandidate) ownerEmailCandidate = em
+      }
+    }
+
+    // STEP 3: Always upsert a mapping row for the discovered email (even if unmapped)
+    // This populates the admin UI with all Fathom users
+    if (ownerEmailCandidate && orgId) {
+      // If not already resolved (meaning no mapping created), create an unmapped entry
+      if (!ownerResolved) {
+        await upsertFathomUserMapping(ownerEmailCandidate, fathomUserName, null, false)
+      }
     }
 
     if (!ownerResolved) {
+      console.log(`[fathom-sync] Could not resolve owner for ${ownerEmailCandidate || 'unknown email'}, using fallback user ${userId}`)
     }
 
     // Org safety: only assign owner_user_id if that user is actually a member of this org.
@@ -1684,6 +1857,10 @@ async function syncSingleCall(
       thumbnailUrl = `https://dummyimage.com/640x360/1a1a1a/10b981&text=${encodeURIComponent(firstLetter)}`
       console.log(`📝 Using placeholder thumbnail for meeting ${call.recording_id}`)
     }
+    // Resolve a stable recording identifier (used for DB uniqueness / upserts).
+    // Fathom payloads can vary; prefer recording_id, otherwise fall back to id.
+    const recordingIdRaw = call?.recording_id ?? call?.id ?? call?.recordingId ?? null
+
     // Use summary from bulk API response only (don't fetch separately)
     // Summary and transcript should be fetched on-demand via separate endpoint
     const summaryText: string | null = call.default_summary || call.summary || null
@@ -1691,7 +1868,7 @@ async function syncSingleCall(
     const meetingData: Record<string, any> = {
       org_id: orgId, // Required for RLS compliance
       owner_user_id: ownerUserId,
-      fathom_recording_id: String(call.recording_id), // Use recording_id as unique identifier
+      fathom_recording_id: recordingIdRaw ? String(recordingIdRaw) : null, // Use recording_id as unique identifier
       fathom_user_id: integration.fathom_user_id,
       title: call.title || call.meeting_title,
       meeting_start: call.recording_start_time || call.scheduled_start_time,
@@ -1734,6 +1911,9 @@ async function syncSingleCall(
     //
     // For backwards compatibility (single-org deployments / pre-migration DBs),
     // we retry using the legacy conflict target: (fathom_recording_id).
+    //
+    // If neither unique constraint exists (common in partially-migrated DBs), fall back to a
+    // manual "find then update/insert" path (not perfectly race-free, but unblocks syncing).
     const upsertMeeting = async (onConflict: string) => {
       return await supabase
         .from('meetings')
@@ -1764,6 +1944,68 @@ async function syncSingleCall(
         data: meeting,
         error: meetingError,
       } = await upsertMeeting('fathom_recording_id'))
+    }
+
+    // If we still have the "no unique/exclusion constraint" error, do a manual upsert.
+    if (
+      meetingError &&
+      (meetingError.code === '42P10' ||
+        String(meetingError.message || '').toLowerCase().includes('on conflict specification') ||
+        String(meetingError.message || '').toLowerCase().includes('no unique'))
+    ) {
+      try {
+        const recordingId = meetingData.fathom_recording_id as string | null
+        if (!recordingId) {
+          throw new Error('Missing recording_id in payload (cannot upsert meeting)')
+        }
+
+        // Try to find an existing meeting row.
+        let existing: any = null
+        if (orgId) {
+          const { data: ex } = await supabase
+            .from('meetings')
+            .select('id')
+            .eq('org_id', orgId)
+            .eq('fathom_recording_id', recordingId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          existing = ex
+        } else {
+          const { data: ex } = await supabase
+            .from('meetings')
+            .select('id')
+            .eq('fathom_recording_id', recordingId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          existing = ex
+        }
+
+        if (existing?.id) {
+          const { data: updated, error: updateErr } = await supabase
+            .from('meetings')
+            .update(meetingData)
+            .eq('id', existing.id)
+            .select()
+            .single()
+          if (updateErr) throw updateErr
+          meeting = updated
+          meetingError = null
+        } else {
+          const { data: inserted, error: insertErr } = await supabase
+            .from('meetings')
+            .insert(meetingData)
+            .select()
+            .single()
+          if (insertErr) throw insertErr
+          meeting = inserted
+          meetingError = null
+        }
+      } catch (fallbackErr) {
+        // Keep the original upsert error if fallback fails.
+        console.error('[fathom-sync] Manual upsert fallback failed:', fallbackErr)
+      }
     }
 
     if (meetingError) {

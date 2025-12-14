@@ -34,6 +34,7 @@ import {
   Mail,
   Brain,
   Clock,
+  ListChecks,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -244,6 +245,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: Brain,
       href: '/platform/meeting-intelligence-demo',
       color: 'text-violet-600 bg-violet-100 dark:bg-violet-900/30',
+      badge: 'New',
+    },
+    {
+      id: 'tasks-demo',
+      title: 'Tasks Demo',
+      description: 'End-to-end test AI suggestions → action items → tasks (meeting-first, calls toggle)',
+      icon: ListChecks,
+      href: '/platform/tasks-demo',
+      color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30',
       badge: 'New',
     },
     {

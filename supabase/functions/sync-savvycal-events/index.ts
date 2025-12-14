@@ -5,12 +5,14 @@
  * Designed to run every 15 minutes as a backup to the webhook.
  *
  * Usage:
- * - Trigger via pg_cron: SELECT net.http_post(...)
- * - Or external cron: POST /functions/v1/sync-savvycal-events
+ * - With org_id: POST /functions/v1/sync-savvycal-events with { org_id }
+ * - Cron mode: POST /functions/v1/sync-savvycal-events with { cron_mode: true } - iterates all active orgs
  *
- * Query params:
- * - since_hours: How far back to check (default: 1 hour)
+ * Query params / body:
+ * - org_id: Specific org to sync (uses that org's API token)
+ * - since_hours: How far back to check (default: 24 hours)
  * - dry_run: If true, just report what would be synced
+ * - cron_mode: If true, sync all active org integrations
  */
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
@@ -19,7 +21,6 @@ import { corsHeaders } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const SAVVYCAL_API_TOKEN = Deno.env.get("SAVVYCAL_API_TOKEN") ?? "";
 
 interface SavvyCalEvent {
   id: string;
@@ -89,19 +90,24 @@ interface SavvyCalAPIResponse {
   };
 }
 
-async function fetchSavvyCalEvents(sinceDate: Date): Promise<SavvyCalEvent[]> {
+interface OrgIntegration {
+  id: string;
+  org_id: string;
+  webhook_token: string;
+  api_token: string;
+}
+
+async function fetchSavvyCalEvents(apiToken: string, sinceDate: Date): Promise<SavvyCalEvent[]> {
   const allEvents: SavvyCalEvent[] = [];
   let cursor: string | null = null;
   let page = 0;
   const maxPages = 10; // Safety limit
 
-  // Format date for API (events with start_at >= sinceDate)
   const sinceISO = sinceDate.toISOString();
 
   while (page < maxPages) {
     const params = new URLSearchParams({
       limit: "50",
-      // Fetch events starting from sinceDate onwards
       "start_at[gte]": sinceISO,
     });
 
@@ -114,7 +120,7 @@ async function fetchSavvyCalEvents(sinceDate: Date): Promise<SavvyCalEvent[]> {
 
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${SAVVYCAL_API_TOKEN}`,
+        Authorization: `Bearer ${apiToken}`,
         Accept: "application/json",
       },
     });
@@ -129,7 +135,6 @@ async function fetchSavvyCalEvents(sinceDate: Date): Promise<SavvyCalEvent[]> {
 
     console.log(`[SavvyCal] Page ${page + 1}: ${data.entries.length} events`);
 
-    // Check for more pages
     if (data.metadata.after) {
       cursor = data.metadata.after;
       page++;
@@ -143,14 +148,21 @@ async function fetchSavvyCalEvents(sinceDate: Date): Promise<SavvyCalEvent[]> {
 
 async function getExistingEventIds(
   supabase: ReturnType<typeof createClient>,
-  eventIds: string[]
+  eventIds: string[],
+  orgId: string | null
 ): Promise<Set<string>> {
   if (eventIds.length === 0) return new Set();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("leads")
     .select("external_id")
     .in("external_id", eventIds);
+
+  if (orgId) {
+    query = query.eq("org_id", orgId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("[DB] Error checking existing events:", error);
@@ -185,109 +197,69 @@ function eventToWebhookPayload(event: SavvyCalEvent) {
   };
 }
 
-serve(async (req) => {
-  // Handle CORS
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+async function syncOrgEvents(
+  supabase: ReturnType<typeof createClient>,
+  integration: OrgIntegration,
+  sinceDate: Date,
+  dryRun: boolean
+): Promise<{
+  orgId: string;
+  success: boolean;
+  stats: {
+    fetched: number;
+    confirmed: number;
+    existing: number;
+    new: number;
+    synced: number;
+    failed: number;
+  };
+  error?: string;
+}> {
+  const orgId = integration.org_id;
 
   try {
-    // Validate environment
-    if (!SAVVYCAL_API_TOKEN) {
-      throw new Error("SAVVYCAL_API_TOKEN not configured");
-    }
-
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Supabase credentials not configured");
-    }
-
-    // Parse parameters
-    const url = new URL(req.url);
-    const sinceHours = parseInt(url.searchParams.get("since_hours") || "24", 10);
-    const dryRun = url.searchParams.get("dry_run") === "true";
-
-    const sinceDate = new Date();
-    sinceDate.setHours(sinceDate.getHours() - sinceHours);
-
-    console.log(`[Sync] Starting sync for events since ${sinceDate.toISOString()}`);
-    console.log(`[Sync] Dry run: ${dryRun}`);
-
-    // Initialize Supabase client
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    // Fetch events from SavvyCal
-    const events = await fetchSavvyCalEvents(sinceDate);
-    console.log(`[Sync] Fetched ${events.length} events from SavvyCal`);
+    // Fetch events from SavvyCal using org's API token
+    const events = await fetchSavvyCalEvents(integration.api_token, sinceDate);
+    console.log(`[Sync] Org ${orgId}: Fetched ${events.length} events`);
 
     // Filter to only confirmed events
     const confirmedEvents = events.filter((e) => e.state === "confirmed");
-    console.log(`[Sync] ${confirmedEvents.length} confirmed events`);
+    console.log(`[Sync] Org ${orgId}: ${confirmedEvents.length} confirmed events`);
 
     if (confirmedEvents.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "No confirmed events found",
-          stats: { fetched: events.length, confirmed: 0, new: 0, synced: 0 },
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return {
+        orgId,
+        success: true,
+        stats: { fetched: events.length, confirmed: 0, existing: 0, new: 0, synced: 0, failed: 0 },
+      };
     }
 
-    // Check which events already exist
+    // Check which events already exist for this org
     const eventIds = confirmedEvents.map((e) => e.id);
-    const existingIds = await getExistingEventIds(supabase, eventIds);
-    console.log(`[Sync] ${existingIds.size} events already in database`);
+    const existingIds = await getExistingEventIds(supabase, eventIds, orgId);
+    console.log(`[Sync] Org ${orgId}: ${existingIds.size} events already in database`);
 
     // Filter to new events only
     const newEvents = confirmedEvents.filter((e) => !existingIds.has(e.id));
-    console.log(`[Sync] ${newEvents.length} new events to sync`);
+    console.log(`[Sync] Org ${orgId}: ${newEvents.length} new events to sync`);
 
-    if (newEvents.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "All events already synced",
-          stats: {
-            fetched: events.length,
-            confirmed: confirmedEvents.length,
-            existing: existingIds.size,
-            new: 0,
-            synced: 0,
-          },
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (newEvents.length === 0 || dryRun) {
+      return {
+        orgId,
+        success: true,
+        stats: {
+          fetched: events.length,
+          confirmed: confirmedEvents.length,
+          existing: existingIds.size,
+          new: newEvents.length,
+          synced: 0,
+          failed: 0,
+        },
+      };
     }
 
-    // If dry run, just report what would be synced
-    if (dryRun) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: `Dry run: ${newEvents.length} events would be synced`,
-          dry_run: true,
-          events: newEvents.map((e) => ({
-            id: e.id,
-            email: e.scheduler?.email || e.attendees.find((a) => !a.is_organizer)?.email,
-            name: e.scheduler?.display_name || e.attendees.find((a) => !a.is_organizer)?.display_name,
-            created_at: e.created_at,
-            start_at: e.start_at,
-          })),
-          stats: {
-            fetched: events.length,
-            confirmed: confirmedEvents.length,
-            existing: existingIds.size,
-            new: newEvents.length,
-            synced: 0,
-          },
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Sync new events by calling the webhook handler
-    const webhookUrl = `${SUPABASE_URL}/functions/v1/savvycal-leads-webhook`;
+    // Sync new events by calling the webhook handler with the org token
+    const webhookUrl = `${SUPABASE_URL}/functions/v1/savvycal-leads-webhook?token=${encodeURIComponent(integration.webhook_token)}`;
     const results: Array<{ id: string; success: boolean; error?: string }> = [];
 
     for (const event of newEvents) {
@@ -307,15 +279,15 @@ serve(async (req) => {
 
         if (response.ok) {
           results.push({ id: event.id, success: true });
-          console.log(`[Sync] ✅ Synced event ${event.id}`);
+          console.log(`[Sync] Org ${orgId}: ✅ Synced event ${event.id}`);
         } else {
           results.push({ id: event.id, success: false, error: text });
-          console.error(`[Sync] ❌ Failed to sync event ${event.id}: ${text}`);
+          console.error(`[Sync] Org ${orgId}: ❌ Failed to sync event ${event.id}: ${text}`);
         }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : "Unknown error";
         results.push({ id: event.id, success: false, error: errorMsg });
-        console.error(`[Sync] ❌ Error syncing event ${event.id}: ${errorMsg}`);
+        console.error(`[Sync] Org ${orgId}: ❌ Error syncing event ${event.id}: ${errorMsg}`);
       }
 
       // Small delay between requests
@@ -325,18 +297,165 @@ serve(async (req) => {
     const syncedCount = results.filter((r) => r.success).length;
     const failedCount = results.filter((r) => !r.success).length;
 
+    // Update last_sync_at
+    await supabase
+      .from("savvycal_integrations")
+      .update({ last_sync_at: new Date().toISOString() })
+      .eq("id", integration.id);
+
+    return {
+      orgId,
+      success: true,
+      stats: {
+        fetched: events.length,
+        confirmed: confirmedEvents.length,
+        existing: existingIds.size,
+        new: newEvents.length,
+        synced: syncedCount,
+        failed: failedCount,
+      },
+    };
+  } catch (error) {
+    console.error(`[Sync] Org ${orgId} error:`, error);
+    return {
+      orgId,
+      success: false,
+      stats: { fetched: 0, confirmed: 0, existing: 0, new: 0, synced: 0, failed: 0 },
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+serve(async (req) => {
+  // Handle CORS
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Supabase credentials not configured");
+    }
+
+    // Parse parameters from body or query params
+    const url = new URL(req.url);
+    let body: Record<string, unknown> = {};
+    if (req.method === "POST") {
+      try {
+        body = await req.json();
+      } catch {
+        // No body, that's fine
+      }
+    }
+
+    const orgId = (body.org_id as string) || url.searchParams.get("org_id");
+    const sinceHours = parseInt((body.since_hours as string) || url.searchParams.get("since_hours") || "24", 10);
+    const dryRun = (body.dry_run as boolean) || url.searchParams.get("dry_run") === "true";
+    const cronMode = (body.cron_mode as boolean) || url.searchParams.get("cron_mode") === "true";
+
+    const sinceDate = new Date();
+    sinceDate.setHours(sinceDate.getHours() - sinceHours);
+
+    console.log(`[Sync] Starting sync for events since ${sinceDate.toISOString()}`);
+    console.log(`[Sync] Dry run: ${dryRun}, Cron mode: ${cronMode}, Org ID: ${orgId || "all"}`);
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Get org integrations to sync
+    let integrationsQuery = supabase
+      .from("savvycal_integrations")
+      .select("id, org_id, webhook_token")
+      .eq("is_active", true);
+
+    if (orgId && !cronMode) {
+      integrationsQuery = integrationsQuery.eq("org_id", orgId);
+    }
+
+    const { data: integrations, error: intError } = await integrationsQuery;
+
+    if (intError) {
+      throw new Error(`Failed to fetch integrations: ${intError.message}`);
+    }
+
+    if (!integrations || integrations.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: orgId ? "No SavvyCal integration found for this org" : "No active SavvyCal integrations found",
+          stats: { orgs: 0 },
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get API tokens for each integration
+    const integrationIds = integrations.map((i) => i.id);
+    const { data: secrets, error: secretsError } = await supabase
+      .from("savvycal_integration_secrets")
+      .select("integration_id, api_token")
+      .in("integration_id", integrationIds)
+      .not("api_token", "is", null);
+
+    if (secretsError) {
+      throw new Error(`Failed to fetch secrets: ${secretsError.message}`);
+    }
+
+    // Build map of integration_id -> api_token
+    const tokenMap = new Map<string, string>();
+    for (const secret of secrets || []) {
+      if (secret.api_token) {
+        tokenMap.set(secret.integration_id, secret.api_token);
+      }
+    }
+
+    // Filter to integrations with API tokens
+    const orgsToSync: OrgIntegration[] = integrations
+      .filter((i) => tokenMap.has(i.id))
+      .map((i) => ({
+        id: i.id,
+        org_id: i.org_id,
+        webhook_token: i.webhook_token,
+        api_token: tokenMap.get(i.id)!,
+      }));
+
+    if (orgsToSync.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "No integrations with API tokens found",
+          stats: { orgs: 0 },
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`[Sync] Syncing ${orgsToSync.length} org(s)`);
+
+    // Sync each org
+    const results = [];
+    for (const integration of orgsToSync) {
+      const result = await syncOrgEvents(supabase, integration, sinceDate, dryRun);
+      results.push(result);
+    }
+
+    // Aggregate stats
+    const totalStats = {
+      orgs: results.length,
+      orgsSuccessful: results.filter((r) => r.success).length,
+      orgsFailed: results.filter((r) => !r.success).length,
+      totalFetched: results.reduce((sum, r) => sum + r.stats.fetched, 0),
+      totalConfirmed: results.reduce((sum, r) => sum + r.stats.confirmed, 0),
+      totalNew: results.reduce((sum, r) => sum + r.stats.new, 0),
+      totalSynced: results.reduce((sum, r) => sum + r.stats.synced, 0),
+      totalFailed: results.reduce((sum, r) => sum + r.stats.failed, 0),
+    };
+
     return new Response(
       JSON.stringify({
-        success: true,
-        message: `Synced ${syncedCount}/${newEvents.length} events`,
-        stats: {
-          fetched: events.length,
-          confirmed: confirmedEvents.length,
-          existing: existingIds.size,
-          new: newEvents.length,
-          synced: syncedCount,
-          failed: failedCount,
-        },
+        success: results.every((r) => r.success),
+        message: `Synced ${totalStats.totalSynced} events across ${totalStats.orgsSuccessful} org(s)`,
+        dry_run: dryRun,
+        stats: totalStats,
         results,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

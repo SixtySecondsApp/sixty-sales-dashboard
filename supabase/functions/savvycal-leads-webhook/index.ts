@@ -5,9 +5,17 @@ import { extractBusinessDomain, matchOrCreateCompany } from "../_shared/companyM
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const WEBHOOK_SECRET = Deno.env.get("SAVVYCAL_WEBHOOK_SECRET") ?? "";
+// Legacy global webhook secret (fallback for existing installs without org token)
+const LEGACY_WEBHOOK_SECRET = Deno.env.get("SAVVYCAL_WEBHOOK_SECRET") ?? "";
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+}
+
+// Context for org-scoped webhooks
+interface OrgWebhookContext {
+  orgId: string | null;
+  webhookSecret: string | null;
+  integrationId: string | null;
 }
 
 type Nullable<T> = T | null | undefined;
@@ -112,11 +120,60 @@ serve(async (req) => {
     );
   }
 
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+  // Extract org token from query params (external-ready)
+  const url = new URL(req.url);
+  const orgToken = url.searchParams.get("token");
+
+  // Resolve org context from token
+  let orgContext: OrgWebhookContext = {
+    orgId: null,
+    webhookSecret: null,
+    integrationId: null,
+  };
+
+  if (orgToken) {
+    // Look up org by webhook token
+    const { data: integration, error: intError } = await supabase
+      .from("savvycal_integrations")
+      .select("id, org_id, is_active")
+      .eq("webhook_token", orgToken)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (intError || !integration) {
+      console.error("[savvycal-webhook] Invalid or inactive webhook token:", orgToken, intError);
+      return new Response(
+        JSON.stringify({ error: "Invalid webhook token" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    orgContext.orgId = integration.org_id;
+    orgContext.integrationId = integration.id;
+
+    // Get org's webhook secret for signature verification
+    const { data: secrets } = await supabase
+      .from("savvycal_integration_secrets")
+      .select("webhook_secret")
+      .eq("integration_id", integration.id)
+      .maybeSingle();
+
+    orgContext.webhookSecret = secrets?.webhook_secret ?? null;
+  }
+
   const rawBody = await req.text();
 
+  // Verify signature - use org-specific secret or legacy global secret
+  const webhookSecret = orgContext.webhookSecret || LEGACY_WEBHOOK_SECRET;
   try {
-    await verifySignature(req.headers, rawBody);
+    await verifySignature(req.headers, rawBody, webhookSecret);
   } catch (error) {
+    console.error("[savvycal-webhook] Signature verification failed:", error);
     return new Response(
       JSON.stringify({ error: "Invalid webhook signature" }),
       {
@@ -141,12 +198,10 @@ serve(async (req) => {
     );
   }
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
   const results: LeadProcessingResult[] = [];
   for (const event of events) {
     try {
-      const result = await processSavvyCalEvent(supabase, event);
+      const result = await processSavvyCalEvent(supabase, event, orgContext.orgId);
       results.push(result);
     } catch (error) {
       results.push({
@@ -157,10 +212,23 @@ serve(async (req) => {
     }
   }
 
+  // Update webhook_last_received_at for the org integration
+  if (orgContext.integrationId && results.some(r => r.success)) {
+    const lastEventId = events.length > 0 ? events[events.length - 1]?.id : null;
+    await supabase
+      .from("savvycal_integrations")
+      .update({
+        webhook_last_received_at: new Date().toISOString(),
+        webhook_last_event_id: lastEventId,
+      })
+      .eq("id", orgContext.integrationId);
+  }
+
   return new Response(
     JSON.stringify({
       success: results.every((result) => result.success),
       results,
+      org_id: orgContext.orgId,
     }),
     {
       status: 200,
@@ -169,8 +237,9 @@ serve(async (req) => {
   );
 });
 
-async function verifySignature(headers: Headers, rawBody: string): Promise<void> {
-  if (!WEBHOOK_SECRET) {
+async function verifySignature(headers: Headers, rawBody: string, webhookSecret: string): Promise<void> {
+  // If no secret configured, skip signature verification
+  if (!webhookSecret) {
     return;
   }
 
@@ -184,7 +253,7 @@ async function verifySignature(headers: Headers, rawBody: string): Promise<void>
   }
 
   const parsedSignature = parseSignature(signatureHeader);
-  const expected = await generateSignature(rawBody);
+  const expected = await generateSignatureWithSecret(rawBody, webhookSecret);
 
   if (!timingSafeEqual(parsedSignature, expected)) {
     throw new Error("Signature mismatch");
@@ -215,11 +284,11 @@ function parseSignature(signatureHeader: string): string {
   return trimmed.toLowerCase();
 }
 
-async function generateSignature(payload: string): Promise<string> {
+async function generateSignatureWithSecret(payload: string, secret: string): Promise<string> {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
-    encoder.encode(WEBHOOK_SECRET),
+    encoder.encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],
@@ -259,6 +328,7 @@ function timingSafeEqual(a: string, b: string): boolean {
 async function processSavvyCalEvent(
   supabase: SupabaseClient,
   event: SavvyCalWebhookEvent,
+  explicitOrgId: string | null = null,
 ): Promise<LeadProcessingResult> {
   if (!event?.payload?.id) {
     throw new Error("Event payload missing meeting id");
@@ -451,7 +521,8 @@ async function processSavvyCalEvent(
     }
   }
 
-  const leadRecord = {
+  // Build lead record with org_id if provided via webhook token
+  const leadRecord: Record<string, unknown> = {
     external_source: "savvycal",
     external_id: meetingId,
     external_occured_at: event.occurred_at,
@@ -506,9 +577,17 @@ async function processSavvyCalEvent(
     updated_at: new Date().toISOString(),
   };
 
+  // Add org_id if provided via webhook token (external-ready)
+  if (explicitOrgId) {
+    leadRecord.org_id = explicitOrgId;
+  }
+
+  // Use composite unique (external_id, org_id) if org_id is set, otherwise just external_id
+  const upsertConflict = explicitOrgId ? "idx_leads_external_org_unique" : "external_id";
+
   const { data: leadData, error: upsertLeadError } = await supabase
     .from("leads")
-    .upsert(leadRecord, { onConflict: "external_id" })
+    .upsert(leadRecord, { onConflict: upsertConflict })
     .select("id")
     .single();
 
