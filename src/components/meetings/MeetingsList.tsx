@@ -401,10 +401,13 @@ const MeetingsList: React.FC = () => {
     setLoading(true)
     try {
       // First get total count for pagination
-      let countQuery = supabase
+      // Use explicit any to avoid deep type instantiation issues with Supabase query chaining
+      const countQueryBase = supabase
         .from('meetings')
-        .select('*', { count: 'exact', head: true })
-
+        .select('*', { count: 'exact', head: true }) as any
+      
+      // Apply filters
+      let countQuery = countQueryBase
       if (activeOrgId) {
         countQuery = countQuery.eq('org_id', activeOrgId)
       }
@@ -419,7 +422,8 @@ const MeetingsList: React.FC = () => {
       const from = (currentPage - 1) * ITEMS_PER_PAGE
       const to = from + ITEMS_PER_PAGE - 1
 
-      let query = supabase
+      // Use explicit any to avoid deep type instantiation issues
+      const queryBase = supabase
         .from('meetings')
         .select(`
           *,
@@ -428,9 +432,10 @@ const MeetingsList: React.FC = () => {
           tasks(status)
         `)
         .order('meeting_start', { ascending: false })
-        .range(from, to)
+        .range(from, to) as any
 
       // Apply org scoping if we have an active org
+      let query = queryBase
       if (activeOrgId) {
         query = query.eq('org_id', activeOrgId)
       }
@@ -447,12 +452,19 @@ const MeetingsList: React.FC = () => {
 
       if (error) throw error
 
-      setMeetings(data || [])
+      // Map data to ensure next_actions_count has a default value and company is properly shaped
+      const meetingsData = (data || []).map((m: any) => ({
+        ...m,
+        next_actions_count: m.next_actions_count ?? null,
+        // company relation returns array, take first or undefined
+        company: Array.isArray(m.company) ? m.company[0] : m.company
+      })) as Meeting[]
+      setMeetings(meetingsData)
       // Reset to allow ensureThumbnails to run for the new list
       setThumbnailsEnsured(false)
       // Only calculate stats on first page to avoid recalculating on every page
       if (currentPage === 1) {
-        calculateStats(data || [])
+        calculateStats(meetingsData)
       }
     } catch (error) {
       console.error('Error fetching meetings:', error)

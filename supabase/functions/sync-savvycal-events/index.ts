@@ -97,6 +97,20 @@ interface OrgIntegration {
   api_token: string;
 }
 
+interface SyncResult {
+  orgId: string;
+  success: boolean;
+  stats: {
+    fetched: number;
+    confirmed: number;
+    existing: number;
+    new: number;
+    synced: number;
+    failed: number;
+  };
+  error?: string;
+}
+
 async function fetchSavvyCalEvents(apiToken: string, sinceDate: Date): Promise<SavvyCalEvent[]> {
   const allEvents: SavvyCalEvent[] = [];
   let cursor: string | null = null;
@@ -202,19 +216,7 @@ async function syncOrgEvents(
   integration: OrgIntegration,
   sinceDate: Date,
   dryRun: boolean
-): Promise<{
-  orgId: string;
-  success: boolean;
-  stats: {
-    fetched: number;
-    confirmed: number;
-    existing: number;
-    new: number;
-    synced: number;
-    failed: number;
-  };
-  error?: string;
-}> {
+): Promise<SyncResult> {
   const orgId = integration.org_id;
 
   try {
@@ -432,7 +434,7 @@ serve(async (req) => {
     console.log(`[Sync] Syncing ${orgsToSync.length} org(s)`);
 
     // Sync each org
-    const results = [];
+    const results: SyncResult[] = [];
     for (const integration of orgsToSync) {
       const result = await syncOrgEvents(supabase, integration, sinceDate, dryRun);
       results.push(result);

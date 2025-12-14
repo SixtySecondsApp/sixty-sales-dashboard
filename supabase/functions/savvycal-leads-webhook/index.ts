@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// Type alias for Supabase client
+type SupabaseClient = ReturnType<typeof createClient>;
 import { corsHeaders } from "../_shared/cors.ts";
 import { extractBusinessDomain, matchOrCreateCompany } from "../_shared/companyMatching.ts";
 
@@ -482,7 +485,7 @@ async function processSavvyCalEvent(
       email: contactEmail,
       first_name: contactFirstName,
       last_name: contactLastName,
-      phone: leadCandidate?.phone_number,
+      phone: leadCandidate?.phone_number ?? null,
       owner_id: ownerProfileId ?? leadSource?.default_owner_id ?? null,
       company_id: companyId,
     },
@@ -860,7 +863,7 @@ async function ensureLeadSource(
   supabase: SupabaseClient,
   details: LeadSourceDetails,
   preferredOwnerId: string | null,
-): Promise<{ id: string; default_owner_id: string | null } | null> {
+): Promise<{ id: string; default_owner_id: string | null; name?: string } | null> {
   const payload = {
     source_key: details.sourceKey,
     name: details.name,
@@ -873,7 +876,7 @@ async function ensureLeadSource(
   const { data, error } = await supabase
     .from("lead_sources")
     .upsert(payload, { onConflict: "source_key" })
-    .select("id, default_owner_id")
+    .select("id, default_owner_id, name")
     .single();
 
   if (error) {

@@ -37,6 +37,20 @@ import type { Task } from '@/lib/database/models';
 
 type ActivityType = 'meeting' | 'call';
 
+type SmartTaskTemplateRow = {
+  id: string;
+  trigger_activity_type: string;
+  task_title: string;
+  task_description: string | null;
+  days_after_trigger: number;
+  task_type: string;
+  priority: string | null;
+  is_active: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+  org_id?: string | null;
+};
+
 type MeetingRow = {
   id: string;
   title: string | null;
@@ -134,6 +148,10 @@ export default function TasksDemo() {
   const [generatingSuggestions, setGeneratingSuggestions] = useState(false);
 
   const [quickViewTask, setQuickViewTask] = useState<Task | null>(null);
+
+  const [smartTaskTemplates, setSmartTaskTemplates] = useState<SmartTaskTemplateRow[]>([]);
+  const [loadingSmartTasks, setLoadingSmartTasks] = useState(false);
+  const [smartTasksError, setSmartTasksError] = useState<string | null>(null);
 
   const {
     suggestions,
@@ -285,6 +303,44 @@ export default function TasksDemo() {
     await Promise.all([loadActivityDetail(), loadActionItems(), loadTasks(), refetchSuggestions()]);
   }, [loadActivityDetail, loadActionItems, loadTasks, refetchSuggestions]);
 
+  const loadSmartTaskTemplates = useCallback(async () => {
+    if (!orgId) return;
+    setLoadingSmartTasks(true);
+    setSmartTasksError(null);
+    try {
+      // Prefer org-scoped templates. If the column doesn't exist (older schema), fall back safely.
+      let q = sb
+        .from('smart_task_templates')
+        .select('id, trigger_activity_type, task_title, task_description, days_after_trigger, task_type, priority, is_active, created_at, updated_at, org_id')
+        .order('trigger_activity_type', { ascending: true })
+        .order('days_after_trigger', { ascending: true })
+        .order('task_title', { ascending: true });
+
+      q = q.eq('org_id', orgId);
+
+      const { data, error } = await q;
+      if (error) {
+        // fallback (non-org schema)
+        const { data: fallbackData, error: fallbackError } = await sb
+          .from('smart_task_templates')
+          .select('id, trigger_activity_type, task_title, task_description, days_after_trigger, task_type, priority, is_active, created_at, updated_at')
+          .order('trigger_activity_type', { ascending: true })
+          .order('days_after_trigger', { ascending: true })
+          .order('task_title', { ascending: true });
+        if (fallbackError) throw fallbackError;
+        setSmartTaskTemplates((fallbackData || []) as SmartTaskTemplateRow[]);
+        setSmartTasksError('Templates loaded without org scoping (org_id column not available).');
+      } else {
+        setSmartTaskTemplates((data || []) as SmartTaskTemplateRow[]);
+      }
+    } catch (e: any) {
+      setSmartTaskTemplates([]);
+      setSmartTasksError(e?.message || 'Failed to load smart task templates');
+    } finally {
+      setLoadingSmartTasks(false);
+    }
+  }, [orgId, sb]);
+
   useEffect(() => {
     loadActivityLists();
   }, [loadActivityLists]);
@@ -293,6 +349,10 @@ export default function TasksDemo() {
     if (!orgId || !activityId) return;
     refreshAll();
   }, [orgId, activityId, activityType]);
+
+  useEffect(() => {
+    loadSmartTaskTemplates();
+  }, [loadSmartTaskTemplates]);
 
   const handleExtractActionItems = async () => {
     if (!activityId) return;
@@ -409,6 +469,56 @@ export default function TasksDemo() {
 
   const actionItemsForDisplay = activityType === 'meeting' ? meetingActionItems : callActionItems;
 
+  const flowMermaid = useMemo(() => {
+    return `flowchart TD
+  subgraph ingestion[Ingestion]
+    fathom[Fathom_sync_cron_webhook] --> meetings[meetings_row_created_or_updated]
+    justcall[JustCall_sync_webhook] --> calls[calls_row_created_or_updated]
+  end
+
+  subgraph suggestions[Next_action_suggestions]
+    meetings -->|automatic_db_trigger_when_transcript_or_summary_added| pgTriggerMeetings[trigger_auto_suggest_next_actions_meeting]
+    pgTriggerMeetings -->|pg_net_http_post| suggestFn[suggest-next-actions_edge_function]
+    calls -->|manual_in_this_demo| suggestFn
+    suggestFn --> suggestionsTable[next_action_suggestions_rows]
+    suggestionsTable -->|manual_accept| acceptRpc[accept_next_action_suggestion_rpc]
+    acceptRpc --> tasks[tasks_row_created_or_updated]
+  end
+
+  subgraph actionItems[Action_items_to_tasks]
+    meetings -->|manual_click_extract| extractMeeting[extract-action-items_edge_function]
+    extractMeeting --> meetingAIs[meeting_action_items_rows]
+    calls -->|manual_click_extract| extractCall[extract-call-action-items_edge_function]
+    extractCall --> callAIs[call_action_items_rows]
+    meetingAIs -->|manual_convert_selected| createTaskUnified[create-task-unified_edge_function]
+    callAIs -->|manual_convert_selected| createTaskUnified
+    createTaskUnified --> tasks
+  end
+
+  subgraph smartTasks[Smart_tasks_automation]
+    activities[activities_insert_with_deal_id] -->|automatic_db_trigger| smartTrigger[trigger_create_smart_tasks]
+    smartTrigger --> smartFn[create_smart_tasks_plpgsql]
+    smartFn -->|org_scoped_templates| tasks
+  end
+
+  tasks --> notifications[notifications_overdue_cron_with_guardrails]
+`;
+  }, []);
+
+  const smartTemplatesSummary = useMemo(() => {
+    const active = smartTaskTemplates.filter((t) => t.is_active !== false);
+    const byTrigger = new Map<string, number>();
+    for (const t of active) {
+      const key = t.trigger_activity_type || 'unknown';
+      byTrigger.set(key, (byTrigger.get(key) || 0) + 1);
+    }
+    return {
+      total: smartTaskTemplates.length,
+      active: active.length,
+      byTrigger: Array.from(byTrigger.entries()).sort((a, b) => a[0].localeCompare(b[0])),
+    };
+  }, [smartTaskTemplates]);
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -429,6 +539,159 @@ export default function TasksDemo() {
           </Button>
         </div>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>What’s automatic vs manual?</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
+              <div className="font-medium mb-1">Automatic</div>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>
+                  <span className="text-foreground font-medium">Meetings → AI Suggestions</span>: when a meeting gets a transcript/summary, a DB trigger
+                  queues <span className="text-foreground">suggest-next-actions</span> (via pg_net). Suggestions then show up in this page automatically.
+                </li>
+                <li>
+                  <span className="text-foreground font-medium">Smart Tasks</span>: when an <span className="text-foreground">activity</span> is inserted with a <span className="text-foreground">deal_id</span>,
+                  DB triggers create follow-up tasks from <span className="text-foreground">smart_task_templates</span> (org-scoped).
+                </li>
+                <li>
+                  <span className="text-foreground font-medium">Overdue notifications</span>: cron checks overdue tasks (guardrailed to avoid “wrong year” floods).
+                </li>
+              </ul>
+            </div>
+
+            <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
+              <div className="font-medium mb-1">Manual</div>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>
+                  <span className="text-foreground font-medium">Calls → AI Suggestions</span>: currently generated when you click <span className="text-foreground">Generate suggestions</span> (no calls-table trigger yet).
+                </li>
+                <li>
+                  <span className="text-foreground font-medium">Action items extraction</span>: click <span className="text-foreground">Extract action items</span> to run the extraction edge function.
+                </li>
+                <li>
+                  <span className="text-foreground font-medium">Task creation from AI</span>: Accepting a suggestion and converting action items are user actions (manual) that write tasks.
+                </li>
+              </ul>
+            </div>
+
+            <div className="text-xs text-muted-foreground">
+              Deadline safety: AI prompts include today’s date, and task creation clamps past due dates and records metadata for auditability.
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-3 flex-wrap">
+              <span>Flow diagram (Mermaid)</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(`\`\`\`mermaid\n${flowMermaid}\n\`\`\``);
+                    toast.success('Copied Mermaid diagram');
+                  } catch {
+                    toast.error('Copy failed');
+                  }
+                }}
+              >
+                Copy
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="text-xs overflow-auto rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/30 p-3">
+              <code>{`~~~mermaid\n${flowMermaid}\n~~~`}</code>
+            </pre>
+            <div className="mt-2 text-xs text-muted-foreground">
+              Copy/paste into any Mermaid renderer (or a GitHub comment) to visualize.
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between gap-3 flex-wrap">
+            <span>Smart Tasks configuration (auto-created follow-ups)</span>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={loadSmartTaskTemplates} disabled={loadingSmartTasks}>
+                {loadingSmartTasks ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                <span className="ml-2">Refresh</span>
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => navigate('/platform/crm/smart-tasks')}>
+                Open settings
+              </Button>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {smartTasksError && (
+            <div className="text-sm text-amber-700 dark:text-amber-300">
+              {smartTasksError}
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline">
+              total: {smartTemplatesSummary.total}
+            </Badge>
+            <Badge variant="outline">
+              active: {smartTemplatesSummary.active}
+            </Badge>
+            {smartTemplatesSummary.byTrigger.map(([trigger, count]) => (
+              <Badge key={trigger} variant="outline" className="capitalize">
+                {trigger}: {count}
+              </Badge>
+            ))}
+          </div>
+
+          <div className="text-xs text-muted-foreground">
+            These templates run automatically when an <span className="text-foreground">activity</span> is created with a <span className="text-foreground">deal_id</span> and its type matches <span className="text-foreground">trigger_activity_type</span>.
+            They do not depend on meeting/call transcripts; they’re triggered by CRM activities.
+          </div>
+
+          <div className="overflow-auto rounded-lg border border-gray-200 dark:border-gray-800">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50/70 dark:bg-gray-900/30 text-xs text-muted-foreground">
+                <tr>
+                  <th className="text-left p-2">Trigger</th>
+                  <th className="text-left p-2">Title</th>
+                  <th className="text-left p-2">Days</th>
+                  <th className="text-left p-2">Type</th>
+                  <th className="text-left p-2">Priority</th>
+                  <th className="text-left p-2">Active</th>
+                </tr>
+              </thead>
+              <tbody>
+                {smartTaskTemplates.length === 0 && !loadingSmartTasks ? (
+                  <tr>
+                    <td className="p-3 text-sm text-muted-foreground" colSpan={6}>
+                      No templates found for this org.
+                    </td>
+                  </tr>
+                ) : (
+                  smartTaskTemplates.map((t) => (
+                    <tr key={t.id} className="border-t border-gray-200 dark:border-gray-800">
+                      <td className="p-2 capitalize">{t.trigger_activity_type}</td>
+                      <td className="p-2">{t.task_title}</td>
+                      <td className="p-2">{t.days_after_trigger}</td>
+                      <td className="p-2 capitalize">{t.task_type}</td>
+                      <td className="p-2 capitalize">{t.priority || '—'}</td>
+                      <td className="p-2">{t.is_active === false ? 'No' : 'Yes'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
