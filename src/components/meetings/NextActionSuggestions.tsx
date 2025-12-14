@@ -135,7 +135,7 @@ export function NextActionSuggestions({
     setLoading(suggestionId);
     try {
       // Call the accept_next_action_suggestion function
-      const { data, error } = await supabase.rpc('accept_next_action_suggestion', {
+      const { data, error } = await (supabase.rpc as any)('accept_next_action_suggestion', {
         p_suggestion_id: suggestionId,
         p_task_data: null
       });
@@ -168,7 +168,7 @@ export function NextActionSuggestions({
   const handleDismiss = async (suggestionId: string) => {
     setLoading(suggestionId);
     try {
-      const { error } = await supabase.rpc('dismiss_next_action_suggestion', {
+      const { error } = await (supabase.rpc as any)('dismiss_next_action_suggestion', {
         p_suggestion_id: suggestionId,
         p_feedback: null
       });
