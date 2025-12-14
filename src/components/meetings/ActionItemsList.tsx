@@ -16,7 +16,6 @@ export function ActionItemsList({ actionItems, meetingId, onTasksCreated }: Acti
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
   const [isConverting, setIsConverting] = useState(false)
   const [importanceFilter, setImportanceFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all')
-  const { toast } = useToast()
 
   const filteredItems = actionItems.filter(item => {
     if (importanceFilter === 'all') return true
