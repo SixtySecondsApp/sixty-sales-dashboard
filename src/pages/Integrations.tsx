@@ -32,6 +32,7 @@ import { FathomConfigModal } from '@/components/integrations/FathomConfigModal';
 import { SavvyCalConfigModal } from '@/components/integrations/SavvyCalConfigModal';
 import { SlackConfigModal } from '@/components/integrations/SlackConfigModal';
 import { JustCallConfigModal } from '@/components/integrations/JustCallConfigModal';
+import { HubSpotConfigModal } from '@/components/integrations/HubSpotConfigModal';
 
 // Hooks and stores
 import { useGoogleIntegration } from '@/lib/stores/integrationStore';
@@ -39,11 +40,13 @@ import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
 import { useSlackIntegration } from '@/lib/hooks/useSlackIntegration';
 import { useJustCallIntegration } from '@/lib/hooks/useJustCallIntegration';
 import { useSavvyCalIntegration } from '@/lib/hooks/useSavvyCalIntegration';
+import { useHubSpotIntegration } from '@/lib/hooks/useHubSpotIntegration';
 import { getIntegrationDomain, getLogoS3Url, useIntegrationLogo } from '@/lib/hooks/useIntegrationLogo';
 import { useUser } from '@/lib/hooks/useUser';
 import { IntegrationVoteState, useIntegrationUpvotes } from '@/lib/hooks/useIntegrationUpvotes';
 import { useBrandingSettings } from '@/lib/hooks/useBrandingSettings';
 import { DEFAULT_SIXTY_ICON_URL } from '@/lib/utils/sixtyBranding';
+import { isHubSpotIntegrationEnabled } from '@/lib/utils/featureFlags';
 
 // Integration definitions
 interface IntegrationConfig {
@@ -317,6 +320,23 @@ const builtIntegrations: IntegrationConfig[] = [
     fallbackIcon: <Phone className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />,
     isBuilt: true,
   },
+  {
+    id: 'hubspot',
+    name: 'HubSpot',
+    description: 'Bi-directional CRM sync + AI writeback.',
+    permissions: [
+      { title: 'Read/write contacts', description: 'Sync contacts both ways (email-based matching).' },
+      { title: 'Read/write deals', description: 'Sync deals + stage mapping; maintain associations.' },
+      { title: 'Read/write tasks', description: 'Two-way tasks with stable Sixty ID mapping.' },
+      { title: 'Create notes', description: 'Write meeting summaries/action items back to HubSpot.' },
+      { title: 'Ingest forms', description: 'Poll HubSpot forms and create Sixty leads + follow-ups.' },
+    ],
+    brandColor: 'orange',
+    iconBgColor: 'bg-orange-50 dark:bg-orange-900/20',
+    iconBorderColor: 'border-orange-100 dark:border-orange-800/40',
+    fallbackIcon: <Users className="w-6 h-6 text-orange-500" />,
+    isBuilt: true,
+  },
 ];
 
 // =====================================================
@@ -360,7 +380,6 @@ const integrationCategories: IntegrationCategory[] = [
     tooltip: 'Bi-directional sync of contacts, deals, and activities. Use Sixty as your sales command center while keeping your existing CRM updated in real-time.',
     icon: <Users className="w-5 h-5" />,
     integrations: [
-      { id: 'hubspot', name: 'HubSpot', description: 'All-in-one CRM platform.', fallbackIcon: <Users className="w-6 h-6 text-orange-500" /> },
       { id: 'salesforce', name: 'Salesforce', description: 'Enterprise CRM leader.', fallbackIcon: <Users className="w-6 h-6 text-blue-500" /> },
       { id: 'pipedrive', name: 'Pipedrive', description: 'Sales-focused CRM.', fallbackIcon: <Users className="w-6 h-6 text-green-500" /> },
       { id: 'zoho', name: 'Zoho CRM', description: 'Business suite CRM.', fallbackIcon: <Users className="w-6 h-6 text-red-500" /> },
@@ -522,6 +541,7 @@ const suggestedIntegrations: IntegrationCategory[] = [
 // =====================================================
 
 export default function Integrations() {
+  const hubspotEnabled = isHubSpotIntegrationEnabled();
   const [searchParams] = useSearchParams();
   useUser(); // ensures auth/user is initialized (needed for upvotes under Clerk)
   const { settings: brandingSettings } = useBrandingSettings();
@@ -558,6 +578,8 @@ export default function Integrations() {
 
   const { isConnected: savvycalConnected, loading: savvycalLoading, hasApiToken: savvycalHasApiToken } = useSavvyCalIntegration();
 
+  const { isConnected: hubspotConnected, loading: hubspotLoading, connectHubSpot } = useHubSpotIntegration(hubspotEnabled);
+
   // Modal states
   const [activeConnectModal, setActiveConnectModal] = useState<string | null>(null);
   const [activeConfigModal, setActiveConfigModal] = useState<string | null>(null);
@@ -568,6 +590,8 @@ export default function Integrations() {
     const statusParam = searchParams.get('status');
     const errorParam = searchParams.get('error');
     const emailParam = searchParams.get('email');
+    const hubspotStatus = searchParams.get('hubspot_status');
+    const hubspotError = searchParams.get('hubspot_error');
 
     if (statusParam === 'connected' && emailParam) {
       toast.success(`Successfully connected Google account: ${emailParam}`);
@@ -576,6 +600,13 @@ export default function Integrations() {
     } else if (errorParam) {
       const errorDescription = searchParams.get('error_description');
       toast.error(`Failed to connect Google: ${errorDescription || errorParam}`);
+      window.history.replaceState({}, '', '/integrations');
+    } else if (hubspotStatus === 'connected') {
+      toast.success('HubSpot connected');
+      window.history.replaceState({}, '', '/integrations');
+    } else if (hubspotError) {
+      const desc = searchParams.get('hubspot_error_description');
+      toast.error(`Failed to connect HubSpot: ${desc || hubspotError}`);
       window.history.replaceState({}, '', '/integrations');
     }
   }, [searchParams, checkGoogleConnection]);
@@ -607,6 +638,8 @@ export default function Integrations() {
         return slackConnected ? 'active' : 'inactive';
       case 'justcall':
         return justcallConnected ? 'active' : 'inactive';
+      case 'hubspot':
+        return hubspotConnected ? 'active' : 'inactive';
       default:
         return 'coming_soon';
     }
@@ -667,6 +700,10 @@ export default function Integrations() {
           setActiveConnectModal(null);
           setActiveConfigModal('justcall');
           break;
+        case 'hubspot':
+          await connectHubSpot();
+          setActiveConnectModal(null);
+          break;
         default:
           toast.info('Integration coming soon');
           setActiveConnectModal(null);
@@ -689,8 +726,9 @@ export default function Integrations() {
       slack: slackLoading,
       justcall: justcallLoading,
       savvycal: savvycalLoading,
+      hubspot: hubspotLoading,
     }),
-    [googleLoading, fathomLoading, slackLoading, justcallLoading, savvycalLoading]
+    [googleLoading, fathomLoading, slackLoading, justcallLoading, savvycalLoading, hubspotLoading]
   );
 
   // Preload cached S3 logo URLs on page load to prevent any visible swap/flicker.
@@ -742,17 +780,19 @@ export default function Integrations() {
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {builtIntegrations.map((integration) => (
-              <IntegrationCardWithLogo
-                key={integration.id}
-                config={integration}
-                isBuilt={true}
-                status={getIntegrationStatus(integration.id)}
-                onAction={() => handleCardAction(integration.id, true)}
-                actionLoading={builtActionLoadingById[integration.id]}
-                sixtyLogoUrl={sixtyLogoUrl}
-              />
-            ))}
+            {builtIntegrations
+              .filter((integration) => (integration.id === 'hubspot' ? hubspotEnabled : true))
+              .map((integration) => (
+                <IntegrationCardWithLogo
+                  key={integration.id}
+                  config={integration}
+                  isBuilt={true}
+                  status={getIntegrationStatus(integration.id)}
+                  onAction={() => handleCardAction(integration.id, true)}
+                  actionLoading={builtActionLoadingById[integration.id]}
+                  sixtyLogoUrl={sixtyLogoUrl}
+                />
+              ))}
           </div>
         </div>
 
@@ -850,6 +890,10 @@ export default function Integrations() {
       />
       <JustCallConfigModal
         open={activeConfigModal === 'justcall'}
+        onOpenChange={(open) => !open && setActiveConfigModal(null)}
+      />
+      <HubSpotConfigModal
+        open={hubspotEnabled && activeConfigModal === 'hubspot'}
         onOpenChange={(open) => !open && setActiveConfigModal(null)}
       />
     </div>

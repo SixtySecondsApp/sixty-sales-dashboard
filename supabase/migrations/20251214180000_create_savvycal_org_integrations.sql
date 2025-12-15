@@ -186,3 +186,4 @@ COMMENT ON TABLE public.savvycal_integration_secrets IS 'Org-scoped SavvyCal cre
 COMMENT ON COLUMN public.savvycal_integration_secrets.api_token IS 'SavvyCal Personal Access Token (pt_secret_...).';
 COMMENT ON COLUMN public.savvycal_integration_secrets.webhook_secret IS 'Optional secret for HMAC signature verification of webhooks.';
 
+

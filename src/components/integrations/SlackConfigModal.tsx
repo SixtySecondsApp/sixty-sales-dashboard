@@ -251,3 +251,4 @@ export function SlackConfigModal({ open, onOpenChange }: SlackConfigModalProps) 
     </TooltipProvider>
   );
 }
+

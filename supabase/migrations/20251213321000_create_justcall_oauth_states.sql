@@ -38,3 +38,4 @@ GRANT EXECUTE ON FUNCTION cleanup_expired_justcall_oauth_states() TO service_rol
 COMMENT ON TABLE justcall_oauth_states IS 'Temporary storage for JustCall OAuth state parameters (CSRF protection)';
 COMMENT ON COLUMN justcall_oauth_states.state IS 'Random state parameter for OAuth flow';
 COMMENT ON COLUMN justcall_oauth_states.expires_at IS 'When this state expires (typically 10 minutes)';
+

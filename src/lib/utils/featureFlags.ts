@@ -29,6 +29,15 @@ export function getDefaultOrgId(): string | null {
   return import.meta.env.VITE_DEFAULT_ORG_ID || null;
 }
 
+/**
+ * Feature flag: HubSpot integration
+ *
+ * Enable to show HubSpot integration UI and allow connection flows.
+ */
+export function isHubSpotIntegrationEnabled(): boolean {
+  return import.meta.env.VITE_HUBSPOT_INTEGRATION_ENABLED === 'true';
+}
+
 
 
 

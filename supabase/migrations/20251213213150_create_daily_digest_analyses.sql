@@ -113,3 +113,4 @@ COMMENT ON COLUMN daily_digest_analyses.highlights IS 'Structured highlights: to
 COMMENT ON COLUMN daily_digest_analyses.rendered_text IS 'Compact plain/markdown digest for downstream workflows';
 COMMENT ON COLUMN daily_digest_analyses.slack_message IS 'Block Kit blocks + fallback text sent to Slack';
 COMMENT ON COLUMN daily_digest_analyses.delivery IS 'Delivery metadata: channelId, ts, status, errors';
+

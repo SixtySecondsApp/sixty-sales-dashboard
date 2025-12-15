@@ -50,3 +50,4 @@ CREATE POLICY "service_role_manage_call_file_search_index" ON call_file_search_i
   USING (public.is_service_role())
   WITH CHECK (public.is_service_role());
 
+

@@ -40,3 +40,4 @@ export function useOrgMoney(): {
     locale: config.locale,
   };
 }
+
