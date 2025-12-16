@@ -6,6 +6,7 @@ import { WaitlistSuccess } from './components/WaitlistSuccess';
 import type { WaitlistEntry } from '@/lib/types/waitlist';
 import { usePublicBrandingSettings } from '@/lib/hooks/useBrandingSettings';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { getWaitlistSession } from '../lib/utils/waitlistSession';
 
 export default function LeaderboardLookup() {
   const { logoDark } = usePublicBrandingSettings();
@@ -43,14 +44,54 @@ export default function LeaderboardLookup() {
   const [error, setError] = useState<string | null>(null);
   const [entry, setEntry] = useState<WaitlistEntry | null>(null);
 
-  // Check URL for email parameter on mount
+  // Load entry by ID (from session)
+  const loadEntryById = async (entryId: string) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const { data, error: queryError } = await supabase
+        .from('meetings_waitlist')
+        .select('*')
+        .eq('id', entryId)
+        .single();
+
+      if (queryError) {
+        if (queryError.code === 'PGRST116') {
+          setError('Waitlist entry not found. Your session may have expired.');
+        } else {
+          throw queryError;
+        }
+        return;
+      }
+
+      setEntry(data as WaitlistEntry);
+      setEmail(data.email); // Pre-fill email field for display
+    } catch (err: any) {
+      setError(err.message || 'Failed to load your position');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Check for stored session or URL parameter on mount
   useEffect(() => {
+    // First, check if user has a valid session from visiting their status link
+    const sessionEntryId = getWaitlistSession();
+    if (sessionEntryId) {
+      console.log('[LeaderboardLookup] Found valid session, loading entry:', sessionEntryId);
+      loadEntryById(sessionEntryId);
+      return;
+    }
+    
+    // Fallback: Check URL for email parameter
     const params = new URLSearchParams(window.location.search);
     const emailParam = params.get('email');
     if (emailParam) {
       setEmail(emailParam);
       handleLookup(emailParam);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleLookup = async (lookupEmail?: string) => {

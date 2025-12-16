@@ -4,6 +4,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 // Import landing package styles (includes Inter font and landing-specific CSS)
 import '../../packages/landing/src/styles/index.css';
 
+// Note: Main app's Supabase client is set in App.tsx before this module loads
+
 // Loading component for landing pages
 const LandingLoader = () => (
   <div className="flex items-center justify-center min-h-screen bg-black">
@@ -27,6 +29,14 @@ const EarlyAccessLanding = import.meta.env.DEV
 
 const PricingPage = import.meta.env.DEV
   ? lazy(() => import('../../packages/landing/src/pages/PricingPage').then(m => ({ default: m.PricingPage })))
+  : () => <Navigate to="/" replace />;
+
+const WaitlistStatus = import.meta.env.DEV
+  ? lazy(() => import('../../packages/landing/src/pages/WaitlistStatus'))
+  : () => <Navigate to="/" replace />;
+
+const LeaderboardLookup = import.meta.env.DEV
+  ? lazy(() => import('../../packages/landing/src/pages/LeaderboardLookup'))
   : () => <Navigate to="/" replace />;
 
 /**
@@ -66,7 +76,37 @@ export function WaitlistPageWrapper() {
 
   return (
     <Suspense fallback={<LandingLoader />}>
-      <EarlyAccessLanding />
+      <Routes>
+        <Route index element={<EarlyAccessLanding />} />
+        <Route path="status/:id" element={<WaitlistStatus />} />
+        <Route path="leaderboard" element={<LeaderboardLookup />} />
+      </Routes>
+    </Suspense>
+  );
+}
+
+// Waitlist status page wrapper (for /waitlist/status/:id route - standalone)
+export function WaitlistStatusPage() {
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <Suspense fallback={<LandingLoader />}>
+      <WaitlistStatus />
+    </Suspense>
+  );
+}
+
+// Leaderboard page wrapper (for /leaderboard route - standalone)
+export function LeaderboardPageWrapper() {
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <Suspense fallback={<LandingLoader />}>
+      <LeaderboardLookup />
     </Suspense>
   );
 }

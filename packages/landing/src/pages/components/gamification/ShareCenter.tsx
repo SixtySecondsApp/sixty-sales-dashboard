@@ -17,6 +17,7 @@ interface ShareCenterProps {
   currentPosition: number;
   onFirstShare?: () => void;
   onBoostClaimed?: (data: { total_points: number; effective_position: number; platform: 'linkedin' | 'twitter' }) => void;
+  onEntryUpdate?: () => void; // Callback to refetch entry after updates
   senderName?: string;
   referralCode?: string;
   linkedInBoostClaimed?: boolean;
@@ -31,6 +32,7 @@ export function ShareCenter({
   currentPosition,
   onFirstShare,
   onBoostClaimed,
+  onEntryUpdate,
   senderName,
   referralCode,
   linkedInBoostClaimed: propLinkedInBoostClaimed = false,
@@ -110,6 +112,14 @@ ${referralUrl}`;
       // Track the copy
       await trackShare('copy');
 
+      // Wait for database to process
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Trigger entry refetch to get updated share counts
+      if (onEntryUpdate) {
+        await onEntryUpdate();
+      }
+
       // Trigger first share celebration
       if (!hasShared) {
         setHasShared(true);
@@ -129,6 +139,14 @@ ${referralUrl}`;
 
       // Track the copy
       await trackShare('copy');
+
+      // Wait for database to process
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Trigger entry refetch to get updated share counts
+      if (onEntryUpdate) {
+        await onEntryUpdate();
+      }
 
       // Trigger first share celebration
       if (!hasShared) {
@@ -196,9 +214,31 @@ ${referralUrl}`;
               platform: platform,
               onConfirm: async () => {
                 // Grant the boost
+                console.log('[ShareCenter] onConfirm called for platform:', platform);
+                console.log('[ShareCenter] Entry ID:', entryId);
+                console.log('[ShareCenter] Current boost states:', {
+                  linkedInBoostClaimed,
+                  twitterBoostClaimed
+                });
+
                 const result = platform === 'linkedin'
                   ? await trackLinkedInFirstShare(entryId)
                   : await trackTwitterFirstShare(entryId);
+
+                console.log('[ShareCenter] Track result:', {
+                  success: result.success,
+                  boosted: result.boosted,
+                  updatedEntry: result.updatedEntry
+                });
+                if (result.updatedEntry) {
+                  console.log('[ShareCenter] Updated entry details:', {
+                    total_points: result.updatedEntry.total_points,
+                    effective_position: result.updatedEntry.effective_position,
+                    linkedin_boost_claimed: result.updatedEntry.linkedin_boost_claimed,
+                    twitter_boost_claimed: result.updatedEntry.twitter_boost_claimed,
+                    referral_count: result.updatedEntry.referral_count
+                  });
+                }
 
                 if (result.boosted) {
                   if (platform === 'linkedin') {
@@ -212,14 +252,48 @@ ${referralUrl}`;
                   }
                   ConfettiService.milestone('first_share');
 
-                  // Notify parent of the boost so it can update the entry data
+                  // Immediately update UI with the data we got back from the database update
+                  // The database trigger has already calculated the new points/position
                   if (result.updatedEntry && onBoostClaimed) {
+                    console.log('[ShareCenter] Calling onBoostClaimed with:', {
+                      total_points: result.updatedEntry.total_points,
+                      effective_position: result.updatedEntry.effective_position,
+                      platform
+                    });
                     onBoostClaimed({
                       total_points: result.updatedEntry.total_points,
                       effective_position: result.updatedEntry.effective_position,
                       platform
                     });
+                  } else {
+                    console.warn('[ShareCenter] No updatedEntry in result or onBoostClaimed not provided!', {
+                      hasUpdatedEntry: !!result.updatedEntry,
+                      hasOnBoostClaimed: !!onBoostClaimed
+                    });
                   }
+                  
+                  // Wait a moment for database transaction to fully commit
+                  console.log('[ShareCenter] Waiting 500ms for database transaction to commit...');
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                  
+                  // Then refetch to get ALL fields (referral_count, etc.) and ensure everything is in sync
+                  if (onEntryUpdate) {
+                    console.log('[ShareCenter] Calling onEntryUpdate to refetch...');
+                    await onEntryUpdate();
+                  } else {
+                    console.warn('[ShareCenter] onEntryUpdate not provided!');
+                  }
+                } else if (result.success) {
+                  // Even if boost wasn't granted (already claimed), still refetch to get latest data
+                  console.log('[ShareCenter] Boost not granted but success=true, refetching...');
+                  await new Promise(resolve => setTimeout(resolve, 300));
+                  if (onEntryUpdate) {
+                    await onEntryUpdate();
+                  }
+                } else {
+                  // Update failed
+                  console.error('[ShareCenter] Boost update failed!', result);
+                  alert('Failed to apply boost. Please try again or contact support.');
                 }
 
                 // Close modal
@@ -235,6 +309,14 @@ ${referralUrl}`;
     } else {
       // Track regular share (already claimed boost)
       await trackShare(platform);
+      
+      // Wait for database to process the share tracking
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Trigger entry refetch to get updated share counts
+      if (onEntryUpdate) {
+        await onEntryUpdate();
+      }
     }
 
     // Trigger first share celebration
@@ -282,6 +364,14 @@ ${referralUrl}`;
         // Clear email fields
         setEmails(['', '']);
 
+        // Wait for database triggers to process invites and calculate points
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // Trigger entry refetch to get updated referral count and points
+        if (onEntryUpdate) {
+          await onEntryUpdate();
+        }
+
         // Hide success message after 5 seconds
         setTimeout(() => {
           setInviteSuccess(false);
@@ -318,22 +408,22 @@ ${referralUrl}`;
           <Zap className="w-5 h-5 text-blue-500 dark:text-blue-400" />
           Skip the Line Faster
         </h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400">Jump <span className="text-gray-900 dark:text-gray-200 font-semibold">5 spots ahead</span> for every revenue leader you refer.</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">Jump <span className="text-gray-900 dark:text-gray-200 font-semibold">5 points ahead</span> for every revenue leader you refer.</p>
       </div>
 
       {/* Copy Link Input */}
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <Input
             readOnly
             value={referralUrl}
-            className="w-full rounded-lg py-2.5 pl-4 pr-10 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-mono"
+            className="w-full rounded-lg py-2.5 pl-4 pr-4 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-mono truncate"
             onClick={(e) => (e.target as HTMLInputElement).select()}
           />
         </div>
         <Button
           onClick={handleCopy}
-          className="px-4 py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-2"
+          className="px-4 py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors flex items-center justify-center gap-2 flex-shrink-0"
         >
           {copied ? (
             <>
@@ -374,7 +464,7 @@ ${referralUrl}`;
       </div>
 
       {/* Share Buttons */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -385,7 +475,7 @@ ${referralUrl}`;
             onClick={() => handleShare('twitter')}
             variant="outline"
             disabled={twitterBoostClaimed}
-            className={`w-full border-white/10 h-10 flex items-center justify-center gap-2 ${
+            className={`w-full border-white/10 h-10 sm:h-10 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 ${
               twitterBoostClaimed
                 ? 'bg-emerald-500/10 border-emerald-500/30 cursor-not-allowed opacity-75'
                 : 'bg-gradient-to-r from-blue-500/10 to-sky-500/10 border-blue-500/30 hover:from-blue-500/20 hover:to-sky-500/20 hover:border-blue-500/50'
@@ -393,13 +483,13 @@ ${referralUrl}`;
           >
             {twitterBoostClaimed ? (
               <>
-                <Check className="w-4 h-4 text-emerald-400" />
-                <span className="text-sm text-emerald-400">Boost Claimed ✓</span>
+                <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-xs sm:text-sm text-emerald-400 truncate">Claimed</span>
               </>
             ) : (
               <>
-                <Zap className="w-4 h-4 text-blue-400" />
-                <span className="text-sm font-semibold">Share on X/Twitter</span>
+                <Zap className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                <span className="text-xs sm:text-sm font-semibold truncate">X/Twitter</span>
               </>
             )}
           </Button>
@@ -407,7 +497,7 @@ ${referralUrl}`;
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs font-bold px-2 py-0.5 rounded-full"
+              className="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 rounded-full"
             >
               +50
             </motion.div>
@@ -424,7 +514,7 @@ ${referralUrl}`;
             onClick={() => handleShare('linkedin')}
             variant="outline"
             disabled={linkedInBoostClaimed}
-            className={`w-full border-white/10 h-10 flex items-center justify-center gap-2 ${
+            className={`w-full border-white/10 h-10 sm:h-10 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 ${
               linkedInBoostClaimed
                 ? 'bg-emerald-500/10 border-emerald-500/30 cursor-not-allowed opacity-75'
                 : 'bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/30 hover:from-yellow-500/20 hover:to-orange-500/20 hover:border-yellow-500/50'
@@ -432,13 +522,13 @@ ${referralUrl}`;
           >
             {linkedInBoostClaimed ? (
               <>
-                <Check className="w-4 h-4 text-emerald-400" />
-                <span className="text-sm text-emerald-400">Boost Claimed ✓</span>
+                <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span className="text-xs sm:text-sm text-emerald-400 truncate">Claimed</span>
               </>
             ) : (
               <>
-                <Zap className="w-4 h-4 text-yellow-400" />
-                <span className="text-sm font-semibold">Share on LinkedIn</span>
+                <Zap className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                <span className="text-xs sm:text-sm font-semibold truncate">LinkedIn</span>
               </>
             )}
           </Button>
@@ -446,7 +536,7 @@ ${referralUrl}`;
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="absolute -top-2 -right-2 bg-yellow-500 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded-full"
+              className="absolute -top-2 -right-2 bg-yellow-500 text-yellow-900 text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 rounded-full"
             >
               +50
             </motion.div>
@@ -461,10 +551,10 @@ ${referralUrl}`;
           <Button
             onClick={() => handleShare('email')}
             variant="outline"
-            className="w-full border-white/10 hover:bg-purple-500/20 hover:border-purple-500/50 flex items-center justify-center gap-2 h-10"
+            className="w-full border-white/10 hover:bg-purple-500/20 hover:border-purple-500/50 flex items-center justify-center gap-1 sm:gap-2 h-10 px-2 sm:px-4"
           >
-            <Mail className="w-4 h-4" />
-            <span className="text-sm">Email</span>
+            <Mail className="w-4 h-4 flex-shrink-0" />
+            <span className="text-xs sm:text-sm">Email</span>
           </Button>
         </motion.div>
       </div>
@@ -502,13 +592,17 @@ ${referralUrl}`;
           className="bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20 rounded-lg p-3 flex items-start gap-2"
         >
           <AlertCircle className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-gray-700 dark:text-gray-300">
-            <strong className="text-blue-600 dark:text-blue-300">How to get your 50-spot boost:</strong>
-            1) Click "Copy Share Message" above
-            2) Click "Share on LinkedIn" or "Share on X/Twitter"
-            3) Paste the message and post
-            4) Close the window to get your 50-spot boost! 💙
-          </p>
+          <div className="flex-1">
+            <p className="text-xs font-semibold text-blue-600 dark:text-blue-300 mb-2">
+              How to get your 50-point boost:
+            </p>
+            <ol className="text-xs text-gray-700 dark:text-gray-300 space-y-1.5 list-decimal list-inside">
+              <li>Click "Copy Share Message" above</li>
+              <li>Click "Share on LinkedIn" or "Share on X/Twitter"</li>
+              <li>Paste the message and post</li>
+              <li>Close the window to get your 50-point boost! 💙</li>
+            </ol>
+          </div>
         </motion.div>
       )}
 
@@ -594,7 +688,7 @@ ${referralUrl}`;
             {sending ? 'Sending...' : 'Send Invites'}
           </Button>
           <p className="text-xs text-gray-500 dark:text-gray-500 text-center">
-            💡 Earn <strong className="text-gray-700 dark:text-gray-300">5 spots</strong> for each email invite sent
+            💡 Earn <strong className="text-gray-700 dark:text-gray-300">5 points</strong> for each email invite sent
           </p>
         </div>
       </div>

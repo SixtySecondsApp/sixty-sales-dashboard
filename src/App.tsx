@@ -162,7 +162,25 @@ const InternalDomainsSettings = lazyWithRetry(() => import('@/pages/admin/Intern
 const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
 
 // Landing pages wrapper (dev-only for local preview)
-import { LandingWrapper, WaitlistPageWrapper } from '@/components/LandingWrapper';
+import { LandingWrapper, WaitlistPageWrapper, LeaderboardPageWrapper, WaitlistStatusPage } from '@/components/LandingWrapper';
+import { supabase } from '@/lib/supabase/clientV2';
+
+// Make main app's Supabase client available to landing package
+// Set it immediately and ensure it's available on window before any landing code runs
+if (typeof window !== 'undefined') {
+  // Set it on window - this must happen BEFORE any landing package code loads
+  (window as any).__MAIN_APP_SUPABASE__ = supabase;
+  
+  // Verify it's set correctly
+  if ((window as any).__MAIN_APP_SUPABASE__) {
+    console.log('[App] Main app Supabase client set on window for landing package', {
+      hasFrom: typeof (window as any).__MAIN_APP_SUPABASE__.from === 'function',
+      hasAuth: typeof (window as any).__MAIN_APP_SUPABASE__.auth === 'object'
+    });
+  } else {
+    console.error('[App] Failed to set Supabase client on window!');
+  }
+}
 
 // New 3-tier architecture routes
 const PlatformDashboard = lazyWithRetry(() => import('@/pages/platform/PlatformDashboard'));
@@ -349,7 +367,18 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/product/meetings-v4" element={<ExternalRedirect url="https://www.use60.com" />} />
         <Route path="/product/meetings/waitlist" element={<ExternalRedirect url="https://www.use60.com/waitlist" />} />
         {/* In development, show local waitlist; in production, redirect to landing site */}
-        <Route path="/waitlist" element={import.meta.env.DEV ? <WaitlistPageWrapper /> : <ExternalRedirect url="https://www.use60.com/waitlist" />} />
+        {/* Waitlist sub-routes must come BEFORE the base /waitlist route for proper matching */}
+        {import.meta.env.DEV && (
+          <>
+            <Route path="/waitlist/status/:id" element={<WaitlistStatusPage />} />
+            <Route path="/waitlist/leaderboard" element={<LeaderboardPageWrapper />} />
+            <Route path="/leaderboard" element={<LeaderboardPageWrapper />} />
+            <Route path="/waitlist" element={<WaitlistPageWrapper />} />
+          </>
+        )}
+        {!import.meta.env.DEV && (
+          <Route path="/waitlist" element={<ExternalRedirect url="https://www.use60.com/waitlist" />} />
+        )}
         <Route path="/product/meetings/pricing" element={<ExternalRedirect url="https://www.use60.com#pricing" />} />
         <Route path="/features/meetings" element={<ExternalRedirect url="https://www.use60.com" />} />
         <Route path="/features/meetings-v1" element={<ExternalRedirect url="https://www.use60.com" />} />

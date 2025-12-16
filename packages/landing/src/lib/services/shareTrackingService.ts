@@ -151,12 +151,18 @@ export async function trackLinkedInFirstShare(entryId: string): Promise<{
     total_points: number;
     effective_position: number;
     linkedin_boost_claimed: boolean;
+    referral_count?: number;
   };
 }> {
   try {
+    console.log('[shareTrackingService] trackLinkedInFirstShare called for entry:', entryId);
+    
     // Check if already claimed
     const alreadyClaimed = await hasClaimedLinkedInBoost(entryId);
+    console.log('[shareTrackingService] Already claimed LinkedIn boost?', alreadyClaimed);
+    
     if (alreadyClaimed) {
+      console.log('[shareTrackingService] Boost already claimed, just tracking share');
       // Track the share but don't grant boost
       await trackShare({ waitlist_entry_id: entryId, platform: 'linkedin' });
       return { success: true, boosted: false };
@@ -178,6 +184,12 @@ export async function trackLinkedInFirstShare(entryId: string): Promise<{
     // The trigger will automatically:
     // - Add 50 to total_points
     // - Recalculate effective_position
+    console.log('[shareTrackingService] Applying LinkedIn boost for entry:', entryId);
+    console.log('[shareTrackingService] Current entry state:', {
+      total_points: entry.total_points,
+      effective_position: entry.effective_position
+    });
+
     const { data: updatedData, error: updateError } = await supabase
       .from('meetings_waitlist')
       .update({
@@ -185,13 +197,33 @@ export async function trackLinkedInFirstShare(entryId: string): Promise<{
         linkedin_first_share_at: new Date().toISOString()
       })
       .eq('id', entryId)
-      .select('total_points, effective_position, linkedin_boost_claimed')
+      .select('total_points, effective_position, linkedin_boost_claimed, referral_count, linkedin_boost_claimed, twitter_boost_claimed')
       .single();
 
     if (updateError) {
-      console.error('Failed to apply LinkedIn boost:', updateError);
+      console.error('[shareTrackingService] Failed to apply LinkedIn boost:', updateError);
+      console.error('[shareTrackingService] Update error details:', {
+        code: updateError.code,
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint
+      });
       return { success: false, boosted: false };
     }
+
+    if (!updatedData) {
+      console.error('[shareTrackingService] Update succeeded but no data returned!');
+      return { success: false, boosted: false };
+    }
+
+    console.log('[shareTrackingService] LinkedIn boost applied successfully:', {
+      old_points: entry.total_points,
+      new_points: updatedData.total_points,
+      old_position: entry.effective_position,
+      new_position: updatedData.effective_position,
+      linkedin_boost_claimed: updatedData.linkedin_boost_claimed,
+      referral_count: updatedData.referral_count
+    });
 
     // Track the share with boost indicator
     await supabase
@@ -218,10 +250,16 @@ export async function trackLinkedInFirstShare(entryId: string): Promise<{
     return {
       success: true,
       boosted: true,
-      updatedEntry: updatedData || undefined
+      updatedEntry: {
+        total_points: updatedData.total_points,
+        effective_position: updatedData.effective_position,
+        linkedin_boost_claimed: updatedData.linkedin_boost_claimed,
+        referral_count: updatedData.referral_count
+      }
     };
   } catch (err) {
-    console.error('LinkedIn first share error:', err);
+    console.error('[shareTrackingService] LinkedIn first share error:', err);
+    console.error('[shareTrackingService] Error stack:', err instanceof Error ? err.stack : 'No stack trace');
     return { success: false, boosted: false };
   }
 }
@@ -238,12 +276,18 @@ export async function trackTwitterFirstShare(entryId: string): Promise<{
     total_points: number;
     effective_position: number;
     twitter_boost_claimed: boolean;
+    referral_count?: number;
   };
 }> {
   try {
+    console.log('[shareTrackingService] trackTwitterFirstShare called for entry:', entryId);
+    
     // Check if already claimed
     const alreadyClaimed = await hasClaimedTwitterBoost(entryId);
+    console.log('[shareTrackingService] Already claimed Twitter boost?', alreadyClaimed);
+    
     if (alreadyClaimed) {
+      console.log('[shareTrackingService] Boost already claimed, just tracking share');
       // Track the share but don't grant boost
       await trackShare({ waitlist_entry_id: entryId, platform: 'twitter' });
       return { success: true, boosted: false };
@@ -265,6 +309,12 @@ export async function trackTwitterFirstShare(entryId: string): Promise<{
     // The trigger will automatically:
     // - Add 50 to total_points
     // - Recalculate effective_position
+    console.log('[shareTrackingService] Applying Twitter boost for entry:', entryId);
+    console.log('[shareTrackingService] Current entry state:', {
+      total_points: entry.total_points,
+      effective_position: entry.effective_position
+    });
+
     const { data: updatedData, error: updateError } = await supabase
       .from('meetings_waitlist')
       .update({
@@ -272,13 +322,33 @@ export async function trackTwitterFirstShare(entryId: string): Promise<{
         twitter_first_share_at: new Date().toISOString()
       })
       .eq('id', entryId)
-      .select('total_points, effective_position, twitter_boost_claimed')
+      .select('total_points, effective_position, twitter_boost_claimed, referral_count, linkedin_boost_claimed, twitter_boost_claimed')
       .single();
 
     if (updateError) {
-      console.error('Failed to apply Twitter boost:', updateError);
+      console.error('[shareTrackingService] Failed to apply Twitter boost:', updateError);
+      console.error('[shareTrackingService] Update error details:', {
+        code: updateError.code,
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint
+      });
       return { success: false, boosted: false };
     }
+
+    if (!updatedData) {
+      console.error('[shareTrackingService] Update succeeded but no data returned!');
+      return { success: false, boosted: false };
+    }
+
+    console.log('[shareTrackingService] Twitter boost applied successfully:', {
+      old_points: entry.total_points,
+      new_points: updatedData.total_points,
+      old_position: entry.effective_position,
+      new_position: updatedData.effective_position,
+      twitter_boost_claimed: updatedData.twitter_boost_claimed,
+      referral_count: updatedData.referral_count
+    });
 
     // Track the share with boost indicator
     await supabase
@@ -305,10 +375,16 @@ export async function trackTwitterFirstShare(entryId: string): Promise<{
     return {
       success: true,
       boosted: true,
-      updatedEntry: updatedData || undefined
+      updatedEntry: {
+        total_points: updatedData.total_points,
+        effective_position: updatedData.effective_position,
+        twitter_boost_claimed: updatedData.twitter_boost_claimed,
+        referral_count: updatedData.referral_count
+      }
     };
   } catch (err) {
-    console.error('Twitter first share error:', err);
+    console.error('[shareTrackingService] Twitter first share error:', err);
+    console.error('[shareTrackingService] Error stack:', err instanceof Error ? err.stack : 'No stack trace');
     return { success: false, boosted: false };
   }
 }

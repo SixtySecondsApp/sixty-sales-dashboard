@@ -19,6 +19,7 @@ export function useWaitlistRealtime(entryId: string, initialEntry: WaitlistEntry
 
   // Manual refetch function for immediate updates
   const refetch = useCallback(async () => {
+    console.log('[useWaitlistRealtime] Refetching entry:', entryId);
     const { data, error } = await supabase
       .from('meetings_waitlist')
       .select('*')
@@ -26,10 +27,20 @@ export function useWaitlistRealtime(entryId: string, initialEntry: WaitlistEntry
       .single();
 
     if (data && !error) {
+      console.log('[useWaitlistRealtime] Refetch successful:', {
+        total_points: data.total_points,
+        effective_position: data.effective_position,
+        referral_count: data.referral_count,
+        linkedin_boost_claimed: data.linkedin_boost_claimed,
+        twitter_boost_claimed: data.twitter_boost_claimed
+      });
       setEntry((prev) => {
         setPreviousPosition(prev.effective_position);
-        return data as WaitlistEntry;
+        // Force a new object reference to ensure React detects the change
+        return { ...data } as WaitlistEntry;
       });
+    } else if (error) {
+      console.error('[useWaitlistRealtime] Failed to refetch entry:', error);
     }
   }, [entryId]);
 
@@ -64,6 +75,13 @@ export function useWaitlistRealtime(entryId: string, initialEntry: WaitlistEntry
   // Debounced update handler to prevent excessive re-renders
   const handleUpdate = useCallback((payload: any) => {
     const newEntry = payload.new as WaitlistEntry;
+    console.log('[useWaitlistRealtime] Real-time update received:', {
+      total_points: newEntry.total_points,
+      effective_position: newEntry.effective_position,
+      referral_count: newEntry.referral_count,
+      linkedin_boost_claimed: newEntry.linkedin_boost_claimed,
+      twitter_boost_claimed: newEntry.twitter_boost_claimed
+    });
 
     setEntry((prev) => {
       // Check for tier changes

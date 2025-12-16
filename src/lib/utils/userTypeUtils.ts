@@ -29,12 +29,9 @@ export async function loadInternalUsers(): Promise<Set<string>> {
 
   // Return cached value if valid
   if (cachedInternalUsers && (now - cacheTimestamp) < CACHE_TTL) {
-    console.log('[Internal Users] Using cached whitelist:', Array.from(cachedInternalUsers));
     return cachedInternalUsers;
   }
 
-  console.log('[Internal Users] Loading whitelist from database...');
-  
   try {
     const { data, error } = await supabase
       .from('internal_users')
@@ -46,17 +43,13 @@ export async function loadInternalUsers(): Promise<Set<string>> {
       return cachedInternalUsers || new Set();
     }
 
-    console.log('[Internal Users] Raw data from database:', data);
-
     if (data && data.length > 0) {
       cachedInternalUsers = new Set(data.map(d => d.email.toLowerCase()));
       cacheTimestamp = now;
-      console.log('[Internal Users] Loaded whitelist:', Array.from(cachedInternalUsers));
       return cachedInternalUsers;
     }
 
     // Empty whitelist = everyone is external
-    console.warn('[Internal Users] No active users found in database!');
     cachedInternalUsers = new Set();
     cacheTimestamp = now;
     return cachedInternalUsers;
@@ -97,8 +90,6 @@ export function getUserTypeFromEmail(email: string | null | undefined): UserType
   const normalizedEmail = email.toLowerCase();
   const internalUsers = getCachedInternalUsers();
   const isInternal = internalUsers.has(normalizedEmail);
-  
-  console.log('[Internal Users] Checking email:', normalizedEmail, '| In whitelist:', isInternal, '| Whitelist size:', internalUsers.size);
 
   return isInternal ? 'internal' : 'external';
 }

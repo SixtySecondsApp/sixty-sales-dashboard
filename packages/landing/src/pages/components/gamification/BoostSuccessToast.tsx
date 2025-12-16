@@ -174,7 +174,7 @@ export function BoostSuccessToast({
                   transition={{ delay: 0.35 }}
                   className="text-gray-300 text-center mb-6 text-lg"
                 >
-                  You've jumped <span className={`font-bold text-xl ${config.textColor}`}>50 spots</span> for sharing on{' '}
+                  You've jumped <span className={`font-bold text-xl ${config.textColor}`}>50 points</span> for sharing on{' '}
                   <span className={`font-semibold ${config.textColor}`}>{config.name}</span>!
                 </motion.p>
 

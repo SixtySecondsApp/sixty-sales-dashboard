@@ -146,9 +146,11 @@ export function ShareConfirmationModal({
                   </Button>
                   <Button
                     onClick={onConfirm}
-                    className={`flex-1 h-11 bg-gradient-to-r ${config.color} hover:opacity-90 text-white font-semibold rounded-xl shadow-lg`}
+                    variant={undefined}
+                    className={`flex-1 h-11 bg-gradient-to-r ${config.color} hover:opacity-90 !text-white dark:!text-white font-semibold rounded-xl shadow-lg`}
+                    style={{ color: 'white' }}
                   >
-                    <CheckCircle className="w-4 h-4 mr-2" />
+                    <CheckCircle className="w-4 h-4 mr-2 text-white" />
                     Yes, I Shared!
                   </Button>
                 </div>

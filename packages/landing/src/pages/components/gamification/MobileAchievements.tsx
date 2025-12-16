@@ -102,7 +102,7 @@ export function MobileAchievements({
       type: 'top_100',
       title: 'Rising Star',
       description: 'Top 100 position',
-      unlockCondition: effectivePosition > 100 ? `${effectivePosition - 100} spots!` : 'Keep going!',
+      unlockCondition: effectivePosition > 100 ? `${effectivePosition - 100} points!` : 'Keep going!',
       icon: <TrendingUp className="w-8 h-8" />,
       unlocked: effectivePosition <= 100,
       progress: effectivePosition > 100 ? Math.max(0, 100 - ((effectivePosition - 100) / effectivePosition * 100)) : 100,
@@ -113,7 +113,7 @@ export function MobileAchievements({
       type: 'top_50',
       title: 'VIP Access',
       description: 'VIP tier unlocked',
-      unlockCondition: effectivePosition > 50 ? `${effectivePosition - 50} spots!` : 'VIP!',
+      unlockCondition: effectivePosition > 50 ? `${effectivePosition - 50} points!` : 'VIP!',
       icon: <Crown className="w-8 h-8" />,
       unlocked: effectivePosition <= 50,
       progress: effectivePosition > 50 ? Math.max(0, 100 - ((effectivePosition - 50) / effectivePosition * 100)) : 100,
@@ -133,11 +133,11 @@ export function MobileAchievements({
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-4 px-1">
-        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-          <Award className="w-5 h-5 text-purple-400" />
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <Award className="w-5 h-5 text-purple-500 dark:text-purple-400" />
           Achievements
         </h3>
-        <span className="text-sm text-gray-400">
+        <span className="text-sm text-gray-500 dark:text-gray-400">
           {unlockedCount} / {achievements.length}
         </span>
       </div>
@@ -161,7 +161,7 @@ export function MobileAchievements({
                 flex-shrink-0 w-36 rounded-xl p-4 text-center select-none transition-all
                 ${achievement.unlocked
                   ? `bg-gradient-to-br ${achievement.color} shadow-lg`
-                  : 'bg-white/5 hover:bg-white/10'
+                  : 'bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10'
                 }
               `}
               whileTap={{ scale: 0.95 }}
@@ -171,7 +171,7 @@ export function MobileAchievements({
                 w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center
                 ${achievement.unlocked
                   ? 'bg-white/20 text-white'
-                  : 'bg-white/10 text-gray-500 relative'
+                  : 'bg-gray-200 dark:bg-white/10 text-gray-500 relative'
                 }
               `}>
                 {achievement.unlocked ? (
@@ -187,25 +187,25 @@ export function MobileAchievements({
               </div>
 
               {/* Title */}
-              <h4 className={`font-bold text-sm mb-1 ${achievement.unlocked ? 'text-white' : 'text-gray-300'}`}>
+              <h4 className={`font-bold text-sm mb-1 ${achievement.unlocked ? 'text-white' : 'text-gray-700 dark:text-gray-300'}`}>
                 {achievement.title}
               </h4>
 
               {/* Description or Unlock Condition */}
-              <p className={`text-xs line-clamp-2 mb-2 ${achievement.unlocked ? 'text-white/90' : 'text-gray-400'}`}>
+              <p className={`text-xs line-clamp-2 mb-2 ${achievement.unlocked ? 'text-white/90' : 'text-gray-500 dark:text-gray-400'}`}>
                 {achievement.unlocked ? achievement.description : achievement.unlockCondition}
               </p>
 
               {/* Progress Bar */}
               {!achievement.unlocked && achievement.progress > 0 && (
                 <div className="mt-2">
-                  <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
                     <div
                       className={`h-full bg-gradient-to-r ${achievement.color} transition-all duration-500`}
                       style={{ width: `${achievement.progress}%` }}
                     />
                   </div>
-                  <p className="text-xs text-gray-300 mt-1 font-semibold">
+                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 font-semibold">
                     {achievement.progressText}
                   </p>
                 </div>
@@ -255,7 +255,7 @@ export function MobileAchievements({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 2.8 }}
-        className="text-center text-xs text-gray-500 mt-2"
+        className="text-center text-xs text-gray-500 dark:text-gray-500 mt-2"
       >
         ← Swipe to see all achievements →
       </motion.div>
@@ -266,12 +266,12 @@ export function MobileAchievements({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 3.0 }}
-          className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-lg p-3 mt-4 text-center"
+          className="bg-gradient-to-r from-purple-100 dark:from-purple-500/10 to-pink-100 dark:to-pink-500/10 border border-purple-200 dark:border-purple-500/20 rounded-lg p-3 mt-4 text-center"
         >
-          <p className="text-sm text-purple-300 font-semibold">
+          <p className="text-sm text-purple-600 dark:text-purple-300 font-semibold">
             🎯 {achievements.length - unlockedCount} to unlock!
           </p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
             Share & refer to complete all
           </p>
         </motion.div>
@@ -283,13 +283,13 @@ export function MobileAchievements({
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 3.0 }}
-          className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/40 rounded-lg p-4 mt-4 text-center"
+          className="bg-gradient-to-r from-yellow-100 dark:from-yellow-500/20 to-orange-100 dark:to-orange-500/20 border-2 border-yellow-400 dark:border-yellow-500/40 rounded-lg p-4 mt-4 text-center"
         >
-          <Crown className="w-8 h-8 mx-auto mb-2 text-yellow-400" />
-          <p className="text-lg font-bold text-yellow-300">
+          <Crown className="w-8 h-8 mx-auto mb-2 text-yellow-500 dark:text-yellow-400" />
+          <p className="text-lg font-bold text-yellow-600 dark:text-yellow-300">
             🎉 All Unlocked!
           </p>
-          <p className="text-xs text-gray-300 mt-1">
+          <p className="text-xs text-gray-700 dark:text-gray-300 mt-1">
             {totalPoints} total points!
           </p>
         </motion.div>

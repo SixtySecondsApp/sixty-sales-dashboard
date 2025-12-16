@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Check } from 'lucide-react';
+import { Check, Link2, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { WaitlistEntry } from '@/lib/types/waitlist';
 import { ConfettiService } from '@/lib/services/confettiService';
@@ -25,12 +25,27 @@ interface WaitlistSuccessProps {
 export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
   const [hasShared, setHasShared] = useState(false);
   const [celebratedMilestones, setCelebratedMilestones] = useState<Set<string>>(new Set());
+  const [statusUrlCopied, setStatusUrlCopied] = useState(false);
 
   // Real-time position updates
-  const { entry, previousPosition, isConnected, updateEntry } = useWaitlistRealtime(initialEntry.id, initialEntry);
+  const { entry, previousPosition, isConnected, updateEntry, refetch } = useWaitlistRealtime(initialEntry.id, initialEntry);
 
   // Generate referral URL
   const referralUrl = `${window.location.origin}/product/meetings/waitlist?ref=${entry.referral_code}`;
+
+  // Generate unique status URL for returning users
+  const statusUrl = `${window.location.origin}/waitlist/status/${entry.id}`;
+
+  // Copy status URL to clipboard
+  const copyStatusUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(statusUrl);
+      setStatusUrlCopied(true);
+      setTimeout(() => setStatusUrlCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy URL:', err);
+    }
+  };
 
   // Scroll to top on mount
   useEffect(() => {
@@ -136,6 +151,46 @@ export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
           >
             Welcome, {entry.full_name.split(' ')[0]}! You've secured priority access to reclaim 10+ hours every week.
           </motion.p>
+
+          {/* Unique Access Link - Save this to return */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.8 }}
+            className="mt-4 p-3 sm:p-4 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Link2 className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+              <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Your Personal Access Link</span>
+            </div>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value={statusUrl}
+                className="flex-1 px-3 py-2.5 text-sm bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 truncate"
+              />
+              <button
+                onClick={copyStatusUrl}
+                className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex-shrink-0"
+              >
+                {statusUrlCopied ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    Copy
+                  </>
+                )}
+              </button>
+            </div>
+            <p className="text-xs text-blue-600/70 dark:text-blue-400/70 mt-2">
+              Bookmark this link to check your position anytime
+            </p>
+          </motion.div>
         </div>
 
         {/* Main Content Grid - Matches HTML Layout Exactly */}
@@ -164,15 +219,59 @@ export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
                 setHasShared(true);
                 handleMilestone('first_share');
               }}
-              onBoostClaimed={(data) => {
-                // Update the entry with new points and position from the boost
-                updateEntry({
-                  total_points: data.total_points,
-                  effective_position: data.effective_position,
-                  [`${data.platform}_boost_claimed`]: true
+              onBoostClaimed={async (data) => {
+                console.log('[WaitlistSuccess] onBoostClaimed called with data:', data);
+                // Immediately update local state with the data we have from the update
+                if (data) {
+                  console.log('[WaitlistSuccess] Updating entry state with:', {
+                    total_points: data.total_points,
+                    effective_position: data.effective_position
+                  });
+                  updateEntry({
+                    total_points: data.total_points,
+                    effective_position: data.effective_position
+                  });
+                  console.log('[WaitlistSuccess] Entry state updated, current entry:', {
+                    total_points: entry.total_points,
+                    effective_position: entry.effective_position
+                  });
+                } else {
+                  console.warn('[WaitlistSuccess] onBoostClaimed called but no data provided!');
+                }
+                // Then refetch to get all fields (referral_count, etc.)
+                console.log('[WaitlistSuccess] Waiting 500ms before refetch...');
+                await new Promise(resolve => setTimeout(resolve, 500));
+                console.log('[WaitlistSuccess] Calling refetch...');
+                await refetch();
+                console.log('[WaitlistSuccess] Refetch complete, entry state:', {
+                  total_points: entry.total_points,
+                  effective_position: entry.effective_position,
+                  linkedin_boost_claimed: entry.linkedin_boost_claimed,
+                  twitter_boost_claimed: entry.twitter_boost_claimed
                 });
                 // Celebrate the boost!
                 ConfettiService.milestone('first_share');
+              }}
+              onEntryUpdate={async () => {
+                // Refetch the full entry after any update (boosts, invites, shares, etc.)
+                // This ensures achievements, points, referrals, and leaderboard all update
+                console.log('[WaitlistSuccess] onEntryUpdate called, refetching...');
+                console.log('[WaitlistSuccess] Current entry state before refetch:', {
+                  total_points: entry.total_points,
+                  effective_position: entry.effective_position,
+                  referral_count: entry.referral_count,
+                  linkedin_boost_claimed: entry.linkedin_boost_claimed,
+                  twitter_boost_claimed: entry.twitter_boost_claimed
+                });
+                await refetch();
+                console.log('[WaitlistSuccess] Refetch complete, entry should be updated');
+                console.log('[WaitlistSuccess] Entry state after refetch:', {
+                  total_points: entry.total_points,
+                  effective_position: entry.effective_position,
+                  referral_count: entry.referral_count,
+                  linkedin_boost_claimed: entry.linkedin_boost_claimed,
+                  twitter_boost_claimed: entry.twitter_boost_claimed
+                });
               }}
             />
           </div>
@@ -180,7 +279,7 @@ export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
           {/* RIGHT COLUMN: Leaderboard & Achievements */}
           <div className="lg:col-span-5 space-y-6">
             {/* Leaderboard Card with Prizes */}
-            <Leaderboard currentUserId={entry.id} />
+            <Leaderboard key={`${entry.id}-${entry.total_points}-${entry.referral_count}`} currentUserId={entry.id} />
 
             {/* Achievements Grid */}
             <div className="hidden lg:block">

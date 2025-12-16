@@ -47,7 +47,7 @@ export function UserPositionCard({ effectivePosition, signupPosition, referralCo
             >
               <TrendingUp className="w-4 h-4 text-emerald-400" />
               <span className="text-sm font-medium text-emerald-300">
-                Moved up {positionsMoved} {positionsMoved === 1 ? 'spot' : 'spots'}!
+                Moved up {positionsMoved} {positionsMoved === 1 ? 'point' : 'points'}!
               </span>
             </motion.div>
           )}

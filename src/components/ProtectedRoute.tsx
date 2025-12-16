@@ -25,6 +25,14 @@ const publicRoutes = [
   '/pricing'
 ];
 
+// Check if a route is a public waitlist route (including sub-routes)
+const isPublicWaitlistRoute = (pathname: string): boolean => {
+  return pathname === '/waitlist' || 
+         pathname.startsWith('/waitlist/status/') ||
+         pathname === '/waitlist/leaderboard' ||
+         pathname === '/leaderboard';
+};
+
 // Routes that require auth but should show loading instead of redirecting immediately
 const authRequiredRoutes = [
   '/onboarding',
@@ -53,7 +61,7 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
   const [isCheckingEmail, setIsCheckingEmail] = useState(true);
   const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const isPublicRoute = publicRoutes.includes(location.pathname);
+  const isPublicRoute = publicRoutes.includes(location.pathname) || isPublicWaitlistRoute(location.pathname);
   const isVerifyEmailRoute = location.pathname === '/auth/verify-email';
   const isPasswordRecovery = location.pathname === '/auth/reset-password' &&
     location.hash.includes('type=recovery');

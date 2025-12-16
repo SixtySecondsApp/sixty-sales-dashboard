@@ -29,7 +29,7 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
 
     // Subscribe to real-time updates
     const channel = supabase
-      .channel('leaderboard')
+      .channel(`leaderboard:${currentUserId}`)
       .on(
         'postgres_changes',
         {
@@ -38,7 +38,10 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
           table: 'meetings_waitlist'
         },
         () => {
-          loadLeaderboard();
+          // Debounce to avoid too many refreshes
+          setTimeout(() => {
+            loadLeaderboard();
+          }, 300);
         }
       )
       .subscribe();
@@ -234,8 +237,8 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
               </div>
 
               {/* Stats: Shares + Referrals = Total Points */}
-              <div className="text-right relative z-10 space-y-1">
-                <div className="flex items-center justify-end gap-2">
+              <div className="text-right relative z-10 space-y-1 flex-shrink-0">
+                <div className="hidden sm:flex items-center justify-end gap-2">
                   <div className="text-xs text-gray-500">
                     {(leader.linkedin_boost_claimed ? 1 : 0) + (leader.twitter_boost_claimed ? 1 : 0)} shares
                   </div>
@@ -244,7 +247,10 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
                     {leader.referral_count} referrals
                   </div>
                 </div>
-                <div className={`text-lg font-bold ${isCurrentUser ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                <div className="sm:hidden text-[10px] text-gray-500">
+                  {leader.referral_count} refs
+                </div>
+                <div className={`text-base sm:text-lg font-bold ${isCurrentUser ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                   {leader.total_points} pts
                 </div>
               </div>
@@ -320,8 +326,8 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
               </div>
 
               {/* Stats */}
-              <div className="text-right relative z-10 space-y-1">
-                <div className="flex items-center justify-end gap-2">
+              <div className="text-right relative z-10 space-y-1 flex-shrink-0">
+                <div className="hidden sm:flex items-center justify-end gap-2">
                   <div className="text-xs text-blue-500/70 dark:text-blue-300/70">
                     {(currentUserEntry.linkedin_boost_claimed ? 1 : 0) + (currentUserEntry.twitter_boost_claimed ? 1 : 0)} shares
                   </div>
@@ -330,7 +336,10 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
                     {currentUserEntry.referral_count} referrals
                   </div>
                 </div>
-                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                <div className="sm:hidden text-[10px] text-blue-500/70 dark:text-blue-300/70">
+                  {currentUserEntry.referral_count} refs
+                </div>
+                <div className="text-base sm:text-lg font-bold text-blue-600 dark:text-blue-400">
                   {currentUserEntry.total_points} pts
                 </div>
               </div>

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Award, Share2, Users, Crown, Zap, Target, TrendingUp, Linkedin, Twitter, Lock } from 'lucide-react';
 import type { MilestoneType } from '@/lib/types/waitlist';
@@ -31,6 +32,17 @@ export function AchievementUnlock({
   twitterBoostClaimed = false,
   totalPoints = 0
 }: AchievementUnlockProps) {
+  // Debug logging for achievement props
+  useEffect(() => {
+    console.log('[AchievementUnlock] Props updated:', {
+      referralCount,
+      effectivePosition,
+      hasShared,
+      linkedInBoostClaimed,
+      twitterBoostClaimed,
+      totalPoints
+    });
+  }, [referralCount, effectivePosition, hasShared, linkedInBoostClaimed, twitterBoostClaimed, totalPoints]);
   const achievements: Achievement[] = [
     {
       type: 'first_share',
@@ -47,7 +59,7 @@ export function AchievementUnlock({
       type: 'linkedin_boost',
       title: 'LinkedIn Pro',
       description: 'Share on LinkedIn for +50 boost',
-      callToAction: 'Share on LinkedIn to jump 50 spots!',
+      callToAction: 'Share on LinkedIn to jump 50 points!',
       icon: <Linkedin className="w-6 h-6" />,
       unlocked: linkedInBoostClaimed,
       progress: linkedInBoostClaimed ? 100 : 0,
@@ -58,7 +70,7 @@ export function AchievementUnlock({
       type: 'twitter_boost',
       title: 'X Influencer',
       description: 'Share on Twitter/X for +50 boost',
-      callToAction: 'Share on X to jump 50 more spots!',
+      callToAction: 'Share on X to jump 50 more points!',
       icon: <Twitter className="w-6 h-6" />,
       unlocked: twitterBoostClaimed,
       progress: twitterBoostClaimed ? 100 : 0,
@@ -102,7 +114,7 @@ export function AchievementUnlock({
       type: 'top_100',
       title: 'Rising Star',
       description: 'Reach top 100 position',
-      callToAction: effectivePosition > 100 ? `${effectivePosition - 100} spots to go!` : 'Keep climbing!',
+      callToAction: effectivePosition > 100 ? `${effectivePosition - 100} points to go!` : 'Keep climbing!',
       icon: <TrendingUp className="w-6 h-6" />,
       unlocked: effectivePosition <= 100,
       progress: effectivePosition > 100 ? Math.max(0, 100 - ((effectivePosition - 100) / effectivePosition * 100)) : 100,
@@ -113,7 +125,7 @@ export function AchievementUnlock({
       type: 'top_50',
       title: 'VIP Access',
       description: 'Reach top 50 position',
-      callToAction: effectivePosition > 50 ? `${effectivePosition - 50} spots to VIP!` : 'VIP unlocked!',
+      callToAction: effectivePosition > 50 ? `${effectivePosition - 50} points to VIP!` : 'VIP unlocked!',
       icon: <Crown className="w-6 h-6" />,
       unlocked: effectivePosition <= 50,
       progress: effectivePosition > 50 ? Math.max(0, 100 - ((effectivePosition - 50) / effectivePosition * 100)) : 100,
@@ -131,7 +143,7 @@ export function AchievementUnlock({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 2.0, duration: 0.8 }}
-      className="space-y-4"
+      className="space-y-3 sm:space-y-4"
     >
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -144,7 +156,7 @@ export function AchievementUnlock({
       </div>
 
       {/* Achievement Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
         <AnimatePresence>
           {achievements.map((achievement, index) => (
             <motion.div
@@ -153,7 +165,7 @@ export function AchievementUnlock({
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 2.1 + (index * 0.05) }}
               className={`
-                relative rounded-xl p-3 text-center transition-all duration-300 cursor-pointer
+                relative rounded-xl p-2 sm:p-3 text-center transition-all duration-300 cursor-pointer
                 hover:scale-105 group
                 ${achievement.unlocked
                   ? `bg-gradient-to-br ${achievement.color} shadow-lg shadow-${achievement.color}/20 border-2 border-white/30`
@@ -183,12 +195,12 @@ export function AchievementUnlock({
               </div>
 
               {/* Title */}
-              <h4 className={`font-bold text-sm mb-1 ${achievement.unlocked ? 'text-white' : 'text-gray-700 dark:text-gray-300'}`}>
+              <h4 className={`font-bold text-xs sm:text-sm mb-0.5 sm:mb-1 ${achievement.unlocked ? 'text-white' : 'text-gray-700 dark:text-gray-300'}`}>
                 {achievement.title}
               </h4>
 
               {/* Description or Call to Action */}
-              <p className={`text-xs mb-2 ${achievement.unlocked ? 'text-white/90' : 'text-gray-500 dark:text-gray-400'}`}>
+              <p className={`text-[10px] sm:text-xs mb-1 sm:mb-2 leading-tight ${achievement.unlocked ? 'text-white/90' : 'text-gray-500 dark:text-gray-400'}`}>
                 {achievement.unlocked ? achievement.description : achievement.callToAction}
               </p>
 

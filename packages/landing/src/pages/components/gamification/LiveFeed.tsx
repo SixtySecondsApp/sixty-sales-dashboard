@@ -129,7 +129,7 @@ export function LiveFeed() {
         type: 'position_jump',
         name: anonymizeName(newEntry.full_name),
         timestamp: new Date().toISOString(),
-        details: `+${positionChange} spots`
+        details: `+${positionChange} points`
       };
 
       setFeed(prev => [newItem, ...prev].slice(0, 5));
