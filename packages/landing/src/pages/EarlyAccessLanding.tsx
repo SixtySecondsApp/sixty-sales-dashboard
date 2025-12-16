@@ -25,6 +25,17 @@ const DIALER_OPTIONS = ['Aircall', 'Dialpad', 'RingCentral', 'Outreach', 'Salesl
 const MEETING_RECORDER_OPTIONS = ['Fathom', 'Gong', 'Chorus', 'Fireflies', 'Otter.ai', 'None', 'Other'];
 const CRM_OPTIONS = ['Salesforce', 'HubSpot', 'Pipedrive', 'Close', 'Zoho', 'None', 'Other'];
 
+// Validation helpers
+const isValidEmail = (email: string): boolean => {
+  if (!email || !email.trim()) return false;
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return emailRegex.test(email.trim());
+};
+
+const sanitizeName = (name: string): string => {
+  return name.replace(/[^a-zA-Z\s'-]/g, '');
+};
+
 export default function EarlyAccessLanding() {
   // Branding settings for logos
   const { logoDark } = usePublicBrandingSettings();
@@ -111,11 +122,73 @@ export default function EarlyAccessLanding() {
     }
   };
 
+  // Prevent special characters from being typed in name/company fields
+  const handleNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key.length === 1) {
+      const allowedPattern = /^[a-zA-Z\s'-]$/;
+      if (!allowedPattern.test(e.key)) {
+        e.preventDefault();
+      }
+    }
+  };
+
+  // Sanitize pasted text in name/company fields
+  const handleNamePaste = (e: React.ClipboardEvent<HTMLInputElement>, field: 'full_name' | 'company_name') => {
+    e.preventDefault();
+    const pastedText = e.clipboardData.getData('text');
+    const sanitized = sanitizeName(pastedText);
+    if (field === 'full_name') {
+      setFormData(prev => ({ ...prev, full_name: sanitized }));
+    } else {
+      setFormData(prev => ({ ...prev, company_name: sanitized }));
+    }
+  };
+
+  // Sanitize pasted text in CTA modal name/company fields
+  const handleCtaNamePaste = (e: React.ClipboardEvent<HTMLInputElement>, field: 'full_name' | 'company_name') => {
+    e.preventDefault();
+    const pastedText = e.clipboardData.getData('text');
+    const sanitized = sanitizeName(pastedText);
+    if (field === 'full_name') {
+      setCtaFormData(prev => ({ ...prev, full_name: sanitized }));
+    } else {
+      setCtaFormData(prev => ({ ...prev, company_name: sanitized }));
+    }
+  };
+
+  // Handle name/company change with sanitization
+  const handleNameChange = (field: 'full_name' | 'company_name', value: string) => {
+    const sanitized = sanitizeName(value);
+    setFormData(prev => ({ ...prev, [field]: sanitized }));
+  };
+
+  // Handle CTA modal name/company change with sanitization
+  const handleCtaNameChange = (field: 'full_name' | 'company_name', value: string) => {
+    const sanitized = sanitizeName(value);
+    setCtaFormData(prev => ({ ...prev, [field]: sanitized }));
+  };
+
+  // Validate email on blur
+  const handleEmailBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (e.target.value && !isValidEmail(e.target.value)) {
+      e.target.setCustomValidity('Please enter a valid email address');
+    } else {
+      e.target.setCustomValidity('');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsSubmitting(true);
     setMessage(null);
+
+    // Validate email before submission
+    if (!isValidEmail(formData.email)) {
+      setMessage({ type: 'error', text: 'Please enter a valid email address' });
+      setIsSubmitting(false);
+      return;
+    }
 
     // Preserve form data in case of error
     const currentFormData = { ...formData };
@@ -123,8 +196,8 @@ export default function EarlyAccessLanding() {
     try {
       const cleanData = {
         email: formData.email.trim().toLowerCase(),
-        full_name: formData.full_name.trim() || null,
-        company_name: formData.company_name.trim() || null,
+        full_name: sanitizeName(formData.full_name.trim()) || null,
+        company_name: sanitizeName(formData.company_name.trim()) || null,
         dialer_tool: formData.dialer_tool || null,
         meeting_recorder_tool: formData.meeting_recorder_tool || null,
         crm_tool: formData.crm_tool || null
@@ -159,6 +232,11 @@ export default function EarlyAccessLanding() {
     e.preventDefault();
     if (!ctaEmail.trim()) return;
 
+    // Validate email before opening modal
+    if (!isValidEmail(ctaEmail)) {
+      return; // Browser will show validation error
+    }
+
     // Pre-fill the modal form with the email
     setCtaFormData({
       full_name: '',
@@ -178,11 +256,18 @@ export default function EarlyAccessLanding() {
     setIsCtaSubmitting(true);
     setCtaMessage(null);
 
+    // Validate email before submission
+    if (!isValidEmail(ctaFormData.email)) {
+      setCtaMessage({ type: 'error', text: 'Please enter a valid email address' });
+      setIsCtaSubmitting(false);
+      return;
+    }
+
     try {
       const cleanData = {
         email: ctaFormData.email.trim().toLowerCase(),
-        full_name: ctaFormData.full_name.trim() || null,
-        company_name: ctaFormData.company_name.trim() || null,
+        full_name: sanitizeName(ctaFormData.full_name.trim()) || null,
+        company_name: sanitizeName(ctaFormData.company_name.trim()) || null,
         dialer_tool: ctaFormData.dialer_tool || null,
         meeting_recorder_tool: ctaFormData.meeting_recorder_tool || null,
         crm_tool: ctaFormData.crm_tool || null
@@ -319,7 +404,7 @@ export default function EarlyAccessLanding() {
                   className="text-4xl sm:text-5xl lg:text-6xl font-extrabold mb-6 leading-tight tracking-tight text-gray-900 dark:text-white"
                 >
                   Stop Doing Admin.<br />
-                  <span className="bg-gradient-to-r from-blue-600 to-emerald-500 dark:from-blue-400 dark:to-emerald-400 bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-blue-500 to-purple-500 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
                     Start Closing Deals.
                   </span>
                 </motion.h1>
@@ -412,7 +497,17 @@ export default function EarlyAccessLanding() {
                         required
                         placeholder="Full Name *"
                         value={formData.full_name}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, full_name: e.target.value }))}
+                        onChange={(e) => handleNameChange('full_name', e.target.value)}
+                        onKeyDown={handleNameKeyDown}
+                        onPaste={(e) => handleNamePaste(e, 'full_name')}
+                        onInput={(e) => {
+                          const target = e.target as HTMLInputElement;
+                          const sanitized = sanitizeName(target.value);
+                          if (target.value !== sanitized) {
+                            target.value = sanitized;
+                            setFormData(prev => ({ ...prev, full_name: sanitized }));
+                          }
+                        }}
                         disabled={isSubmitting}
                         className="w-full px-4 py-3.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all disabled:opacity-50"
                       />
@@ -423,6 +518,7 @@ export default function EarlyAccessLanding() {
                         placeholder="Work Email *"
                         value={formData.email}
                         onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+                        onBlur={handleEmailBlur}
                         disabled={isSubmitting}
                         className="w-full px-4 py-3.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all disabled:opacity-50"
                       />
@@ -432,7 +528,17 @@ export default function EarlyAccessLanding() {
                         required
                         placeholder="Company Name *"
                         value={formData.company_name}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, company_name: e.target.value }))}
+                        onChange={(e) => handleNameChange('company_name', e.target.value)}
+                        onKeyDown={handleNameKeyDown}
+                        onPaste={(e) => handleNamePaste(e, 'company_name')}
+                        onInput={(e) => {
+                          const target = e.target as HTMLInputElement;
+                          const sanitized = sanitizeName(target.value);
+                          if (target.value !== sanitized) {
+                            target.value = sanitized;
+                            setFormData(prev => ({ ...prev, company_name: sanitized }));
+                          }
+                        }}
                         disabled={isSubmitting}
                         className="w-full px-4 py-3.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all disabled:opacity-50"
                       />
@@ -746,16 +852,10 @@ export default function EarlyAccessLanding() {
         {/* CTA Section */}
         <section className="py-24">
           <div className="max-w-7xl mx-auto px-6">
-            <div className="bg-gradient-to-r from-blue-600 to-purple-500 rounded-3xl p-12 md:p-20 text-center relative overflow-hidden">
-              <div
-                className="absolute inset-0 opacity-10"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.5'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-                }}
-              />
+            <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-white/[0.08] rounded-2xl p-7 shadow-sm dark:shadow-none text-center relative overflow-hidden transition-colors duration-300">
               <div className="relative">
-                <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4">Stop Losing Deals to Admin</h2>
-                <p className="text-lg opacity-90 max-w-lg mx-auto mb-8">
+                <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 text-gray-900 dark:text-white">Stop Losing Deals to Admin</h2>
+                <p className="text-lg text-gray-600 dark:text-gray-400 max-w-lg mx-auto mb-8">
                   Join {displayCount} sales professionals already on the waitlist. Limited spots in our next cohort.
                 </p>
                 <form onSubmit={handleCtaEmailSubmit} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto mb-5">
@@ -765,16 +865,17 @@ export default function EarlyAccessLanding() {
                     placeholder="Enter your work email"
                     value={ctaEmail}
                     onChange={(e) => setCtaEmail(e.target.value)}
-                    className="flex-1 px-5 py-4 bg-white/15 border-2 border-white/20 rounded-xl text-white placeholder:text-white/60 focus:border-white/50 focus:bg-white/20 outline-none transition-all"
+                    onBlur={handleEmailBlur}
+                    className="flex-1 px-5 py-4 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
                   />
                   <button
                     type="submit"
-                    className="px-8 py-4 bg-white text-blue-600 font-semibold rounded-xl hover:-translate-y-0.5 hover:shadow-xl transition-all whitespace-nowrap"
+                    className="px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold rounded-xl hover:-translate-y-0.5 hover:shadow-xl transition-all whitespace-nowrap"
                   >
                     Secure Your Spot
                   </button>
                 </form>
-                <p className="text-sm opacity-80">No credit card. No commitment. Just your email.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">No credit card. No commitment. Just your email.</p>
               </div>
             </div>
           </div>
@@ -868,7 +969,17 @@ export default function EarlyAccessLanding() {
                       required
                       placeholder="Full Name *"
                       value={ctaFormData.full_name}
-                      onChange={(e) => setCtaFormData(prev => ({ ...prev, full_name: e.target.value }))}
+                      onChange={(e) => handleCtaNameChange('full_name', e.target.value)}
+                      onKeyDown={handleNameKeyDown}
+                      onPaste={(e) => handleCtaNamePaste(e, 'full_name')}
+                      onInput={(e) => {
+                        const target = e.target as HTMLInputElement;
+                        const sanitized = sanitizeName(target.value);
+                        if (target.value !== sanitized) {
+                          target.value = sanitized;
+                          setCtaFormData(prev => ({ ...prev, full_name: sanitized }));
+                        }
+                      }}
                       className="w-full px-4 py-3.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
                     />
                   </div>
@@ -880,7 +991,17 @@ export default function EarlyAccessLanding() {
                       required
                       placeholder="Company Name *"
                       value={ctaFormData.company_name}
-                      onChange={(e) => setCtaFormData(prev => ({ ...prev, company_name: e.target.value }))}
+                      onChange={(e) => handleCtaNameChange('company_name', e.target.value)}
+                      onKeyDown={handleNameKeyDown}
+                      onPaste={(e) => handleCtaNamePaste(e, 'company_name')}
+                      onInput={(e) => {
+                        const target = e.target as HTMLInputElement;
+                        const sanitized = sanitizeName(target.value);
+                        if (target.value !== sanitized) {
+                          target.value = sanitized;
+                          setCtaFormData(prev => ({ ...prev, company_name: sanitized }));
+                        }
+                      }}
                       className="w-full px-4 py-3.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
                     />
                   </div>
