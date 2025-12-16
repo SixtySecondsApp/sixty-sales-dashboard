@@ -26,6 +26,7 @@ import {
   UserX,
   Kanban,
   PanelLeft,
+  PanelLeftClose,
   Users as UsersIcon,
   Link2,
   CheckSquare,
@@ -44,6 +45,8 @@ import {
   Sparkles,
   Search,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   BarChart3,
   Layers,
   Eye,
@@ -573,74 +576,85 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           'fixed left-0 bottom-0 bg-white dark:bg-gray-900/50 backdrop-blur-xl p-6',
           'border-r border-[#E2E8F0] dark:border-gray-800/50 shadow-[2px_0_8px_-2px_rgba(0,0,0,0.04)] dark:shadow-none',
           'transition-all duration-300 ease-in-out flex-shrink-0',
-          isCollapsed ? 'w-[80px]' : 'w-[256px]',
+          'overflow-visible',
+          isCollapsed ? 'w-[96px]' : 'w-[256px]',
           'hidden lg:block z-[100]',
           isImpersonating ? 'top-[44px] h-[calc(100vh-44px)]' : 'top-0 h-screen'
         )}
       >
-        {/* Clickable border to minimize sidebar - only height of top bar, slightly thicker */}
-        <div
+        {/* Small Circular Toggle Button - Positioned on Edge, Inline with Logo */}
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => setIsCollapsed(!isCollapsed)}
           className={cn(
-            'absolute right-0 top-0 w-[2px] h-16 bg-slate-300 dark:bg-gray-700 cursor-pointer hover:bg-slate-400 dark:hover:bg-gray-600 transition-all z-[101]',
-            'hover:w-[3px]'
+            'absolute z-50',
+            'w-6 h-6 rounded-full',
+            'bg-white dark:bg-gray-800',
+            'border border-gray-200 dark:border-gray-700/50',
+            'text-gray-500 dark:text-gray-400',
+            'hover:text-gray-700 dark:hover:text-gray-200',
+            'hover:bg-gray-50 dark:hover:bg-gray-700',
+            'shadow-md dark:shadow-lg dark:shadow-black/20',
+            'flex items-center justify-center',
+            'transition-all duration-200',
+            // Align with logo: p-6 (24px) + half logo height
+            // Collapsed: 24px + 24px = 48px (logo is now w-12 h-12), Expanded: 24px + 24px = 48px
+            'top-[48px]',
+            // Position on edge with transform to center button on edge
+            'right-0 translate-x-1/2'
           )}
+          style={{ transformOrigin: 'center center' }}
           title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        />
-        
+        >
+          {isCollapsed ? (
+            <ChevronRight className="w-3.5 h-3.5" />
+          ) : (
+            <ChevronLeft className="w-3.5 h-3.5" />
+          )}
+        </motion.button>
+
         <div className="flex h-full flex-col">
-          {/* Logo space at top */}
+          {/* Logo Header */}
           <div className={cn(
-            'mb-8',
-            isCollapsed ? 'flex justify-center' : 'flex items-center justify-center'
+            'mb-8 flex items-center justify-center'
           )}>
             <Link to="/" className={cn(
               'transition-opacity hover:opacity-80',
-              isCollapsed ? 'w-10 h-10' : 'w-full h-12'
+              isCollapsed ? 'w-12 h-12' : 'w-full'
             )}>
-              {(() => {
-                // When collapsed, show icon if available, otherwise show logo
-                if (isCollapsed) {
-                  const iconUrl = brandingSettings?.icon_url || 'https://www.sixtyseconds.ai/images/logo.png';
-                  return (
-                    <img
-                      key={`icon-${resolvedTheme}`}
-                      src={iconUrl}
-                      alt="Logo"
-                      className="w-10 h-10 object-contain"
-                    />
-                  );
-                }
-                
-                // When expanded, show theme-appropriate logo
-                const darkLogo = brandingSettings?.logo_dark_url;
-                const lightLogo = brandingSettings?.logo_light_url;
-                const fallbackLogo = 'https://www.sixtyseconds.ai/images/logo.png';
-
-                const logoUrl = resolvedTheme === 'dark'
-                  ? (darkLogo || lightLogo || fallbackLogo)
-                  : (lightLogo || darkLogo || fallbackLogo);
-
-                return (
-                  <img
-                    key={`logo-${resolvedTheme}-${logoUrl}`}
-                    src={logoUrl}
-                    alt="Logo"
-                    className="w-full h-12 object-contain"
-                  />
-                );
-              })()}
+              {isCollapsed ? (
+                <img
+                  key="icon-collapsed"
+                  src="https://ygdpgliavpxeugaajgrb.supabase.co/storage/v1/object/public/Logos/ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459/Icon.png"
+                  alt="Logo"
+                  className="w-12 h-12 object-contain rounded-xl"
+                />
+              ) : (
+                <img
+                  key="logo-expanded"
+                  src="https://ygdpgliavpxeugaajgrb.supabase.co/storage/v1/object/public/Logos/ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459/Dark%20Mode%20Logo.png"
+                  alt="Logo"
+                  className="h-12 w-full object-contain"
+                />
+              )}
             </Link>
           </div>
           
           <div className="flex-1 overflow-y-auto pr-2 -mr-2">
-            <nav className="space-y-2 pb-6">
+            <nav className={cn(
+              'pb-6',
+              isCollapsed ? 'space-y-3' : 'space-y-2'
+            )}>
               {menuItems.map((item) => (
                 <div key={item.href + item.label}>
                   <Link
                     to={item.href}
                     className={cn(
-                      'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                      'flex items-center transition-colors text-sm font-medium',
+                      isCollapsed 
+                        ? 'w-12 h-12 mx-auto rounded-xl justify-center' 
+                        : 'w-full gap-3 px-2 py-2.5 rounded-xl',
                       location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
                         ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
                         : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
@@ -652,12 +666,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                         scale: isCollapsed ? 1.1 : 1
                       }}
                       className={cn(
-                        'relative z-10 min-w-[20px] flex items-center justify-center',
+                        'relative z-10 flex items-center justify-center',
+                        isCollapsed ? 'w-full h-full' : 'min-w-[20px]',
                         location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
                           ? 'text-indigo-700 dark:text-white' : 'text-[#64748B] dark:text-gray-400/80'
                       )}
                     >
-                      <item.icon className="w-4 h-4" />
+                      <item.icon className={cn(isCollapsed ? 'w-5 h-5' : 'w-4 h-4')} />
                     </motion.div>
                     <AnimatePresence>
                       {!isCollapsed && (
@@ -698,17 +713,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           
           {/* Settings and Logout at bottom */}
-          <div className="mt-auto pt-6 border-t border-[#E2E8F0] dark:border-gray-800/50">
+          <div className={cn(
+            'mt-auto pt-6 border-t border-[#E2E8F0] dark:border-gray-800/50',
+            isCollapsed ? 'space-y-3' : 'space-y-0'
+          )}>
             <Link
               to="/settings"
               className={cn(
-                'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors mb-2',
+                'flex items-center transition-colors text-sm font-medium',
+                isCollapsed 
+                  ? 'w-12 h-12 mx-auto rounded-xl justify-center mb-0' 
+                  : 'w-full gap-3 px-2 py-2.5 rounded-xl mb-2',
                 location.pathname.startsWith('/settings')
                   ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
                   : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
               )}
             >
-              <Settings className="w-4 h-4 flex-shrink-0" />
+              <Settings className={cn(isCollapsed ? 'w-5 h-5' : 'w-4 h-4 flex-shrink-0')} />
               <AnimatePresence>
                 {!isCollapsed && (
                   <motion.span
@@ -728,13 +749,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <Link
                 to="/platform"
                 className={cn(
-                  'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors mb-2',
+                  'flex items-center transition-colors text-sm font-medium',
+                  isCollapsed 
+                    ? 'w-12 h-12 mx-auto rounded-xl justify-center mb-0' 
+                    : 'w-full gap-3 px-2 py-2.5 rounded-xl mb-2',
                   location.pathname.startsWith('/platform')
                     ? 'bg-purple-50 text-purple-600 border border-purple-200 dark:bg-purple-900/20 dark:text-white dark:border-purple-800/20'
                     : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
                 )}
               >
-                <Shield className="w-4 h-4 flex-shrink-0" />
+                <Shield className={cn(isCollapsed ? 'w-5 h-5' : 'w-4 h-4 flex-shrink-0')} />
                 <AnimatePresence>
                   {!isCollapsed && (
                     <motion.span
@@ -753,7 +777,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <button
               onClick={handleLogout}
               className={cn(
-                'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                'flex items-center transition-colors text-sm font-medium',
+                isCollapsed 
+                  ? 'w-12 h-12 mx-auto rounded-xl justify-center' 
+                  : 'w-full gap-3 px-2 py-2.5 rounded-xl',
                 isImpersonating
                   ? 'text-amber-400 hover:bg-amber-500/10'
                   : 'text-red-400 hover:bg-red-500/10'
@@ -761,7 +788,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             >
               {isImpersonating ? (
                 <>
-                  <UserX className="w-4 h-4 flex-shrink-0" />
+                  <UserX className={cn(isCollapsed ? 'w-5 h-5' : 'w-4 h-4 flex-shrink-0')} />
                   <AnimatePresence>
                     {!isCollapsed && (
                       <motion.span
@@ -777,7 +804,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </>
               ) : (
                 <>
-                  <LogOut className="w-4 h-4 flex-shrink-0" />
+                  <LogOut className={cn(isCollapsed ? 'w-5 h-5' : 'w-4 h-4 flex-shrink-0')} />
                   <AnimatePresence>
                     {!isCollapsed && (
                       <motion.span
@@ -798,7 +825,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </motion.div>
       <main className={cn(
         'flex-1 transition-[margin] duration-300 ease-in-out',
-        isCollapsed ? 'lg:ml-[80px]' : 'lg:ml-[256px]',
+        isCollapsed ? 'lg:ml-[96px]' : 'lg:ml-[256px]',
         'ml-0',
         // Conditionally add extra padding when trial banner is visible
         // Account for impersonation banner (44px) + top bar (64px) = 108px
