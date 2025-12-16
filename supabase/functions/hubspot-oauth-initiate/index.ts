@@ -136,22 +136,18 @@ serve(async (req) => {
     }
 
     const scopes = [
+      // Core CRM objects
       'crm.objects.contacts.read',
       'crm.objects.contacts.write',
       'crm.objects.deals.read',
       'crm.objects.deals.write',
-      'crm.objects.tasks.read',
-      'crm.objects.tasks.write',
-      'crm.objects.notes.read',
-      'crm.objects.notes.write',
-      'crm.objects.quotes.read',
-      'crm.objects.quotes.write',
-      'crm.objects.line_items.read',
-      'crm.objects.line_items.write',
-      'crm.objects.custom.read',
-      'crm.objects.custom.write',
-      'crm.schemas.quotes.read',
-      'crm.schemas.custom.read',
+      'crm.objects.companies.read',
+      'crm.objects.companies.write',
+      'crm.objects.owners.read',
+      // Engagements (notes, calls, emails, meetings, tasks)
+      'sales-email-read',
+      'timeline',
+      // Forms
       'forms',
     ]
 
