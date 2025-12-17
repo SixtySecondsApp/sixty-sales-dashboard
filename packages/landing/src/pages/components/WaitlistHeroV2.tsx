@@ -159,7 +159,7 @@ export function WaitlistHeroV2() {
         ...formData,
         registration_url: registrationUrl
       };
-      
+
       // Save to database
       await waitlistService.signupForWaitlist(finalFormData);
 

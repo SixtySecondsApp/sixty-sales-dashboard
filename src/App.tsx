@@ -85,6 +85,7 @@ const Signup = lazyWithRetry(() => import('@/pages/auth/signup'));
 const VerifyEmail = lazyWithRetry(() => import('@/pages/auth/VerifyEmail'));
 const ForgotPassword = lazyWithRetry(() => import('@/pages/auth/forgot-password'));
 const ResetPassword = lazyWithRetry(() => import('@/pages/auth/reset-password'));
+const SetPassword = lazyWithRetry(() => import('@/pages/auth/SetPassword'));
 const Onboarding = lazyWithRetry(() => import('@/pages/onboarding'));
 
 // Large feature routes - lazy load with retry (most prone to cache issues)
@@ -392,6 +393,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/auth/verify-email" element={<VerifyEmail />} />
         <Route path="/auth/forgot-password" element={<ForgotPassword />} />
         <Route path="/auth/reset-password" element={<ResetPassword />} />
+        <Route path="/auth/set-password" element={<SetPassword />} />
         
         {/* OAuth callback routes - must be public for external redirects */}
         <Route path="/auth/google/callback" element={<GoogleCallback />} />

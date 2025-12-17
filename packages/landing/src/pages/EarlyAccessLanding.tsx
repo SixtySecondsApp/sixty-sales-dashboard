@@ -243,7 +243,7 @@ export default function EarlyAccessLanding() {
         .insert([cleanData])
         .select()
         .single();
-      
+
       if (error) {
         console.error('[Waitlist] Insert error details:', {
           code: error.code,

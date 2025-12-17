@@ -1,0 +1,130 @@
+/**
+ * Generate Magic Link Edge Function
+ * 
+ * Generates a magic link URL using Supabase Admin API without sending an email
+ * This allows us to use our custom email templates
+ */
+
+import { serve } from 'https://deno.land/std@0.190.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+interface GenerateMagicLinkRequest {
+  email: string;
+  redirectTo: string;
+  data?: Record<string, any>;
+}
+
+serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  // Verify authentication (user must be authenticated)
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Unauthorized: missing authorization header' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  try {
+    const request: GenerateMagicLinkRequest = await req.json();
+
+    if (!request.email || !request.redirectTo) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Missing email or redirectTo' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate redirectTo is a valid URL (allows localhost for local dev)
+    try {
+      const redirectUrl = new URL(request.redirectTo);
+      // Allow http://localhost and http://127.0.0.1 for local development
+      const isLocalhost = redirectUrl.hostname === 'localhost' || 
+                         redirectUrl.hostname === '127.0.0.1' ||
+                         redirectUrl.hostname.startsWith('192.168.') ||
+                         redirectUrl.hostname.startsWith('10.') ||
+                         redirectUrl.hostname.endsWith('.local');
+      // Allow https for production or http for localhost
+      if (!redirectUrl.protocol.match(/^https?:$/) || (!isLocalhost && redirectUrl.protocol !== 'https:')) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Invalid redirectTo URL protocol' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } catch (urlError) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid redirectTo URL format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create admin client
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    // Generate magic link using admin API
+    // Store waitlist_entry_id in user metadata so we can find it later if URL params are lost
+    const userMetadata = {
+      ...(request.data || {}),
+      // Ensure waitlist_entry_id is in metadata for easy retrieval
+      waitlist_entry_id: request.data?.waitlist_entry_id || null,
+    };
+    
+    const { data: magicLinkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'magiclink',
+      email: request.email,
+      options: {
+        redirectTo: request.redirectTo,
+        data: userMetadata,
+      },
+    });
+
+    if (magicLinkError || !magicLinkData) {
+      console.error('Failed to generate magic link:', magicLinkError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: magicLinkError?.message || 'Failed to generate magic link',
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        magicLink: magicLinkData.properties.action_link,
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    );
+  } catch (error: any) {
+    console.error('Error generating magic link:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message || 'Unknown error',
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});

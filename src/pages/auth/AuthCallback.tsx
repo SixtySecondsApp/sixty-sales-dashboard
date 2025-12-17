@@ -39,6 +39,8 @@ export default function AuthCallback() {
         const code = searchParams.get('code');
         const tokenHash = searchParams.get('token_hash');
         const type = searchParams.get('type');
+        // Get waitlist entry ID from URL or localStorage (URL params might be lost in redirects)
+        const waitlistEntryId = searchParams.get('waitlist_entry') || localStorage.getItem('waitlist_entry_id');
         const next = searchParams.get('next') || '/dashboard';
 
         // First check if we already have a session (user might already be logged in)
@@ -46,6 +48,18 @@ export default function AuthCallback() {
 
         // If we already have a valid session with verified email, skip verification and proceed
         if (session?.user?.email_confirmed_at) {
+          // Check if this is a waitlist user - check multiple sources
+          const waitlistIdFromUrl = waitlistEntryId;
+          const waitlistIdFromStorage = localStorage.getItem('waitlist_entry_id');
+          const waitlistIdFromMetadata = session.user.user_metadata?.waitlist_entry_id;
+          const waitlistEntryIdToUse = waitlistIdFromUrl || waitlistIdFromStorage || waitlistIdFromMetadata;
+          
+          if (waitlistEntryIdToUse) {
+            localStorage.setItem('waitlist_entry_id', waitlistEntryIdToUse);
+            navigate(`/auth/set-password?waitlist_entry=${waitlistEntryIdToUse}`, { replace: true });
+            return;
+          }
+          
           // User is already authenticated and verified - go directly to appropriate page
           await navigateBasedOnOnboarding(session, next);
           return;
@@ -94,19 +108,29 @@ export default function AuthCallback() {
           }
         }
 
-        // If there's a token_hash (from email confirmation), verify it
+        // If there's a token_hash (from email confirmation/magic link), verify it
         if (tokenHash && type) {
-          const { error: otpError } = await supabase.auth.verifyOtp({
+          console.log('[AuthCallback] Verifying magic link with token_hash and type:', type);
+          
+          const { data: verifyData, error: otpError } = await supabase.auth.verifyOtp({
             token_hash: tokenHash,
-            type: type as 'signup' | 'recovery' | 'email',
+            type: type as 'signup' | 'recovery' | 'email' | 'magiclink',
           });
+          
           if (otpError) {
-            console.error('Error verifying OTP:', otpError);
+            console.error('[AuthCallback] Error verifying OTP:', otpError);
             // Check if user is now logged in despite the error (link may have been used already)
             const { data: { session: retrySession } } = await supabase.auth.getSession();
             if (retrySession?.user?.email_confirmed_at) {
               // User is already logged in and verified - the link was probably already used
-              // Don't show error, just proceed
+              console.log('[AuthCallback] User already has session after verification error');
+              // Try to find waitlist entry by email if not in URL
+              const storedWaitlistEntryId = waitlistEntryId || localStorage.getItem('waitlist_entry_id') || retrySession.user.user_metadata?.waitlist_entry_id;
+              if (storedWaitlistEntryId) {
+                localStorage.setItem('waitlist_entry_id', storedWaitlistEntryId);
+                navigate(`/auth/set-password?waitlist_entry=${storedWaitlistEntryId}`, { replace: true });
+                return;
+              }
               await navigateBasedOnOnboarding(retrySession, next);
               return;
             } else if (retrySession?.user) {
@@ -116,36 +140,113 @@ export default function AuthCallback() {
             }
             // Only show error if user is truly not logged in
             if (otpError.message.includes('expired') || otpError.message.includes('invalid')) {
-              setError('This email link has expired or was already used. Please log in or request a new link.');
+              const errorMsg = waitlistEntryId
+                ? 'This magic link has expired or was already used. Please contact support or request a new magic link.'
+                : 'This email link has expired or was already used. Please log in or request a new link.';
+              setError(errorMsg);
             } else {
               setError(otpError.message);
             }
             setIsProcessing(false);
             return;
           }
+          
+          // verifyOtp should create a session - use the session from verifyData if available
+          if (verifyData?.session) {
+            console.log('[AuthCallback] Session created from verifyOtp');
+            session = verifyData.session;
+          } else {
+            console.log('[AuthCallback] No session in verifyData, fetching session');
+            // If no session in response, fetch it
+            const { data: sessionData } = await supabase.auth.getSession();
+            session = sessionData.session;
+          }
+        } else if (!session) {
+          // If no token_hash, try to get session (might already be established)
+          const result = await supabase.auth.getSession();
+          session = result.data.session;
         }
-
-        // Get the session again after verification
-        const result = await supabase.auth.getSession();
-        session = result.data.session;
 
         if (session?.user) {
           // Check if email is now verified
           if (session.user.email_confirmed_at) {
+            // Check if this is a waitlist user
+            // 1. First check URL params (might be lost in redirect)
+            // 2. Check localStorage (might have been stored before)
+            // 3. Check user metadata (stored when magic link was generated)
+            // 4. Find by email (fallback)
+            let storedWaitlistEntryId = waitlistEntryId || localStorage.getItem('waitlist_entry_id');
+            
+            // Check user metadata for waitlist_entry_id
+            if (!storedWaitlistEntryId && session.user.user_metadata?.waitlist_entry_id) {
+              storedWaitlistEntryId = session.user.user_metadata.waitlist_entry_id;
+            }
+            
+            // If still no waitlist_entry, try to find it by email (magic link might not preserve query params)
+            if (!storedWaitlistEntryId && session.user.email) {
+              try {
+                const { data: waitlistEntry } = await supabase
+                  .from('meetings_waitlist')
+                  .select('id, status, user_id')
+                  .eq('email', session.user.email)
+                  .in('status', ['released', 'pending', 'converted'])
+                  .order('created_at', { ascending: true })
+                  .limit(1)
+                  .maybeSingle();
+                
+                if (waitlistEntry) {
+                  storedWaitlistEntryId = waitlistEntry.id;
+                  localStorage.setItem('waitlist_entry_id', waitlistEntry.id);
+                }
+              } catch (err) {
+                console.error('Error finding waitlist entry:', err);
+              }
+            }
+            
+            // If this is a waitlist entry callback, redirect to password setup
+            if (storedWaitlistEntryId) {
+              console.log('[AuthCallback] Redirecting to SetPassword with waitlist_entry:', storedWaitlistEntryId);
+              localStorage.setItem('waitlist_entry_id', storedWaitlistEntryId);
+              navigate(`/auth/set-password?waitlist_entry=${storedWaitlistEntryId}`, { replace: true });
+              return;
+            }
+            
             await navigateBasedOnOnboarding(session, next);
           } else {
             // Email still not confirmed, go to verify page
             navigate(`/auth/verify-email?email=${encodeURIComponent(session.user.email || '')}`, { replace: true });
           }
         } else {
-          // No session and no auth params - redirect to login
-          navigate('/auth/login', { replace: true });
+          // No session after verification - this shouldn't happen with magic links
+          console.warn('[AuthCallback] Magic link verification completed but no session found');
+          // Wait a moment and try again (session might still be setting up)
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const { data: retrySession } = await supabase.auth.getSession();
+          if (retrySession?.session?.user) {
+            console.log('[AuthCallback] Session found on retry');
+            // Session appeared, try again
+            const finalWaitlistId = waitlistEntryId || localStorage.getItem('waitlist_entry_id') || retrySession.session.user.user_metadata?.waitlist_entry_id;
+            if (finalWaitlistId) {
+              navigate(`/auth/set-password?waitlist_entry=${finalWaitlistId}`, { replace: true });
+              return;
+            }
+            await navigateBasedOnOnboarding(retrySession.session, next);
+          } else {
+            console.error('[AuthCallback] Still no session after retry, redirecting to login');
+            navigate('/auth/login', { replace: true });
+          }
         }
       } catch (err: any) {
         console.error('Auth callback error:', err);
         // Check one more time if user is logged in
         const { data: { session: finalSession } } = await supabase.auth.getSession();
         if (finalSession?.user?.email_confirmed_at) {
+          // Check if this is a waitlist entry callback
+          if (waitlistEntryId) {
+            localStorage.setItem('waitlist_entry_id', waitlistEntryId);
+            navigate(`/auth/set-password?waitlist_entry=${waitlistEntryId}`, { replace: true });
+            return;
+          }
           navigate('/onboarding', { replace: true });
           return;
         } else if (finalSession?.user) {

@@ -95,6 +95,55 @@ export async function grantAccess(
       // Admin actions table may not exist, continue without logging
     }
 
+    // Get entry details to send magic link email
+    const { data: entry, error: fetchError } = await supabase
+      .from('meetings_waitlist')
+      .select('email, full_name')
+      .eq('id', entryId)
+      .single();
+
+    if (!fetchError && entry) {
+      // Generate and send magic link email (same as resendMagicLink)
+      try {
+        // Generate magic link via Edge Function (uses Admin API, doesn't send email)
+        // IMPORTANT: This uses window.location.origin, so magic links will redirect to wherever
+        // the admin panel is running (localhost for local dev, production for prod).
+        const redirectTo = `${window.location.origin}/auth/callback?waitlist_entry=${entryId}`;
+        
+        const { data: linkData, error: linkError } = await supabase.functions.invoke('generate-magic-link', {
+          body: {
+            email: entry.email,
+            redirectTo,
+            data: {
+              waitlist_entry_id: entryId,
+              source: 'waitlist_grant_access',
+            },
+          },
+        });
+
+        if (!linkError && linkData?.success && linkData.magicLink) {
+          // Send email via encharge-send-email using our custom template
+          const firstName = entry.full_name?.split(' ')[0] || entry.email.split('@')[0];
+          await supabase.functions.invoke('encharge-send-email', {
+            body: {
+              template_type: 'magic_link_waitlist',
+              to_email: entry.email,
+              to_name: firstName,
+              variables: {
+                magic_link_url: linkData.magicLink,
+                user_name: firstName,
+                user_email: entry.email,
+                full_name: entry.full_name || entry.email,
+              },
+            },
+          });
+        }
+      } catch (emailError) {
+        // Log but don't fail - access was granted, email is secondary
+        console.error('Failed to send magic link email after granting access:', emailError);
+      }
+    }
+
     return { success: true };
   } catch (err) {
     console.error('Grant access error:', err);
@@ -175,11 +224,15 @@ export async function bulkGrantAccess(
     if (entries && entries.length > 0) {
       for (const entry of entries) {
         try {
-          // Generate magic link via Supabase Auth
-          const { data: authData, error: authError } = await supabase.auth.signInWithOtp({
-            email: entry.email,
-            options: {
-              emailRedirectTo: `${window.location.origin}/auth/callback?waitlist_entry=${entry.id}`,
+          // Generate magic link via Edge Function (uses Admin API, doesn't send email)
+          // IMPORTANT: This uses window.location.origin, so magic links will redirect to wherever
+          // the admin panel is running (localhost for local dev, production for prod).
+          // For local testing, ensure you're generating links while running on localhost!
+          const redirectTo = `${window.location.origin}/auth/callback?waitlist_entry=${entry.id}`;
+          const { data: linkData, error: linkError } = await supabase.functions.invoke('generate-magic-link', {
+            body: {
+              email: entry.email,
+              redirectTo,
               data: {
                 waitlist_entry_id: entry.id,
                 source: 'waitlist_invite',
@@ -187,13 +240,22 @@ export async function bulkGrantAccess(
             },
           });
 
-          if (authError) {
-            console.error(`Failed to generate magic link for ${entry.email}:`, authError);
+          if (linkError) {
+            // If function doesn't exist, log and skip this entry
+            if (linkError.message?.includes('Failed to send a request') || linkError.message?.includes('fetch')) {
+              console.error('Edge Function not deployed. Please deploy generate-magic-link function.');
+              continue;
+            }
+            console.error(`Failed to generate magic link for ${entry.email}:`, linkError);
             continue;
           }
 
-          // Get the magic link URL from the response
-          const magicLink = authData?.properties?.action_link || '';
+          if (!linkData?.success) {
+            console.error(`Magic link generation failed for ${entry.email}:`, linkData?.error);
+            continue;
+          }
+
+          const magicLink = linkData.magicLink;
 
           if (magicLink) {
             magicLinks.push({
@@ -225,31 +287,29 @@ export async function bulkGrantAccess(
             // Profiles table may not exist, use default
           }
 
-          // Prepare invites for Edge Function
-          const invites = magicLinks.map((link) => {
+          // Send emails via encharge-send-email using our custom template
+          const emailPromises = magicLinks.map(async (link) => {
             const entry = entries.find((e: any) => e.id === link.entryId);
-            return {
-              email: link.email,
-              name: entry?.full_name || link.email,
-              referral_url: `${window.location.origin}/waitlist?ref=${entry?.referral_code}`,
-              magic_link: link.magicLink,
-            };
+            if (!entry) return;
+
+            const firstName = entry.full_name?.split(' ')[0] || entry.email.split('@')[0];
+            
+            return supabase.functions.invoke('encharge-send-email', {
+              body: {
+                template_type: 'magic_link_waitlist',
+                to_email: entry.email,
+                to_name: firstName,
+                variables: {
+                  magic_link_url: link.magicLink,
+                  user_name: firstName,
+                  user_email: entry.email,
+                  full_name: entry.full_name || entry.email,
+                },
+              },
+            });
           });
 
-          // Call Edge Function to send emails
-          const { error: emailError } = await supabase.functions.invoke('send-waitlist-invite', {
-            body: {
-              invites,
-              template_id: emailTemplateId || null,
-              admin_name: adminName,
-              custom_message: adminNotes || null,
-            },
-          });
-
-          if (emailError) {
-            console.error('Failed to send invitation emails:', emailError);
-            // Don't fail the whole operation if email sending fails
-          }
+          await Promise.all(emailPromises);
         } catch (emailError) {
           console.error('Error sending invitation emails:', emailError);
         }
@@ -306,73 +366,96 @@ export async function resendMagicLink(
       return { success: false, error: 'Entry not found' };
     }
 
-    // Generate new magic link
-    const { data: authData, error: authError } = await supabase.auth.signInWithOtp({
-      email: entry.email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?waitlist_entry=${entryId}`,
-        data: {
-          waitlist_entry_id: entryId,
-          source: 'waitlist_resend',
+    // Generate magic link via Edge Function (uses Admin API, doesn't send email)
+    const redirectTo = `${window.location.origin}/auth/callback?waitlist_entry=${entryId}`;
+    let magicLink: string;
+    
+    try {
+      const { data: linkData, error: linkError } = await supabase.functions.invoke('generate-magic-link', {
+        body: {
+          email: entry.email,
+          redirectTo,
+          data: {
+            waitlist_entry_id: entryId,
+            source: 'waitlist_resend',
+          },
         },
-      },
-    });
+      });
 
-    if (authError) {
-      console.error('Failed to generate magic link:', authError);
-      return { success: false, error: authError.message };
-    }
-
-    const magicLink = authData?.properties?.action_link || '';
-
-    // Send email via Edge Function
-    if (magicLink) {
-      // Get admin details for email (optional - profiles table may not exist)
-      let adminName = 'Admin';
-      try {
-        const { data: adminProfile } = await supabase
-          .from('profiles')
-          .select('first_name, last_name')
-          .eq('id', adminUserId)
-          .single();
-        if (adminProfile) {
-          adminName = [adminProfile.first_name, adminProfile.last_name].filter(Boolean).join(' ') || 'Admin';
+      if (linkError) {
+        // If function doesn't exist yet, provide helpful error
+        if (linkError.message?.includes('Failed to send a request') || linkError.message?.includes('fetch')) {
+          console.error('Edge Function not deployed. Please deploy generate-magic-link function.');
+          return { 
+            success: false, 
+            error: 'Edge Function not deployed. Please run: supabase functions deploy generate-magic-link' 
+          };
         }
-      } catch {
-        // Profiles table may not exist, use default
+        console.error('Failed to generate magic link:', linkError);
+        return { success: false, error: linkError.message || 'Failed to generate magic link' };
       }
 
-      await supabase.functions.invoke('send-waitlist-invite', {
-        body: {
-          invites: [
-            {
-              email: entry.email,
-              name: entry.full_name || entry.email,
-              referral_url: `${window.location.origin}/waitlist?ref=${entry.referral_code}`,
-              magic_link: magicLink,
-            },
-          ],
-          admin_name: adminName,
-        },
-      });
+      if (!linkData?.success) {
+        console.error('Magic link generation failed:', linkData?.error);
+        return { success: false, error: linkData?.error || 'Failed to generate magic link' };
+      }
+
+      magicLink = linkData.magicLink;
+
+      if (!magicLink) {
+        return { success: false, error: 'Failed to generate magic link URL' };
+      }
+    } catch (linkGenError: any) {
+      console.error('Error generating magic link:', linkGenError);
+      return { success: false, error: linkGenError.message || 'Failed to generate magic link' };
     }
 
-    // Log admin action (optional - table may not exist)
+    // Send email via encharge-send-email using our custom template
+    const firstName = entry.full_name?.split(' ')[0] || entry.email.split('@')[0];
     try {
-      await supabase.from('waitlist_admin_actions').insert({
-        waitlist_entry_id: entryId,
-        admin_user_id: adminUserId,
-        action_type: 'send_email',
-        action_details: {
-          type: 'magic_link_resend',
-          sent_to: entry.email,
+      const emailResponse = await supabase.functions.invoke('encharge-send-email', {
+        body: {
+          template_type: 'magic_link_waitlist',
+          to_email: entry.email,
+          to_name: firstName,
+          variables: {
+            magic_link_url: magicLink,
+            user_name: firstName,
+            user_email: entry.email,
+            full_name: entry.full_name || entry.email,
+          },
         },
       });
-    } catch {
-      // Admin actions table may not exist, continue without logging
-    }
 
-    return { success: true, magicLink };
+      if (emailResponse.error) {
+        console.error('Failed to send magic link email:', emailResponse.error);
+        return { success: false, error: emailResponse.error.message || 'Failed to send email' };
+      }
+
+      if (!emailResponse.data?.success) {
+        return { success: false, error: emailResponse.data?.error || 'Email sending failed' };
+      }
+
+      // Log admin action (optional - table may not exist)
+      try {
+        await supabase.from('waitlist_admin_actions').insert({
+          waitlist_entry_id: entryId,
+          admin_user_id: adminUserId,
+          action_type: 'send_email',
+          action_details: {
+            type: 'magic_link_resend',
+            sent_to: entry.email,
+          },
+        });
+      } catch {
+        // Admin actions table may not exist, continue without logging
+      }
+
+      return { success: true, magicLink };
+    } catch (emailError: any) {
+      console.error('Email sending error:', emailError);
+      return { success: false, error: emailError.message || 'Failed to send email' };
+    }
   } catch (error: any) {
     console.error('Resend magic link error:', error);
     return {

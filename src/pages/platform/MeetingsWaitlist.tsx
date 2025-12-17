@@ -13,6 +13,7 @@ import { EnhancedWaitlistTable } from '@/components/platform/waitlist/EnhancedWa
 import { WaitlistStatsComponent } from '@/components/admin/waitlist/WaitlistStats';
 import { SeededUserManager } from '@/components/platform/waitlist/SeededUserManager';
 import { resendMagicLink } from '@/lib/services/waitlistAdminService';
+import { MagicLinkSentModal } from '@/components/platform/waitlist/MagicLinkSentModal';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function MeetingsWaitlist() {
@@ -20,6 +21,8 @@ export default function MeetingsWaitlist() {
   const [showGrantAccessModal, setShowGrantAccessModal] = useState(false);
   const [showSeededManager, setShowSeededManager] = useState(false);
   const [hideSeeded, setHideSeeded] = useState(false); // Default to showing all users (including seeded)
+  const [showMagicLinkSentModal, setShowMagicLinkSentModal] = useState(false);
+  const [magicLinkRecipientEmail, setMagicLinkRecipientEmail] = useState<string | undefined>();
 
   // Existing waitlist data
   const { entries, stats, isLoading, releaseUser, unreleaseUser, deleteEntry, exportData } = useWaitlistAdmin();
@@ -67,9 +70,15 @@ export default function MeetingsWaitlist() {
 
   const handleResendMagicLink = async (entryId: string) => {
     if (!user?.id) return;
+    
+    // Find the entry to get email for modal
+    const entry = entries.find(e => e.id === entryId);
+    const recipientEmail = entry?.email;
+    
     const result = await resendMagicLink(entryId, user.id);
     if (result.success) {
-      alert('Magic link resent successfully!');
+      setMagicLinkRecipientEmail(recipientEmail);
+      setShowMagicLinkSentModal(true);
     } else {
       alert(`Failed: ${result.error}`);
     }
@@ -196,6 +205,16 @@ export default function MeetingsWaitlist() {
           adminName={user?.email || 'Admin'}
         />
       )}
+
+      {/* Magic Link Sent Modal */}
+      <MagicLinkSentModal
+        isOpen={showMagicLinkSentModal}
+        onClose={() => {
+          setShowMagicLinkSentModal(false);
+          setMagicLinkRecipientEmail(undefined);
+        }}
+        recipientEmail={magicLinkRecipientEmail}
+      />
     </div>
   );
 }
