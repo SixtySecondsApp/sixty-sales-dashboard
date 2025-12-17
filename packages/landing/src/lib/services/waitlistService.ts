@@ -94,6 +94,62 @@ function formatConnectionError(error: any): string {
 }
 
 /**
+ * Save a partial signup (email only) when user doesn't complete the form
+ * Public API - no authentication required
+ * Uses upsert to update existing partial signups or create new ones
+ */
+export async function savePartialSignup(
+  email: string,
+  signupSource?: string
+): Promise<void> {
+  // Validate email
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const cleanEmail = (email || '').trim().toLowerCase();
+
+  if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+    // Silently skip invalid emails - don't throw errors for partial signups
+    return;
+  }
+
+  try {
+    // First check if this email already exists with a complete signup
+    const { data: existing } = await supabase
+      .from('meetings_waitlist')
+      .select('id, full_name')
+      .eq('email', cleanEmail)
+      .single();
+
+    // If email exists and has a real name (not incomplete), don't overwrite
+    if (existing && existing.full_name && !existing.full_name.includes('[Incomplete')) {
+      return;
+    }
+
+    // If exists but incomplete, we could update it, but for now just skip
+    if (existing) {
+      return;
+    }
+
+    // Insert new partial signup
+    await supabase
+      .from('meetings_waitlist')
+      .insert([{
+        email: cleanEmail,
+        full_name: '[Incomplete Signup]',
+        company_name: '[Not Provided]',
+        meeting_recorder_tool: null,
+        crm_tool: null,
+        task_manager_tool: null,
+        registration_url: signupSource ? `partial:${signupSource}` : 'partial:unknown',
+      }]);
+
+    console.log('[Waitlist] Partial signup saved for:', cleanEmail);
+  } catch (error) {
+    // Silently fail for partial signups - don't interrupt user experience
+    console.error('[Waitlist] Failed to save partial signup:', error);
+  }
+}
+
+/**
  * Sign up for the waitlist
  * Public API - no authentication required
  */

@@ -113,8 +113,14 @@ export function useWaitlistSignup(): UseWaitlistSignupReturn {
       const error = err as Error;
       setError(error);
 
-      // Show error toast with helpful message
-      const errorMessage = error.message || 'Failed to join waitlist. Please try again.';
+      // Handle specific error cases with user-friendly messages
+      let errorMessage = error.message || 'Failed to join waitlist. Please try again.';
+
+      // Check for duplicate email error
+      if (errorMessage.includes('duplicate key') || errorMessage.includes('email_key') || errorMessage.includes('already exists')) {
+        errorMessage = 'This email is already on the waitlist! Check your inbox for your confirmation.';
+      }
+
       toast.error(errorMessage, {
         duration: 5000, // Show for 5 seconds
       });

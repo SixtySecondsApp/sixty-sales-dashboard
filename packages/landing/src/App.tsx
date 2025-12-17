@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { MeetingsLandingV4 } from './pages/MeetingsLandingV4';
 import  WaitlistLanding  from './pages/WaitlistLanding';
 import EarlyAccessLanding from './pages/EarlyAccessLanding';
@@ -18,6 +19,7 @@ import './lib/i18n/config';
 function App() {
   return (
     <BrowserRouter>
+      <Toaster position="top-center" richColors closeButton />
       <Routes>
         <Route path="/landing" element={<MeetingsLandingV4 />} />
         <Route path="/waitlist" element={<EarlyAccessLanding />} />
