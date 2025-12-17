@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useWaitlistSignup } from '@/lib/hooks/useWaitlistSignup';
 import { savePartialSignup } from '@/lib/services/waitlistService';
+import { captureRegistrationUrl } from '@/lib/utils/registrationUrl';
 import { MEETING_RECORDER_OPTIONS, CRM_OPTIONS, TASK_MANAGER_OPTIONS } from '@/lib/types/waitlist';
 import type { WaitlistSignupData } from '@/lib/types/waitlist';
 import { toast } from 'sonner';
@@ -76,7 +77,14 @@ export function WaitlistModal({ isOpen, onClose, initialEmail = '', signupSource
       return;
     }
 
-    await signup({ ...formData, signup_source: signupSource });
+    // Capture the full registration URL (pathname + search params) at submit time
+    const registrationUrl = captureRegistrationUrl();
+
+    await signup({ 
+      ...formData, 
+      signup_source: signupSource,
+      registration_url: registrationUrl
+    });
   };
 
   const handleChange = (field: keyof WaitlistSignupData, value: string) => {
