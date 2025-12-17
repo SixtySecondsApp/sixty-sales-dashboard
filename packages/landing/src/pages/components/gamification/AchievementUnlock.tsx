@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Award, Share2, Users, Crown, Zap, Target, TrendingUp, Linkedin, Twitter, Lock } from 'lucide-react';
-import { formatRank } from '@/lib/utils';
+import { formatRank } from '@/lib/utils/utils';
 import type { MilestoneType } from '@/lib/types/waitlist';
 
 interface Achievement {

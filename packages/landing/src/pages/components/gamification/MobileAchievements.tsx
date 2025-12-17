@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Award, Share2, Users, Crown, Zap, Lock, Target, TrendingUp, Linkedin, Twitter } from 'lucide-react';
 import type { MilestoneType } from '@/lib/types/waitlist';
-import { formatRank } from '@/lib/utils';
+import { formatRank } from '@/lib/utils/utils';
 
 interface Achievement {
   type: MilestoneType | 'linkedin_boost' | 'twitter_boost' | 'email_boost' | 'top_100' | 'referral_10';

@@ -204,6 +204,97 @@ export async function hasClaimedTwitterBoost(entryId: string): Promise<boolean> 
 }
 
 /**
+ * Check if user has already claimed Email boost
+ * Email boost is tracked via waitlist_shares table with platform='email'
+ */
+export async function hasClaimedEmailBoost(entryId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('waitlist_shares')
+      .select('id')
+      .eq('waitlist_entry_id', entryId)
+      .eq('platform', 'email')
+      .limit(1);
+
+    if (error) {
+      console.error('Failed to check Email boost:', error);
+      return false;
+    }
+
+    return (data && data.length > 0) || false;
+  } catch (err) {
+    console.error('Check Email boost error:', err);
+    return false;
+  }
+}
+
+/**
+ * Track first Email share and grant boost
+ * Email boost is simpler - just track the share without point modification
+ */
+export async function trackEmailFirstShare(entryId: string): Promise<{
+  success: boolean;
+  boosted: boolean;
+  updatedEntry?: {
+    total_points: number;
+    effective_position: number;
+    email_boost_claimed: boolean;
+  };
+}> {
+  try {
+    console.log('[ShareTracking] Tracking Email share for entry:', entryId);
+
+    // Check if already tracked
+    const alreadyClaimed = await hasClaimedEmailBoost(entryId);
+    if (alreadyClaimed) {
+      return { success: true, boosted: false };
+    }
+
+    // Track the share
+    const { error: insertError } = await supabase
+      .from('waitlist_shares')
+      .insert({
+        waitlist_entry_id: entryId,
+        platform: 'email',
+        referral_clicked: false,
+        referral_converted: false
+      });
+
+    if (insertError) {
+      console.error('[ShareTracking] Failed to track email share:', insertError);
+      return { success: false, boosted: false };
+    }
+
+    // Get current entry data for response
+    const { data: entry } = await supabase
+      .from('meetings_waitlist')
+      .select('total_points, effective_position')
+      .eq('id', entryId)
+      .single();
+
+    // Analytics
+    if (typeof window !== 'undefined' && (window as any).analytics) {
+      (window as any).analytics.track('Email Share Tracked', {
+        entry_id: entryId
+      });
+    }
+
+    return {
+      success: true,
+      boosted: true,
+      updatedEntry: {
+        total_points: entry?.total_points || 0,
+        effective_position: entry?.effective_position || 0,
+        email_boost_claimed: true,
+      },
+    };
+  } catch (err) {
+    console.error('Email share tracking error:', err);
+    return { success: false, boosted: false };
+  }
+}
+
+/**
  * Claim a waitlist boost using the RPC function (bypasses RLS)
  * This is the preferred method as direct updates are blocked by RLS for anonymous users
  */
