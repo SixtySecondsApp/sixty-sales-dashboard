@@ -310,3 +310,6 @@ COMMENT ON TABLE call_transcript_queue IS 'Async retry queue for fetching call t
 COMMENT ON TABLE call_index_queue IS 'Async queue for indexing call transcripts into File Search';
 COMMENT ON TABLE call_file_search_index IS 'Index tracking for calls indexed into File Search';
 
+
+
+

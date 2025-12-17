@@ -39,3 +39,6 @@ COMMENT ON TABLE justcall_oauth_states IS 'Temporary storage for JustCall OAuth 
 COMMENT ON COLUMN justcall_oauth_states.state IS 'Random state parameter for OAuth flow';
 COMMENT ON COLUMN justcall_oauth_states.expires_at IS 'When this state expires (typically 10 minutes)';
 
+
+
+

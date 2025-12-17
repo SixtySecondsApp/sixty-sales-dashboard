@@ -67,3 +67,6 @@ ADD COLUMN IF NOT EXISTS bio TEXT NULL;
 
 COMMENT ON COLUMN profiles.bio IS 'Optional user bio used to personalize AI responses.';
 
+
+
+

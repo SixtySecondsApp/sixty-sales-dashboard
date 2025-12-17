@@ -10,3 +10,6 @@ CREATE TRIGGER trigger_queue_call_index
   EXECUTE FUNCTION queue_call_for_indexing();
 
 
+
+
+

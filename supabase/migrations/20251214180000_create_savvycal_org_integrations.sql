@@ -187,3 +187,6 @@ COMMENT ON COLUMN public.savvycal_integration_secrets.api_token IS 'SavvyCal Per
 COMMENT ON COLUMN public.savvycal_integration_secrets.webhook_secret IS 'Optional secret for HMAC signature verification of webhooks.';
 
 
+
+
+
