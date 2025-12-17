@@ -10,6 +10,7 @@ import { PricingPage } from './pages/PricingPage';
 import { WaitlistLandingPage } from './pages/WaitlistLandingPage';
 import { WaitlistLandingPopup } from './pages/WaitlistLandingPopup';
 import { IntroductionPage } from './pages/IntroductionPage';
+import { IntroPage } from './pages/IntroPage';
 
 // Initialize i18next for internationalization
 import './lib/i18n/config';
@@ -24,6 +25,7 @@ function App() {
         <Route path="/waitlist/status/:id" element={<WaitlistStatus />} />
         <Route path="/join" element={<WaitlistLandingPopup />} />
         <Route path="/introduction" element={<IntroductionPage />} />
+        <Route path="/intro" element={<IntroPage />} />
 
         {/* Leaderboard */}
         <Route path="/waitlist/leaderboard" element={<LeaderboardLookup />} />

@@ -53,11 +53,13 @@ export interface WaitlistSignupData {
   crm_tool?: string;
   crm_other?: string;
   task_manager_tool?: string;
+  task_manager_other?: string;
   referred_by_code?: string;
   utm_source?: string;
   utm_campaign?: string;
   utm_medium?: string;
   registration_url?: string; // Full URL (path + query params) where user registered from
+  signup_source?: string; // Source identifier for tracking (e.g., 'intro-vsl', 'waitlist-hero')
 }
 
 export interface WaitlistStats {

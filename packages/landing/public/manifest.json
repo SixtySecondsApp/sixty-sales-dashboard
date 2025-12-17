@@ -1,7 +1,7 @@
 {
-  "name": "Sixty Sales Dashboard",
-  "short_name": "Sales Dashboard",
-  "description": "Modern sales dashboard for tracking performance and managing pipeline",
+  "name": "60 | AI Sales Assistant",
+  "short_name": "60",
+  "description": "60 is your AI sales assistant that handles follow-ups, proposals, and meeting prep so you can focus on closing deals.",
   "start_url": "/",
   "display": "standalone",
   "theme_color": "#10b981",

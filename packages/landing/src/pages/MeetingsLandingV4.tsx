@@ -5,7 +5,6 @@ import {
   HeroSectionV4,
   IntegrationsSectionV4,
   HowItWorksV4,
-  PricingSectionV4,
   FAQSectionV4,
   FinalCTA,
   LandingFooter
@@ -24,8 +23,6 @@ const BUILD_VERSION = '2025-12-10-v2';
  * - V1 Hero Background: Dark theme with animated gradient orbs
  * - V1 Hero Visual: Meeting cards with sentiment analysis
  * - V3 Top Cards: Metric cards (12 Deals, 8h, 24 Proposals)
- * - V3 Pricing: ROI calculator
- * - V1 Pricing: Functional navigation buttons
  * - V3 FAQ: Early adopter objection handling
  * - V3 Header: Navigation with early adopter banner
  */
@@ -98,7 +95,6 @@ export function MeetingsLandingV4() {
             <div className="hidden md:flex items-center gap-8">
               <a href="#how-it-works" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">How It Works</a>
               <a href="#features" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">Features</a>
-              <a href="#pricing" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">Pricing</a>
               <a href="#faq" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">FAQ</a>
             </div>
 
@@ -159,13 +155,6 @@ export function MeetingsLandingV4() {
                   Features
                 </a>
                 <a
-                  href="#pricing"
-                  onClick={handleNavClick}
-                  className="block py-2 px-3 rounded-lg text-base font-medium text-gray-300 hover:bg-gray-800 transition-colors"
-                >
-                  Pricing
-                </a>
-                <a
                   href="#faq"
                   onClick={handleNavClick}
                   className="block py-2 px-3 rounded-lg text-base font-medium text-gray-300 hover:bg-gray-800 transition-colors"
@@ -199,7 +188,6 @@ export function MeetingsLandingV4() {
         <HeroSectionV4 />
         <HowItWorksV4 />
         <IntegrationsSectionV4 />
-        <PricingSectionV4 />
         <FAQSectionV4 />
         <FinalCTA />
       </main>

@@ -115,7 +115,7 @@ export function FAQSectionV3() {
             Still have questions?
           </p>
           <a
-            href="mailto:support@sixtyseconds.ai"
+            href="mailto:app@sixtyseconds.video"
             className="inline-flex items-center gap-2 text-brand-blue hover:opacity-80 font-medium transition-colors"
           >
             Email us directly →

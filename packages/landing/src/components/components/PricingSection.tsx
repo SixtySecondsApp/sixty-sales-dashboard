@@ -61,7 +61,7 @@ const ENTERPRISE_PLAN: SubscriptionPlan = {
   display_order: 4,
   badge_text: null,
   cta_text: 'Contact Sales',
-  cta_url: 'mailto:sales@sixty.ai?subject=Enterprise%20Plan%20Inquiry',
+  cta_url: 'mailto:app@sixtyseconds.video?subject=Enterprise%20Plan%20Inquiry',
   highlight_features: [],
   stripe_synced_at: null,
   stripe_sync_error: null,
@@ -122,7 +122,7 @@ export function PricingSection() {
 
   const handleSelectPlan = async (plan: SubscriptionPlan) => {
     if (plan.slug === 'enterprise') {
-      window.location.href = 'mailto:sales@sixty.ai?subject=Enterprise%20Plan%20Inquiry';
+      window.location.href = 'mailto:app@sixtyseconds.video?subject=Enterprise%20Plan%20Inquiry';
       return;
     }
 

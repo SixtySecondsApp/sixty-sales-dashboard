@@ -134,7 +134,7 @@ export function FAQSection() {
         >
           <p className="text-gray-400 mb-4">Still have questions?</p>
           <a
-            href="mailto:support@sixty.ai"
+            href="mailto:app@sixtyseconds.video"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all duration-300"
           >
             Contact Support

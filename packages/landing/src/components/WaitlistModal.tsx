@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useWaitlistSignup } from '@/lib/hooks/useWaitlistSignup';
-import { DIALER_OPTIONS, MEETING_RECORDER_OPTIONS, CRM_OPTIONS } from '@/lib/types/waitlist';
+import { MEETING_RECORDER_OPTIONS, CRM_OPTIONS, TASK_MANAGER_OPTIONS } from '@/lib/types/waitlist';
 import type { WaitlistSignupData } from '@/lib/types/waitlist';
 import { toast } from 'sonner';
 
@@ -29,12 +29,12 @@ export function WaitlistModal({ isOpen, onClose, initialEmail = '', signupSource
     email: initialEmail,
     full_name: '',
     company_name: '',
-    dialer_tool: '',
-    dialer_other: '',
     meeting_recorder_tool: '',
     meeting_recorder_other: '',
     crm_tool: '',
     crm_other: '',
+    task_manager_tool: '',
+    task_manager_other: '',
     referred_by_code: '',
     signup_source: signupSource
   });
@@ -198,23 +198,23 @@ export function WaitlistModal({ isOpen, onClose, initialEmail = '', signupSource
                   What integrations are important to you?
                 </p>
 
-                {/* Dialer */}
-                <Select value={formData.dialer_tool} onValueChange={(value) => handleChange('dialer_tool', value)} required>
+                {/* Task Manager */}
+                <Select value={formData.task_manager_tool} onValueChange={(value) => handleChange('task_manager_tool', value)} required>
                   <SelectTrigger className="bg-gray-50 dark:bg-white/5 border-gray-300 dark:border-white/10 text-gray-900 dark:text-white h-11">
-                    <SelectValue placeholder="Which dialer do you use? *" />
+                    <SelectValue placeholder="Which task manager? *" />
                   </SelectTrigger>
                   <SelectContent>
-                    {DIALER_OPTIONS.map(option => (
+                    {TASK_MANAGER_OPTIONS.map(option => (
                       <SelectItem key={option} value={option}>{option}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {formData.dialer_tool === 'Other' && (
+                {formData.task_manager_tool === 'Other' && (
                   <Input
                     type="text"
-                    placeholder="Which dialer?"
-                    value={formData.dialer_other}
-                    onChange={(e) => handleChange('dialer_other', e.target.value)}
+                    placeholder="Which task manager?"
+                    value={formData.task_manager_other}
+                    onChange={(e) => handleChange('task_manager_other', e.target.value)}
                     className="bg-gray-50 dark:bg-white/5 border-gray-300 dark:border-white/10 text-gray-900 dark:text-white placeholder:text-gray-500 h-11"
                   />
                 )}
