@@ -267,34 +267,46 @@ export function useWaitlistRealtime(
   const pendingCallRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    const throttledCallback = () => {
+      const now = Date.now();
+      const timeSinceLastCall = now - lastCallRef.current;
+
+      if (timeSinceLastCall >= throttleMs) {
+        // Enough time has passed, call immediately
+        lastCallRef.current = now;
+        callback();
+      } else if (!pendingCallRef.current) {
+        // Schedule a call for later
+        pendingCallRef.current = setTimeout(() => {
+          lastCallRef.current = Date.now();
+          callback();
+          pendingCallRef.current = null;
+        }, throttleMs - timeSinceLastCall);
+      }
+      // If there's already a pending call, ignore this event
+    };
+
     // Subscribe to waitlist changes with throttling
+    // Listen for both INSERT (new signups) and UPDATE (boost claims, referrals)
     const channel = supabase
       .channel('waitlist-throttled')
       .on(
         'postgres_changes',
         {
-          event: 'INSERT', // Only care about new signups
+          event: 'INSERT', // New signups
           schema: 'public',
           table: 'meetings_waitlist',
         },
-        () => {
-          const now = Date.now();
-          const timeSinceLastCall = now - lastCallRef.current;
-
-          if (timeSinceLastCall >= throttleMs) {
-            // Enough time has passed, call immediately
-            lastCallRef.current = now;
-            callback();
-          } else if (!pendingCallRef.current) {
-            // Schedule a call for later
-            pendingCallRef.current = setTimeout(() => {
-              lastCallRef.current = Date.now();
-              callback();
-              pendingCallRef.current = null;
-            }, throttleMs - timeSinceLastCall);
-          }
-          // If there's already a pending call, ignore this event
-        }
+        throttledCallback
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE', // Boost claims, referrals, points changes
+          schema: 'public',
+          table: 'meetings_waitlist',
+        },
+        throttledCallback
       )
       .subscribe();
 

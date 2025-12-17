@@ -1,12 +1,12 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, X, Linkedin, Twitter } from 'lucide-react';
+import { CheckCircle, X, Linkedin, Twitter, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface ShareConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  platform: 'linkedin' | 'twitter';
+  platform: 'linkedin' | 'twitter' | 'email';
   pointsBoost: number;
 }
 
@@ -31,6 +31,13 @@ export function ShareConfirmationModal({
       color: 'from-blue-400 to-sky-500',
       iconBg: 'bg-blue-500',
       iconColor: 'text-blue-400'
+    },
+    email: {
+      name: 'Email',
+      icon: Mail,
+      color: 'from-purple-400 to-pink-500',
+      iconBg: 'bg-purple-500',
+      iconColor: 'text-purple-400'
     }
   };
 
@@ -105,13 +112,15 @@ export function ShareConfirmationModal({
                 {/* Boost Preview */}
                 <div className={`bg-gradient-to-r ${config.color} bg-opacity-10 border border-opacity-30 rounded-lg p-4 mb-6`}
                   style={{
-                    borderColor: platform === 'linkedin' ? 'rgba(251, 146, 60, 0.3)' : 'rgba(96, 165, 250, 0.3)'
+                    borderColor: platform === 'linkedin' ? 'rgba(251, 146, 60, 0.3)' : platform === 'email' ? 'rgba(192, 132, 252, 0.3)' : 'rgba(96, 165, 250, 0.3)'
                   }}
                 >
                   <div className="flex items-center justify-center gap-2">
                     <CheckCircle className={`w-5 h-5 ${config.iconColor}`} />
                     <span className="text-white font-semibold">
-                      Jump {pointsBoost} spots instantly!
+                      {platform === 'email' 
+                        ? `Claim your ${pointsBoost} points!`
+                        : `Jump ${pointsBoost} spots instantly!`}
                     </span>
                   </div>
                 </div>
@@ -127,9 +136,16 @@ export function ShareConfirmationModal({
                   </Button>
                   <Button
                     onClick={onConfirm}
-                    className={`flex-1 h-12 bg-gradient-to-r ${config.color} hover:opacity-90 text-white font-semibold shadow-lg`}
+                    className={`flex-1 h-12 bg-gradient-to-r ${config.color} hover:opacity-90 font-semibold shadow-lg ${
+                      platform === 'email' 
+                        ? 'text-white' 
+                        : 'text-white'
+                    }`}
+                    style={{
+                      color: 'white'
+                    }}
                   >
-                    Confirm Share
+                    {platform === 'email' ? 'Claim Your Points' : 'Confirm Share'}
                   </Button>
                 </div>
 

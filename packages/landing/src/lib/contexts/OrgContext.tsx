@@ -23,11 +23,11 @@ import {
   useHasOrgRole,
   type Organization,
   type OrganizationMembership
-} from '@/lib/stores/orgStore';
-import { supabase } from '@/lib/supabase/clientV2';
-import { isMultiTenantEnabled } from '@/lib/utils/featureFlags';
-import { invalidateAllOrgQueries } from '@/lib/utils/orgQueryUtils';
-import logger from '@/lib/utils/logger';
+} from '../stores/orgStore';
+import { supabase } from '../supabase/clientV2';
+import { isMultiTenantEnabled } from '../utils/featureFlags';
+import { invalidateAllOrgQueries } from '../utils/orgQueryUtils';
+import logger from '../utils/logger';
 
 // =====================================================
 // Types

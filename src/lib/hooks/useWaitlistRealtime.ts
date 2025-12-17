@@ -28,8 +28,11 @@ export function useWaitlistRealtime(entryId: string, initialEntry: WaitlistEntry
     if (data && !error) {
       setEntry((prev) => {
         setPreviousPosition(prev.effective_position);
-        return data as WaitlistEntry;
+        // Force a new object reference to ensure React detects the change
+        return { ...data } as WaitlistEntry;
       });
+    } else if (error) {
+      console.error('Failed to refetch entry:', error);
     }
   }, [entryId]);
 

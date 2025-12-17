@@ -26,7 +26,7 @@ export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
   const [celebratedMilestones, setCelebratedMilestones] = useState<Set<string>>(new Set());
 
   // Real-time position updates
-  const { entry, previousPosition, isConnected } = useWaitlistRealtime(initialEntry.id, initialEntry);
+  const { entry, previousPosition, isConnected, refetch } = useWaitlistRealtime(initialEntry.id, initialEntry);
 
   // Generate referral URL
   const referralUrl = `${window.location.origin}/product/meetings/waitlist?ref=${entry.referral_code}`;
@@ -147,11 +147,25 @@ export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
               referralCode={entry.referral_code}
               linkedInBoostClaimed={entry.linkedin_boost_claimed || false}
               twitterBoostClaimed={entry.twitter_boost_claimed || false}
+              emailBoostClaimed={entry.email_boost_claimed || false}
               totalPoints={entry.total_points || 0}
               signupPosition={entry.signup_position || 0}
               onFirstShare={() => {
                 setHasShared(true);
                 handleMilestone('first_share');
+              }}
+              onBoostClaimed={async (data) => {
+                // The onEntryUpdate is already called from ShareCenter, so this is just for celebration
+                // But we'll do an additional refetch to ensure everything is up to date
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await refetch();
+                // Celebrate the boost!
+                ConfettiService.milestone('first_share');
+              }}
+              onEntryUpdate={async () => {
+                // Refetch the full entry after any update (boosts, invites, shares, etc.)
+                // This ensures achievements, points, referrals, and leaderboard all update
+                await refetch();
               }}
             />
           </div>
@@ -159,7 +173,7 @@ export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
           {/* RIGHT COLUMN: Leaderboard & Achievements */}
           <div className="lg:col-span-5 space-y-6">
             {/* Leaderboard Card with Prizes */}
-            <Leaderboard currentUserId={entry.id} />
+            <Leaderboard key={`${entry.id}-${entry.total_points}-${entry.referral_count}`} currentUserId={entry.id} />
 
             {/* Achievements Grid */}
             <div className="hidden lg:block">
@@ -169,6 +183,7 @@ export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
                 hasShared={hasShared}
                 linkedInBoostClaimed={entry.linkedin_boost_claimed || false}
                 twitterBoostClaimed={entry.twitter_boost_claimed || false}
+                emailBoostClaimed={entry.email_boost_claimed || false}
                 totalPoints={entry.total_points || 0}
               />
             </div>
@@ -180,6 +195,7 @@ export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
               hasShared={hasShared}
               linkedInBoostClaimed={entry.linkedin_boost_claimed || false}
               twitterBoostClaimed={entry.twitter_boost_claimed || false}
+              emailBoostClaimed={entry.email_boost_claimed || false}
               totalPoints={entry.total_points || 0}
             />
           </div>

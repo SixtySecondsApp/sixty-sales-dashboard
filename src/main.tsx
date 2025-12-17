@@ -6,6 +6,9 @@ initSentry();
 import { suppressSupabaseLogs } from './lib/utils/suppressSupabaseLogs';
 suppressSupabaseLogs();
 
+// Note: Supabase client is set in App.tsx which loads before landing pages
+// This ensures it's available when landing package lazy-loads
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';

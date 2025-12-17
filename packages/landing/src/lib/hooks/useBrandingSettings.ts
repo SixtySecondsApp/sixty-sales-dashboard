@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase/clientV2';
-import { useOrgId } from '@/lib/contexts/OrgContext';
-import logger from '@/lib/utils/logger';
+import { supabase } from '../supabase/clientV2';
+import { useOrgId } from '../contexts/OrgContext';
 
 export interface BrandingSettings {
   id: string;
@@ -83,7 +82,7 @@ export function useBrandingSettings() {
           .maybeSingle();
 
         if (orgError && orgError.code !== 'PGRST116') {
-          logger.error('[useBrandingSettings] Org settings load error:', orgError);
+          console.error('[useBrandingSettings] Org settings load error:', orgError);
         }
 
         // If org has settings, use them
@@ -102,12 +101,12 @@ export function useBrandingSettings() {
         .maybeSingle();
 
       if (globalError && globalError.code !== 'PGRST116') {
-        logger.error('[useBrandingSettings] Global settings load error:', globalError);
+        console.error('[useBrandingSettings] Global settings load error:', globalError);
       }
 
       setSettings(globalSettings || null);
     } catch (error) {
-      logger.error('[useBrandingSettings] Error:', error);
+      console.error('[useBrandingSettings] Error:', error);
     } finally {
       setLoading(false);
     }
@@ -171,12 +170,12 @@ export function useOrgBrandingSettings() {
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
-        logger.error('[useOrgBrandingSettings] Load error:', error);
+        console.error('[useOrgBrandingSettings] Load error:', error);
       }
 
       setSettings(data || null);
     } catch (error) {
-      logger.error('[useOrgBrandingSettings] Error:', error);
+      console.error('[useOrgBrandingSettings] Error:', error);
     } finally {
       setLoading(false);
     }

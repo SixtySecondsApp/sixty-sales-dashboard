@@ -1,9 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, Zap, Linkedin, Twitter, X } from 'lucide-react';
+import { CheckCircle, Zap, Linkedin, Twitter, Mail, X } from 'lucide-react';
 
 interface BoostSuccessToastProps {
   isOpen: boolean;
-  platform: 'linkedin' | 'twitter';
+  platform: 'linkedin' | 'twitter' | 'email';
   onClose: () => void;
 }
 
@@ -32,6 +32,16 @@ export function BoostSuccessToast({
       iconColor: 'text-blue-400',
       textColor: 'text-blue-300',
       glowColor: 'rgba(59, 130, 246, 0.3)'
+    },
+    email: {
+      name: 'Email',
+      icon: Mail,
+      color: 'from-purple-400 to-pink-500',
+      borderColor: 'border-purple-500/50',
+      iconBg: 'bg-purple-500/20',
+      iconColor: 'text-purple-400',
+      textColor: 'text-purple-300',
+      glowColor: 'rgba(192, 132, 252, 0.3)'
     }
   };
 

@@ -86,6 +86,7 @@ export default function EarlyAccessLanding() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [ctaMessage, setCtaMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [successEntry, setSuccessEntry] = useState<WaitlistEntry | null>(null);
+  const [shouldGlow, setShouldGlow] = useState(false);
 
   // CTA Modal State
   const [showCtaModal, setShowCtaModal] = useState(false);
@@ -365,7 +366,17 @@ export default function EarlyAccessLanding() {
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <button
-              onClick={() => scrollToSection('waitlist')}
+              onClick={() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                // Trigger glow animation after scroll completes
+                setTimeout(() => {
+                  setShouldGlow(true);
+                  // Reset after animation completes (2 glows, ~2 seconds total)
+                  setTimeout(() => {
+                    setShouldGlow(false);
+                  }, 2000);
+                }, 500); // Wait for scroll to start
+              }}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/35 hover:-translate-y-0.5 transition-all"
             >
               Join Waitlist
@@ -486,6 +497,25 @@ export default function EarlyAccessLanding() {
               >
                 <div className="relative">
                   <div className="absolute -inset-px bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-emerald-500/20 rounded-2xl opacity-50 blur-sm" />
+                  <motion.div
+                    className="absolute inset-0 rounded-2xl pointer-events-none"
+                    animate={{
+                      boxShadow: shouldGlow 
+                        ? [
+                            '0 0 0px rgba(59, 130, 246, 0), 0 0 0px rgba(168, 85, 247, 0)',
+                            '0 0 30px rgba(59, 130, 246, 0.6), 0 0 50px rgba(168, 85, 247, 0.4)',
+                            '0 0 0px rgba(59, 130, 246, 0), 0 0 0px rgba(168, 85, 247, 0)',
+                            '0 0 30px rgba(59, 130, 246, 0.6), 0 0 50px rgba(168, 85, 247, 0.4)',
+                            '0 0 0px rgba(59, 130, 246, 0), 0 0 0px rgba(168, 85, 247, 0)'
+                          ]
+                        : '0 0 0px rgba(59, 130, 246, 0), 0 0 0px rgba(168, 85, 247, 0)',
+                    }}
+                    transition={{
+                      duration: 2,
+                      times: [0, 0.25, 0.5, 0.75, 1],
+                      ease: "easeInOut",
+                    }}
+                  />
                   <div className="relative backdrop-blur-xl bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 rounded-2xl p-6 sm:p-8 shadow-xl dark:shadow-2xl transition-colors duration-300">
                     <h2 className="text-2xl font-bold mb-1 text-gray-900 dark:text-white">Get Early Access</h2>
                     <p className="text-gray-600 dark:text-gray-400 mb-6">Join the waitlist and save 10+ hours per week</p>

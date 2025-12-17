@@ -30,6 +30,11 @@ export interface SendInvitesResult {
   failed: number;
   total: number;
   errors: string[];
+  updatedEntry?: {
+    total_points: number;
+    effective_position: number;
+    referral_count: number;
+  };
 }
 
 /**
@@ -38,6 +43,50 @@ export interface SendInvitesResult {
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email.trim());
+}
+
+/**
+ * Create email invite via RPC function (bypasses RLS)
+ */
+async function createInviteViaRPC(entryId: string, email: string): Promise<{
+  success: boolean;
+  error?: string;
+  invite_id?: string;
+  entry?: {
+    total_points: number;
+    effective_position: number;
+    referral_count: number;
+  };
+}> {
+  try {
+    const { data, error } = await supabase.rpc('create_waitlist_email_invite', {
+      p_entry_id: entryId,
+      p_email: email
+    });
+
+    if (error) {
+      console.error('[EmailInvite] RPC error:', error);
+      // If RPC doesn't exist, return special error
+      if (error.message.includes('function') || error.message.includes('does not exist')) {
+        return { success: false, error: 'RPC_NOT_FOUND' };
+      }
+      return { success: false, error: error.message };
+    }
+
+    if (data && typeof data === 'object') {
+      return {
+        success: data.success === true,
+        error: data.error,
+        invite_id: data.invite_id,
+        entry: data.entry
+      };
+    }
+
+    return { success: false, error: 'Invalid RPC response' };
+  } catch (err) {
+    console.error('[EmailInvite] Exception calling RPC:', err);
+    return { success: false, error: String(err) };
+  }
 }
 
 /**
@@ -74,8 +123,68 @@ export async function sendBulkInvites(params: SendInvitesParams): Promise<SendIn
   const errors: string[] = [];
   let sentCount = 0;
   let failedCount = invalidEmails.length;
+  let lastUpdatedEntry: SendInvitesResult['updatedEntry'] = undefined;
 
   // Add invalid emails to errors
+  if (invalidEmails.length > 0) {
+    errors.push(`Invalid email format: ${invalidEmails.join(', ')}`);
+  }
+
+  // Try RPC first for each email (handles duplicates internally)
+  for (const email of validEmails) {
+    const rpcResult = await createInviteViaRPC(waitlist_entry_id, email.trim().toLowerCase());
+
+    if (rpcResult.success) {
+      sentCount++;
+      if (rpcResult.entry) {
+        lastUpdatedEntry = rpcResult.entry;
+      }
+      console.log(`[EmailInvite] Successfully invited: ${email}`);
+    } else if (rpcResult.error === 'RPC_NOT_FOUND') {
+      // RPC not available, fall back to direct insert
+      console.warn('[EmailInvite] RPC not found, falling back to direct insert');
+      return await sendBulkInvitesFallback(params);
+    } else {
+      failedCount++;
+      if (rpcResult.error) {
+        errors.push(`${email}: ${rpcResult.error}`);
+      }
+    }
+  }
+
+  // If we got here via RPC, return the results
+  if (sentCount > 0) {
+    return {
+      success: true,
+      sent: sentCount,
+      failed: failedCount,
+      total: emails.length,
+      errors,
+      updatedEntry: lastUpdatedEntry
+    };
+  }
+
+  return {
+    success: false,
+    sent: 0,
+    failed: failedCount,
+    total: emails.length,
+    errors
+  };
+}
+
+/**
+ * Fallback method using direct insert (may fail due to RLS)
+ */
+async function sendBulkInvitesFallback(params: SendInvitesParams): Promise<SendInvitesResult> {
+  const { waitlist_entry_id, emails, referral_code, sender_name } = params;
+
+  const validEmails = emails.filter(email => isValidEmail(email));
+  const invalidEmails = emails.filter(email => !isValidEmail(email));
+  const errors: string[] = [];
+  let sentCount = 0;
+  let failedCount = invalidEmails.length;
+
   if (invalidEmails.length > 0) {
     errors.push(`Invalid email format: ${invalidEmails.join(', ')}`);
   }
@@ -85,11 +194,11 @@ export async function sendBulkInvites(params: SendInvitesParams): Promise<SendIn
     .from('waitlist_email_invites')
     .select('email')
     .eq('waitlist_entry_id', waitlist_entry_id)
-    .in('email', validEmails);
+    .in('email', validEmails.map(e => e.toLowerCase()));
 
   const existingEmails = new Set(existingInvites?.map(invite => invite.email) || []);
-  const newEmails = validEmails.filter(email => !existingEmails.has(email));
-  const duplicateEmails = validEmails.filter(email => existingEmails.has(email));
+  const newEmails = validEmails.filter(email => !existingEmails.has(email.toLowerCase()));
+  const duplicateEmails = validEmails.filter(email => existingEmails.has(email.toLowerCase()));
 
   if (duplicateEmails.length > 0) {
     errors.push(`Already invited: ${duplicateEmails.join(', ')}`);
@@ -128,6 +237,8 @@ export async function sendBulkInvites(params: SendInvitesParams): Promise<SendIn
       errors: [...errors, `Database error: ${insertError.message}`]
     };
   }
+
+  sentCount = newEmails.length;
 
   // Generate referral URL
   const referralUrl = `${window.location.origin}/product/meetings/waitlist?ref=${referral_code}`;

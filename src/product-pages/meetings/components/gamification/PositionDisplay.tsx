@@ -143,7 +143,7 @@ export function PositionDisplay({ entry, previousPosition, onMilestone }: Positi
         >
           <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-sm">
-            Jumped {previousPosition - (entry.effective_position || 0)} spots!
+            Jumped {previousPosition - (entry.effective_position || 0)} points!
           </span>
         </motion.div>
       )}

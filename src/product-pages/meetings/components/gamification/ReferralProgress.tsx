@@ -99,7 +99,7 @@ export function ReferralProgress({ currentPosition, referralCount }: ReferralPro
               <h4 className="text-sm font-semibold text-white">Progress to Next Tier</h4>
             </div>
             <span className="text-xs text-gray-400">
-              {spotsToNext} spots to go
+              {spotsToNext} points to go
             </span>
           </div>
 
@@ -204,7 +204,7 @@ export function ReferralProgress({ currentPosition, referralCount }: ReferralPro
           Refer friends to jump ahead faster
         </p>
         <p className="text-emerald-400 font-semibold">
-          <span className="text-2xl">{referralCount}</span> referrals = <span className="text-2xl">{referralCount * 5}</span> spots gained
+          <span className="text-2xl">{referralCount}</span> referrals = <span className="text-2xl">{referralCount * 5}</span> points gained
         </p>
       </motion.div>
     </motion.div>

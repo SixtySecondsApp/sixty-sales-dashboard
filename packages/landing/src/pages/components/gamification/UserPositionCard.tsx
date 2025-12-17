@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { Trophy, TrendingUp, Users } from 'lucide-react';
+import { formatRank } from '../../../lib/utils/utils';
 
 interface UserPositionCardProps {
   effectivePosition: number;
@@ -36,7 +37,7 @@ export function UserPositionCard({ effectivePosition, signupPosition, referralCo
             <span className="text-sm text-gray-400 uppercase tracking-wide">Your Position</span>
           </div>
           <div className="text-6xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent">
-            #{effectivePosition}
+            #{formatRank(effectivePosition)}
           </div>
           {positionsMoved > 0 && (
             <motion.div
@@ -83,7 +84,7 @@ export function UserPositionCard({ effectivePosition, signupPosition, referralCo
         {positionsMoved > 0 && (
           <div className="text-center pt-2">
             <span className="text-xs text-gray-600">
-              Original position: #{signupPosition}
+              Original position: #{formatRank(signupPosition)}
             </span>
           </div>
         )}

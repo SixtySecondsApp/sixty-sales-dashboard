@@ -1,28 +1,44 @@
 import { createClient, SupabaseClient, Session, User } from '@supabase/supabase-js';
 import { Database } from '../database.types';
-import logger from '@/lib/utils/logger';
+import logger from '../utils/logger';
 
 // Environment variables with validation
 // Supabase uses "Publishable key" (frontend-safe) and "Secret keys" (server-side only)
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabasePublishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY; // Publishable key (safe for frontend)
+// When loaded from main app, try to use main app's Supabase client
+// Otherwise, use landing package's own env vars
+
+// Get environment variables
+let supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+let supabasePublishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
 // SECURITY: Never use Secret keys (formerly service role keys) in frontend code!
 // Secret keys bypass RLS and should NEVER be exposed to the browser.
 // The supabaseAdmin client should only be used server-side (edge functions, API routes).
 const supabaseSecretKey = undefined; // Removed: import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
-// Validate required environment variables
-if (!supabaseUrl || !supabasePublishableKey) {
-  const isProduction = typeof window !== 'undefined' && 
-    (window.location.hostname.includes('vercel.app') || 
-     window.location.hostname.includes('sixtyseconds.video'));
+// Helper function to check if main app's Supabase client is available
+// This is the primary way the landing package gets Supabase access when loaded from main app
+function getMainAppSupabase(): any {
+  if (typeof window === 'undefined') {
+    return null;
+  }
   
-  const errorMessage = isProduction
-    ? 'Missing required Supabase environment variables. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel Dashboard → Settings → Environment Variables, then redeploy.'
-    : 'Missing required Supabase environment variables. Please check your .env.local file and ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.';
+  // Direct check of window property (most reliable)
+  const mainAppClient = (window as any).__MAIN_APP_SUPABASE__;
+  if (mainAppClient) {
+    // Verify it's actually a Supabase client (has the 'from' method)
+    if (typeof mainAppClient.from === 'function') {
+      return mainAppClient;
+    } else {
+      console.warn('[Landing Package] window.__MAIN_APP_SUPABASE__ exists but is not a valid Supabase client');
+    }
+  }
   
-  throw new Error(errorMessage);
+  return null;
 }
+
+// Validate required environment variables (lazy - only when client is actually needed)
+// Don't throw error immediately - check when client is requested
 
 // Typed Supabase client
 export type TypedSupabaseClient = SupabaseClient<Database>;
@@ -34,8 +50,76 @@ let supabaseAdminInstance: TypedSupabaseClient | null = null;
 /**
  * Get the main Supabase client for user operations
  * Uses lazy initialization to avoid vendor bundle issues
+ * If main app's client is available, use that instead
  */
 function getSupabaseClient(): TypedSupabaseClient {
+  // ALWAYS check for main app's Supabase client first (when loaded from main app)
+  // The landing package should always use the main app's client when available
+  let mainAppSupabase = getMainAppSupabase();
+  
+  // If not found, try a few more times (handles timing issues with lazy loading)
+  if (!mainAppSupabase && typeof window !== 'undefined') {
+    // Check multiple times with increasing delays
+    for (let i = 0; i < 3; i++) {
+      const client = (window as any).__MAIN_APP_SUPABASE__;
+      if (client) {
+        mainAppSupabase = client;
+        console.log(`[Landing Package] Found main app's Supabase client (attempt ${i + 1})`);
+        break;
+      }
+      // Small delay between checks (only if not found)
+      if (i < 2) {
+        // Use a microtask to check again
+        const checkAgain = () => {
+          const retryClient = (window as any).__MAIN_APP_SUPABASE__;
+          if (retryClient) {
+            return retryClient;
+          }
+          return null;
+        };
+        // Try once more immediately (most cases it's already set)
+        const retryResult = checkAgain();
+        if (retryResult) {
+          mainAppSupabase = retryResult;
+          break;
+        }
+      }
+    }
+  }
+  
+  if (mainAppSupabase) {
+    console.log('[Landing Package] Using main app\'s Supabase client');
+    return mainAppSupabase as TypedSupabaseClient;
+  }
+  
+  // If we don't have env vars and no main app client, provide helpful error
+  if (!supabaseUrl || !supabasePublishableKey) {
+    // In development, provide detailed debug info
+    if (import.meta.env.DEV) {
+      const debugInfo = {
+        hasMainAppClient: !!mainAppSupabase,
+        windowHasClient: typeof window !== 'undefined' ? !!(window as any).__MAIN_APP_SUPABASE__ : false,
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabasePublishableKey,
+        windowKeys: typeof window !== 'undefined' ? Object.keys(window).filter(k => k.includes('SUPABASE') || k.includes('MAIN_APP')).slice(0, 5) : [],
+        importMetaEnvKeys: Object.keys(import.meta.env).filter(k => k.includes('SUPABASE'))
+      };
+      console.error('[Landing Package] Cannot initialize Supabase client:', debugInfo);
+    }
+    
+    const isProduction = typeof window !== 'undefined' && 
+      (window.location.hostname.includes('vercel.app') || 
+       window.location.hostname.includes('sixtyseconds.video'));
+    
+    if (isProduction) {
+      const errorMessage = 'Missing required Supabase environment variables. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel Dashboard → Settings → Environment Variables, then redeploy.';
+      throw new Error(errorMessage);
+    } else {
+      const errorMessage = 'Missing required Supabase environment variables. The landing package cannot find the main app\'s Supabase client. Please ensure the main app has set window.__MAIN_APP_SUPABASE__ or check your .env.local file.';
+      throw new Error(errorMessage);
+    }
+  }
+  
   if (!supabaseInstance) {
     // Prefer dedicated Functions domain to avoid fetch issues
     const functionsUrlEnv = (import.meta as any).env?.VITE_SUPABASE_FUNCTIONS_URL as string | undefined;
@@ -93,9 +177,42 @@ function getSupabaseClient(): TypedSupabaseClient {
 
 /**
  * Main Supabase client for user operations - Proxy wrapper for safe initialization
+ * This proxy allows lazy initialization and will use the main app's client if available
+ * 
+ * IMPORTANT: When loaded from the main app, this should ALWAYS use the main app's client.
+ * The main app sets window.__MAIN_APP_SUPABASE__ before any landing code runs.
  */
 export const supabase: TypedSupabaseClient = new Proxy({} as TypedSupabaseClient, {
   get(target, prop) {
+    // CRITICAL: Always check window directly first (most reliable)
+    if (typeof window !== 'undefined') {
+      const mainAppClient = (window as any).__MAIN_APP_SUPABASE__;
+      if (mainAppClient) {
+        try {
+          const value = mainAppClient[prop as keyof TypedSupabaseClient];
+          if (value !== undefined) {
+            return typeof value === 'function' ? value.bind(mainAppClient) : value;
+          }
+        } catch (e) {
+          // If accessing the property fails, fall through to creating our own client
+        }
+      }
+    }
+    
+    // Fallback: Try the helper function
+    try {
+      const mainAppClient = getMainAppSupabase();
+      if (mainAppClient) {
+        const value = mainAppClient[prop as keyof TypedSupabaseClient];
+        if (value !== undefined) {
+          return typeof value === 'function' ? value.bind(mainAppClient) : value;
+        }
+      }
+    } catch (e) {
+      // Ignore and continue
+    }
+    
+    // Last resort: Create our own client (shouldn't happen when loaded from main app)
     try {
       const client = getSupabaseClient();
       if (!client) {
@@ -104,6 +221,22 @@ export const supabase: TypedSupabaseClient = new Proxy({} as TypedSupabaseClient
       const value = client[prop as keyof TypedSupabaseClient];
       return typeof value === 'function' ? value.bind(client) : value;
     } catch (error) {
+      // Final attempt: Check window one more time (in case it was just set)
+      if (typeof window !== 'undefined') {
+        const lastChanceClient = (window as any).__MAIN_APP_SUPABASE__;
+        if (lastChanceClient) {
+          try {
+            const value = lastChanceClient[prop as keyof TypedSupabaseClient];
+            if (value !== undefined) {
+              console.log('[Landing Package] Found main app client on final attempt');
+              return typeof value === 'function' ? value.bind(lastChanceClient) : value;
+            }
+          } catch (finalError) {
+            // Fall through to original error
+          }
+        }
+      }
+      
       logger.error('Supabase client proxy error:', error);
       throw error;
     }

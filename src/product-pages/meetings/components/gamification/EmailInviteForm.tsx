@@ -102,7 +102,7 @@ export function EmailInviteForm({ entryId, referralCode, senderName }: EmailInvi
       </div>
 
       <p className="text-gray-400 text-center text-sm mb-4">
-        Invite up to 5 revenue leaders. Each referral gets you <strong className="text-white">5 spots ahead</strong> in line.
+        Invite up to 5 revenue leaders. Each referral gets you <strong className="text-white">5 points ahead</strong> in line.
       </p>
 
       {/* Form */}

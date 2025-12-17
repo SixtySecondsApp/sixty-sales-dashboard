@@ -3,6 +3,7 @@ import { motion, useSpring, useTransform } from 'framer-motion';
 import { TrendingUp, Crown, Star, Target } from 'lucide-react';
 import { getTierForPosition } from '@/lib/types/waitlist';
 import type { WaitlistEntry } from '@/lib/types/waitlist';
+import { formatRank } from '../../../lib/utils/utils';
 
 interface PositionDisplayProps {
   entry: WaitlistEntry;
@@ -22,6 +23,7 @@ export function PositionDisplay({ entry, previousPosition, onMilestone }: Positi
   });
 
   const roundedPosition = useTransform(springValue, (value) => Math.round(value));
+  const formattedPosition = useTransform(roundedPosition, (value) => formatRank(value));
 
   useEffect(() => {
     if (previousPosition && previousPosition !== entry.effective_position) {
@@ -88,7 +90,7 @@ export function PositionDisplay({ entry, previousPosition, onMilestone }: Positi
           >
             <span className="text-xs text-yellow-600 dark:text-yellow-500/80 font-medium uppercase tracking-wider">Rank</span>
             <span className="text-4xl font-bold text-yellow-600 dark:text-yellow-500">
-              #<motion.span>{roundedPosition}</motion.span>
+              #<motion.span>{formattedPosition}</motion.span>
             </span>
           </div>
         </div>
@@ -153,7 +155,7 @@ export function PositionDisplay({ entry, previousPosition, onMilestone }: Positi
       {/* Original Position Note */}
       {entry.signup_position && entry.signup_position !== entry.effective_position && (
         <div className="mt-4 text-center text-xs text-gray-500 dark:text-gray-500">
-          Original position: #{entry.signup_position}
+          Original position: #{formatRank(entry.signup_position)}
         </div>
       )}
     </motion.div>

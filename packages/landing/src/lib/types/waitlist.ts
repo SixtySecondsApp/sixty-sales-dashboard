@@ -24,6 +24,8 @@ export interface WaitlistEntry {
   total_points?: number;
   linkedin_boost_claimed?: boolean;
   twitter_boost_claimed?: boolean;
+  email_boost_claimed?: boolean;
+  email_first_share_at?: string;
   status: WaitlistStatus;
   released_at?: string;
   released_by?: string;

@@ -4,6 +4,7 @@ import { Trophy, TrendingUp, Crown, BarChart2, DollarSign, Gift, Zap, Calendar }
 import { supabase } from '@/lib/supabase/clientV2';
 import { getTierForPosition } from '@/lib/types/waitlist';
 import { useWaitlistRealtime } from '@/lib/hooks/useRealtimeHub';
+import { formatRank } from '@/lib/utils';
 
 interface LeaderboardEntry {
   id: string;
@@ -88,7 +89,7 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
       case 3:
         return '🥉';
       default:
-        return `#${rank}`;
+        return `#${formatRank(rank)}`;
     }
   };
 

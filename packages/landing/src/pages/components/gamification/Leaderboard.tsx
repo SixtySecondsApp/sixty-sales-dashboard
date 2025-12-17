@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Trophy, TrendingUp, Crown, BarChart2, DollarSign, Gift, Zap, Calendar } from 'lucide-react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { getTierForPosition } from '@/lib/types/waitlist';
+import { formatRank } from '../../../lib/utils/utils';
 
 interface LeaderboardEntry {
   id: string;
@@ -105,7 +106,7 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
       case 3:
         return '🥉';
       default:
-        return `#${rank}`;
+        return `#${formatRank(rank)}`;
     }
   };
 
@@ -311,7 +312,7 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
                   </motion.div>
                   {/* Position Badge */}
                   <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-white dark:ring-gray-900">
-                    #{currentUserEntry.effective_position}
+                    #{formatRank(currentUserEntry.effective_position)}
                   </div>
                 </div>
                 <div className="flex-1">

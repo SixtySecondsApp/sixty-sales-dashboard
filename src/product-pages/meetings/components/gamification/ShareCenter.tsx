@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useShareTracking } from '@/lib/hooks/useShareTracking';
 import { ConfettiService } from '@/lib/services/confettiService';
-import { hasClaimedLinkedInBoost, trackLinkedInFirstShare, hasClaimedTwitterBoost, trackTwitterFirstShare } from '@/lib/services/shareTrackingService';
+import { hasClaimedLinkedInBoost, trackLinkedInFirstShare, hasClaimedTwitterBoost, trackTwitterFirstShare, hasClaimedEmailBoost, trackEmailFirstShare } from '@/lib/services/shareTrackingService';
 import { sendBulkInvites } from '@/lib/services/emailInviteService';
 import { RecentLinkedInShares } from './RecentLinkedInShares';
 import { ShareConfirmationModal } from './ShareConfirmationModal';
 import { BoostSuccessToast } from './BoostSuccessToast';
+import { formatRank } from '@/lib/utils';
 
 interface ShareCenterProps {
   referralUrl: string;
@@ -20,6 +21,7 @@ interface ShareCenterProps {
   referralCode?: string;
   linkedInBoostClaimed?: boolean;
   twitterBoostClaimed?: boolean;
+  emailBoostClaimed?: boolean;
   totalPoints?: number;
   signupPosition?: number;
 }
@@ -33,6 +35,7 @@ export function ShareCenter({
   referralCode,
   linkedInBoostClaimed: propLinkedInBoostClaimed = false,
   twitterBoostClaimed: propTwitterBoostClaimed = false,
+  emailBoostClaimed: propEmailBoostClaimed = false,
   totalPoints = 0,
   signupPosition = 0
 }: ShareCenterProps) {
@@ -42,14 +45,16 @@ export function ShareCenter({
   const [hasShared, setHasShared] = useState(false);
   const [linkedInBoostClaimed, setLinkedInBoostClaimed] = useState(false);
   const [twitterBoostClaimed, setTwitterBoostClaimed] = useState(false);
+  const [emailBoostClaimed, setEmailBoostClaimed] = useState(false);
   const [showLinkedInBoostToast, setShowLinkedInBoostToast] = useState(false);
   const [showTwitterBoostToast, setShowTwitterBoostToast] = useState(false);
+  const [showEmailBoostToast, setShowEmailBoostToast] = useState(false);
   const [showLinkedInCopyNotice, setShowLinkedInCopyNotice] = useState(false);
 
   // Confirmation modal state
   const [confirmationModal, setConfirmationModal] = useState<{
     isOpen: boolean;
-    platform: 'linkedin' | 'twitter';
+    platform: 'linkedin' | 'twitter' | 'email';
     onConfirm: () => void;
   }>({
     isOpen: false,
@@ -58,7 +63,7 @@ export function ShareCenter({
   });
 
   // Email invite state
-  const [emails, setEmails] = useState(['', '']);
+  const [emails, setEmails] = useState(['']);
   const [sending, setSending] = useState(false);
   const [inviteSuccess, setInviteSuccess] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -66,21 +71,24 @@ export function ShareCenter({
   // Check boost status on mount
   useEffect(() => {
     const checkBoosts = async () => {
-      const [linkedInClaimed, twitterClaimed] = await Promise.all([
+      const [linkedInClaimed, twitterClaimed, emailClaimed] = await Promise.all([
         hasClaimedLinkedInBoost(entryId),
-        hasClaimedTwitterBoost(entryId)
+        hasClaimedTwitterBoost(entryId),
+        hasClaimedEmailBoost(entryId)
       ]);
       setLinkedInBoostClaimed(linkedInClaimed);
       setTwitterBoostClaimed(twitterClaimed);
+      setEmailBoostClaimed(emailClaimed);
     };
     checkBoosts();
   }, [entryId]);
 
   // Calculate future position after share boost
-  const calculateFuturePosition = (platform: 'linkedin' | 'twitter') => {
+  const calculateFuturePosition = (platform: 'linkedin' | 'twitter' | 'email') => {
     // If boost already claimed, no change
     if (platform === 'linkedin' && linkedInBoostClaimed) return currentPosition;
     if (platform === 'twitter' && twitterBoostClaimed) return currentPosition;
+    if (platform === 'email' && emailBoostClaimed) return currentPosition;
 
     // Calculate new total points with the +50 boost
     const newTotalPoints = totalPoints + 50;
@@ -95,7 +103,7 @@ export function ShareCenter({
   // When they actually share, the position will be calculated based on the platform
   const shareMessage = `I just secured early access to Meeting Intelligence—the tool that reclaims 10+ hours per week.
 
-I'm #${currentPosition} in line and moving fast! Join me and lock in 50% off for life 🚀
+I'm #${formatRank(currentPosition)} in line and moving fast! Join me and lock in 50% off for life 🚀
 
 ${referralUrl}`;
 
@@ -142,13 +150,13 @@ ${referralUrl}`;
   const handleShare = async (platform: 'twitter' | 'linkedin' | 'email') => {
     // Calculate position for the share message
     let sharePosition = currentPosition;
-    if (platform === 'linkedin' || platform === 'twitter') {
+    if (platform === 'linkedin' || platform === 'twitter' || platform === 'email') {
       sharePosition = calculateFuturePosition(platform);
     }
 
     const text = `I just secured early access to Meeting Intelligence—the tool that reclaims 10+ hours per week.
 
-I'm #${sharePosition} in line and moving fast! Join me and lock in 50% off for life 🚀
+I'm #${formatRank(sharePosition)} in line and moving fast! Join me and lock in 50% off for life 🚀
 
 ${referralUrl}`;
 
@@ -181,7 +189,7 @@ ${referralUrl}`;
     const shareWindow = window.open(shareUrls[platform], '_blank', 'width=600,height=400');
 
     // Handle social media first share boosts - track window close
-    if ((platform === 'linkedin' && !linkedInBoostClaimed) || (platform === 'twitter' && !twitterBoostClaimed)) {
+    if ((platform === 'linkedin' && !linkedInBoostClaimed) || (platform === 'twitter' && !twitterBoostClaimed) || (platform === 'email' && !emailBoostClaimed)) {
       if (shareWindow) {
         // Poll to detect when window closes
         const checkWindowClosed = setInterval(() => {
@@ -194,19 +202,28 @@ ${referralUrl}`;
               platform: platform,
               onConfirm: async () => {
                 // Grant the boost
-                const result = platform === 'linkedin'
-                  ? await trackLinkedInFirstShare(entryId)
-                  : await trackTwitterFirstShare(entryId);
+                let result;
+                if (platform === 'linkedin') {
+                  result = await trackLinkedInFirstShare(entryId);
+                } else if (platform === 'twitter') {
+                  result = await trackTwitterFirstShare(entryId);
+                } else {
+                  result = await trackEmailFirstShare(entryId);
+                }
 
                 if (result.boosted) {
                   if (platform === 'linkedin') {
                     setLinkedInBoostClaimed(true);
                     setShowLinkedInBoostToast(true);
                     setTimeout(() => setShowLinkedInBoostToast(false), 5000);
-                  } else {
+                  } else if (platform === 'twitter') {
                     setTwitterBoostClaimed(true);
                     setShowTwitterBoostToast(true);
                     setTimeout(() => setShowTwitterBoostToast(false), 5000);
+                  } else {
+                    setEmailBoostClaimed(true);
+                    setShowEmailBoostToast(true);
+                    setTimeout(() => setShowEmailBoostToast(false), 5000);
                   }
                   ConfettiService.milestone('first_share');
                 }
@@ -268,8 +285,8 @@ ${referralUrl}`;
         // Calculate points awarded (5 per invite)
         const pointsAwarded = result.sent * 5;
 
-        // Clear email fields
-        setEmails(['', '']);
+        // Clear email field
+        setEmails(['']);
 
         // Hide success message after 5 seconds
         setTimeout(() => {
@@ -299,15 +316,21 @@ ${referralUrl}`;
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.8, duration: 0.8 }}
-      className="rounded-xl p-6 space-y-6 bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none transition-all duration-300"
+      className="rounded-xl p-6 space-y-6"
+      style={{
+        background: 'rgba(17, 24, 39, 0.8)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: '1px solid rgba(55, 65, 81, 0.5)'
+      }}
     >
       {/* Header */}
       <div className="space-y-2">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-          <Zap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+        <h3 className="text-lg font-semibold text-gray-100 flex items-center gap-2">
+          <Zap className="w-5 h-5 text-blue-400" />
           Skip the Line Faster
         </h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400">Jump <span className="text-gray-900 dark:text-gray-200 font-semibold">5 spots ahead</span> for every revenue leader you refer.</p>
+        <p className="text-sm text-gray-400">Jump <span className="text-gray-200 font-semibold">5 spots ahead</span> for every revenue leader you refer.</p>
       </div>
 
       {/* Copy Link Input */}
@@ -316,18 +339,22 @@ ${referralUrl}`;
           <Input
             readOnly
             value={referralUrl}
-            className="w-full rounded-lg py-2.5 pl-4 pr-10 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-mono"
+            className="w-full rounded-lg py-2.5 pl-4 pr-10 text-sm text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-mono"
+            style={{
+              background: 'rgba(31, 41, 55, 0.5)',
+              border: '1px solid rgba(55, 65, 81, 0.5)'
+            }}
             onClick={(e) => (e.target as HTMLInputElement).select()}
           />
         </div>
         <Button
           onClick={handleCopy}
-          className="px-4 py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors flex items-center gap-2"
+          className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-sm font-medium text-gray-200 transition-colors flex items-center gap-2"
         >
           {copied ? (
             <>
-              <Check className="w-4 h-4 text-emerald-500" />
-              <span className="text-emerald-600 dark:text-emerald-400">Copied!</span>
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span className="text-emerald-400">Copied!</span>
             </>
           ) : (
             <>
@@ -340,10 +367,10 @@ ${referralUrl}`;
 
       {/* Copy Share Message Button */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Share Message</label>
+        <label className="block text-sm font-medium text-gray-300 mb-2">Share Message</label>
         <Button
           onClick={handleCopyMessage}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 dark:hover:bg-blue-500 text-white rounded-lg text-sm font-semibold shadow-sm dark:shadow-lg dark:shadow-blue-900/20 transition-all flex items-center justify-center gap-2"
+          className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-2"
         >
           {messageCopied ? (
             <>
@@ -374,21 +401,21 @@ ${referralUrl}`;
             onClick={() => handleShare('twitter')}
             variant="outline"
             disabled={twitterBoostClaimed}
-            className={`w-full h-10 flex items-center justify-center gap-2 ${
+            className={`w-full border-white/10 h-10 flex items-center justify-center gap-2 ${
               twitterBoostClaimed
-                ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 cursor-not-allowed opacity-75'
-                : 'bg-gradient-to-r from-blue-50 dark:from-blue-500/10 to-sky-50 dark:to-sky-500/10 border-blue-200 dark:border-blue-500/30 hover:from-blue-100 dark:hover:from-blue-500/20 hover:to-sky-100 dark:hover:to-sky-500/20 hover:border-blue-300 dark:hover:border-blue-500/50'
+                ? 'bg-emerald-500/10 border-emerald-500/30 cursor-not-allowed opacity-75'
+                : 'bg-gradient-to-r from-blue-500/10 to-sky-500/10 border-blue-500/30 hover:from-blue-500/20 hover:to-sky-500/20 hover:border-blue-500/50'
             }`}
           >
             {twitterBoostClaimed ? (
               <>
-                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-sm text-emerald-600 dark:text-emerald-400">Boost Claimed ✓</span>
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span className="text-sm text-emerald-400">Boost Claimed ✓</span>
               </>
             ) : (
               <>
-                <Zap className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Share on X/Twitter</span>
+                <Zap className="w-4 h-4 text-blue-400" />
+                <span className="text-sm font-semibold">Share on X/Twitter</span>
               </>
             )}
           </Button>
@@ -413,21 +440,21 @@ ${referralUrl}`;
             onClick={() => handleShare('linkedin')}
             variant="outline"
             disabled={linkedInBoostClaimed}
-            className={`w-full h-10 flex items-center justify-center gap-2 ${
+            className={`w-full border-white/10 h-10 flex items-center justify-center gap-2 ${
               linkedInBoostClaimed
-                ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 cursor-not-allowed opacity-75'
-                : 'bg-gradient-to-r from-yellow-50 dark:from-yellow-500/10 to-orange-50 dark:to-orange-500/10 border-yellow-200 dark:border-yellow-500/30 hover:from-yellow-100 dark:hover:from-yellow-500/20 hover:to-orange-100 dark:hover:to-orange-500/20 hover:border-yellow-300 dark:hover:border-yellow-500/50'
+                ? 'bg-emerald-500/10 border-emerald-500/30 cursor-not-allowed opacity-75'
+                : 'bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/30 hover:from-yellow-500/20 hover:to-orange-500/20 hover:border-yellow-500/50'
             }`}
           >
             {linkedInBoostClaimed ? (
               <>
-                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-sm text-emerald-600 dark:text-emerald-400">Boost Claimed ✓</span>
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span className="text-sm text-emerald-400">Boost Claimed ✓</span>
               </>
             ) : (
               <>
-                <Zap className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Share on LinkedIn</span>
+                <Zap className="w-4 h-4 text-yellow-400" />
+                <span className="text-sm font-semibold">Share on LinkedIn</span>
               </>
             )}
           </Button>
@@ -446,15 +473,39 @@ ${referralUrl}`;
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.8 }}
+          className="relative"
         >
           <Button
             onClick={() => handleShare('email')}
             variant="outline"
-            className="w-full h-10 flex items-center justify-center gap-2 border-gray-200 dark:border-gray-700/50 hover:bg-purple-50 dark:hover:bg-purple-500/20 hover:border-purple-300 dark:hover:border-purple-500/50 text-gray-700 dark:text-gray-200"
+            disabled={emailBoostClaimed}
+            className={`w-full border-white/10 h-10 flex items-center justify-center gap-2 ${
+              emailBoostClaimed
+                ? 'bg-emerald-500/10 border-emerald-500/30 cursor-not-allowed opacity-75'
+                : 'bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30 hover:from-purple-500/20 hover:to-pink-500/20 hover:border-purple-500/50'
+            }`}
           >
-            <Mail className="w-4 h-4" />
-            <span className="text-sm">Email</span>
+            {emailBoostClaimed ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span className="text-sm text-emerald-400">Boost Claimed ✓</span>
+              </>
+            ) : (
+              <>
+                <Zap className="w-4 h-4 text-purple-400" />
+                <span className="text-sm font-semibold">Share via Email</span>
+              </>
+            )}
           </Button>
+          {!emailBoostClaimed && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="absolute -top-2 -right-2 bg-purple-500 text-white text-xs font-bold px-2 py-0.5 rounded-full"
+            >
+              +50
+            </motion.div>
+          )}
         </motion.div>
       </div>
 
@@ -464,18 +515,18 @@ ${referralUrl}`;
           initial={{ opacity: 0, scale: 0.9, y: -10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9 }}
-          className="bg-gradient-to-r from-blue-50 dark:from-blue-500/20 to-indigo-50 dark:to-indigo-500/20 border border-blue-200 dark:border-blue-500/40 rounded-lg p-4 flex items-start gap-3"
+          className="bg-gradient-to-r from-blue-500/20 to-indigo-500/20 border border-blue-500/40 rounded-lg p-4 flex items-start gap-3"
         >
           <div className="flex-shrink-0">
-            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center">
-              <Copy className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+              <Copy className="w-5 h-5 text-blue-400" />
             </div>
           </div>
           <div className="flex-1">
-            <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-1">
+            <h4 className="text-sm font-semibold text-blue-300 mb-1">
               📋 Message Copied!
             </h4>
-            <p className="text-xs text-gray-600 dark:text-gray-300">
+            <p className="text-xs text-gray-300">
               Paste it into LinkedIn after the window opens. Close the LinkedIn window when done to get your 50-point boost!
             </p>
           </div>
@@ -483,27 +534,31 @@ ${referralUrl}`;
       )}
 
       {/* Honor System Notice for Social Shares */}
-      {(!linkedInBoostClaimed || !twitterBoostClaimed) && (
+      {(!linkedInBoostClaimed || !twitterBoostClaimed || !emailBoostClaimed) && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.85 }}
-          className="bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20 rounded-lg p-3 flex items-start gap-2"
+          className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3 flex items-start gap-2"
         >
-          <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-gray-700 dark:text-gray-300">
-            <strong className="text-blue-700 dark:text-blue-300">How to get your 50-spot boost:</strong>
-            1) Click "Copy Share Message" above
-            2) Click "Share on LinkedIn" or "Share on X/Twitter"
-            3) Paste the message and post
-            4) Close the window to get your 50-spot boost! 💙
-          </p>
+          <AlertCircle className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-xs font-semibold text-blue-300 mb-2">
+              How to get your 50-spot boost:
+            </p>
+            <ol className="text-xs text-gray-300 space-y-1.5 list-decimal list-inside">
+              <li>Click "Copy Share Message" above</li>
+              <li>Click "Share on LinkedIn" or "Share on X/Twitter"</li>
+              <li>Paste the message and post</li>
+              <li>Close the window to get your 50-spot boost! 💙</li>
+            </ol>
+          </div>
         </motion.div>
       )}
 
       {/* Email Invite Section - Matches HTML */}
-      <div className="pt-4 border-t border-gray-200 dark:border-gray-800">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Invite via Email</label>
+      <div className="pt-4 border-t border-gray-800">
+        <label className="block text-sm font-medium text-gray-300 mb-3">Invite via Email</label>
 
         {/* Success Message */}
         <AnimatePresence>
@@ -512,18 +567,18 @@ ${referralUrl}`;
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="mb-3 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 flex items-start gap-2"
+              className="mb-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-start gap-2"
             >
-              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">Invites sent successfully!</p>
-                <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70 mt-1">
+                <p className="text-sm text-emerald-300 font-medium">Invites sent successfully!</p>
+                <p className="text-xs text-emerald-400/70 mt-1">
                   You've earned 5 points per invite. Check your updated position above!
                 </p>
               </div>
               <button
                 onClick={() => setInviteSuccess(false)}
-                className="text-emerald-500/50 hover:text-emerald-600 dark:hover:text-emerald-400"
+                className="text-emerald-400/50 hover:text-emerald-400"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -538,15 +593,15 @@ ${referralUrl}`;
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="mb-3 p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 flex items-start gap-2"
+              className="mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-2"
             >
-              <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm text-red-700 dark:text-red-300">{inviteError}</p>
+                <p className="text-sm text-red-300">{inviteError}</p>
               </div>
               <button
                 onClick={() => setInviteError(null)}
-                className="text-red-500/50 hover:text-red-600 dark:hover:text-red-400"
+                className="text-red-400/50 hover:text-red-400"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -555,35 +610,35 @@ ${referralUrl}`;
         </AnimatePresence>
 
         <div className="space-y-3">
-          {emails.map((email, index) => (
-            <div key={index} className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
-              <Input
-                type="email"
-                placeholder={index === 0 ? "colleague@company.com" : "manager@company.com"}
-                value={email}
-                onChange={(e) => {
-                  const newEmails = [...emails];
-                  newEmails[index] = e.target.value;
-                  setEmails(newEmails);
-                  // Clear error when user starts typing
-                  if (inviteError) setInviteError(null);
-                }}
-                disabled={sending}
-                className="w-full rounded-lg py-2.5 pl-10 pr-4 text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-            </div>
-          ))}
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <Input
+              type="email"
+              placeholder="colleague@company.com"
+              value={emails[0]}
+              onChange={(e) => {
+                setEmails([e.target.value]);
+                // Clear error when user starts typing
+                if (inviteError) setInviteError(null);
+              }}
+              disabled={sending}
+              className="w-full rounded-lg py-2.5 pl-10 pr-4 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                background: 'rgba(31, 41, 55, 0.5)',
+                border: '1px solid rgba(55, 65, 81, 0.5)'
+              }}
+            />
+          </div>
           <Button
             onClick={handleSendInvites}
             disabled={sending || !emails.some(e => e.trim())}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 dark:hover:bg-blue-500 text-white rounded-lg text-sm font-semibold shadow-sm dark:shadow-lg dark:shadow-blue-900/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send className="w-4 h-4" />
-            {sending ? 'Sending...' : 'Send Invites'}
+            {sending ? 'Sending...' : 'Send Invite'}
           </Button>
           <p className="text-xs text-gray-500 text-center">
-            💡 Earn <strong className="text-gray-700 dark:text-gray-300">5 spots</strong> for each email invite sent
+            💡 Earn <strong className="text-gray-300">5 spots</strong> for each email invite sent
           </p>
         </div>
       </div>
@@ -607,6 +662,11 @@ ${referralUrl}`;
         isOpen={showTwitterBoostToast}
         platform="twitter"
         onClose={() => setShowTwitterBoostToast(false)}
+      />
+      <BoostSuccessToast
+        isOpen={showEmailBoostToast}
+        platform="email"
+        onClose={() => setShowEmailBoostToast(false)}
       />
     </motion.div>
   );

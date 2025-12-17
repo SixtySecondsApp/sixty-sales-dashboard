@@ -7,7 +7,7 @@
 
 const SESSION_KEY = 'waitlist_entry_id';
 const SESSION_TIMESTAMP_KEY = 'waitlist_session_timestamp';
-const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
+const SESSION_DURATION = 6 * 30 * 24 * 60 * 60 * 1000; // 6 months in milliseconds (approx 180 days)
 
 /**
  * Store waitlist entry ID as a session
