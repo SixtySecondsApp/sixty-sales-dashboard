@@ -35,7 +35,7 @@ export function WaitlistProcess() {
           transition={{ duration: 0.8 }}
           className="text-center mb-16"
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h2 className="font-heading text-3xl md:text-4xl font-bold text-white mb-4">
             How It Works
           </h2>
           <p className="text-lg text-gray-400 max-w-2xl mx-auto">
@@ -67,7 +67,7 @@ export function WaitlistProcess() {
                 <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 flex items-center justify-center mb-4">
                   <step.icon className="w-8 h-8 text-blue-400" />
                 </div>
-                <h3 className="text-lg font-semibold text-white mb-2">{step.title}</h3>
+                <h3 className="font-heading text-lg font-bold text-white mb-2">{step.title}</h3>
                 <p className="text-gray-400 text-sm">{step.description}</p>
               </div>
             </motion.div>

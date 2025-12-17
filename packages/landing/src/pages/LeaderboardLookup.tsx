@@ -199,7 +199,7 @@ export default function LeaderboardLookup() {
                 <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center shadow-lg shadow-yellow-500/25">
                   <Trophy className="w-8 h-8 text-white" />
                 </div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                <h1 className="font-heading text-2xl font-bold text-gray-900 dark:text-white mb-2">
                   Check Your Position
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400">
@@ -280,6 +280,10 @@ export default function LeaderboardLookup() {
     </div>
   );
 }
+
+
+
+
 
 
 

@@ -75,7 +75,7 @@ export function PricingSectionV3() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-heading font-bold mb-4">
             <span className="bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
               Simple, Transparent
             </span>
@@ -119,7 +119,7 @@ export function PricingSectionV3() {
                 } transition-all duration-300 hover:shadow-xl dark:hover:shadow-none`}
               >
                 {/* Plan name */}
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{plan.name}</h3>
+                <h3 className="font-heading text-2xl font-bold text-gray-900 dark:text-white mb-2">{plan.name}</h3>
                 <p className="text-gray-600 dark:text-gray-400 mb-6">{plan.description}</p>
 
                 {/* Price */}
@@ -175,7 +175,7 @@ export function PricingSectionV3() {
           className="max-w-3xl mx-auto"
         >
           <div className="p-8 rounded-2xl bg-gradient-to-br from-blue-50 to-emerald-50 dark:from-blue-500/10 dark:to-emerald-500/10 border border-blue-200 dark:border-blue-500/20">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 text-center">
+            <h3 className="font-heading text-2xl font-bold text-gray-900 dark:text-white mb-2 text-center">
               Calculate Your Savings
             </h3>
             <p className="text-gray-600 dark:text-gray-400 text-center mb-6">

@@ -29,3 +29,7 @@ END;
 $$;
 
 COMMENT ON COLUMN slack_notification_settings.dm_audience IS 'When delivery_method includes DM (meeting debriefs), controls who receives DMs: owner, stakeholders, or both.';
+
+
+
+

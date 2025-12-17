@@ -9,6 +9,10 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        // Urbanist for headings (local font)
+        heading: ['Urbanist', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        // Questrial for body copy (local font)
+        body: ['Questrial', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
@@ -20,6 +24,12 @@ export default {
         sm: 'calc(var(--radius) - 4px)',
       },
       colors: {
+        // Brand colors - 60 Seconds Design System
+        brand: {
+          violet: '#8129D7',
+          blue: '#2A5EDB',
+          teal: '#03AD9C',
+        },
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         orange: {

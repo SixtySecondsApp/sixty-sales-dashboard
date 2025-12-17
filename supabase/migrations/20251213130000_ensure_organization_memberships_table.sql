@@ -216,3 +216,7 @@ BEGIN
   RAISE NOTICE 'rename_user_organization function exists: %', func_exists;
 END $$;
 
+
+
+
+

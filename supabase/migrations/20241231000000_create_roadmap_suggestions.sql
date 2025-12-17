@@ -80,21 +80,6 @@ CREATE POLICY "Users can create roadmap suggestions" ON roadmap_suggestions
   FOR INSERT
   WITH CHECK (auth.uid() IS NOT NULL);
 
--- Users can update their own suggestions (only certain fields)
-CREATE POLICY "Users can update their own suggestions" ON roadmap_suggestions
-  FOR UPDATE
-  USING (submitted_by = auth.uid())
-  WITH CHECK (
-    submitted_by = auth.uid() AND
-    -- Only allow updates to these specific fields
-    (OLD.id = NEW.id) AND
-    (OLD.submitted_by = NEW.submitted_by) AND
-    (OLD.status = NEW.status) AND
-    (OLD.votes_count = NEW.votes_count) AND
-    (OLD.assigned_to = NEW.assigned_to) AND
-    (OLD.created_at = NEW.created_at) AND
-    (OLD.submitted_at = NEW.submitted_at)
-  );
 
 -- Admins can update any suggestion
 CREATE POLICY "Admins can update any roadmap suggestion" ON roadmap_suggestions

@@ -164,3 +164,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Grant execute to authenticated users
 GRANT EXECUTE ON FUNCTION resolve_fathom_user_to_sixty(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION resolve_fathom_user_to_sixty(UUID, TEXT) TO service_role;
+
+
+
+

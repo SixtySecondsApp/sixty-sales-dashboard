@@ -309,3 +309,7 @@ COMMENT ON TABLE calls IS 'Audio calls imported from dialers (JustCall initially
 COMMENT ON TABLE call_transcript_queue IS 'Async retry queue for fetching call transcripts';
 COMMENT ON TABLE call_index_queue IS 'Async queue for indexing call transcripts into File Search';
 COMMENT ON TABLE call_file_search_index IS 'Index tracking for calls indexed into File Search';
+
+
+
+

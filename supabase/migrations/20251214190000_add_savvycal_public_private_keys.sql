@@ -36,3 +36,7 @@ COMMENT ON COLUMN public.savvycal_integration_secrets.api_public_key IS 'SavvyCa
 COMMENT ON COLUMN public.savvycal_integration_secrets.api_private_key IS 'SavvyCal Private Key (sk_...).';
 COMMENT ON COLUMN public.savvycal_integration_secrets.api_token IS 'Legacy: single token field (deprecated, use api_public_key/api_private_key).';
 
+
+
+
+

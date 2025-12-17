@@ -221,3 +221,7 @@ CREATE POLICY "organizations_delete"
     OR public.get_org_role(auth.uid(), id) = 'owner'
   );
 
+
+
+
+

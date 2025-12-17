@@ -1,5 +1,32 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
+/* Urbanist - Headers (Bold 700) */
+@font-face {
+  font-family: 'Urbanist';
+  src: url('/fonts/Urbanist/static/Urbanist-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Urbanist - Variable font for flexibility */
+@font-face {
+  font-family: 'Urbanist';
+  src: url('/fonts/Urbanist/Urbanist-VariableFont_wght.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Questrial - Body (Regular 400) */
+@font-face {
+  font-family: 'Questrial';
+  src: url('/fonts/Questrial/Questrial-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -94,6 +121,11 @@
     --color-accent-yellow: #d97706;
     --color-accent-purple: #7c3aed;
     --color-accent-orange: #ea580c;
+
+    /* 60 Seconds Brand Colors */
+    --brand-violet: #8129D7;
+    --brand-blue: #2A5EDB;
+    --brand-teal: #03AD9C;
   }
 
   /* Dark Mode */
@@ -159,6 +191,11 @@
     --color-accent-yellow: #f59e0b;
     --color-accent-purple: #8b5cf6;
     --color-accent-orange: #f97316;
+
+    /* 60 Seconds Brand Colors - same in dark mode */
+    --brand-violet: #8129D7;
+    --brand-blue: #2A5EDB;
+    --brand-teal: #03AD9C;
   }
 }
 

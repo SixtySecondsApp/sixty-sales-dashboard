@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowRight, Shield, Clock, Zap } from 'lucide-react';
+import { ArrowRight, Clock, Zap } from 'lucide-react';
 
 export function FinalCTA() {
   return (
@@ -9,7 +9,7 @@ export function FinalCTA() {
         <motion.div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[600px] opacity-30 dark:opacity-100"
           style={{
-            background: 'radial-gradient(ellipse, rgba(59, 130, 246, 0.15) 0%, transparent 60%)',
+            background: 'radial-gradient(ellipse, rgba(42, 94, 219, 0.15) 0%, transparent 60%)',
             filter: 'blur(100px)',
           }}
         />
@@ -25,7 +25,7 @@ export function FinalCTA() {
           }}
           className="absolute top-0 right-1/4 w-[400px] h-[400px] rounded-full opacity-20 dark:opacity-100"
           style={{
-            background: 'radial-gradient(circle, rgba(168, 85, 247, 0.1) 0%, transparent 60%)',
+            background: 'radial-gradient(circle, rgba(129, 41, 215, 0.1) 0%, transparent 60%)',
           }}
         />
         <motion.div
@@ -40,7 +40,7 @@ export function FinalCTA() {
           }}
           className="absolute bottom-0 left-1/4 w-[400px] h-[400px] rounded-full opacity-20 dark:opacity-100"
           style={{
-            background: 'radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, transparent 60%)',
+            background: 'radial-gradient(circle, rgba(3, 173, 156, 0.1) 0%, transparent 60%)',
           }}
         />
       </div>
@@ -66,13 +66,13 @@ export function FinalCTA() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.2 }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 mb-8"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-blue/10 border border-brand-blue/20 mb-8"
             >
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-blue opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-blue"></span>
               </span>
-              <span className="text-blue-600 dark:text-blue-400 text-sm font-medium">Early Adopter Pricing until February 2026</span>
+              <span className="text-brand-blue text-sm font-medium">Limited Early Access</span>
             </motion.div>
 
             {/* Headline */}
@@ -81,10 +81,10 @@ export function FinalCTA() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.3 }}
-              className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-6"
+              className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-6"
             >
               Ready to Close More Deals{' '}
-              <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-600 dark:from-blue-400 dark:via-purple-400 dark:to-emerald-400 bg-clip-text text-transparent">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-brand-violet">
                 with AI?
               </span>
             </motion.h2>
@@ -108,7 +108,7 @@ export function FinalCTA() {
               transition={{ delay: 0.5 }}
               className="flex justify-center mb-10"
             >
-              <a href="/waitlist" className="group px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold text-lg hover:from-blue-500 hover:to-blue-400 transition-all duration-300 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40">
+              <a href="/waitlist" className="group px-8 py-4 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet text-white font-semibold text-lg hover:from-[#2351C4] hover:to-[#7024C0] transition-all duration-300 shadow-lg shadow-brand-blue/30 hover:shadow-xl hover:shadow-brand-blue/40">
                 <span className="flex items-center justify-center gap-2">
                   Sign Up Now
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -125,15 +125,11 @@ export function FinalCTA() {
               className="flex flex-wrap items-center justify-center gap-6 text-sm text-gray-600 dark:text-gray-400"
             >
               <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-500" />
-                <span>SOC 2 Compliant</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <Clock className="w-4 h-4 text-brand-blue" />
                 <span>Setup in 60 seconds</span>
               </div>
               <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <Zap className="w-4 h-4 text-brand-violet" />
                 <span>No credit card required</span>
               </div>
             </motion.div>

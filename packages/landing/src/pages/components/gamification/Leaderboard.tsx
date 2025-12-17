@@ -156,7 +156,7 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
     >
       {/* Header */}
       <div className="p-5 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
-        <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+        <h3 className="font-heading font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
           <Trophy className="w-4 h-4 text-yellow-500" />
           Top Referrers
         </h3>

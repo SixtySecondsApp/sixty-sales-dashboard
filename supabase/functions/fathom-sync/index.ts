@@ -289,10 +289,14 @@ async function generateVideoThumbnail(
       requestBody.meeting_id = meetingId
     }
     
+    // Use ANON key for internal edge function calls - the thumbnail function doesn't require
+    // elevated permissions and the service role key may not work for cross-function calls.
+    // The thumbnail function uses its own service role key for database updates.
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     const response = await fetch(functionUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Authorization': `Bearer ${anonKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),

@@ -300,7 +300,7 @@ export function HowItWorksV4() {
                 {simulationState === 'complete' && (
                   <>
                     <CheckCircle className="w-4 h-4" />
-                    All Done — Reset Demo
+                    All Done — 
                   </>
                 )}
               </span>

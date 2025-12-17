@@ -139,7 +139,7 @@ export function PricingCard({
           `}>
             <PlanIcon className="w-5 h-5" />
           </div>
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white">{plan.name}</h3>
+          <h3 className="font-heading text-xl font-bold text-gray-900 dark:text-white">{plan.name}</h3>
         </div>
         {plan.description && (
           <p className="text-sm text-gray-600 dark:text-gray-400">{plan.description}</p>

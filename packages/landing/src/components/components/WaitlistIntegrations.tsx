@@ -18,7 +18,7 @@ export function WaitlistIntegrations() {
           transition={{ duration: 0.8 }}
           className="text-center mb-16"
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h2 className="font-heading text-3xl md:text-4xl font-bold text-white mb-4">
             Already Integrated With Your Stack
           </h2>
           <p className="text-lg text-gray-400 max-w-2xl mx-auto">
@@ -34,7 +34,7 @@ export function WaitlistIntegrations() {
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
           >
-            <h3 className="text-xl font-semibold text-white mb-6 text-center">Sales Dialers</h3>
+            <h3 className="font-heading text-xl font-bold text-white mb-6 text-center">Sales Dialers</h3>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               {integrations.dialers.map((tool, i) => (
                 <div key={i} className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-lg p-4 text-center hover:bg-white/10 transition-colors group">
@@ -55,7 +55,7 @@ export function WaitlistIntegrations() {
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.1 }}
           >
-            <h3 className="text-xl font-semibold text-white mb-6 text-center">Meeting Intelligence</h3>
+            <h3 className="font-heading text-xl font-bold text-white mb-6 text-center">Meeting Intelligence</h3>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               {integrations.recorders.map((tool, i) => (
                 <div key={i} className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-lg p-4 text-center hover:bg-white/10 transition-colors group">
@@ -76,7 +76,7 @@ export function WaitlistIntegrations() {
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            <h3 className="text-xl font-semibold text-white mb-6 text-center">CRM Platforms</h3>
+            <h3 className="font-heading text-xl font-bold text-white mb-6 text-center">CRM Platforms</h3>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               {integrations.crms.map((tool, i) => (
                 <div key={i} className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-lg p-4 text-center hover:bg-white/10 transition-colors group">

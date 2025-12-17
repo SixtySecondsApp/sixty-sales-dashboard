@@ -113,3 +113,7 @@ CREATE POLICY "fathom_org_sync_state_service_update"
   WITH CHECK (coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::json->>'role' = 'service_role');
 
 COMMIT;
+
+
+
+

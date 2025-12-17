@@ -9,3 +9,7 @@ CREATE TRIGGER trigger_queue_call_index
   FOR EACH ROW
   EXECUTE FUNCTION queue_call_for_indexing();
 
+
+
+
+

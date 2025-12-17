@@ -21,6 +21,7 @@ import { useMemo } from 'react';
 import { useSlackOrgSettings } from '@/lib/hooks/useSlackSettings';
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
 import { useJustCallIntegration } from '@/lib/hooks/useJustCallIntegration';
+import { useHubSpotIntegration } from '@/lib/hooks/useHubSpotIntegration';
 import {
   User,
   Palette,
@@ -60,6 +61,9 @@ export default function Settings() {
 
   const { isConnected: isJustCallConnected, loading: justcallLoading } = useJustCallIntegration();
   const showJustCallSettings = !justcallLoading && isJustCallConnected;
+
+  const { isConnected: isHubSpotConnected, loading: hubspotLoading } = useHubSpotIntegration();
+  const showHubSpotSettings = !hubspotLoading && isHubSpotConnected;
 
   const allSettingsSections: SettingsSection[] = [
     {
@@ -150,6 +154,14 @@ export default function Settings() {
       requiresOrgAdmin: true,
     },
     {
+      id: 'hubspot',
+      label: 'HubSpot',
+      icon: Users,
+      description: 'Configure pipeline sync, contact sync, deal sync, and AI notes',
+      path: '/settings/integrations/hubspot',
+      requiresOrgAdmin: true,
+    },
+    {
       id: 'team-members',
       label: 'Team Members',
       icon: Users,
@@ -195,6 +207,10 @@ export default function Settings() {
       if (section.id === 'justcall') {
         return showJustCallSettings;
       }
+      // HubSpot settings should only appear when HubSpot is connected.
+      if (section.id === 'hubspot') {
+        return showHubSpotSettings;
+      }
       // Meeting Sync settings should only appear when Fathom is connected.
       if (section.id === 'meeting-sync') {
         return showFathomSettings;
@@ -205,7 +221,7 @@ export default function Settings() {
       }
       return true;
     });
-  }, [allSettingsSections, permissions, isPlatformAdmin, isSlackConnected, showFathomSettings, showJustCallSettings]);
+  }, [allSettingsSections, permissions, isPlatformAdmin, isSlackConnected, showFathomSettings, showJustCallSettings, showHubSpotSettings]);
 
   const categories = useMemo(() => {
     const personalSections = settingsSections.filter(s =>
@@ -216,7 +232,7 @@ export default function Settings() {
     );
     // Meeting Sync is now under Integrations (only shown when Fathom is connected)
     const integrationSections = settingsSections.filter(s =>
-      ['email-sync', 'slack', 'justcall', 'meeting-sync'].includes(s.id)
+      ['email-sync', 'slack', 'justcall', 'hubspot', 'meeting-sync'].includes(s.id)
     );
     const teamSections = settingsSections.filter(s =>
       ['team-members', 'organization', 'branding', 'billing'].includes(s.id)

@@ -179,7 +179,7 @@ export function PricingSection() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center mb-12">
-          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+          <h2 className="font-heading text-4xl sm:text-5xl font-bold text-white mb-6">
             Choose the perfect plan
             <br />
             <span className="bg-gradient-to-r from-blue-500 to-emerald-500 bg-clip-text text-transparent">
@@ -252,7 +252,7 @@ export function PricingSection() {
         {/* Features Comparison */}
         <div className="border-t border-gray-800/50 pt-16">
           <div className="text-center mb-12">
-            <h3 className="text-3xl font-bold text-white mb-4">
+            <h3 className="font-heading text-3xl font-bold text-white mb-4">
               Compare all features
             </h3>
             <p className="text-gray-400">

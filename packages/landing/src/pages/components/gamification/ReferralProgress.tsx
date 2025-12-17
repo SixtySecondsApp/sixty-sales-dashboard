@@ -59,7 +59,7 @@ export function ReferralProgress({ currentPosition, referralCount }: ReferralPro
               )}
             </div>
             <div>
-              <h3 className={`text-lg font-bold ${tierColors[currentTier.name].text}`}>
+              <h3 className={`font-heading text-lg font-bold ${tierColors[currentTier.name].text}`}>
                 {currentTier.name} Tier
               </h3>
               <p className="text-xs text-gray-400">Your current status</p>
@@ -96,7 +96,7 @@ export function ReferralProgress({ currentPosition, referralCount }: ReferralPro
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <ArrowUp className="w-4 h-4 text-blue-400" />
-              <h4 className="text-sm font-semibold text-white">Progress to Next Tier</h4>
+              <h4 className="font-heading text-sm font-bold text-white">Progress to Next Tier</h4>
             </div>
             <span className="text-xs text-gray-400">
               {spotsToNext} points to go
@@ -186,7 +186,7 @@ export function ReferralProgress({ currentPosition, referralCount }: ReferralPro
           className="bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border border-yellow-500/50 rounded-xl p-6 text-center"
         >
           <div className="text-4xl mb-2">🎉</div>
-          <h4 className="text-xl font-bold text-yellow-400 mb-2">You're at the Top!</h4>
+          <h4 className="font-heading text-xl font-bold text-yellow-400 mb-2">You're at the Top!</h4>
           <p className="text-sm text-gray-300">
             You're in the VIP tier with maximum priority access and benefits.
           </p>

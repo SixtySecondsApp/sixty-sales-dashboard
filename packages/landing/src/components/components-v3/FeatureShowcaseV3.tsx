@@ -52,7 +52,7 @@ export function FeatureShowcaseV3() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
+          <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
             <span className="text-gray-900 dark:text-white">
               Connect Existing Tools
             </span>
@@ -60,7 +60,7 @@ export function FeatureShowcaseV3() {
             <span className="text-gray-900 dark:text-white">
               to
             </span>{' '}
-            <span className="bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-brand-blue to-brand-teal bg-clip-text text-transparent">
               Turbocharge your Sales
             </span>
           </h2>
@@ -97,7 +97,7 @@ export function FeatureShowcaseV3() {
                 </div>
 
                 {/* Title */}
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">
+                <h3 className="text-xl font-heading font-bold text-gray-900 dark:text-white mb-4 leading-tight">
                   {feature.title}
                 </h3>
 

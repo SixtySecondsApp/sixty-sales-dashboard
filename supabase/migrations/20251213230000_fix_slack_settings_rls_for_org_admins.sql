@@ -198,3 +198,7 @@ CREATE POLICY "slack_user_mappings_delete"
   FOR DELETE
   USING (public.is_service_role() OR public.is_admin_optimized());
 
+
+
+
+

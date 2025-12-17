@@ -144,7 +144,7 @@ export function WaitlistHero() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: 0.8 }}
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6"
+              className="font-heading text-4xl sm:text-5xl lg:text-6xl font-bold mb-6"
             >
               <span className="text-white">Join the</span>
               <br />
@@ -219,7 +219,7 @@ export function WaitlistHero() {
                 <div className="absolute -inset-px bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-emerald-500/20 rounded-2xl opacity-50 blur-sm" />
 
                 <div className="relative">
-                  <h2 className="text-2xl font-bold text-white mb-2">Get Early Access</h2>
+                  <h2 className="font-heading text-2xl font-bold text-white mb-2">Get Early Access</h2>
                   <p className="text-gray-400 mb-6">Reserve your spot and move up the waitlist by referring friends</p>
 
                   <form onSubmit={handleSubmit} className="space-y-4">
