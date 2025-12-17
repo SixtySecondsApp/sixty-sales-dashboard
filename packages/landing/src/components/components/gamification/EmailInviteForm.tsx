@@ -98,7 +98,7 @@ export function EmailInviteForm({ entryId, referralCode, senderName }: EmailInvi
       {/* Header */}
       <div className="flex items-center justify-center gap-2 mb-3">
         <Mail className="w-5 h-5 text-blue-400" />
-        <h3 className="text-lg font-semibold text-white">Invite Friends via Email</h3>
+        <h3 className="font-heading text-lg font-bold text-white">Invite Friends via Email</h3>
       </div>
 
       <p className="text-gray-400 text-center text-sm mb-4">

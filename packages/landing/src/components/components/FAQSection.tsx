@@ -23,7 +23,7 @@ function FAQItem({ question, answer, isOpen, onClick, index }: FAQItemProps) {
         onClick={onClick}
         className="w-full py-6 flex items-center justify-between text-left group"
       >
-        <span className="text-lg font-medium text-white group-hover:text-blue-400 transition-colors pr-4">
+        <span className="font-heading text-lg font-bold text-white group-hover:text-blue-400 transition-colors pr-4">
           {question}
         </span>
         <motion.div
@@ -79,7 +79,7 @@ export function FAQSection() {
     },
     {
       question: 'What happens to my data and privacy?',
-      answer: 'Your data is encrypted at rest and in transit, stored securely in SOC 2 compliant infrastructure, and never shared with third parties. You maintain full control with easy export and deletion options. We\'re GDPR ready and take security seriously.',
+      answer: 'Your data is encrypted at rest and in transit, stored securely and never shared with third parties. You maintain full control with easy export and deletion options. We take security seriously.',
     },
   ];
 
@@ -102,7 +102,7 @@ export function FAQSection() {
           >
             FAQ
           </motion.span>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6">
+          <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6">
             Frequently Asked{' '}
             <span className="bg-gradient-to-r from-gray-200 to-gray-500 bg-clip-text text-transparent">
               Questions

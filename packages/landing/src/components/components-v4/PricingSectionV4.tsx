@@ -117,12 +117,12 @@ export function PricingSectionV4() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
+          <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
             <span className="bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
               {getTranslation('header.title', 'Simple, transparent')}
             </span>
             <br />
-            <span className="bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-brand-blue to-brand-teal bg-clip-text text-transparent">
               {getTranslation('header.titleHighlight', 'pricing')}
             </span>
           </h2>
@@ -186,7 +186,7 @@ export function PricingSectionV4() {
                       } transition-all duration-300 hover:shadow-lg dark:hover:shadow-none`}
                     >
                       {/* Plan name */}
-                      <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{plan.name}</h3>
+                      <h3 className="font-heading text-2xl font-bold text-gray-900 dark:text-white mb-2">{plan.name}</h3>
                       <p className="text-gray-600 dark:text-gray-400 mb-6">{plan.description}</p>
 
                       {/* Price */}
@@ -260,7 +260,7 @@ export function PricingSectionV4() {
                     <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-500/20 backdrop-blur-sm">
                       <Building2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                     </div>
-                    <h3 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
+                    <h3 className="font-heading text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
                       Custom
                     </h3>
                   </div>
@@ -317,7 +317,7 @@ export function PricingSectionV4() {
           className="max-w-3xl mx-auto"
         >
           <div className="p-8 rounded-2xl bg-gradient-to-br from-blue-50 to-emerald-50 dark:from-gray-900/80 dark:to-gray-900/80 border border-blue-200 dark:border-gray-700/50 backdrop-blur-sm">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 text-center">
+            <h3 className="font-heading text-2xl font-bold text-gray-900 dark:text-white mb-2 text-center">
               {getTranslation('roi.title', 'Calculate Your ROI')}
             </h3>
             <p className="text-gray-600 dark:text-gray-400 text-center mb-6">

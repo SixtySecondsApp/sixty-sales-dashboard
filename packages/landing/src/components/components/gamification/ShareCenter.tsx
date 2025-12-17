@@ -309,7 +309,7 @@ ${referralUrl}`;
     >
       {/* Header */}
       <div className="space-y-2">
-        <h3 className="text-lg font-semibold text-gray-100 flex items-center gap-2">
+        <h3 className="font-heading text-lg font-bold text-gray-100 flex items-center gap-2">
           <Zap className="w-5 h-5 text-blue-400" />
           Skip the Line Faster
         </h3>

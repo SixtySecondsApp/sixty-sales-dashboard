@@ -39,7 +39,7 @@ export function WaitlistBenefits() {
           transition={{ duration: 0.8 }}
           className="text-center mb-16"
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h2 className="font-heading text-3xl md:text-4xl font-bold text-white mb-4">
             Why Revenue Teams Love This
           </h2>
           <p className="text-lg text-gray-400 max-w-2xl mx-auto">
@@ -63,7 +63,7 @@ export function WaitlistBenefits() {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xl font-semibold text-white">{benefit.title}</h3>
+                    <h3 className="font-heading text-xl font-bold text-white">{benefit.title}</h3>
                     <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full whitespace-nowrap">
                       {benefit.stat}
                     </span>

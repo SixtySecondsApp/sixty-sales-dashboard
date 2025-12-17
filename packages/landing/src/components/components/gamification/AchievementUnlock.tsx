@@ -134,7 +134,7 @@ export function AchievementUnlock({
       className="space-y-4"
     >
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+        <h3 className="font-heading text-lg font-bold text-white flex items-center gap-2">
           <Award className="w-5 h-5 text-purple-400" />
           Achievements
         </h3>

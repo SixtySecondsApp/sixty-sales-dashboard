@@ -76,7 +76,7 @@ export function HowItWorks() {
           >
             How It Works
           </motion.span>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-6">
+          <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-6">
             <span className="text-gray-900 dark:text-white">Post Meeting Admin</span>
             <br />
             <span className="bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400 bg-clip-text text-transparent">
@@ -150,7 +150,7 @@ export function HowItWorks() {
                   )}
 
                   {/* Title */}
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
+                  <h3 className="font-heading text-xl font-bold text-gray-900 dark:text-white mb-3">
                     {step.title}
                   </h3>
 

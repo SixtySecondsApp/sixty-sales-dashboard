@@ -41,7 +41,7 @@ export function IntegrationSection() {
           >
             Integrations
           </motion.span>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6">
+          <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6">
             Works with Your{' '}
             <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
               Existing Stack
@@ -72,7 +72,7 @@ export function IntegrationSection() {
                     <Zap className="w-8 h-8 text-emerald-400" />
                   </div>
                   <div>
-                    <div className="text-2xl font-bold text-white">Fathom Integration</div>
+                    <div className="font-heading text-2xl font-bold text-white">Fathom Integration</div>
                     <div className="text-emerald-400 text-sm">Primary Partner</div>
                   </div>
                 </div>

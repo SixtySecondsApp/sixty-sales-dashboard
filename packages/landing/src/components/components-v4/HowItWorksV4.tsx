@@ -101,8 +101,8 @@ export function HowItWorksV4() {
     : 'bg-white border border-gray-200 shadow-sm';
 
   const glassPanelActive = isDark
-    ? 'bg-gray-900/90 backdrop-blur-xl border-blue-500/30 shadow-[0_0_30px_rgba(59,130,246,0.15)]'
-    : 'bg-white border-blue-300 shadow-lg shadow-blue-100';
+    ? 'bg-gray-900/90 backdrop-blur-xl border-brand-blue/30 shadow-[0_0_30px_rgba(42,94,219,0.15)]'
+    : 'bg-white border-brand-blue/30 shadow-lg shadow-brand-blue/10';
 
   return (
     <section
@@ -111,13 +111,13 @@ export function HowItWorksV4() {
     >
       {/* Background Ambient Glows */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-400/10 dark:bg-blue-600/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-400/10 dark:bg-purple-600/10 rounded-full blur-3xl" />
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-blue/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-brand-violet/10 rounded-full blur-3xl" />
         {/* Light mode subtle gradient */}
         <motion.div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px] rounded-full opacity-20 dark:opacity-0"
           style={{
-            background: 'radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 60%)',
+            background: 'radial-gradient(circle, rgba(42, 94, 219, 0.08) 0%, transparent 60%)',
           }}
         />
       </div>
@@ -135,11 +135,11 @@ export function HowItWorksV4() {
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="inline-block px-4 py-1.5 rounded-full bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-400 text-sm font-medium mb-4"
+            className="inline-block px-4 py-1.5 rounded-full bg-brand-blue/10 border border-brand-blue/20 text-brand-blue text-sm font-medium mb-4"
           >
             How It Works
           </motion.span>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold">
+          <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold">
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400">
               After the call, 60 takes over.
             </span>
@@ -174,8 +174,8 @@ export function HowItWorksV4() {
             className={`${glassPanel} rounded-xl p-5`}
           >
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20">
-                <FileText className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              <div className="p-2 rounded-lg bg-brand-violet/10 border border-brand-violet/20">
+                <FileText className="w-5 h-5 text-brand-violet" />
               </div>
               <h4 className="font-medium text-gray-800 dark:text-gray-200">Draft Proposals</h4>
             </div>
@@ -190,8 +190,8 @@ export function HowItWorksV4() {
             className={`${glassPanel} rounded-xl p-5`}
           >
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
-                <CheckSquare className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              <div className="p-2 rounded-lg bg-brand-teal/10 border border-brand-teal/20">
+                <CheckSquare className="w-5 h-5 text-brand-teal" />
               </div>
               <h4 className="font-medium text-gray-800 dark:text-gray-200">Follow-up Tasks</h4>
             </div>
@@ -280,7 +280,7 @@ export function HowItWorksV4() {
                   <p className="text-xs text-gray-500 dark:text-gray-400">Acme Corp • 45 mins</p>
                 </div>
               </div>
-              <span className="px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs border border-emerald-200 dark:border-emerald-500/20 font-medium">
+              <span className="px-2 py-1 rounded-full bg-brand-teal/10 text-brand-teal text-xs border border-brand-teal/20 font-medium">
                 Finished
               </span>
             </div>
@@ -299,8 +299,8 @@ export function HowItWorksV4() {
               disabled={simulationState === 'scanning'}
               className={`w-full group relative overflow-hidden rounded-lg p-3 text-sm font-semibold text-white transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-900 disabled:cursor-not-allowed ${
                 simulationState === 'complete'
-                  ? 'bg-emerald-600 hover:bg-emerald-500 focus:ring-emerald-500'
-                  : 'bg-blue-600 hover:bg-blue-500 focus:ring-blue-500'
+                  ? 'bg-brand-teal hover:opacity-90 focus:ring-brand-teal'
+                  : 'bg-gradient-to-r from-brand-blue to-brand-violet hover:from-[#2351C4] hover:to-[#7024C0] focus:ring-brand-blue'
               }`}
             >
               <span className="relative z-10 flex items-center justify-center gap-2">
@@ -319,7 +319,7 @@ export function HowItWorksV4() {
                 {simulationState === 'complete' && (
                   <>
                     <CheckCircle className="w-4 h-4" />
-                    All Done — Reset Demo
+                    All Done
                   </>
                 )}
               </span>
@@ -357,7 +357,7 @@ export function HowItWorksV4() {
                 <>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500 dark:text-gray-400">Deal Stage</span>
-                    <span className="text-blue-600 dark:text-blue-400 font-semibold">Negotiation</span>
+                    <span className="text-brand-blue font-semibold">Negotiation</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500 dark:text-gray-400">Budget</span>
@@ -395,12 +395,12 @@ export function HowItWorksV4() {
               ) : (
                 <>
                   <div className="bg-gray-100 dark:bg-gray-800/50 rounded p-2 flex items-center gap-2 border border-gray-200 dark:border-gray-700">
-                    <div className="bg-blue-100 dark:bg-blue-500/20 p-1 rounded">
-                      <File className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                    <div className="bg-brand-blue/10 p-1 rounded">
+                      <File className="w-3 h-3 text-brand-blue" />
                     </div>
                     <span className="text-xs text-gray-900 dark:text-white truncate">Acme_Proposal_v1.pdf</span>
                   </div>
-                  <div className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <div className="text-xs text-brand-teal flex items-center gap-1">
                     <Check className="w-3 h-3" /> Draft Created
                   </div>
                 </>
@@ -422,8 +422,8 @@ export function HowItWorksV4() {
             }`}
           >
             <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
-                <CheckSquare className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              <div className="p-2 rounded-lg bg-brand-teal/10 border border-brand-teal/20">
+                <CheckSquare className="w-5 h-5 text-brand-teal" />
               </div>
               <h4 className="font-medium text-gray-800 dark:text-gray-200">Follow-up Tasks</h4>
             </div>
@@ -436,14 +436,14 @@ export function HowItWorksV4() {
               ) : (
                 <>
                   <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                    <div className="w-4 h-4 rounded bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-500 dark:border-emerald-500 flex items-center justify-center">
-                      <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-500" />
+                    <div className="w-4 h-4 rounded bg-brand-teal/10 border border-brand-teal flex items-center justify-center">
+                      <Check className="w-3 h-3 text-brand-teal" />
                     </div>
                     <span>Send pricing breakdown</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                    <div className="w-4 h-4 rounded bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-500 dark:border-emerald-500 flex items-center justify-center">
-                      <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-500" />
+                    <div className="w-4 h-4 rounded bg-brand-teal/10 border border-brand-teal flex items-center justify-center">
+                      <Check className="w-3 h-3 text-brand-teal" />
                     </div>
                     <span>Schedule tech review</span>
                   </div>

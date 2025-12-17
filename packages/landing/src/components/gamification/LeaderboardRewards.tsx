@@ -62,7 +62,7 @@ export function LeaderboardRewards() {
       <div className="p-4 border-b border-gray-800 bg-gradient-to-r from-yellow-500/10 via-purple-500/10 to-blue-500/10">
         <div className="flex items-center gap-2 mb-1">
           <Sparkles className="w-5 h-5 text-yellow-500" />
-          <h3 className="text-lg font-bold text-gray-100">Top 9 Rewards</h3>
+          <h3 className="font-heading text-lg font-bold text-gray-100">Top 9 Rewards</h3>
         </div>
         <p className="text-xs text-gray-400">
           Climb the leaderboard to win amazing prizes!

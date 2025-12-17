@@ -47,12 +47,12 @@ export function FAQSectionV3() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
+          <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
             <span className="bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
               Questions?
             </span>
             <br />
-            <span className="bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-brand-blue to-brand-teal bg-clip-text text-transparent">
               We've Got Answers
             </span>
           </h2>
@@ -76,7 +76,7 @@ export function FAQSectionV3() {
                 onClick={() => setOpenIndex(openIndex === index ? null : index)}
                 className="w-full px-6 py-5 text-left flex items-center justify-between gap-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors duration-200"
               >
-                <span className="text-lg font-semibold text-gray-900 dark:text-white pr-8">
+                <span className="text-lg font-heading font-bold text-gray-900 dark:text-white pr-8">
                   {faq.question}
                 </span>
                 <ChevronDown
@@ -118,7 +118,7 @@ export function FAQSectionV3() {
           </p>
           <a
             href="mailto:support@sixtyseconds.ai"
-            className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors"
+            className="inline-flex items-center gap-2 text-brand-blue hover:opacity-80 font-medium transition-colors"
           >
             Email us directly →
           </a>

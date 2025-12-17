@@ -65,7 +65,7 @@ export function HeroSectionV3() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: 0.8 }}
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight"
+              className="text-4xl sm:text-5xl lg:text-6xl font-heading font-bold mb-6 leading-tight"
             >
               <span className="bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
                 Close More Deals
@@ -165,7 +165,7 @@ export function HeroSectionV3() {
                 {/* Header */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Meeting Intelligence</h3>
+                    <h3 className="font-heading text-lg font-bold text-gray-900 dark:text-white">Meeting Intelligence</h3>
                     <p className="text-sm text-gray-600 dark:text-gray-400">AI-powered insights from your calls</p>
                   </div>
                   <div className="px-3 py-1 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-sm font-medium">
