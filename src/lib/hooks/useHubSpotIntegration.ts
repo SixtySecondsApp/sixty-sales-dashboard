@@ -178,6 +178,83 @@ export function useHubSpotIntegration(enabled: boolean = true) {
     toast.success('Queued: poll HubSpot form submissions');
   }, [enqueue]);
 
+  const getProperties = useCallback(
+    async (objectType: 'deals' | 'contacts' | 'tasks' = 'deals') => {
+      if (!enabled) throw new Error('HubSpot integration is disabled');
+      if (!activeOrgId) throw new Error('No active organization selected');
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error('No active session');
+
+      const resp = await supabase.functions.invoke('hubspot-admin', {
+        headers: { Authorization: `Bearer ${token}` },
+        body: { action: 'get_properties', org_id: activeOrgId, object_type: objectType },
+      });
+      if (resp.error) throw new Error(resp.error.message || 'Failed to fetch properties');
+      if (!resp.data?.success) throw new Error(resp.data?.error || 'Failed to fetch properties');
+      return resp.data.properties as Array<{
+        name: string;
+        label: string;
+        type: string;
+        fieldType: string;
+        description: string;
+        groupName: string;
+        options: any[];
+      }>;
+    },
+    [activeOrgId, enabled]
+  );
+
+  const getPipelines = useCallback(async () => {
+    if (!enabled) throw new Error('HubSpot integration is disabled');
+    if (!activeOrgId) throw new Error('No active organization selected');
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error('No active session');
+
+    const resp = await supabase.functions.invoke('hubspot-admin', {
+      headers: { Authorization: `Bearer ${token}` },
+      body: { action: 'get_pipelines', org_id: activeOrgId },
+    });
+    if (resp.error) throw new Error(resp.error.message || 'Failed to fetch pipelines');
+    if (!resp.data?.success) throw new Error(resp.data?.error || 'Failed to fetch pipelines');
+    return resp.data.pipelines as Array<{
+      id: string;
+      label: string;
+      displayOrder: number;
+      stages: Array<{
+        id: string;
+        label: string;
+        displayOrder: number;
+        metadata: any;
+      }>;
+    }>;
+  }, [activeOrgId, enabled]);
+
+  const triggerSync = useCallback(
+    async (args: {
+      sync_type: 'deals' | 'contacts' | 'tasks';
+      time_period: 'last_7_days' | 'last_30_days' | 'last_90_days' | 'last_year' | 'all_time';
+    }) => {
+      if (!enabled) throw new Error('HubSpot integration is disabled');
+      if (!activeOrgId) throw new Error('No active organization selected');
+      if (!canManage) throw new Error('Only organization owners/admins can trigger HubSpot sync');
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error('No active session');
+
+      const resp = await supabase.functions.invoke('hubspot-admin', {
+        headers: { Authorization: `Bearer ${token}` },
+        body: { action: 'trigger_sync', org_id: activeOrgId, ...args },
+      });
+      if (resp.error) throw new Error(resp.error.message || 'Failed to trigger sync');
+      if (!resp.data?.success) throw new Error(resp.data?.error || 'Failed to trigger sync');
+      toast.success(resp.data.message || 'Sync queued successfully');
+      return resp.data;
+    },
+    [activeOrgId, canManage, enabled]
+  );
+
   const isConnected = Boolean(status?.connected);
 
   const webhookUrl = useMemo(() => {
@@ -202,6 +279,9 @@ export function useHubSpotIntegration(enabled: boolean = true) {
     enqueue,
     triggerEnsureProperties,
     triggerPollForms,
+    getProperties,
+    getPipelines,
+    triggerSync,
   };
 }
 

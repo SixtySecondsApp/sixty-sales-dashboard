@@ -32,6 +32,8 @@ export interface WaitlistEntry {
   utm_source?: string;
   utm_campaign?: string;
   utm_medium?: string;
+  signup_source?: string;
+  invite_code_used?: string;
   linkedin_share_claimed?: boolean;
   linkedin_first_share_at?: string;
   is_seeded: boolean;
@@ -53,6 +55,8 @@ export interface WaitlistSignupData {
   utm_source?: string;
   utm_campaign?: string;
   utm_medium?: string;
+  signup_source?: string;
+  invite_code_used?: string;
 }
 
 export interface WaitlistStats {

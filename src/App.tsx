@@ -172,6 +172,7 @@ const OrgBilling = lazyWithRetry(() => import('@/pages/OrgBilling'));
 // Slack integration routes
 const SlackSettings = lazyWithRetry(() => import('@/pages/settings/SlackSettings'));
 const JustCallSettings = lazyWithRetry(() => import('@/pages/settings/JustCallSettings.tsx'));
+const HubSpotSettings = lazyWithRetry(() => import('@/pages/settings/HubSpotSettings'));
 const SlackDemo = lazyWithRetry(() => import('@/pages/admin/SlackDemo'));
 
 // Meeting Intelligence demo
@@ -566,6 +567,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/settings/integrations/slack" element={<AppLayout><SlackSettings /></AppLayout>} />
                 {/* JustCall Settings - visible only when JustCall is connected (enforced inside page) */}
                 <Route path="/settings/integrations/justcall" element={<AppLayout><JustCallSettings /></AppLayout>} />
+                {/* HubSpot Settings - visible only when HubSpot is connected (enforced inside page) */}
+                <Route path="/settings/integrations/hubspot" element={<AppLayout><HubSpotSettings /></AppLayout>} />
                 <Route path="/settings/ai" element={<AppLayout><AISettings /></AppLayout>} />
                 <Route path="/settings/extraction-rules" element={<Navigate to="/settings/task-sync" replace />} />
                 <Route path="/settings/task-sync" element={<AppLayout><TaskSyncSettings /></AppLayout>} />

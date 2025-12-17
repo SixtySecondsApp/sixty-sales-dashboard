@@ -4,6 +4,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Mail, Lock, User, ArrowLeft } from 'lucide-react';
+import { useAccessCode } from '@/lib/hooks/useAccessCode';
+import { AccessCodeInput } from '@/components/AccessCodeInput';
+import { incrementCodeUsage } from '@/lib/services/accessCodeService';
 
 export default function Signup() {
   const [isLoading, setIsLoading] = useState(false);
@@ -16,9 +19,19 @@ export default function Signup() {
   });
   const navigate = useNavigate();
   const { signUp } = useAuth();
+  const accessCode = useAccessCode();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate access code first
+    if (!accessCode.isValid) {
+      const isValid = await accessCode.validate();
+      if (!isValid) {
+        toast.error('Please enter a valid access code');
+        return;
+      }
+    }
 
     if (formData.password !== formData.confirmPassword) {
       toast.error('Passwords do not match');
@@ -48,6 +61,8 @@ export default function Signup() {
       if (error) {
         toast.error(error.message);
       } else {
+        // Increment code usage on successful signup
+        await incrementCodeUsage(accessCode.code);
         toast.success('Account created! Please check your email to verify.');
         // Redirect to email verification pending screen
         navigate(`/auth/verify-email?email=${encodeURIComponent(formData.email)}`);
@@ -176,9 +191,21 @@ export default function Signup() {
               </div>
             </div>
 
+            {/* Access Code */}
+            <AccessCodeInput
+              value={accessCode.code}
+              onChange={accessCode.setCode}
+              isValid={accessCode.isValid}
+              isValidating={accessCode.isValidating}
+              error={accessCode.error}
+              onValidate={accessCode.validate}
+              disabled={isLoading}
+              readOnly={accessCode.hasUrlCode}
+            />
+
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !accessCode.isValid}
               className="w-full bg-[#37bd7e] text-white py-2.5 rounded-xl font-medium hover:bg-[#2da76c] focus:outline-none focus:ring-2 focus:ring-[#37bd7e] focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#37bd7e]/20"
             >
               {isLoading ? 'Creating account...' : 'Create account'}
