@@ -98,7 +98,7 @@ export function PositionDisplay({ entry, previousPosition, onMilestone }: Positi
           <div>
             <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
               {getTierIcon()}
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{tier.name} Tier</h2>
+              <h2 className="font-heading text-xl font-bold text-gray-900 dark:text-gray-100">{tier.name} Tier</h2>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400">Your current status grants maximum priority.</p>
           </div>

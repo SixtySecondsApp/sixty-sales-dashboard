@@ -31,6 +31,8 @@ export interface WaitlistEntry {
   utm_source?: string;
   utm_campaign?: string;
   utm_medium?: string;
+  signup_source?: string;
+  invite_code_used?: string;
   linkedin_share_claimed?: boolean;
   linkedin_first_share_at?: string;
   created_at: string;
@@ -51,6 +53,20 @@ export interface WaitlistSignupData {
   utm_source?: string;
   utm_campaign?: string;
   utm_medium?: string;
+  signup_source?: string;
+  invite_code_used?: string;
+}
+
+// ============================================================================
+// Access Code Types
+// ============================================================================
+
+export interface AccessCodeState {
+  code: string;
+  isValid: boolean | null;
+  isValidating: boolean;
+  error: string | null;
+  isAdminBypass: boolean;
 }
 
 export interface WaitlistStats {

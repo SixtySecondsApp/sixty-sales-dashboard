@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '@/lib/supabase/clientV2';
+import { validateAccessCode } from './accessCodeService';
 import type {
   WaitlistEntry,
   WaitlistSignupData,
@@ -100,6 +101,16 @@ function formatConnectionError(error: any): string {
 export async function signupForWaitlist(
   data: WaitlistSignupData
 ): Promise<WaitlistEntry> {
+  // Validate access code (required for all signups)
+  if (!data.invite_code_used) {
+    throw new Error('A valid access code is required to join the waitlist');
+  }
+
+  const codeValidation = await validateAccessCode(data.invite_code_used);
+  if (!codeValidation.isValid) {
+    throw new Error(codeValidation.error || 'Invalid access code');
+  }
+
   // Validate referral code if provided
   if (data.referred_by_code) {
     const isValid = await validateReferralCode(data.referred_by_code);
@@ -123,6 +134,8 @@ export async function signupForWaitlist(
     utm_source: data.utm_source || null,
     utm_campaign: data.utm_campaign || null,
     utm_medium: data.utm_medium || null,
+    signup_source: data.signup_source || null,
+    invite_code_used: codeValidation.code,
   };
 
   // Validate required fields are not empty after trimming

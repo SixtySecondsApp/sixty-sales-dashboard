@@ -11,7 +11,11 @@ import { WaitlistSuccess } from './WaitlistSuccess';
 import { LiveWaitlistCount } from './gamification/LiveWaitlistCount';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
-export function WaitlistHeroV2() {
+interface WaitlistHeroV2Props {
+  signupSource?: string;
+}
+
+export function WaitlistHeroV2({ signupSource = 'waitlist' }: WaitlistHeroV2Props) {
   const { signup, isSubmitting, success } = useWaitlistSignup();
   const [formData, setFormData] = useState<WaitlistSignupData>({
     email: '',
@@ -23,7 +27,8 @@ export function WaitlistHeroV2() {
     meeting_recorder_other: '',
     crm_tool: '',
     crm_other: '',
-    referred_by_code: ''
+    referred_by_code: '',
+    signup_source: signupSource
   });
 
   // Parse referral code from URL on mount
@@ -143,7 +148,7 @@ export function WaitlistHeroV2() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: 0.8 }}
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight"
+              className="font-heading text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight"
             >
               <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-600 dark:from-blue-400 dark:via-purple-400 dark:to-emerald-400 bg-clip-text text-transparent">
                 Post Meeting Admin
@@ -200,7 +205,7 @@ export function WaitlistHeroV2() {
                 <div className="absolute -inset-px bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-emerald-500/20 rounded-2xl opacity-30 dark:opacity-50 blur-sm" />
 
                 <div className="relative">
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Get Early Access</h2>
+                  <h2 className="font-heading text-2xl font-bold text-gray-900 dark:text-white mb-2">Get Early Access</h2>
                   <p className="text-gray-700 dark:text-white mb-6">Join the waitlist and start saving 10+ hours per week</p>
 
                   <form onSubmit={handleSubmit} className="space-y-4">

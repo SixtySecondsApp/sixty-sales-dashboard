@@ -96,7 +96,7 @@ export function ShareConfirmationModal({
                       <PlatformIcon className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-white">
+                      <h3 className="font-heading text-lg font-bold text-white">
                         Confirm Your Share
                       </h3>
                       <p className="text-sm text-white/80">{config.name}</p>
