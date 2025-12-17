@@ -21,7 +21,8 @@ export function WaitlistTable({ entries, isLoading, onRefresh, adminUserId }: Wa
   const filteredEntries = entries.filter(entry =>
     entry.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     entry.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (entry.company_name && entry.company_name.toLowerCase().includes(searchTerm.toLowerCase()))
+    (entry.company_name && entry.company_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (entry.invite_code_used && entry.invite_code_used.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const handleRelease = async (id: string) => {
@@ -82,6 +83,7 @@ export function WaitlistTable({ entries, isLoading, onRefresh, adminUserId }: Wa
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Company</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Tools</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Referrals</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Invite Code</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Status</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Actions</th>
             </tr>
@@ -89,7 +91,7 @@ export function WaitlistTable({ entries, isLoading, onRefresh, adminUserId }: Wa
           <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
             {filteredEntries.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   No entries found
                 </td>
               </tr>
@@ -111,6 +113,19 @@ export function WaitlistTable({ entries, isLoading, onRefresh, adminUserId }: Wa
                   </td>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
                     {entry.referral_count}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    {entry.invite_code_used ? (
+                      <span className={`px-2 py-0.5 rounded text-xs font-mono ${
+                        entry.invite_code_used === 'SIXTY60'
+                          ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300'
+                          : 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                      }`}>
+                        {entry.invite_code_used}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm">
                     <span
