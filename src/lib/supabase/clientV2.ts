@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient, Session, User } from '@supabase/supabase-js';
-import { Database } from '../database.types';
+import { Database } from './database.types';
 import logger from '@/lib/utils/logger';
 
 // Environment variables with validation

@@ -5,7 +5,16 @@
  * This allows us to use our custom email templates
  */
 
+// Deno type declarations
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
+
+// @ts-expect-error - Deno HTTP imports are resolved at runtime
 import { serve } from 'https://deno.land/std@0.190.0/http/server.ts';
+// @ts-expect-error - ESM imports are resolved at runtime
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;

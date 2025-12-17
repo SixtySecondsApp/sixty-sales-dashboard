@@ -65,15 +65,15 @@ export async function grantAccess(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Update the entry with granted access timestamp
-    const { error: updateError } = await supabase
-      .from('meetings_waitlist')
+    const { error: updateError } = await (supabase
+      .from('meetings_waitlist' as any)
       .update({
         status: 'released',
         granted_access_at: new Date().toISOString(),
         granted_by: adminUserId,
         admin_notes: notes || null
       })
-      .eq('id', entryId);
+      .eq('id', entryId) as any);
 
     if (updateError) {
       console.error('Failed to grant access:', updateError);
@@ -82,25 +82,25 @@ export async function grantAccess(
 
     // Log the admin action (optional - table may not exist)
     try {
-      await supabase
-        .from('waitlist_admin_actions')
+      await (supabase
+        .from('waitlist_admin_actions' as any)
         .insert({
           waitlist_entry_id: entryId,
           admin_user_id: adminUserId,
           action_type: 'grant_access',
           notes: notes,
           new_value: { status: 'released', granted_at: new Date().toISOString() }
-        });
+        }) as any);
     } catch {
       // Admin actions table may not exist, continue without logging
     }
 
     // Get entry details to send magic link email
-    const { data: entry, error: fetchError } = await supabase
-      .from('meetings_waitlist')
+    const { data: entry, error: fetchError } = await (supabase
+      .from('meetings_waitlist' as any)
       .select('email, full_name')
       .eq('id', entryId)
-      .single();
+      .single() as any) as { data: { email: string; full_name: string | null } | null; error: any };
 
     if (!fetchError && entry) {
       // Generate and send magic link email (same as resendMagicLink)
@@ -186,11 +186,11 @@ export async function bulkGrantAccess(
 
   try {
     // Call the PostgreSQL function for bulk access granting
-    const { data: result, error: bulkError } = await supabase.rpc('bulk_grant_waitlist_access', {
+    const { data: result, error: bulkError } = await (supabase.rpc('bulk_grant_waitlist_access' as any, {
       p_entry_ids: entryIds,
       p_admin_user_id: adminUserId,
       p_admin_notes: adminNotes || null,
-    });
+    }) as any) as { data: { granted: number; failed: number; errors: string } | null; error: any };
 
     if (bulkError) {
       console.error('Bulk grant access error:', bulkError);
@@ -209,10 +209,13 @@ export async function bulkGrantAccess(
     const errors = result?.errors ? JSON.parse(result.errors) : [];
 
     // Fetch updated entries for magic link generation
-    const { data: entries, error: fetchError } = await supabase
-      .from('meetings_waitlist')
+    const { data: entries, error: fetchError } = await (supabase
+      .from('meetings_waitlist' as any)
       .select('id, email, full_name, referral_code, company_name')
-      .in('id', entryIds.filter((id: string) => !errors.find((e: any) => e.entry_id === id)));
+      .in('id', entryIds.filter((id: string) => !errors.find((e: any) => e.entry_id === id))) as any) as { 
+      data: Array<{ id: string; email: string; full_name: string | null; referral_code: string; company_name: string }> | null; 
+      error: any 
+    };
 
     if (fetchError) {
       console.error('Failed to fetch entries after grant:', fetchError);
@@ -345,10 +348,10 @@ export async function resendMagicLink(
 ): Promise<{ success: boolean; error?: string; magicLink?: string }> {
   try {
     // Call the PostgreSQL function
-    const { data: result, error: resendError } = await supabase.rpc('resend_waitlist_magic_link', {
+    const { data: result, error: resendError } = await (supabase.rpc('resend_waitlist_magic_link' as any, {
       p_entry_id: entryId,
       p_admin_user_id: adminUserId,
-    });
+    }) as any) as { data: any; error: any };
 
     if (resendError) {
       console.error('Resend magic link error:', resendError);
@@ -356,11 +359,14 @@ export async function resendMagicLink(
     }
 
     // Get entry details
-    const { data: entry, error: fetchError } = await supabase
-      .from('meetings_waitlist')
+    const { data: entry, error: fetchError } = await (supabase
+      .from('meetings_waitlist' as any)
       .select('email, full_name, referral_code, company_name')
       .eq('id', entryId)
-      .single();
+      .single() as any) as { 
+      data: { email: string; full_name: string | null; referral_code: string; company_name: string } | null; 
+      error: any 
+    };
 
     if (fetchError || !entry) {
       return { success: false, error: 'Entry not found' };
@@ -438,7 +444,7 @@ export async function resendMagicLink(
 
       // Log admin action (optional - table may not exist)
       try {
-        await supabase.from('waitlist_admin_actions').insert({
+        await (supabase.from('waitlist_admin_actions' as any).insert({
           waitlist_entry_id: entryId,
           admin_user_id: adminUserId,
           action_type: 'send_email',
@@ -446,7 +452,7 @@ export async function resendMagicLink(
             type: 'magic_link_resend',
             sent_to: entry.email,
           },
-        });
+        }) as any);
       } catch {
         // Admin actions table may not exist, continue without logging
       }
@@ -476,11 +482,14 @@ export async function adjustPosition(
 ): Promise<{ success: boolean; error?: string; oldPosition?: number }> {
   try {
     // Get current position
-    const { data: entry, error: fetchError } = await supabase
-      .from('meetings_waitlist')
+    const { data: entry, error: fetchError } = await (supabase
+      .from('meetings_waitlist' as any)
       .select('effective_position')
       .eq('id', entryId)
-      .single();
+      .single() as any) as { 
+      data: { effective_position: number | null } | null; 
+      error: any 
+    };
 
     if (fetchError || !entry) {
       console.error('Failed to fetch entry:', fetchError);
@@ -490,12 +499,12 @@ export async function adjustPosition(
     const oldPosition = entry.effective_position || 0;
 
     // Update position
-    const { error: updateError } = await supabase
-      .from('meetings_waitlist')
+    const { error: updateError } = await (supabase
+      .from('meetings_waitlist' as any)
       .update({
         effective_position: newPosition
       })
-      .eq('id', entryId);
+      .eq('id', entryId) as any);
 
     if (updateError) {
       console.error('Failed to adjust position:', updateError);
@@ -504,8 +513,8 @@ export async function adjustPosition(
 
     // Log the admin action (optional - table may not exist)
     try {
-      await supabase
-        .from('waitlist_admin_actions')
+      await (supabase
+        .from('waitlist_admin_actions' as any)
         .insert({
           waitlist_entry_id: entryId,
           admin_user_id: adminUserId,
@@ -513,7 +522,7 @@ export async function adjustPosition(
           notes: reason,
           previous_value: { position: oldPosition },
           new_value: { position: newPosition }
-        });
+        }) as any);
     } catch {
       // Admin actions table may not exist, continue without logging
     }
@@ -534,11 +543,22 @@ export async function adjustPosition(
 export async function getReferralTree(entryId: string): Promise<ReferralTreeNode | null> {
   try {
     // Get the root entry
-    const { data: rootEntry, error: rootError } = await supabase
-      .from('meetings_waitlist')
+    const { data: rootEntry, error: rootError } = await (supabase
+      .from('meetings_waitlist' as any)
       .select('id, email, full_name, effective_position, referral_count, referral_code, created_at')
       .eq('id', entryId)
-      .single();
+      .single() as any) as { 
+      data: { 
+        id: string; 
+        email: string; 
+        full_name: string; 
+        effective_position: number | null; 
+        referral_count: number | null; 
+        referral_code: string; 
+        created_at: string 
+      } | null; 
+      error: any 
+    };
 
     if (rootError || !rootEntry) {
       console.error('Failed to fetch root entry:', rootError);
@@ -547,11 +567,22 @@ export async function getReferralTree(entryId: string): Promise<ReferralTreeNode
 
     // Recursive function to build tree
     async function buildTree(referralCode: string): Promise<ReferralTreeNode[]> {
-      const { data: children, error } = await supabase
-        .from('meetings_waitlist')
+      const { data: children, error } = await (supabase
+        .from('meetings_waitlist' as any)
         .select('id, email, full_name, effective_position, referral_count, referral_code, created_at')
         .eq('referred_by_code', referralCode)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true }) as any) as { 
+        data: Array<{ 
+          id: string; 
+          email: string; 
+          full_name: string; 
+          effective_position: number | null; 
+          referral_count: number | null; 
+          referral_code: string; 
+          created_at: string 
+        }> | null; 
+        error: any 
+      };
 
       if (error || !children) {
         return [];
@@ -602,11 +633,14 @@ export async function sendCustomEmail(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Get entry email
-    const { data: entry, error: fetchError } = await supabase
-      .from('meetings_waitlist')
+    const { data: entry, error: fetchError } = await (supabase
+      .from('meetings_waitlist' as any)
       .select('email, full_name')
       .eq('id', entryId)
-      .single();
+      .single() as any) as { 
+      data: { email: string; full_name: string | null } | null; 
+      error: any 
+    };
 
     if (fetchError || !entry) {
       return { success: false, error: 'Entry not found' };
@@ -629,8 +663,8 @@ export async function sendCustomEmail(
 
     // Log the admin action (optional - table may not exist)
     try {
-      await supabase
-        .from('waitlist_admin_actions')
+      await (supabase
+        .from('waitlist_admin_actions' as any)
         .insert({
           waitlist_entry_id: entryId,
           admin_user_id: adminUserId,
@@ -639,7 +673,7 @@ export async function sendCustomEmail(
             subject: subject,
             sent_to: entry.email
           }
-        });
+        }) as any);
     } catch {
       // Admin actions table may not exist, continue without logging
     }
@@ -659,10 +693,10 @@ export async function sendCustomEmail(
  */
 export async function exportToCSV(filters?: WaitlistFilters): Promise<{ success: boolean; data?: string; error?: string }> {
   try {
-    let query = supabase
-      .from('meetings_waitlist')
+    let query = (supabase
+      .from('meetings_waitlist' as any)
       .select('*')
-      .order('signup_position', { ascending: true });
+      .order('signup_position', { ascending: true }) as any) as any;
 
     // Apply filters
     if (filters?.status && filters.status !== 'all') {
@@ -681,7 +715,23 @@ export async function exportToCSV(filters?: WaitlistFilters): Promise<{ success:
       query = query.or(`email.ilike.%${filters.search}%,full_name.ilike.%${filters.search}%,company_name.ilike.%${filters.search}%`);
     }
 
-    const { data: entries, error } = await query;
+    const { data: entries, error } = await query as { 
+      data: Array<{
+        email: string;
+        full_name: string;
+        company_name: string;
+        signup_position: number | null;
+        effective_position: number | null;
+        referral_count: number | null;
+        referral_code: string;
+        referred_by_code: string | null;
+        status: string;
+        created_at: string;
+        linkedin_share_claimed: boolean | null;
+        admin_notes: string | null;
+      }> | null; 
+      error: any 
+    };
 
     if (error) {
       console.error('Failed to fetch entries:', error);
@@ -744,9 +794,17 @@ export async function exportToCSV(filters?: WaitlistFilters): Promise<{ success:
 export async function getWaitlistStats(): Promise<WaitlistStats | null> {
   try {
     // Get all entries count and status breakdown
-    const { data: allEntries, error: allError } = await supabase
-      .from('meetings_waitlist')
-      .select('status, referral_count, created_at, effective_position');
+    const { data: allEntries, error: allError } = await (supabase
+      .from('meetings_waitlist' as any)
+      .select('status, referral_count, created_at, effective_position') as any) as { 
+      data: Array<{ 
+        status: string; 
+        referral_count: number | null; 
+        created_at: string; 
+        effective_position: number | null 
+      }> | null; 
+      error: any 
+    };
 
     if (allError || !allEntries) {
       console.error('Failed to fetch stats:', allError);
@@ -786,17 +844,20 @@ export async function getAdminActions(
   limit: number = 50
 ): Promise<AdminAction[]> {
   try {
-    let query = supabase
-      .from('waitlist_admin_actions')
+    let query = (supabase
+      .from('waitlist_admin_actions' as any)
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(limit);
+      .limit(limit) as any) as any;
 
     if (entryId) {
       query = query.eq('waitlist_entry_id', entryId);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query as { 
+      data: AdminAction[] | null; 
+      error: any 
+    };
 
     if (error) {
       // Table may not exist, return empty array
@@ -819,10 +880,10 @@ export async function updateAdminNotes(
   notes: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { error: updateError } = await supabase
-      .from('meetings_waitlist')
+    const { error: updateError } = await (supabase
+      .from('meetings_waitlist' as any)
       .update({ admin_notes: notes })
-      .eq('id', entryId);
+      .eq('id', entryId) as any);
 
     if (updateError) {
       console.error('Failed to update notes:', updateError);
