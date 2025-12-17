@@ -4,32 +4,28 @@ import { useState } from 'react';
 
 const faqs = [
   {
-    question: 'How is this different from Gong or Chorus?',
-    answer: 'Tools like Gong have unclear pricing structures and focus on simple analysis only. 60 is built for action—generating proposals, creating tasks, and updating your CRM automatically. Think of it this way: Gong shows you what happened. 60 does that and the hard work that comes next.',
-  },
-  {
-    question: 'What if I\'m not a \'tech person\'? Is this complicated?',
-    answer: 'If you can use Zoom, you can use 60. One-click Fathom sync means nearly zero setup. No training required. Your first meeting is automatically analysed and proposals, action items and insights appear instantly. Most users are up and running in under 60 seconds.',
-  },
-  {
-    question: 'Why should I trust a new product without testimonials?',
-    answer: 'Fair question. 60 offers early access to a product that solves a real problem experienced by sales leaders. As an early user, you get: 1: Direct input on features built, 2: Priority support from the team, 3: Early adopter pricing locked in for life, and 4: No risk. Cancel anytime, no questions asked. Plus, being first means you shape the product to fit YOUR workflow.',
-  },
-  {
-    question: 'My team already uses a complex CRM tool, will this mess up our workflows?',
-    answer: 'Nope. 60 enhances your existing tools without replacing them. It syncs with the sales tools you already use. Think of it as the AI layer that makes everything else work better. Your team keeps using the tools they love with automated superpowers.',
-  },
-  {
     question: 'What makes 60 different from just using ChatGPT?',
-    answer: 'ChatGPT is amazing for one-off tasks, but it doesn\'t integrate with your workflow. 60 automatically syncs with your tech-stack, understands your entire meeting history, knows your CRM context and prepares powerful action without you needing to prompt it. Plus, the AI is trained specifically for sales workflows so it knows what a good proposal looks like, how to prioritise follow-ups and how to extract deal-critical information.',
+    answer: 'ChatGPT is a great tool, but it requires a lot of effort. You have to upload transcripts, write prompts and then copy outputs manually back into your systems.\n\n60 works automatically in the background. It reads your sales call transcripts, understands the full context and turns each conversation into real outcomes. Proposal preparation, CRM updates, task creation and useful insights are all automatically delivered without prompting or copy-pasting.',
   },
   {
-    question: 'Do you integrate with Fathom?',
-    answer: 'Yes! Fathom is one of the top data source integrations. One-click sync means your meeting transcripts, summaries and recordings flow directly into 60. If you use Fathom, setup takes literally 60 seconds.',
+    question: 'My team already uses a complex CRM tool. Will this mess up our workflows?',
+    answer: 'Not at all. 60 is designed to fit into your existing setup, not replace it.\n\nIt connects directly to your CRM and keeps everything updated automatically using the same fields, stages and processes your team already relies on. There is no need to retrain your team or redesign workflows.\n\n60 quietly removes the admin burden while everything else continues exactly as before.',
   },
   {
-    question: 'What if I don\'t use Fathom?',
-    answer: 'No problem! You can sync meeting transcripts from many sources (Fathom, Fireflies, Teams, etc). Manual transcript uploads are also supported if you have meetings recorded elsewhere.',
+    question: 'Will this replace my CRM or sales process?',
+    answer: 'No. Your CRM remains the source of truth and your sales process stays firmly in your control.\n\n60 acts as the connective layer between your calls, CRM and task tools. It ensures nothing gets missed, nothing goes stale and follow-ups happen on time.\n\n60 is the system that makes your existing process actually work the way it was always supposed to.',
+  },
+  {
+    question: 'Who is 60 best suited for?',
+    answer: '60 is built for people who sell on calls and want to spend more time selling.\n\nIt\'s ideal for founders, sales reps and sales teams who juggle multiple deals and lose momentum due to admin, slow follow-ups, or scattered tools. If post-call work is costing you time, energy, or revenue, 60 will feel like a natural extension of how you already work.',
+  },
+  {
+    question: 'Is my call data secure?',
+    answer: 'Yes. Security and data privacy are fundamental to how 60 is built.\n\nAll data is encrypted and handled securely. Your call recordings and transcripts are never shared, sold, or used to train public models. They are only used to deliver insights and outputs for you and your team.\n\nIf you delete your call or account, the encrypted data is also deleted.',
+  },
+  {
+    question: 'How is this different from similar tools?',
+    answer: 'Most sales tools focus on insights and analysis. They tell you what happened on a call, but stop there.\n\n60 goes further. It turns conversations into action. Proposals are drafted, tasks are created and CRMs are updated automatically.\n\nInstead of adding another dashboard to check, 60 removes work from your plate and helps deals move forward faster.',
   },
 ];
 
@@ -95,10 +91,12 @@ export function FAQSectionV3() {
                 transition={{ duration: 0.3, ease: 'easeInOut' }}
                 className="overflow-hidden"
               >
-                <div className="px-6 pb-5 pt-2">
-                  <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
-                    {faq.answer}
-                  </p>
+                <div className="px-6 pb-5 pt-2 space-y-3">
+                  {faq.answer.split('\n\n').map((paragraph, pIndex) => (
+                    <p key={pIndex} className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                      {paragraph}
+                    </p>
+                  ))}
                 </div>
               </motion.div>
             </motion.div>

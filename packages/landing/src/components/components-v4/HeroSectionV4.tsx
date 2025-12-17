@@ -221,7 +221,7 @@ export function HeroSectionV4() {
   if (!mounted) return null;
 
   return (
-    <section className="relative pt-32 pb-48 lg:pt-40 lg:pb-56 overflow-hidden bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
+    <section id="hero" className="relative pt-32 pb-48 lg:pt-40 lg:pb-56 overflow-hidden bg-gray-50 dark:bg-gray-950 transition-colors duration-300 scroll-mt-24">
 
       {/* Background Decor - Subtle ambient glows */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full z-0 pointer-events-none">

@@ -4,6 +4,7 @@ import { useWaitlistAdmin } from '@/lib/hooks/useWaitlistAdmin';
 import { WaitlistStats } from '@/components/admin/waitlist/WaitlistStats';
 import { WaitlistFilters } from '@/components/admin/waitlist/WaitlistFilters';
 import { WaitlistTable } from '@/components/admin/waitlist/WaitlistTable';
+import { InviteCodesManager } from '@/components/admin/waitlist/InviteCodesManager';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import type { WaitlistEntry, WaitlistFilters as Filters } from '@/lib/types/waitlist';
@@ -148,6 +149,9 @@ export default function WaitlistManagement() {
 
         {/* Stats Cards */}
         <WaitlistStats stats={stats} isLoading={isLoading} />
+
+        {/* Invite Codes Manager */}
+        <InviteCodesManager />
 
         {/* Filters */}
         <WaitlistFilters

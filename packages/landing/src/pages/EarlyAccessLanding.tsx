@@ -8,6 +8,7 @@ import {
 import { supabase } from '@/lib/supabase/clientV2';
 import { usePublicBrandingSettings } from '@/lib/hooks/useBrandingSettings';
 import { captureRegistrationUrl } from '@/lib/utils/registrationUrl';
+import { useForceDarkMode } from '@/lib/hooks/useForceDarkMode';
 
 // Types
 interface FormData {
@@ -36,40 +37,12 @@ const sanitizeName = (name: string): string => {
 
 export default function EarlyAccessLanding() {
   const navigate = useNavigate();
-  
+
+  // Force dark mode for landing pages
+  useForceDarkMode();
+
   // Branding settings for logos
   const { logoDark } = usePublicBrandingSettings();
-
-  // Light mode logo (dark text for light backgrounds)
-  const LIGHT_MODE_LOGO = 'https://user-upload.s3.eu-west-2.amazonaws.com/erg%20logos/lightLogo/lightLogo-global-1764287988029.png';
-
-  // Theme detection
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const html = document.documentElement;
-      return html.classList.contains('dark') || html.getAttribute('data-theme') === 'dark';
-    }
-    return true; // Default to dark for this page
-  });
-
-  useEffect(() => {
-    const checkTheme = () => {
-      const html = document.documentElement;
-      const hasDarkClass = html.classList.contains('dark');
-      const dataTheme = html.getAttribute('data-theme');
-      setIsDark(hasDarkClass || dataTheme === 'dark');
-    };
-
-    checkTheme();
-
-    const observer = new MutationObserver(checkTheme);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class', 'data-theme']
-    });
-
-    return () => observer.disconnect();
-  }, []);
 
   const [waitlistCount, setWaitlistCount] = useState<number | null>(null);
   const [formData, setFormData] = useState<FormData>({
@@ -461,7 +434,7 @@ export default function EarlyAccessLanding() {
   const displayCount = waitlistCount !== null ? `${waitlistCount}+` : '...';
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#0a0d14] text-gray-900 dark:text-white font-sans antialiased overflow-x-hidden transition-colors duration-300">
+    <div className="min-h-screen bg-[#0a0d14] text-white font-sans antialiased overflow-x-hidden transition-colors duration-300">
       {/* Background */}
       <div className="fixed inset-0 z-0">
         <div
@@ -501,15 +474,15 @@ export default function EarlyAccessLanding() {
       </div>
 
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-white/80 dark:bg-[#0a0d14]/80 border-b border-gray-200 dark:border-white/[0.08] transition-colors duration-300">
+      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-[#0a0d14]/80 border-b border-white/[0.08] transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3">
-            <img src={isDark ? logoDark : LIGHT_MODE_LOGO} alt="Sixty Seconds" className="h-10 transition-all duration-300" />
+            <img src={logoDark} alt="Sixty Seconds" className="h-10 transition-all duration-300" />
           </button>
           <div className="hidden md:flex items-center gap-8">
-            <button onClick={() => scrollToSection('problem')} className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">The Problem</button>
-            <button onClick={() => scrollToSection('solution')} className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Solution</button>
-            <button onClick={() => scrollToSection('features')} className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Features</button>
+            <button onClick={() => scrollToSection('problem')} className="text-sm font-medium text-gray-400 hover:text-white transition-colors">The Problem</button>
+            <button onClick={() => scrollToSection('solution')} className="text-sm font-medium text-gray-400 hover:text-white transition-colors">Solution</button>
+            <button onClick={() => scrollToSection('features')} className="text-sm font-medium text-gray-400 hover:text-white transition-colors">Features</button>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -1072,18 +1045,17 @@ export default function EarlyAccessLanding() {
       </main>
 
       {/* Footer */}
-      <footer className="py-12 border-t border-gray-200 dark:border-white/[0.08] transition-colors duration-300">
+      <footer className="py-12 border-t border-white/[0.08] transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-3">
               <img
-                key={isDark ? 'dark' : 'light'}
-                src={isDark ? logoDark : LIGHT_MODE_LOGO}
+                src={logoDark}
                 alt="60"
                 className="h-10 w-auto transition-all duration-300"
               />
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 text-center md:text-left">
+            <p className="text-sm text-gray-400 text-center md:text-left">
               Replace admin work with AI assistants. Get back to selling.
             </p>
             <p className="text-xs text-gray-500">
