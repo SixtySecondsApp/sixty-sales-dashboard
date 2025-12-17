@@ -6,7 +6,6 @@ import type { WaitlistEntry } from '@/lib/types/waitlist';
 import { ConfettiService } from '@/lib/services/confettiService';
 import { getTierForPosition } from '@/lib/types/waitlist';
 import { useWaitlistRealtime } from '@/lib/hooks/useWaitlistRealtime';
-import { ThemeToggle } from '@/components/ThemeToggle';
 
 // Import gamification components
 import { PositionDisplay } from './gamification/PositionDisplay';
@@ -107,10 +106,6 @@ export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-white dark:bg-gray-950 transition-colors duration-300">
-      {/* Theme Toggle - Fixed in top right corner */}
-      <div className="fixed top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
 
       {/* Subtle Ambient Background Glow (Clean, no noise) */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-blue-200/30 dark:bg-blue-900/10 blur-[100px] rounded-full pointer-events-none -z-10" />

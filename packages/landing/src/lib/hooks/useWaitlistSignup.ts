@@ -5,21 +5,64 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { supabase } from '../supabase/clientV2';
 import * as waitlistService from '../services/waitlistService';
 import type { WaitlistEntry, WaitlistSignupData } from '../types/waitlist';
+
+// Simple success data for thank you page (gamification temporarily disabled)
+interface SignupSuccessData {
+  email: string;
+  full_name: string;
+  company_name: string;
+}
 
 interface UseWaitlistSignupReturn {
   signup: (data: WaitlistSignupData) => Promise<void>;
   isSubmitting: boolean;
   success: WaitlistEntry | null;
+  simpleSuccess: SignupSuccessData | null; // For simple thank you flow
   error: Error | null;
   reset: () => void;
 }
 
+// Feature flag: set to true to enable gamification (leaderboard, points, etc.)
+const ENABLE_GAMIFICATION = false;
+
 export function useWaitlistSignup(): UseWaitlistSignupReturn {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState<WaitlistEntry | null>(null);
+  const [simpleSuccess, setSimpleSuccess] = useState<SignupSuccessData | null>(null);
   const [error, setError] = useState<Error | null>(null);
+
+  const sendWelcomeEmail = async (email: string, fullName: string, companyName: string) => {
+    try {
+      const firstName = fullName.split(' ')[0];
+      const { data, error } = await supabase.functions.invoke('encharge-send-email', {
+        body: {
+          template_type: 'waitlist_welcome',
+          to_email: email.trim().toLowerCase(),
+          to_name: firstName,
+          variables: {
+            user_name: firstName,
+            full_name: fullName,
+            company_name: companyName || '',
+            first_name: firstName,
+            email: email.trim().toLowerCase(),
+          },
+        },
+      });
+
+      if (error) {
+        console.error('[Waitlist] Welcome email failed:', error);
+        // Don't throw - email failure shouldn't block signup success
+      } else {
+        console.log('[Waitlist] Welcome email sent successfully:', data);
+      }
+    } catch (err) {
+      console.error('[Waitlist] Welcome email exception:', err);
+      // Don't throw - email failure shouldn't block signup success
+    }
+  };
 
   const signup = async (data: WaitlistSignupData) => {
     setIsSubmitting(true);
@@ -32,8 +75,13 @@ export function useWaitlistSignup(): UseWaitlistSignupReturn {
       }
 
       // Integration fields validation
-      if (!data.dialer_tool || !data.meeting_recorder_tool || !data.crm_tool) {
+      if (!data.meeting_recorder_tool || !data.crm_tool || !data.task_manager_tool) {
         throw new Error('Please select all integration options');
+      }
+
+      // Validate "Other" options have values
+      if (data.task_manager_tool === 'Other' && !data.task_manager_other?.trim()) {
+        throw new Error('Please specify which task manager you use');
       }
 
       // Email validation
@@ -45,12 +93,26 @@ export function useWaitlistSignup(): UseWaitlistSignupReturn {
       // Call signup service with retry logic
       const entry = await waitlistService.signupForWaitlist(data);
 
-      setSuccess(entry);
+      // Send welcome email (fire and forget - don't block on this)
+      sendWelcomeEmail(data.email, data.full_name, data.company_name);
+
+      if (ENABLE_GAMIFICATION) {
+        // Full gamification flow
+        setSuccess(entry);
+      } else {
+        // Simple thank you flow
+        setSimpleSuccess({
+          email: data.email,
+          full_name: data.full_name,
+          company_name: data.company_name
+        });
+      }
+
       toast.success('Successfully joined the waitlist!');
     } catch (err) {
       const error = err as Error;
       setError(error);
-      
+
       // Show error toast with helpful message
       const errorMessage = error.message || 'Failed to join waitlist. Please try again.';
       toast.error(errorMessage, {
@@ -63,6 +125,7 @@ export function useWaitlistSignup(): UseWaitlistSignupReturn {
 
   const reset = () => {
     setSuccess(null);
+    setSimpleSuccess(null);
     setError(null);
   };
 
@@ -70,6 +133,7 @@ export function useWaitlistSignup(): UseWaitlistSignupReturn {
     signup,
     isSubmitting,
     success,
+    simpleSuccess,
     error,
     reset
   };

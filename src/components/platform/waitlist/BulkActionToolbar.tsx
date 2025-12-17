@@ -35,6 +35,7 @@ export function BulkActionToolbar({
         text-white
         shadow-lg
         border-b border-blue-700 dark:border-blue-800
+        transition-colors duration-200
         ${className}
       `}
     >
@@ -54,12 +55,12 @@ export function BulkActionToolbar({
           className="
             flex items-center gap-2
             px-4 py-2
-            bg-white text-blue-600
-            hover:bg-blue-50
-            disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed
+            bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400
+            hover:bg-blue-50 dark:hover:bg-gray-700
+            disabled:bg-gray-200 dark:disabled:bg-gray-700 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed
             rounded-lg
             font-medium text-sm
-            transition-colors
+            transition-colors duration-200
             shadow-sm
           "
         >
@@ -79,7 +80,7 @@ export function BulkActionToolbar({
             disabled:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed
             rounded-lg
             font-medium text-sm
-            transition-colors
+            transition-colors duration-200
             border border-blue-800
           "
         >
@@ -95,12 +96,12 @@ export function BulkActionToolbar({
             flex items-center gap-2
             px-4 py-2
             bg-transparent text-white
-            hover:bg-blue-700
+            hover:bg-blue-700 dark:hover:bg-blue-600
             disabled:opacity-50 disabled:cursor-not-allowed
             rounded-lg
             font-medium text-sm
-            transition-colors
-            border border-blue-500
+            transition-colors duration-200
+            border border-blue-500 dark:border-blue-400
           "
         >
           <X className="w-4 h-4" />

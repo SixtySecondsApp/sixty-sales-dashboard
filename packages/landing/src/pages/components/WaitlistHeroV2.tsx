@@ -1,60 +1,194 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Users, Check } from 'lucide-react';
+import { Sparkles, Check, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useWaitlistSignup } from '@/lib/hooks/useWaitlistSignup';
-import { DIALER_OPTIONS, MEETING_RECORDER_OPTIONS, CRM_OPTIONS } from '@/lib/types/waitlist';
+import { supabase } from '@/lib/supabase/clientV2';
+import { DIALER_OPTIONS, MEETING_RECORDER_OPTIONS, CRM_OPTIONS, TASK_MANAGER_OPTIONS } from '@/lib/types/waitlist';
 import type { WaitlistSignupData } from '@/lib/types/waitlist';
-import { WaitlistSuccess } from './WaitlistSuccess';
+import * as waitlistService from '@/lib/services/waitlistService';
+import { toast } from 'sonner';
 import { LiveWaitlistCount } from './gamification/LiveWaitlistCount';
-import { ThemeToggle } from '@/components/ThemeToggle';
+
+// Simple Thank You Screen Component
+function SimpleThankYou({ email, fullName }: { email: string; fullName: string }) {
+  const firstName = fullName.split(' ')[0];
+
+  return (
+    <section className="relative min-h-screen flex items-center justify-center bg-white dark:bg-gray-950">
+      <div className="max-w-md mx-auto px-6 py-12 text-center">
+        {/* Success Icon */}
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
+          className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center mb-8 shadow-lg"
+        >
+          <Check className="w-10 h-10 text-white" strokeWidth={3} />
+        </motion.div>
+
+        {/* Thank You Message */}
+        <motion.h1
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="text-3xl font-bold text-gray-900 dark:text-white mb-4"
+        >
+          Thank you, {firstName}!
+        </motion.h1>
+
+        <motion.p
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="text-lg text-gray-600 dark:text-gray-300 mb-8"
+        >
+          You've successfully joined the waitlist.
+        </motion.p>
+
+        {/* Email Info */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6 mb-8"
+        >
+          <Mail className="w-8 h-8 text-blue-500 mx-auto mb-3" />
+          <p className="text-gray-700 dark:text-gray-300 mb-2">
+            We'll send updates to:
+          </p>
+          <p className="font-semibold text-gray-900 dark:text-white">
+            {email}
+          </p>
+        </motion.div>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="text-sm text-gray-500 dark:text-gray-400"
+        >
+          Check your inbox for a confirmation email with more information.
+        </motion.p>
+      </div>
+    </section>
+  );
+}
 
 export function WaitlistHeroV2() {
-  const { signup, isSubmitting, success } = useWaitlistSignup();
+  const navigate = useNavigate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<WaitlistSignupData>({
     email: '',
     full_name: '',
     company_name: '',
-    dialer_tool: '',
-    dialer_other: '',
     meeting_recorder_tool: '',
     meeting_recorder_other: '',
     crm_tool: '',
     crm_other: '',
+    task_manager_tool: '',
+    task_manager_other: '',
     referred_by_code: ''
   });
 
-  // Parse referral code from URL on mount
+  // Parse referral code and capture registration URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const refCode = params.get('ref');
-    if (refCode) {
-      setFormData(prev => ({ ...prev, referred_by_code: refCode }));
-    }
+    
+    // Capture the full registration URL (pathname + search params)
+    const registrationUrl = window.location.pathname + window.location.search;
+    
+    setFormData(prev => ({
+      ...prev,
+      referred_by_code: refCode || prev.referred_by_code,
+      registration_url: registrationUrl
+    }));
   }, []);
+
+  const sendWelcomeEmail = async (email: string, fullName: string, companyName: string) => {
+    try {
+      const firstName = fullName.split(' ')[0];
+      const { data, error } = await supabase.functions.invoke('encharge-send-email', {
+        body: {
+          template_type: 'waitlist_welcome',
+          to_email: email.trim().toLowerCase(),
+          to_name: firstName,
+          variables: {
+            user_name: firstName,
+            full_name: fullName,
+            company_name: companyName || '',
+            first_name: firstName,
+            email: email.trim().toLowerCase(),
+          },
+        },
+      });
+
+      if (error) {
+        console.error('[Waitlist] Welcome email failed:', error);
+      } else {
+        console.log('[Waitlist] Welcome email sent successfully:', data);
+      }
+    } catch (err) {
+      console.warn('[Waitlist] Welcome email exception:', err);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await signup(formData);
+    setIsSubmitting(true);
+
+    try {
+      // Validation
+      if (!formData.email || !formData.full_name || !formData.company_name) {
+        throw new Error('Please fill in all required fields');
+      }
+      if (!formData.meeting_recorder_tool || !formData.crm_tool || !formData.task_manager_tool) {
+        throw new Error('Please select all integration options');
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      // Always capture registration URL at submit time to ensure it's current
+      const registrationUrl = window.location.pathname + window.location.search;
+      const finalFormData = {
+        ...formData,
+        registration_url: registrationUrl
+      };
+      
+      // Save to database
+      await waitlistService.signupForWaitlist(finalFormData);
+
+      // Send welcome email (fire and forget)
+      sendWelcomeEmail(formData.email, formData.full_name, formData.company_name);
+
+      // Navigate to thank you page (using state to avoid URL exposure)
+      const email = formData.email.trim().toLowerCase();
+      const fullName = formData.full_name.trim();
+      navigate('/waitlist/thank-you', {
+        state: { email, fullName }
+      });
+
+      toast.success('Successfully joined the waitlist!');
+    } catch (err) {
+      const error = err as Error;
+      toast.error(error.message || 'Failed to join waitlist. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (field: keyof WaitlistSignupData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // Show success modal if signup was successful
-  if (success) {
-    return <WaitlistSuccess entry={success} />;
-  }
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Theme Toggle - Fixed in top right corner */}
-      <div className="fixed top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
 
       {/* Animated Background - Light/Dark Mode Aware */}
       <div className="absolute inset-0 bg-white dark:bg-gray-950 transition-colors duration-300">
@@ -244,39 +378,6 @@ export function WaitlistHeroV2() {
                       <p className="text-xs text-gray-700 dark:text-white mb-3">What integrations are important to you?</p>
                     </div>
 
-                    {/* Dialer */}
-                    <div>
-                      <Select value={formData.dialer_tool} onValueChange={(value) => handleChange('dialer_tool', value)} required>
-                        <SelectTrigger className="bg-gray-50 dark:bg-white/5 border-gray-300 dark:border-white/10 text-gray-900 dark:text-white h-12">
-                          <SelectValue placeholder="Which dialer do you use? *" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {DIALER_OPTIONS.map(option => (
-                            <SelectItem key={option} value={option}>{option}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <AnimatePresence>
-                        {formData.dialer_tool === 'Other' && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="overflow-hidden mt-2"
-                          >
-                            <Input
-                              type="text"
-                              placeholder="Which dialer?"
-                              value={formData.dialer_other}
-                              onChange={(e) => handleChange('dialer_other', e.target.value)}
-                              className="bg-gray-50 dark:bg-white/5 border-gray-300 dark:border-white/10 text-gray-900 dark:text-white placeholder:text-gray-500 h-12"
-                            />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-
                     {/* Meeting Recorder */}
                     <div>
                       <Select value={formData.meeting_recorder_tool} onValueChange={(value) => handleChange('meeting_recorder_tool', value)} required>
@@ -343,6 +444,44 @@ export function WaitlistHeroV2() {
                       </AnimatePresence>
                     </div>
 
+                    {/* Task Manager */}
+                    <div>
+                      <Select value={formData.task_manager_tool} onValueChange={(value) => {
+                        handleChange('task_manager_tool', value);
+                        if (value !== 'Other') {
+                          handleChange('task_manager_other', '');
+                        }
+                      }} required>
+                        <SelectTrigger className="bg-gray-50 dark:bg-white/5 border-gray-300 dark:border-white/10 text-gray-900 dark:text-white h-12">
+                          <SelectValue placeholder="Which Task Manager? *" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TASK_MANAGER_OPTIONS.map(option => (
+                            <SelectItem key={option} value={option}>{option}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <AnimatePresence>
+                        {formData.task_manager_tool === 'Other' && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden mt-2"
+                          >
+                            <Input
+                              type="text"
+                              placeholder="Which task manager?"
+                              value={formData.task_manager_other}
+                              onChange={(e) => handleChange('task_manager_other', e.target.value)}
+                              className="bg-gray-50 dark:bg-white/5 border-gray-300 dark:border-white/10 text-gray-900 dark:text-white placeholder:text-gray-500 h-12"
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
                     {/* Referral Code (if present) */}
                     {formData.referred_by_code && (
                       <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
@@ -364,7 +503,7 @@ export function WaitlistHeroV2() {
                     </Button>
 
                     <p className="text-xs text-gray-500 dark:text-gray-500 text-center">
-                      No credit card required • 5 spots ahead per referral
+                      No credit card required
                     </p>
                   </form>
                 </div>

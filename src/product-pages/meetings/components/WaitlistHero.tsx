@@ -8,6 +8,7 @@ import { useWaitlistSignup } from '@/lib/hooks/useWaitlistSignup';
 import { DIALER_OPTIONS, MEETING_RECORDER_OPTIONS, CRM_OPTIONS } from '@/lib/types/waitlist';
 import type { WaitlistSignupData } from '@/lib/types/waitlist';
 import { WaitlistSuccess } from './WaitlistSuccess';
+import { captureRegistrationUrl } from '@/lib/utils/registrationUrl';
 
 export function WaitlistHero() {
   const { signup, isSubmitting, success } = useWaitlistSignup();
@@ -21,18 +22,30 @@ export function WaitlistHero() {
     referred_by_code: ''
   });
 
-  // Parse referral code from URL on mount
+  // Parse referral code and capture registration URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const refCode = params.get('ref');
-    if (refCode) {
-      setFormData(prev => ({ ...prev, referred_by_code: refCode }));
-    }
+    
+    // Capture the full registration URL (pathname + search params) and normalize it
+    const registrationUrl = captureRegistrationUrl();
+    
+    setFormData(prev => ({
+      ...prev,
+      referred_by_code: refCode || prev.referred_by_code,
+      registration_url: registrationUrl
+    }));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await signup(formData);
+    // Always capture registration URL at submit time to ensure it's current
+    const registrationUrl = captureRegistrationUrl();
+    const finalFormData = {
+      ...formData,
+      registration_url: registrationUrl
+    };
+    await signup(finalFormData);
   };
 
   const handleChange = (field: keyof WaitlistSignupData, value: string) => {

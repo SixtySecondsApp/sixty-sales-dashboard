@@ -36,18 +36,36 @@ export default function WaitlistManagement() {
       setStats(statsData);
     }
 
-    // Load all entries
+    // Load all entries using pagination to bypass Supabase's 1000 row limit
     const { supabase } = await import('@/lib/supabase/clientV2');
-    const { data, error } = await supabase
-      .from('meetings_waitlist')
-      .select('*')
-      .order('signup_position', { ascending: true });
+    const pageSize = 1000;
+    let allEntries: WaitlistEntry[] = [];
+    let from = 0;
+    let hasMore = true;
 
-    if (!error && data) {
-      setEntries(data);
-      setFilteredEntries(data);
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('meetings_waitlist')
+        .select('*')
+        .order('signup_position', { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      if (error) {
+        console.error('Error loading waitlist entries:', error);
+        break;
+      }
+
+      if (data && data.length > 0) {
+        allEntries = allEntries.concat(data);
+        from += pageSize;
+        hasMore = data.length === pageSize;
+      } else {
+        hasMore = false;
+      }
     }
 
+    setEntries(allEntries);
+    setFilteredEntries(allEntries);
     setIsLoading(false);
   };
 
@@ -108,8 +126,8 @@ export default function WaitlistManagement() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950 p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-white dark:bg-gray-950 p-4 sm:p-6 lg:p-8 overflow-x-hidden">
+      <div className="max-w-7xl mx-auto space-y-6 w-full">
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">

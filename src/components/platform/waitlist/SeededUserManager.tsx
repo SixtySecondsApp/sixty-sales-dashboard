@@ -66,7 +66,7 @@ export function SeededUserManager() {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-6 transition-colors duration-200">
       <div className="flex items-center gap-3 mb-4">
         <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
         <div>
@@ -81,7 +81,7 @@ export function SeededUserManager() {
 
       <div className="space-y-4">
         {/* Mark all as seeded */}
-        <div className="p-4 bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800 rounded-lg">
+        <div className="p-4 bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800 rounded-lg transition-colors duration-200">
           <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
             Mark All Current Users as Seeded
           </h4>
@@ -94,11 +94,11 @@ export function SeededUserManager() {
             className="
               flex items-center gap-2
               px-4 py-2
-              bg-purple-600 hover:bg-purple-700
+              bg-purple-600 hover:bg-purple-700 dark:hover:bg-purple-600
               text-white
               rounded-lg
               text-sm font-medium
-              transition-colors
+              transition-colors duration-200
               disabled:opacity-50 disabled:cursor-not-allowed
             "
           >
@@ -108,7 +108,7 @@ export function SeededUserManager() {
         </div>
 
         {/* Mark by email pattern */}
-        <div className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg transition-colors duration-200">
           <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
             Mark by Email Pattern
           </h4>
@@ -130,6 +130,7 @@ export function SeededUserManager() {
                 text-gray-900 dark:text-white
                 placeholder-gray-400 dark:placeholder-gray-500
                 focus:ring-2 focus:ring-purple-500 focus:border-transparent
+                transition-colors duration-200
               "
             />
             <button
@@ -140,11 +141,11 @@ export function SeededUserManager() {
               disabled={isProcessing}
               className="
                 px-4 py-2
-                bg-gray-600 hover:bg-gray-700
+                bg-gray-600 hover:bg-gray-700 dark:hover:bg-gray-500
                 text-white
                 rounded-lg
                 text-sm font-medium
-                transition-colors
+                transition-colors duration-200
                 disabled:opacity-50 disabled:cursor-not-allowed
               "
             >
@@ -154,7 +155,7 @@ export function SeededUserManager() {
         </div>
 
         {/* Warning */}
-        <div className="p-3 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded text-xs text-yellow-800 dark:text-yellow-400">
+        <div className="p-3 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded text-xs text-yellow-800 dark:text-yellow-400 transition-colors duration-200">
           ⚠️ <strong>Warning:</strong> These actions cannot be easily undone. Seeded users will be hidden by default in the admin view but remain visible on the public waitlist.
         </div>
       </div>

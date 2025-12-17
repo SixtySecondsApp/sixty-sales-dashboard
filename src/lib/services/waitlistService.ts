@@ -123,6 +123,7 @@ export async function signupForWaitlist(
     utm_source: data.utm_source || null,
     utm_campaign: data.utm_campaign || null,
     utm_medium: data.utm_medium || null,
+    registration_url: data.registration_url || null,
   };
 
   // Validate required fields are not empty after trimming
@@ -212,114 +213,112 @@ export async function validateReferralCode(code: string): Promise<boolean> {
  */
 
 /**
+ * Fetch all rows from a table using pagination to bypass Supabase's 1000 row limit
+ */
+async function fetchAllRows<T>(
+  tableName: string,
+  orderColumn: string,
+  buildQuery: (query: any) => any
+): Promise<T[]> {
+  const pageSize = 1000;
+  let allData: T[] = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from(tableName)
+      .select('*')
+      .order(orderColumn, { ascending: true });
+
+    // Apply any additional filters
+    query = buildQuery(query);
+
+    // Fetch this page
+    const { data, error } = await query.range(from, from + pageSize - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    if (data && data.length > 0) {
+      allData = allData.concat(data as T[]);
+      from += pageSize;
+      // If we got less than pageSize, we've reached the end
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
+/**
  * Get all waitlist entries with optional filters
  * Admin only
  */
 export async function getWaitlistEntries(
   filters?: WaitlistFilters
 ): Promise<WaitlistEntry[]> {
-  // Try to use the waitlist_with_rank view first (with display_rank for proper tie-breaking)
-  // If it doesn't exist (migrations not run yet), fall back to meetings_waitlist table
-  let query = supabase
-    .from('waitlist_with_rank')
-    .select('*')
-    .order('display_rank', { ascending: true });
-
-  // Apply filters
-  if (filters) {
-    if (filters.status && filters.status !== 'all') {
-      query = query.eq('status', filters.status);
-    }
-
-    if (filters.dialer_tool) {
-      query = query.eq('dialer_tool', filters.dialer_tool);
-    }
-
-    if (filters.meeting_recorder_tool) {
-      query = query.eq('meeting_recorder_tool', filters.meeting_recorder_tool);
-    }
-
-    if (filters.crm_tool) {
-      query = query.eq('crm_tool', filters.crm_tool);
-    }
-
-    if (filters.date_from) {
-      query = query.gte('created_at', filters.date_from);
-    }
-
-    if (filters.date_to) {
-      query = query.lte('created_at', filters.date_to);
-    }
-
-    if (filters.search) {
-      query = query.or(
-        `email.ilike.%${filters.search}%,full_name.ilike.%${filters.search}%,company_name.ilike.%${filters.search}%`
-      );
-    }
-  }
-
-  const { data, error } = await query;
-
-  // If the view doesn't exist (42P01 = relation doesn't exist, PGRST205 = not in schema cache), 
-  // fall back to the raw table
-  if (error && (error.code === '42P01' || error.code === 'PGRST205')) {
-    console.warn('waitlist_with_rank view not found, falling back to meetings_waitlist table. Run migrations to fix position ties.');
-
-    // Fallback query using the raw table
-    let fallbackQuery = supabase
-      .from('meetings_waitlist')
-      .select('*')
-      .order('effective_position', { ascending: true });
-
-    // Reapply the same filters
+  // Build filter function to apply to queries
+  const applyFilters = (query: any) => {
     if (filters) {
       if (filters.status && filters.status !== 'all') {
-        fallbackQuery = fallbackQuery.eq('status', filters.status);
+        query = query.eq('status', filters.status);
       }
-
       if (filters.dialer_tool) {
-        fallbackQuery = fallbackQuery.eq('dialer_tool', filters.dialer_tool);
+        query = query.eq('dialer_tool', filters.dialer_tool);
       }
-
       if (filters.meeting_recorder_tool) {
-        fallbackQuery = fallbackQuery.eq('meeting_recorder_tool', filters.meeting_recorder_tool);
+        query = query.eq('meeting_recorder_tool', filters.meeting_recorder_tool);
       }
-
       if (filters.crm_tool) {
-        fallbackQuery = fallbackQuery.eq('crm_tool', filters.crm_tool);
+        query = query.eq('crm_tool', filters.crm_tool);
       }
-
+      if (filters.task_manager_tool) {
+        query = query.eq('task_manager_tool', filters.task_manager_tool);
+      }
       if (filters.date_from) {
-        fallbackQuery = fallbackQuery.gte('created_at', filters.date_from);
+        query = query.gte('created_at', filters.date_from);
       }
-
       if (filters.date_to) {
-        fallbackQuery = fallbackQuery.lte('created_at', filters.date_to);
+        query = query.lte('created_at', filters.date_to);
       }
-
       if (filters.search) {
-        fallbackQuery = fallbackQuery.or(
+        query = query.or(
           `email.ilike.%${filters.search}%,full_name.ilike.%${filters.search}%,company_name.ilike.%${filters.search}%`
         );
       }
     }
+    return query;
+  };
 
-    const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+  // Try to use the waitlist_with_rank view first (with display_rank for proper tie-breaking)
+  try {
+    const data = await fetchAllRows<WaitlistEntry>(
+      'waitlist_with_rank',
+      'display_rank',
+      applyFilters
+    );
+    return data;
+  } catch (error: any) {
+    // If the view doesn't exist (42P01 = relation doesn't exist, PGRST205 = not in schema cache),
+    // fall back to the raw table
+    if (error.code === '42P01' || error.code === 'PGRST205') {
+      console.warn('waitlist_with_rank view not found, falling back to meetings_waitlist table.');
 
-    if (fallbackError) {
-      console.error('Error getting waitlist entries:', fallbackError);
-      throw new Error('Failed to get waitlist entries');
+      const data = await fetchAllRows<WaitlistEntry>(
+        'meetings_waitlist',
+        'effective_position',
+        applyFilters
+      );
+      return data;
     }
 
-    return fallbackData || [];
-  }
-
-  if (error) {
     console.error('Error getting waitlist entries:', error);
     throw new Error('Failed to get waitlist entries');
   }
-
-  return data || [];
 }
 
 /**
@@ -327,13 +326,31 @@ export async function getWaitlistEntries(
  * Admin only
  */
 export async function getWaitlistStats(): Promise<WaitlistStats> {
-  const { data: allEntries, error: allError } = await supabase
-    .from('meetings_waitlist')
-    .select('status, referral_count, created_at');
+  // Use pagination to fetch all entries for accurate stats
+  const pageSize = 1000;
+  let allEntries: { status: string; referral_count: number; created_at: string }[] = [];
+  let from = 0;
+  let hasMore = true;
 
-  if (allError) {
-    console.error('Error getting waitlist stats:', allError);
-    throw new Error('Failed to get waitlist statistics');
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('meetings_waitlist')
+      .select('status, referral_count, created_at')
+      .order('created_at', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error('Error getting waitlist stats:', error);
+      throw new Error('Failed to get waitlist statistics');
+    }
+
+    if (data && data.length > 0) {
+      allEntries = allEntries.concat(data);
+      from += pageSize;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
+    }
   }
 
   const now = new Date();
@@ -390,16 +407,34 @@ export async function getWaitlistStats(): Promise<WaitlistStats> {
  * Admin only
  */
 export async function getToolAnalytics(): Promise<ToolAnalytics> {
-  const { data, error } = await supabase
-    .from('meetings_waitlist')
-    .select('dialer_tool, meeting_recorder_tool, crm_tool');
+  // Use pagination to fetch all entries for accurate analytics
+  const pageSize = 1000;
+  let allData: { dialer_tool: string | null; meeting_recorder_tool: string | null; crm_tool: string | null; task_manager_tool: string | null }[] = [];
+  let from = 0;
+  let hasMore = true;
 
-  if (error) {
-    console.error('Error getting tool analytics:', error);
-    throw new Error('Failed to get tool analytics');
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('meetings_waitlist')
+      .select('dialer_tool, meeting_recorder_tool, crm_tool, task_manager_tool')
+      .order('created_at', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error('Error getting tool analytics:', error);
+      throw new Error('Failed to get tool analytics');
+    }
+
+    if (data && data.length > 0) {
+      allData = allData.concat(data);
+      from += pageSize;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
+    }
   }
 
-  const analytics = data.reduce(
+  const analytics = allData.reduce(
     (acc, entry) => {
       if (entry.dialer_tool) {
         acc.dialers[entry.dialer_tool] = (acc.dialers[entry.dialer_tool] || 0) + 1;
@@ -411,12 +446,16 @@ export async function getToolAnalytics(): Promise<ToolAnalytics> {
       if (entry.crm_tool) {
         acc.crms[entry.crm_tool] = (acc.crms[entry.crm_tool] || 0) + 1;
       }
+      if (entry.task_manager_tool) {
+        acc.task_managers[entry.task_manager_tool] = (acc.task_managers[entry.task_manager_tool] || 0) + 1;
+      }
       return acc;
     },
     {
       dialers: {} as Record<string, number>,
       meeting_recorders: {} as Record<string, number>,
-      crms: {} as Record<string, number>
+      crms: {} as Record<string, number>,
+      task_managers: {} as Record<string, number>
     }
   );
 
@@ -424,7 +463,7 @@ export async function getToolAnalytics(): Promise<ToolAnalytics> {
 }
 
 /**
- * Release a user from the waitlist
+ * Release a user from the waitlist (grant access)
  * Admin only
  */
 export async function releaseWaitlistUser(
@@ -442,7 +481,30 @@ export async function releaseWaitlistUser(
 
   if (error) {
     console.error('Error releasing waitlist user:', error);
-    throw new Error('Failed to release user from waitlist');
+    throw new Error(`Failed to release user from waitlist: ${error.message}`);
+  }
+}
+
+/**
+ * Put a user back on the waitlist (revoke access)
+ * Admin only
+ */
+export async function unreleaseWaitlistUser(
+  id: string,
+  notes?: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('meetings_waitlist')
+    .update({
+      status: 'pending',
+      released_at: null,
+      admin_notes: notes || null
+    })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error putting user back on waitlist:', error);
+    throw new Error(`Failed to put user back on waitlist: ${error.message}`);
   }
 }
 
@@ -461,7 +523,7 @@ export async function updateWaitlistEntry(
 
   if (error) {
     console.error('Error updating waitlist entry:', error);
-    throw new Error('Failed to update waitlist entry');
+    throw new Error(`Failed to update waitlist entry: ${error.message}`);
   }
 }
 
@@ -482,6 +544,7 @@ export async function exportWaitlistCSV(filters?: WaitlistFilters): Promise<Blob
     'Meeting Recorder',
     'CRM',
     'Referrals',
+    'Registration URL',
     'Status',
     'Referral Code',
     'Referred By',
@@ -498,6 +561,7 @@ export async function exportWaitlistCSV(filters?: WaitlistFilters): Promise<Blob
     entry.meeting_recorder_tool || '',
     entry.crm_tool || '',
     entry.referral_count,
+    entry.registration_url || '',
     entry.status,
     entry.referral_code,
     entry.referred_by_code || '',

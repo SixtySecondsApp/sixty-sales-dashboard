@@ -367,13 +367,11 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/product/meetings-v4" element={<ExternalRedirect url="https://www.use60.com" />} />
         <Route path="/product/meetings/waitlist" element={<ExternalRedirect url="https://www.use60.com/waitlist" />} />
         {/* In development, show local waitlist; in production, redirect to landing site */}
-        {/* Waitlist sub-routes must come BEFORE the base /waitlist route for proper matching */}
+        {/* Waitlist routes - parent route needs /* for nested routes */}
         {import.meta.env.DEV && (
           <>
-            <Route path="/waitlist/status/:id" element={<WaitlistStatusPage />} />
-            <Route path="/waitlist/leaderboard" element={<LeaderboardPageWrapper />} />
+            <Route path="/waitlist/*" element={<WaitlistPageWrapper />} />
             <Route path="/leaderboard" element={<LeaderboardPageWrapper />} />
-            <Route path="/waitlist" element={<WaitlistPageWrapper />} />
           </>
         )}
         {!import.meta.env.DEV && (

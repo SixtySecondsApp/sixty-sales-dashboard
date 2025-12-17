@@ -5,6 +5,7 @@ import  WaitlistLanding  from './pages/WaitlistLanding';
 import EarlyAccessLanding from './pages/EarlyAccessLanding';
 import LeaderboardLookup from './pages/LeaderboardLookup';
 import WaitlistStatus from './pages/WaitlistStatus';
+import WaitlistThankYouPage from './pages/WaitlistThankYouPage';
 import { PricingPage } from './pages/PricingPage';
 
 // Initialize i18next for internationalization
@@ -16,6 +17,7 @@ function App() {
       <Routes>
         <Route path="/landing" element={<MeetingsLandingV4 />} />
         <Route path="/waitlist" element={<EarlyAccessLanding />} />
+        <Route path="/waitlist/thank-you" element={<WaitlistThankYouPage />} />
         <Route path="/waitlist/status/:id" element={<WaitlistStatus />} />
         <Route path="/waitlist/leaderboard" element={<LeaderboardLookup />} />
         <Route path="/leaderboard" element={<LeaderboardLookup />} />

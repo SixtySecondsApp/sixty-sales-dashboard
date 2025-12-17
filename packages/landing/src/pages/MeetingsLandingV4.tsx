@@ -10,7 +10,6 @@ import {
   FinalCTA,
   LandingFooter
 } from '../components/components-v4';
-import { ThemeToggle } from '../components/ThemeToggle';
 import { usePublicBrandingSettings } from '../lib/hooks/useBrandingSettings';
 
 // Build version for deployment verification - remove after confirming deploy works
@@ -124,7 +123,6 @@ export function MeetingsLandingV4() {
             </div>
 
             <div className="flex items-center gap-3 sm:gap-4">
-              <ThemeToggle />
               <a
                 href="https://app.use60.com/auth/login"
                 className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 hidden sm:block"

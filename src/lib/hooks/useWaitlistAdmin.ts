@@ -21,6 +21,7 @@ interface UseWaitlistAdminReturn {
   error: Error | null;
   refetch: () => Promise<void>;
   releaseUser: (id: string, notes?: string) => Promise<void>;
+  unreleaseUser: (id: string, notes?: string) => Promise<void>;
   updateEntry: (id: string, updates: Partial<WaitlistEntry>) => Promise<void>;
   exportData: (filters?: WaitlistFilters) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
@@ -69,6 +70,18 @@ export function useWaitlistAdmin(filters?: WaitlistFilters): UseWaitlistAdminRet
     } catch (err) {
       const error = err as Error;
       toast.error(error.message || 'Failed to release user');
+      throw error;
+    }
+  };
+
+  const unreleaseUser = async (id: string, notes?: string) => {
+    try {
+      await waitlistService.unreleaseWaitlistUser(id, notes);
+      toast.success('User put back on waitlist');
+      await fetchData(); // Refresh data
+    } catch (err) {
+      const error = err as Error;
+      toast.error(error.message || 'Failed to put user back on waitlist');
       throw error;
     }
   };
@@ -127,6 +140,7 @@ export function useWaitlistAdmin(filters?: WaitlistFilters): UseWaitlistAdminRet
     error,
     refetch: fetchData,
     releaseUser,
+    unreleaseUser,
     updateEntry,
     exportData,
     deleteEntry

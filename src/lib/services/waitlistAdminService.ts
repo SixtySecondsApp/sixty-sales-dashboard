@@ -80,16 +80,20 @@ export async function grantAccess(
       return { success: false, error: updateError.message };
     }
 
-    // Log the admin action
-    await supabase
-      .from('waitlist_admin_actions')
-      .insert({
-        waitlist_entry_id: entryId,
-        admin_user_id: adminUserId,
-        action_type: 'grant_access',
-        notes: notes,
-        new_value: { status: 'released', granted_at: new Date().toISOString() }
-      });
+    // Log the admin action (optional - table may not exist)
+    try {
+      await supabase
+        .from('waitlist_admin_actions')
+        .insert({
+          waitlist_entry_id: entryId,
+          admin_user_id: adminUserId,
+          action_type: 'grant_access',
+          notes: notes,
+          new_value: { status: 'released', granted_at: new Date().toISOString() }
+        });
+    } catch {
+      // Admin actions table may not exist, continue without logging
+    }
 
     return { success: true };
   } catch (err) {
@@ -206,14 +210,20 @@ export async function bulkGrantAccess(
       // Send invitation emails via Edge Function
       if (magicLinks.length > 0) {
         try {
-          // Get admin details for email
-          const { data: adminProfile } = await supabase
-            .from('profiles')
-            .select('name')
-            .eq('id', adminUserId)
-            .single();
-
-          const adminName = adminProfile?.name || 'Admin';
+          // Get admin details for email (optional - profiles table may not exist)
+          let adminName = 'Admin';
+          try {
+            const { data: adminProfile } = await supabase
+              .from('profiles')
+              .select('first_name, last_name')
+              .eq('id', adminUserId)
+              .single();
+            if (adminProfile) {
+              adminName = [adminProfile.first_name, adminProfile.last_name].filter(Boolean).join(' ') || 'Admin';
+            }
+          } catch {
+            // Profiles table may not exist, use default
+          }
 
           // Prepare invites for Edge Function
           const invites = magicLinks.map((link) => {
@@ -317,13 +327,20 @@ export async function resendMagicLink(
 
     // Send email via Edge Function
     if (magicLink) {
-      const { data: adminProfile } = await supabase
-        .from('profiles')
-        .select('name')
-        .eq('id', adminUserId)
-        .single();
-
-      const adminName = adminProfile?.name || 'Admin';
+      // Get admin details for email (optional - profiles table may not exist)
+      let adminName = 'Admin';
+      try {
+        const { data: adminProfile } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', adminUserId)
+          .single();
+        if (adminProfile) {
+          adminName = [adminProfile.first_name, adminProfile.last_name].filter(Boolean).join(' ') || 'Admin';
+        }
+      } catch {
+        // Profiles table may not exist, use default
+      }
 
       await supabase.functions.invoke('send-waitlist-invite', {
         body: {
@@ -340,16 +357,20 @@ export async function resendMagicLink(
       });
     }
 
-    // Log admin action
-    await supabase.from('waitlist_admin_actions').insert({
-      waitlist_entry_id: entryId,
-      admin_user_id: adminUserId,
-      action_type: 'send_email',
-      action_details: {
-        type: 'magic_link_resend',
-        sent_to: entry.email,
-      },
-    });
+    // Log admin action (optional - table may not exist)
+    try {
+      await supabase.from('waitlist_admin_actions').insert({
+        waitlist_entry_id: entryId,
+        admin_user_id: adminUserId,
+        action_type: 'send_email',
+        action_details: {
+          type: 'magic_link_resend',
+          sent_to: entry.email,
+        },
+      });
+    } catch {
+      // Admin actions table may not exist, continue without logging
+    }
 
     return { success: true, magicLink };
   } catch (error: any) {
@@ -398,17 +419,21 @@ export async function adjustPosition(
       return { success: false, error: updateError.message };
     }
 
-    // Log the admin action
-    await supabase
-      .from('waitlist_admin_actions')
-      .insert({
-        waitlist_entry_id: entryId,
-        admin_user_id: adminUserId,
-        action_type: 'adjust_position',
-        notes: reason,
-        previous_value: { position: oldPosition },
-        new_value: { position: newPosition }
-      });
+    // Log the admin action (optional - table may not exist)
+    try {
+      await supabase
+        .from('waitlist_admin_actions')
+        .insert({
+          waitlist_entry_id: entryId,
+          admin_user_id: adminUserId,
+          action_type: 'adjust_position',
+          notes: reason,
+          previous_value: { position: oldPosition },
+          new_value: { position: newPosition }
+        });
+    } catch {
+      // Admin actions table may not exist, continue without logging
+    }
 
     return { success: true, oldPosition };
   } catch (err) {
@@ -519,18 +544,22 @@ export async function sendCustomEmail(
       return { success: false, error: sendError.message };
     }
 
-    // Log the admin action
-    await supabase
-      .from('waitlist_admin_actions')
-      .insert({
-        waitlist_entry_id: entryId,
-        admin_user_id: adminUserId,
-        action_type: 'send_email',
-        action_details: {
-          subject: subject,
-          sent_to: entry.email
-        }
-      });
+    // Log the admin action (optional - table may not exist)
+    try {
+      await supabase
+        .from('waitlist_admin_actions')
+        .insert({
+          waitlist_entry_id: entryId,
+          admin_user_id: adminUserId,
+          action_type: 'send_email',
+          action_details: {
+            subject: subject,
+            sent_to: entry.email
+          }
+        });
+    } catch {
+      // Admin actions table may not exist, continue without logging
+    }
 
     return { success: true };
   } catch (err) {
@@ -667,6 +696,7 @@ export async function getWaitlistStats(): Promise<WaitlistStats | null> {
 
 /**
  * Get admin action history
+ * Returns empty array if table doesn't exist
  */
 export async function getAdminActions(
   entryId?: string,
@@ -686,13 +716,13 @@ export async function getAdminActions(
     const { data, error } = await query;
 
     if (error) {
-      console.error('Failed to fetch admin actions:', error);
+      // Table may not exist, return empty array
       return [];
     }
 
     return data || [];
   } catch (err) {
-    console.error('Get admin actions error:', err);
+    // Table may not exist, return empty array
     return [];
   }
 }

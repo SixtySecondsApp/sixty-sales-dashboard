@@ -10,7 +10,6 @@ import { ExternalViewToggle } from '@/components/ExternalViewToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { EmailIcon } from '@/components/EmailIcon';
 import { CalendarIcon } from '@/components/CalendarIcon';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { toast } from 'sonner';
 import {
   LayoutDashboard,
@@ -254,7 +253,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <ThemeToggle />
           {effectiveUserType !== 'external' && (
             <>
               <EmailIcon />
@@ -475,7 +473,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* User Profile with Dropdown */}
         <div className="flex items-center gap-3 ml-auto">
-          <ThemeToggle />
           {effectiveUserType !== 'external' && (
             <>
               <EmailIcon />

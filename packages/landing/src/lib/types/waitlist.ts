@@ -16,6 +16,8 @@ export interface WaitlistEntry {
   meeting_recorder_other?: string;
   crm_tool?: string;
   crm_other?: string;
+  task_manager_tool?: string;
+  task_manager_other?: string;
   referral_code: string;
   referred_by_code?: string;
   referral_count: number;
@@ -33,6 +35,7 @@ export interface WaitlistEntry {
   utm_source?: string;
   utm_campaign?: string;
   utm_medium?: string;
+  registration_url?: string; // Full URL (path + query params) where user registered from
   linkedin_share_claimed?: boolean;
   linkedin_first_share_at?: string;
   created_at: string;
@@ -49,10 +52,12 @@ export interface WaitlistSignupData {
   meeting_recorder_other?: string;
   crm_tool?: string;
   crm_other?: string;
+  task_manager_tool?: string;
   referred_by_code?: string;
   utm_source?: string;
   utm_campaign?: string;
   utm_medium?: string;
+  registration_url?: string; // Full URL (path + query params) where user registered from
 }
 
 export interface WaitlistStats {
@@ -70,6 +75,7 @@ export interface ToolAnalytics {
   dialers: Record<string, number>;
   meeting_recorders: Record<string, number>;
   crms: Record<string, number>;
+  task_managers: Record<string, number>;
 }
 
 export interface WaitlistPosition {
@@ -87,6 +93,7 @@ export interface WaitlistFilters {
   dialer_tool?: string;
   meeting_recorder_tool?: string;
   crm_tool?: string;
+  task_manager_tool?: string;
   date_from?: string;
   date_to?: string;
   search?: string; // Search by name, email, or company
@@ -138,9 +145,21 @@ export const CRM_OPTIONS = [
   'None'
 ] as const;
 
+export const TASK_MANAGER_OPTIONS = [
+  'Monday',
+  'Jira',
+  'Coda',
+  'Asana',
+  'Teams',
+  'Trello',
+  'Other',
+  'None'
+] as const;
+
 export type DialerTool = typeof DIALER_OPTIONS[number];
 export type MeetingRecorderTool = typeof MEETING_RECORDER_OPTIONS[number];
 export type CRMTool = typeof CRM_OPTIONS[number];
+export type TaskManagerTool = typeof TASK_MANAGER_OPTIONS[number];
 
 // ============================================================================
 // Gamification Types

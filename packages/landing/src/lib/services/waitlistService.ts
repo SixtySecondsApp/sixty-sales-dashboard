@@ -113,16 +113,19 @@ export async function signupForWaitlist(
     email: (data.email || '').trim(),
     full_name: (data.full_name || '').trim(),
     company_name: (data.company_name || '').trim(),
-    dialer_tool: data.dialer_tool || null,
-    dialer_other: data.dialer_other?.trim() || null,
+    dialer_tool: null,
+    dialer_other: null,
     meeting_recorder_tool: data.meeting_recorder_tool || null,
     meeting_recorder_other: data.meeting_recorder_other?.trim() || null,
     crm_tool: data.crm_tool || null,
     crm_other: data.crm_other?.trim() || null,
+    task_manager_tool: data.task_manager_tool || null,
+    task_manager_other: data.task_manager_other?.trim() || null,
     referred_by_code: data.referred_by_code?.trim() || null,
     utm_source: data.utm_source || null,
     utm_campaign: data.utm_campaign || null,
     utm_medium: data.utm_medium || null,
+    registration_url: data.registration_url || null,
   };
 
   // Validate required fields are not empty after trimming
@@ -130,7 +133,7 @@ export async function signupForWaitlist(
     throw new Error('Please fill in all required fields');
   }
 
-  if (!cleanData.dialer_tool || !cleanData.meeting_recorder_tool || !cleanData.crm_tool) {
+  if (!cleanData.meeting_recorder_tool || !cleanData.crm_tool || !cleanData.task_manager_tool) {
     throw new Error('Please select all integration options');
   }
 
@@ -213,71 +216,100 @@ export async function validateReferralCode(code: string): Promise<boolean> {
 
 /**
  * Get all waitlist entries with optional filters
- * Admin only
+ * Admin only - Uses pagination to fetch all entries beyond Supabase's 1000 row limit
  */
 export async function getWaitlistEntries(
   filters?: WaitlistFilters
 ): Promise<WaitlistEntry[]> {
-  let query = supabase
-    .from('meetings_waitlist')
-    .select('*')
-    .order('effective_position', { ascending: true });
+  const pageSize = 1000;
+  let allEntries: WaitlistEntry[] = [];
+  let from = 0;
+  let hasMore = true;
 
-  // Apply filters
-  if (filters) {
-    if (filters.status && filters.status !== 'all') {
-      query = query.eq('status', filters.status);
+  while (hasMore) {
+    let query = supabase
+      .from('meetings_waitlist')
+      .select('*')
+      .order('effective_position', { ascending: true });
+
+    // Apply filters
+    if (filters) {
+      if (filters.status && filters.status !== 'all') {
+        query = query.eq('status', filters.status);
+      }
+      if (filters.dialer_tool) {
+        query = query.eq('dialer_tool', filters.dialer_tool);
+      }
+      if (filters.meeting_recorder_tool) {
+        query = query.eq('meeting_recorder_tool', filters.meeting_recorder_tool);
+      }
+      if (filters.crm_tool) {
+        query = query.eq('crm_tool', filters.crm_tool);
+      }
+      if (filters.task_manager_tool) {
+        query = query.eq('task_manager_tool', filters.task_manager_tool);
+      }
+      if (filters.date_from) {
+        query = query.gte('created_at', filters.date_from);
+      }
+      if (filters.date_to) {
+        query = query.lte('created_at', filters.date_to);
+      }
+      if (filters.search) {
+        query = query.or(
+          `email.ilike.%${filters.search}%,full_name.ilike.%${filters.search}%,company_name.ilike.%${filters.search}%`
+        );
+      }
     }
 
-    if (filters.dialer_tool) {
-      query = query.eq('dialer_tool', filters.dialer_tool);
+    const { data, error } = await query.range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error('Error getting waitlist entries:', error);
+      throw new Error('Failed to get waitlist entries');
     }
 
-    if (filters.meeting_recorder_tool) {
-      query = query.eq('meeting_recorder_tool', filters.meeting_recorder_tool);
-    }
-
-    if (filters.crm_tool) {
-      query = query.eq('crm_tool', filters.crm_tool);
-    }
-
-    if (filters.date_from) {
-      query = query.gte('created_at', filters.date_from);
-    }
-
-    if (filters.date_to) {
-      query = query.lte('created_at', filters.date_to);
-    }
-
-    if (filters.search) {
-      query = query.or(
-        `email.ilike.%${filters.search}%,full_name.ilike.%${filters.search}%,company_name.ilike.%${filters.search}%`
-      );
+    if (data && data.length > 0) {
+      allEntries = allEntries.concat(data);
+      from += pageSize;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
     }
   }
 
-  const { data, error } = await query;
-
-  if (error) {
-    console.error('Error getting waitlist entries:', error);
-    throw new Error('Failed to get waitlist entries');
-  }
-
-  return data || [];
+  return allEntries;
 }
 
 /**
  * Get waitlist statistics
- * Admin only
+ * Admin only - Uses pagination to fetch all entries beyond Supabase's 1000 row limit
  */
 export async function getWaitlistStats(): Promise<WaitlistStats> {
-  const { data: allEntries, error: allError } = await supabase
-    .from('meetings_waitlist')
-    .select('status, referral_count, created_at');
+  const pageSize = 1000;
+  let allEntries: { status: string; referral_count: number; created_at: string }[] = [];
+  let from = 0;
+  let hasMore = true;
 
-  if (allError) {
-    console.error('Error getting waitlist stats:', allError);
-    throw new Error('Failed to get waitlist statistics');
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('meetings_waitlist')
+      .select('status, referral_count, created_at')
+      .order('created_at', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error('Error getting waitlist stats:', error);
+      throw new Error('Failed to get waitlist statistics');
+    }
+
+    if (data && data.length > 0) {
+      allEntries = allEntries.concat(data);
+      from += pageSize;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
+    }
   }
 
   const now = new Date();
@@ -331,19 +363,36 @@ export async function getWaitlistStats(): Promise<WaitlistStats> {
 
 /**
  * Get tool usage analytics
- * Admin only
+ * Admin only - Uses pagination to fetch all entries beyond Supabase's 1000 row limit
  */
 export async function getToolAnalytics(): Promise<ToolAnalytics> {
-  const { data, error } = await supabase
-    .from('meetings_waitlist')
-    .select('dialer_tool, meeting_recorder_tool, crm_tool');
+  const pageSize = 1000;
+  let allData: { dialer_tool: string | null; meeting_recorder_tool: string | null; crm_tool: string | null; task_manager_tool: string | null }[] = [];
+  let from = 0;
+  let hasMore = true;
 
-  if (error) {
-    console.error('Error getting tool analytics:', error);
-    throw new Error('Failed to get tool analytics');
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('meetings_waitlist')
+      .select('dialer_tool, meeting_recorder_tool, crm_tool, task_manager_tool')
+      .order('created_at', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error('Error getting tool analytics:', error);
+      throw new Error('Failed to get tool analytics');
+    }
+
+    if (data && data.length > 0) {
+      allData = allData.concat(data);
+      from += pageSize;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
+    }
   }
 
-  const analytics = data.reduce(
+  const analytics = allData.reduce(
     (acc, entry) => {
       if (entry.dialer_tool) {
         acc.dialers[entry.dialer_tool] = (acc.dialers[entry.dialer_tool] || 0) + 1;
@@ -355,12 +404,16 @@ export async function getToolAnalytics(): Promise<ToolAnalytics> {
       if (entry.crm_tool) {
         acc.crms[entry.crm_tool] = (acc.crms[entry.crm_tool] || 0) + 1;
       }
+      if (entry.task_manager_tool) {
+        acc.task_managers[entry.task_manager_tool] = (acc.task_managers[entry.task_manager_tool] || 0) + 1;
+      }
       return acc;
     },
     {
       dialers: {} as Record<string, number>,
       meeting_recorders: {} as Record<string, number>,
-      crms: {} as Record<string, number>
+      crms: {} as Record<string, number>,
+      task_managers: {} as Record<string, number>
     }
   );
 
@@ -422,10 +475,12 @@ export async function exportWaitlistCSV(filters?: WaitlistFilters): Promise<Blob
     'Email',
     'Name',
     'Company',
-    'Dialer',
+    'Dialler',
     'Meeting Recorder',
     'CRM',
+    'Task Manager',
     'Referrals',
+    'Registration URL',
     'Status',
     'Referral Code',
     'Referred By',
@@ -441,7 +496,9 @@ export async function exportWaitlistCSV(filters?: WaitlistFilters): Promise<Blob
     entry.dialer_tool || '',
     entry.meeting_recorder_tool || '',
     entry.crm_tool || '',
+    entry.task_manager_tool || '',
     entry.referral_count,
+    entry.registration_url || '',
     entry.status,
     entry.referral_code,
     entry.referred_by_code || '',

@@ -57,64 +57,80 @@ export function WaitlistTable({ entries, isLoading, onRefresh, adminUserId }: Wa
   }
 
   return (
-    <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl overflow-hidden shadow-sm dark:shadow-none">
+    <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl overflow-hidden shadow-sm dark:shadow-none w-full">
       {/* Header with Search */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-        <div className="relative max-w-md">
+        <div className="relative max-w-md w-full">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
             placeholder="Search by name, email, or company..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-10 w-full"
           />
         </div>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
+      <div className="overflow-x-auto w-full">
+        <table className="w-full min-w-[800px]">
           <thead>
             <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">#</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">#</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Name</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Email</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Company</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Tools</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Referrals</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Status</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">Referrals</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">Registration URL</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
             {filteredEntries.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   No entries found
                 </td>
               </tr>
             ) : (
               filteredEntries.map((entry) => (
                 <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
                     #{entry.effective_position || entry.signup_position}
                   </td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{entry.full_name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{entry.email}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{entry.company_name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white max-w-[150px] truncate" title={entry.full_name || ''}>
+                    {entry.full_name}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 max-w-[200px] truncate" title={entry.email}>
+                    {entry.email}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 max-w-[150px] truncate" title={entry.company_name || ''}>
+                    {entry.company_name || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 max-w-[120px]">
                     <div className="text-xs space-y-1">
-                      {entry.dialer_tool && <div>📞 {entry.dialer_tool}</div>}
-                      {entry.meeting_recorder_tool && <div>🎙️ {entry.meeting_recorder_tool}</div>}
-                      {entry.crm_tool && <div>📊 {entry.crm_tool}</div>}
+                      {entry.dialer_tool && <div className="truncate" title={entry.dialer_tool}>📞 {entry.dialer_tool}</div>}
+                      {entry.meeting_recorder_tool && <div className="truncate" title={entry.meeting_recorder_tool}>🎙️ {entry.meeting_recorder_tool}</div>}
+                      {entry.crm_tool && <div className="truncate" title={entry.crm_tool}>📊 {entry.crm_tool}</div>}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
-                    {entry.referral_count}
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap text-center">
+                    {entry.referral_count || 0}
                   </td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 max-w-[200px] truncate" title={entry.registration_url || ''}>
+                    {entry.registration_url ? (
+                      <span className="font-mono text-xs">
+                        {entry.registration_url}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 dark:text-gray-500">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
                     <span
-                      className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                      className={`px-2.5 py-1 rounded-full text-xs font-semibold inline-block ${
                         entry.status === 'pending'
                           ? 'bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-500/20'
                           : entry.status === 'released'
@@ -125,14 +141,14 @@ export function WaitlistTable({ entries, isLoading, onRefresh, adminUserId }: Wa
                       {entry.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm">
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       {entry.status === 'pending' && (
                         <Button
                           onClick={() => handleRelease(entry.id)}
                           size="sm"
                           variant="ghost"
-                          className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
+                          className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 flex-shrink-0"
                         >
                           <Check className="w-4 h-4" />
                         </Button>
@@ -141,7 +157,7 @@ export function WaitlistTable({ entries, isLoading, onRefresh, adminUserId }: Wa
                         onClick={() => handleDelete(entry.id)}
                         size="sm"
                         variant="ghost"
-                        className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10"
+                        className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10 flex-shrink-0"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>

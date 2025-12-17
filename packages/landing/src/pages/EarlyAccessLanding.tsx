@@ -1,29 +1,27 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Check, ArrowRight, MailX, FileClock, CalendarClock, Inbox,
   X, Send, FileText, ClipboardList, Zap, User
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/clientV2';
-import { WaitlistSuccess } from './components/WaitlistSuccess';
-import type { WaitlistEntry } from '@/lib/types/waitlist';
 import { usePublicBrandingSettings } from '@/lib/hooks/useBrandingSettings';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { captureRegistrationUrl } from '@/lib/utils/registrationUrl';
 
 // Types
 interface FormData {
   full_name: string;
   email: string;
   company_name: string;
-  dialer_tool: string;
   meeting_recorder_tool: string;
   crm_tool: string;
+  task_manager_tool: string;
+  task_manager_other: string;
 }
-
-// Dialer options
-const DIALER_OPTIONS = ['Aircall', 'Dialpad', 'RingCentral', 'Outreach', 'Salesloft', 'None', 'Other'];
 const MEETING_RECORDER_OPTIONS = ['Fathom', 'Gong', 'Chorus', 'Fireflies', 'Otter.ai', 'None', 'Other'];
 const CRM_OPTIONS = ['Salesforce', 'HubSpot', 'Pipedrive', 'Close', 'Zoho', 'None', 'Other'];
+const TASK_MANAGER_OPTIONS = ['Monday', 'Jira', 'Coda', 'Asana', 'Teams', 'Trello'];
 
 // Validation helpers
 const isValidEmail = (email: string): boolean => {
@@ -37,6 +35,8 @@ const sanitizeName = (name: string): string => {
 };
 
 export default function EarlyAccessLanding() {
+  const navigate = useNavigate();
+  
   // Branding settings for logos
   const { logoDark } = usePublicBrandingSettings();
 
@@ -76,16 +76,16 @@ export default function EarlyAccessLanding() {
     full_name: '',
     email: '',
     company_name: '',
-    dialer_tool: '',
     meeting_recorder_tool: '',
-    crm_tool: ''
+    crm_tool: '',
+    task_manager_tool: '',
+    task_manager_other: ''
   });
   const [ctaEmail, setCtaEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCtaSubmitting, setIsCtaSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [ctaMessage, setCtaMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [successEntry, setSuccessEntry] = useState<WaitlistEntry | null>(null);
   const [shouldGlow, setShouldGlow] = useState(false);
 
   // CTA Modal State
@@ -94,9 +94,10 @@ export default function EarlyAccessLanding() {
     full_name: '',
     email: '',
     company_name: '',
-    dialer_tool: '',
     meeting_recorder_tool: '',
-    crm_tool: ''
+    crm_tool: '',
+    task_manager_tool: '',
+    task_manager_other: ''
   });
 
   // Fetch waitlist count on mount
@@ -191,34 +192,140 @@ export default function EarlyAccessLanding() {
       return;
     }
 
+    // Validate all three dropdowns are selected
+    if (!formData.meeting_recorder_tool || !formData.crm_tool || !formData.task_manager_tool) {
+      setMessage({ type: 'error', text: 'Please select an option for Meeting Recorder, CRM, and Task Manager' });
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Validate "Other" option has a value
+    if (formData.task_manager_tool === 'Other' && !formData.task_manager_other?.trim()) {
+      setMessage({ type: 'error', text: 'Please specify which task manager you use' });
+      setIsSubmitting(false);
+      return;
+    }
+
     // Preserve form data in case of error
     const currentFormData = { ...formData };
 
     try {
+      // Capture the full registration URL (pathname + search params)
+      // Always capture at submit time to ensure we have the current URL
+      // Normalize to remove trailing slashes (e.g., "/waitlist/" -> "/waitlist")
+      const registrationUrl = typeof window !== 'undefined' 
+        ? captureRegistrationUrl() 
+        : '/waitlist';
+      
+      console.log('[Waitlist] Capturing registration URL:', {
+        registrationUrl,
+        windowLocation: typeof window !== 'undefined' ? window.location.href : 'N/A'
+      }); // Debug log
+      
       const cleanData = {
         email: formData.email.trim().toLowerCase(),
         full_name: sanitizeName(formData.full_name.trim()) || null,
         company_name: sanitizeName(formData.company_name.trim()) || null,
-        dialer_tool: formData.dialer_tool || null,
+        dialer_tool: null,
         meeting_recorder_tool: formData.meeting_recorder_tool || null,
-        crm_tool: formData.crm_tool || null
+        crm_tool: formData.crm_tool || null,
+        task_manager_tool: formData.task_manager_tool || null,
+        task_manager_other: formData.task_manager_other?.trim() || null,
+        registration_url: registrationUrl || '/waitlist' // Fallback to /waitlist if somehow empty
       };
+      
+      console.log('[Waitlist] Submitting with registration_url:', cleanData.registration_url); // Debug log
+      console.log('[Waitlist] Full cleanData object:', cleanData); // Debug log
+      console.log('[Waitlist] registration_url in cleanData:', cleanData.registration_url); // Debug log
 
       const { data: entry, error } = await (supabase as any)
         .from('meetings_waitlist')
         .insert([cleanData])
         .select()
         .single();
-
+      
       if (error) {
+        console.error('[Waitlist] Insert error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
         if (error.code === '23505' || error.message?.includes('duplicate')) {
           throw new Error('This email is already on the waitlist!');
         }
         throw error;
       }
+      
+      console.log('[Waitlist] Insert result:', { 
+        entry, 
+        error,
+        entryRegistrationUrl: entry?.registration_url,
+        cleanDataRegistrationUrl: cleanData.registration_url,
+        allEntryFields: entry ? Object.keys(entry) : []
+      }); // Debug log
+      
+      // Verify the registration_url was saved
+      if (entry) {
+        if (entry.registration_url !== cleanData.registration_url) {
+          console.warn('[Waitlist] WARNING: registration_url mismatch!', {
+            sent: cleanData.registration_url,
+            received: entry.registration_url,
+            entryHasField: 'registration_url' in entry
+          });
+          
+          // If registration_url wasn't saved, try to update it directly
+          if (!entry.registration_url && cleanData.registration_url) {
+            console.log('[Waitlist] Attempting to update registration_url after insert...');
+            const { error: updateError } = await (supabase as any)
+              .from('meetings_waitlist')
+              .update({ registration_url: cleanData.registration_url })
+              .eq('id', entry.id);
+            
+            if (updateError) {
+              console.error('[Waitlist] Failed to update registration_url:', updateError);
+            } else {
+              console.log('[Waitlist] Successfully updated registration_url after insert');
+            }
+          }
+        } else {
+          console.log('[Waitlist] ✓ registration_url saved correctly:', entry.registration_url);
+        }
+      }
 
-      // Show the gamified success page
-      setSuccessEntry(entry as unknown as WaitlistEntry);
+      // Send welcome email using the same method as onboarding simulator
+      try {
+        const firstName = sanitizeName(formData.full_name.trim()).split(' ')[0];
+        const { data: emailData, error: emailError } = await supabase.functions.invoke('encharge-send-email', {
+          body: {
+            template_type: 'waitlist_welcome',
+            to_email: formData.email.trim().toLowerCase(),
+            to_name: firstName,
+            variables: {
+              user_name: firstName,
+              full_name: sanitizeName(formData.full_name.trim()),
+              company_name: sanitizeName(formData.company_name.trim()) || '',
+              first_name: firstName,
+              email: formData.email.trim().toLowerCase(),
+            },
+          },
+        });
+
+        if (emailError) {
+          console.error('[Waitlist] Welcome email failed:', emailError);
+        } else {
+          console.log('[Waitlist] Welcome email sent successfully:', emailData);
+        }
+      } catch (err) {
+        console.error('[Waitlist] Welcome email exception:', err);
+      }
+
+      // Navigate to thank you page with user data (using state to avoid URL exposure)
+      const email = formData.email.trim().toLowerCase();
+      const fullName = sanitizeName(formData.full_name.trim());
+      navigate('/waitlist/thank-you', {
+        state: { email, fullName }
+      });
     } catch (err: any) {
       // Preserve form data on error - don't clear fields
       setFormData(currentFormData);
@@ -243,7 +350,6 @@ export default function EarlyAccessLanding() {
       full_name: '',
       email: ctaEmail.trim().toLowerCase(),
       company_name: '',
-      dialer_tool: '',
       meeting_recorder_tool: '',
       crm_tool: ''
     });
@@ -264,14 +370,30 @@ export default function EarlyAccessLanding() {
       return;
     }
 
+    // Validate all four dropdowns are selected
+    if (!ctaFormData.meeting_recorder_tool || !ctaFormData.crm_tool || !ctaFormData.task_manager_tool) {
+      setCtaMessage({ type: 'error', text: 'Please select an option for Meeting Recorder, CRM, and Task Manager' });
+      setIsCtaSubmitting(false);
+      return;
+    }
+
+    // Validate "Other" option has a value
+    if (ctaFormData.task_manager_tool === 'Other' && !ctaFormData.task_manager_other?.trim()) {
+      setCtaMessage({ type: 'error', text: 'Please specify which task manager you use' });
+      setIsCtaSubmitting(false);
+      return;
+    }
+
     try {
       const cleanData = {
         email: ctaFormData.email.trim().toLowerCase(),
         full_name: sanitizeName(ctaFormData.full_name.trim()) || null,
         company_name: sanitizeName(ctaFormData.company_name.trim()) || null,
-        dialer_tool: ctaFormData.dialer_tool || null,
+        dialer_tool: null,
         meeting_recorder_tool: ctaFormData.meeting_recorder_tool || null,
-        crm_tool: ctaFormData.crm_tool || null
+        crm_tool: ctaFormData.crm_tool || null,
+        task_manager_tool: ctaFormData.task_manager_tool || null,
+        task_manager_other: ctaFormData.task_manager_other?.trim() || null
       };
 
       const { data: entry, error } = await (supabase as any)
@@ -287,9 +409,40 @@ export default function EarlyAccessLanding() {
         throw error;
       }
 
-      // Show the gamified success page
-      setSuccessEntry(entry as unknown as WaitlistEntry);
+      // Send welcome email using the same method as onboarding simulator
+      try {
+        const firstName = sanitizeName(ctaFormData.full_name.trim()).split(' ')[0];
+        const { data: emailData, error: emailError } = await supabase.functions.invoke('encharge-send-email', {
+          body: {
+            template_type: 'waitlist_welcome',
+            to_email: ctaFormData.email.trim().toLowerCase(),
+            to_name: firstName,
+            variables: {
+              user_name: firstName,
+              full_name: sanitizeName(ctaFormData.full_name.trim()),
+              company_name: sanitizeName(ctaFormData.company_name.trim()) || '',
+              first_name: firstName,
+              email: ctaFormData.email.trim().toLowerCase(),
+            },
+          },
+        });
+
+        if (emailError) {
+          console.error('[Waitlist] Welcome email failed:', emailError);
+        } else {
+          console.log('[Waitlist] Welcome email sent successfully:', emailData);
+        }
+      } catch (err) {
+        console.error('[Waitlist] Welcome email exception:', err);
+      }
+
+      // Navigate to thank you page with user data (using state to avoid URL exposure)
+      const email = ctaFormData.email.trim().toLowerCase();
+      const fullName = sanitizeName(ctaFormData.full_name.trim());
       setShowCtaModal(false);
+      navigate('/waitlist/thank-you', {
+        state: { email, fullName }
+      });
       setCtaEmail('');
     } catch (err: any) {
       setCtaMessage({ type: 'error', text: err.message || 'Failed to join waitlist' });
@@ -306,11 +459,6 @@ export default function EarlyAccessLanding() {
   };
 
   const displayCount = waitlistCount !== null ? `${waitlistCount}+` : '...';
-
-  // Show gamified success page after successful signup
-  if (successEntry) {
-    return <WaitlistSuccess entry={successEntry} />;
-  }
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0a0d14] text-gray-900 dark:text-white font-sans antialiased overflow-x-hidden transition-colors duration-300">
@@ -364,7 +512,6 @@ export default function EarlyAccessLanding() {
             <button onClick={() => scrollToSection('features')} className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Features</button>
           </div>
           <div className="flex items-center gap-3">
-            <ThemeToggle />
             <button
               onClick={() => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -576,19 +723,6 @@ export default function EarlyAccessLanding() {
                       <p className="text-xs text-gray-500 dark:text-gray-400 pt-2">What integrations are important to you?</p>
 
                       <select
-                        key="dialer_tool"
-                        required
-                        value={formData.dialer_tool}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, dialer_tool: e.target.value }))}
-                        disabled={isSubmitting}
-                        className="w-full px-4 py-3.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer disabled:opacity-50"
-                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '18px' }}
-                      >
-                        <option value="" disabled className="bg-white dark:bg-[#0f1419]">Which dialer do you use? *</option>
-                        {DIALER_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-white dark:bg-[#0f1419]">{opt}</option>)}
-                      </select>
-
-                      <select
                         key="meeting_recorder_tool"
                         required
                         value={formData.meeting_recorder_tool}
@@ -613,6 +747,31 @@ export default function EarlyAccessLanding() {
                         <option value="" disabled className="bg-white dark:bg-[#0f1419]">Which CRM? *</option>
                         {CRM_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-white dark:bg-[#0f1419]">{opt}</option>)}
                       </select>
+
+                      <select
+                        key="task_manager_tool"
+                        required
+                        value={formData.task_manager_tool}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, task_manager_tool: e.target.value, task_manager_other: e.target.value === 'Other' ? prev.task_manager_other : '' }))}
+                        disabled={isSubmitting}
+                        className="w-full px-4 py-3.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer disabled:opacity-50"
+                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '18px' }}
+                      >
+                        <option value="" disabled className="bg-white dark:bg-[#0f1419]">Which Task Manager? *</option>
+                        {TASK_MANAGER_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-white dark:bg-[#0f1419]">{opt}</option>)}
+                      </select>
+
+                      {formData.task_manager_tool === 'Other' && (
+                        <input
+                          type="text"
+                          required
+                          placeholder="Which task manager?"
+                          value={formData.task_manager_other}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, task_manager_other: e.target.value }))}
+                          disabled={isSubmitting}
+                          className="w-full px-4 py-3.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all disabled:opacity-50"
+                        />
+                      )}
 
                       <button
                         type="submit"
@@ -1038,18 +1197,6 @@ export default function EarlyAccessLanding() {
 
                   <p className="text-xs text-gray-500 dark:text-gray-400 pt-1">What integrations are important to you?</p>
 
-                  {/* Dialer */}
-                  <select
-                    required
-                    value={ctaFormData.dialer_tool}
-                    onChange={(e) => setCtaFormData(prev => ({ ...prev, dialer_tool: e.target.value }))}
-                    className="w-full px-4 py-3.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer"
-                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '18px' }}
-                  >
-                    <option value="" disabled className="bg-white dark:bg-[#0f1419]">Which dialer do you use? *</option>
-                    {DIALER_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-white dark:bg-[#0f1419]">{opt}</option>)}
-                  </select>
-
                   {/* Meeting Recorder */}
                   <select
                     required
@@ -1073,6 +1220,29 @@ export default function EarlyAccessLanding() {
                     <option value="" disabled className="bg-white dark:bg-[#0f1419]">Which CRM? *</option>
                     {CRM_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-white dark:bg-[#0f1419]">{opt}</option>)}
                   </select>
+
+                  {/* Task Manager */}
+                  <select
+                    required
+                    value={ctaFormData.task_manager_tool}
+                    onChange={(e) => setCtaFormData(prev => ({ ...prev, task_manager_tool: e.target.value, task_manager_other: e.target.value === 'Other' ? prev.task_manager_other : '' }))}
+                    className="w-full px-4 py-3.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer"
+                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '18px' }}
+                  >
+                    <option value="" disabled className="bg-white dark:bg-[#0f1419]">Which Task Manager? *</option>
+                    {TASK_MANAGER_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-white dark:bg-[#0f1419]">{opt}</option>)}
+                  </select>
+
+                  {ctaFormData.task_manager_tool === 'Other' && (
+                    <input
+                      type="text"
+                      required
+                      placeholder="Which task manager?"
+                      value={ctaFormData.task_manager_other}
+                      onChange={(e) => setCtaFormData(prev => ({ ...prev, task_manager_other: e.target.value }))}
+                      className="w-full px-4 py-3.5 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                    />
+                  )}
 
                   {/* Error message */}
                   {ctaMessage && ctaMessage.type === 'error' && (

@@ -19,10 +19,10 @@ export default function MeetingsWaitlist() {
   const { user } = useAuth();
   const [showGrantAccessModal, setShowGrantAccessModal] = useState(false);
   const [showSeededManager, setShowSeededManager] = useState(false);
-  const [hideSeeded, setHideSeeded] = useState(true); // Default to hiding seeded users
+  const [hideSeeded, setHideSeeded] = useState(false); // Default to showing all users (including seeded)
 
   // Existing waitlist data
-  const { entries, stats, isLoading, releaseUser, deleteEntry, exportData } = useWaitlistAdmin();
+  const { entries, stats, isLoading, releaseUser, unreleaseUser, deleteEntry, exportData } = useWaitlistAdmin();
 
   // Filter entries based on seeded status
   const filteredEntries = hideSeeded ? entries.filter(entry => !entry.is_seeded) : entries;
@@ -107,17 +107,17 @@ export default function MeetingsWaitlist() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 overflow-x-hidden w-full bg-white dark:bg-gray-950 min-h-screen">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-white mb-2">Meetings Waitlist</h1>
-        <p className="text-gray-400">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Meetings Waitlist</h1>
+        <p className="text-gray-600 dark:text-gray-400">
           Manage waitlist signups, grant bulk access, and track onboarding progress
         </p>
       </div>
 
       {/* Seeded User Manager - Collapsible */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden transition-colors duration-200">
         <button
           onClick={() => setShowSeededManager(!showSeededManager)}
           className="
@@ -125,7 +125,7 @@ export default function MeetingsWaitlist() {
             flex items-center justify-between
             px-6 py-4
             hover:bg-gray-50 dark:hover:bg-gray-800
-            transition-colors
+            transition-colors duration-200
           "
         >
           <div className="flex items-center gap-3">
@@ -178,6 +178,7 @@ export default function MeetingsWaitlist() {
         canSelect={bulkActions.canSelect}
         isSelected={bulkActions.isSelected}
         onRelease={releaseUser}
+        onUnrelease={unreleaseUser}
         onResendMagicLink={handleResendMagicLink}
         onDelete={deleteEntry}
         onExport={exportData}

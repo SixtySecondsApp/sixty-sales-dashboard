@@ -29,6 +29,7 @@ export interface User {
   stage: string;
   avatar_url: string | null;
   is_admin: boolean;
+  is_internal: boolean;
   created_at: string;
   last_sign_in_at: string | null;
   targets: Target[];
@@ -69,22 +70,43 @@ export function useUsers() {
         throw error;
       }
 
+      // Fetch internal users status
+      const { data: internalUsers, error: internalUsersError } = await supabase
+        .from('internal_users')
+        .select('email, is_active')
+        .eq('is_active', true);
+
+      if (internalUsersError) {
+        logger.warn('Failed to fetch internal users:', internalUsersError);
+      }
+
+      // Create a Set of internal user emails for quick lookup
+      const internalEmails = new Set(
+        (internalUsers || [])
+          .filter(iu => iu.is_active)
+          .map(iu => iu.email.toLowerCase())
+      );
+
       // Transform data to match expected User interface
       // Get current user's email from auth session
       const { data: { user: authUser } } = await supabase.auth.getUser();
       
-      const usersData = (profiles || []).map((profile) => ({
-        id: profile.id,
-        email: profile.email || `user_${profile.id.slice(0, 8)}@private.local`,
-        first_name: profile.first_name || null,
-        last_name: profile.last_name || null,
-        stage: profile.stage || 'Trainee', // Use actual stage from profile
-        avatar_url: profile.avatar_url,
-        is_admin: profile.is_admin || false,
-        created_at: profile.created_at || profile.updated_at || new Date().toISOString(),
-        last_sign_in_at: null,
-        targets: [] // Will be loaded separately if needed
-      }));
+      const usersData = (profiles || []).map((profile) => {
+        const email = profile.email || `user_${profile.id.slice(0, 8)}@private.local`;
+        return {
+          id: profile.id,
+          email,
+          first_name: profile.first_name || null,
+          last_name: profile.last_name || null,
+          stage: profile.stage || 'Trainee', // Use actual stage from profile
+          avatar_url: profile.avatar_url,
+          is_admin: profile.is_admin || false,
+          is_internal: internalEmails.has(email.toLowerCase()),
+          created_at: profile.created_at || profile.updated_at || new Date().toISOString(),
+          last_sign_in_at: null,
+          targets: [] // Will be loaded separately if needed
+        };
+      });
 
       setUsers(usersData);
     } catch (error: any) {
@@ -108,8 +130,59 @@ export function useUsers() {
     }
     
     try {
-      // Extract targets and profile updates
-      const { targets, ...profileUpdates } = updates;
+      // Get current user to check if they're trying to remove their own admin status
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
+      // Extract targets, is_internal, and profile updates
+      const { targets, is_internal, ...profileUpdates } = updates;
+      
+      // Get user email for internal_users table operations
+      const user = users.find(u => u.id === userId);
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Safety check: Prevent users from removing their own admin status
+      if (currentUser && currentUser.id === userId && 'is_admin' in profileUpdates) {
+        if (profileUpdates.is_admin === false && user.is_admin === true) {
+          toast.error('You cannot remove your own admin status. Ask another admin to do this.');
+          return;
+        }
+      }
+
+      // Handle internal user status change
+      if (typeof is_internal === 'boolean' && user.email) {
+        if (is_internal) {
+          // Add to internal_users table
+          const { error: insertError } = await supabase
+            .from('internal_users')
+            .upsert({
+              email: user.email.toLowerCase(),
+              name: user.first_name && user.last_name 
+                ? `${user.first_name} ${user.last_name}`.trim()
+                : user.email,
+              is_active: true,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'email',
+              ignoreDuplicates: false
+            });
+
+          if (insertError) {
+            throw insertError;
+          }
+        } else {
+          // Remove from internal_users table (set is_active = false)
+          const { error: updateError } = await supabase
+            .from('internal_users')
+            .update({ is_active: false, updated_at: new Date().toISOString() })
+            .eq('email', user.email.toLowerCase());
+
+          if (updateError) {
+            throw updateError;
+          }
+        }
+      }
       
       // Update profile
       if (Object.keys(profileUpdates).length > 0) {
@@ -124,14 +197,22 @@ export function useUsers() {
         if ('avatar_url' in profileUpdates) {
           allowedUpdates.avatar_url = profileUpdates.avatar_url;
         }
+        if ('is_admin' in profileUpdates) {
+          allowedUpdates.is_admin = profileUpdates.is_admin;
+        }
+        if ('stage' in profileUpdates) {
+          allowedUpdates.stage = profileUpdates.stage;
+        }
         
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update(allowedUpdates)
-          .eq('id', userId);
+        if (Object.keys(allowedUpdates).length > 0) {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .update(allowedUpdates)
+            .eq('id', userId);
 
-        if (profileError) {
-          throw profileError;
+          if (profileError) {
+            throw profileError;
+          }
         }
       }
 

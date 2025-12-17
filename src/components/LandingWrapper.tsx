@@ -39,6 +39,10 @@ const LeaderboardLookup = import.meta.env.DEV
   ? lazy(() => import('../../packages/landing/src/pages/LeaderboardLookup'))
   : () => <Navigate to="/" replace />;
 
+const WaitlistThankYouPage = import.meta.env.DEV
+  ? lazy(() => import('../../packages/landing/src/pages/WaitlistThankYouPage'))
+  : () => <Navigate to="/" replace />;
+
 /**
  * LandingWrapper - Development-only component for viewing landing pages locally
  *
@@ -78,6 +82,7 @@ export function WaitlistPageWrapper() {
     <Suspense fallback={<LandingLoader />}>
       <Routes>
         <Route index element={<EarlyAccessLanding />} />
+        <Route path="thank-you" element={<WaitlistThankYouPage />} />
         <Route path="status/:id" element={<WaitlistStatus />} />
         <Route path="leaderboard" element={<LeaderboardLookup />} />
       </Routes>

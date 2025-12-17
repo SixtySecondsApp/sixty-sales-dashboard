@@ -397,9 +397,52 @@ async function testSESConnection(): Promise<{ success: boolean; message: string;
   }
 }
 
+/**
+ * Check if request is authenticated with service role key
+ */
+function isServiceRoleAuth(authHeader: string | null, serviceRoleKey: string): boolean {
+  if (!authHeader) return false;
+  const token = authHeader.replace(/^Bearer\s+/i, '');
+  return token === serviceRoleKey;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
+  }
+
+  // Check authentication - allow service role key or user JWT
+  const authHeader = req.headers.get('Authorization');
+  const apikeyHeader = req.headers.get('apikey');
+  
+  // Allow service role authentication (for service-to-service calls)
+  const isServiceRole = isServiceRoleAuth(authHeader, SUPABASE_SERVICE_ROLE_KEY) || 
+                        (apikeyHeader === SUPABASE_SERVICE_ROLE_KEY);
+  
+  // If not service role, try to validate as user JWT (optional - for direct calls)
+  if (!isServiceRole && authHeader) {
+    try {
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const token = authHeader.replace(/^Bearer\s+/i, '');
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (error || !user) {
+        // Not a valid user JWT, but we'll allow it if it's a service role call via apikey
+        if (!apikeyHeader || apikeyHeader !== SUPABASE_SERVICE_ROLE_KEY) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Unauthorized: invalid authentication' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    } catch (authError) {
+      // If auth check fails and no service role key, reject
+      if (!isServiceRole) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Unauthorized: authentication failed' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
   }
 
   // Handle test endpoint

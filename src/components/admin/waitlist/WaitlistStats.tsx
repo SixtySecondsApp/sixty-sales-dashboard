@@ -58,12 +58,12 @@ export function WaitlistStats({ stats, isLoading }: WaitlistStatsProps) {
   ];
 
   return (
-    <div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+    <div className="w-full overflow-x-hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4 w-full">
         {statCards.map((card, i) => (
           <div 
             key={i} 
-            className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-6 shadow-sm dark:shadow-none hover:shadow-md dark:hover:shadow-none transition-all duration-300"
+            className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-6 shadow-sm dark:shadow-none hover:shadow-md dark:hover:shadow-none transition-all duration-200"
           >
             <div className="flex items-center justify-between mb-4">
               <div className={`w-12 h-12 rounded-lg ${card.bgColor} flex items-center justify-center`}>
@@ -77,12 +77,12 @@ export function WaitlistStats({ stats, isLoading }: WaitlistStatsProps) {
       </div>
 
       {/* Additional Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-4 shadow-sm dark:shadow-none">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+        <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-4 shadow-sm dark:shadow-none transition-colors duration-200">
           <div className="text-gray-500 dark:text-gray-400 text-sm mb-1">Last 7 Days</div>
           <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.signups_last_7_days} signups</div>
         </div>
-        <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-4 shadow-sm dark:shadow-none">
+        <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-4 shadow-sm dark:shadow-none transition-colors duration-200">
           <div className="text-gray-500 dark:text-gray-400 text-sm mb-1">Last 30 Days</div>
           <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.signups_last_30_days} signups</div>
         </div>

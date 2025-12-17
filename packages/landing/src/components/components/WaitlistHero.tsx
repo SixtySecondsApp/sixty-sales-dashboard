@@ -1,48 +1,69 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Users, TrendingUp, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useWaitlistSignup } from '@/lib/hooks/useWaitlistSignup';
-import { DIALER_OPTIONS, MEETING_RECORDER_OPTIONS, CRM_OPTIONS } from '@/lib/types/waitlist';
+import { DIALER_OPTIONS, MEETING_RECORDER_OPTIONS, CRM_OPTIONS, TASK_MANAGER_OPTIONS } from '@/lib/types/waitlist';
 import type { WaitlistSignupData } from '@/lib/types/waitlist';
-import { WaitlistSuccess } from './WaitlistSuccess';
+import { captureRegistrationUrl } from '@/lib/utils/registrationUrl';
 
 export function WaitlistHero() {
-  const { signup, isSubmitting, success } = useWaitlistSignup();
+  const navigate = useNavigate();
+  const { signup, isSubmitting, simpleSuccess } = useWaitlistSignup();
   const [formData, setFormData] = useState<WaitlistSignupData>({
     email: '',
     full_name: '',
     company_name: '',
-    dialer_tool: '',
     meeting_recorder_tool: '',
     crm_tool: '',
+    task_manager_tool: '',
+    task_manager_other: '',
     referred_by_code: ''
   });
 
-  // Parse referral code from URL on mount
+  // Parse referral code and capture registration URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const refCode = params.get('ref');
-    if (refCode) {
-      setFormData(prev => ({ ...prev, referred_by_code: refCode }));
-    }
+    
+    // Capture the full registration URL (pathname + search params) and normalize it
+    const registrationUrl = captureRegistrationUrl();
+    
+    setFormData(prev => ({
+      ...prev,
+      referred_by_code: refCode || prev.referred_by_code,
+      registration_url: registrationUrl
+    }));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await signup(formData);
+    // Always capture registration URL at submit time to ensure it's current
+    const registrationUrl = captureRegistrationUrl();
+    const finalFormData = {
+      ...formData,
+      registration_url: registrationUrl
+    };
+    await signup(finalFormData);
   };
 
   const handleChange = (field: keyof WaitlistSignupData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // Show success modal if signup was successful
-  if (success) {
-    return <WaitlistSuccess entry={success} />;
-  }
+  // Navigate to thank you page when signup is successful (using state to avoid URL exposure)
+  useEffect(() => {
+    if (simpleSuccess) {
+      const email = simpleSuccess.email;
+      const fullName = simpleSuccess.full_name;
+      navigate('/waitlist/thank-you', {
+        state: { email, fullName }
+      });
+    }
+  }, [simpleSuccess, navigate]);
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -247,29 +268,12 @@ export function WaitlistHero() {
                       />
                     </div>
 
-                    {/* Dialer */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Which dialer do you use?
-                      </label>
-                      <Select value={formData.dialer_tool} onValueChange={(value) => handleChange('dialer_tool', value)}>
-                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                          <SelectValue placeholder="Select dialer" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {DIALER_OPTIONS.map(option => (
-                            <SelectItem key={option} value={option}>{option}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
                     {/* Meeting Recorder */}
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Which meeting recorder do you use?
+                        Which meeting recorder do you use? *
                       </label>
-                      <Select value={formData.meeting_recorder_tool} onValueChange={(value) => handleChange('meeting_recorder_tool', value)}>
+                      <Select value={formData.meeting_recorder_tool} onValueChange={(value) => handleChange('meeting_recorder_tool', value)} required>
                         <SelectTrigger className="bg-white/5 border-white/10 text-white">
                           <SelectValue placeholder="Select recorder" />
                         </SelectTrigger>
@@ -284,9 +288,9 @@ export function WaitlistHero() {
                     {/* CRM */}
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Which CRM do you use?
+                        Which CRM do you use? *
                       </label>
-                      <Select value={formData.crm_tool} onValueChange={(value) => handleChange('crm_tool', value)}>
+                      <Select value={formData.crm_tool} onValueChange={(value) => handleChange('crm_tool', value)} required>
                         <SelectTrigger className="bg-white/5 border-white/10 text-white">
                           <SelectValue placeholder="Select CRM" />
                         </SelectTrigger>
@@ -296,6 +300,47 @@ export function WaitlistHero() {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+
+                    {/* Task Manager */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Which Task Manager? *
+                      </label>
+                      <Select value={formData.task_manager_tool} onValueChange={(value) => {
+                        handleChange('task_manager_tool', value);
+                        if (value !== 'Other') {
+                          handleChange('task_manager_other', '');
+                        }
+                      }} required>
+                        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                          <SelectValue placeholder="Select Task Manager" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TASK_MANAGER_OPTIONS.map(option => (
+                            <SelectItem key={option} value={option}>{option}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <AnimatePresence>
+                        {formData.task_manager_tool === 'Other' && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden mt-2"
+                          >
+                            <Input
+                              type="text"
+                              placeholder="Which task manager?"
+                              value={formData.task_manager_other}
+                              onChange={(e) => handleChange('task_manager_other', e.target.value)}
+                              className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
 
                     {/* Referral Code (if present) */}

@@ -141,6 +141,7 @@ export default function Users() {
       'Last Name': string | null;
       'Email': string;
       'Stage': string;
+      'Internal': string;
       'Admin': string;
       'Created': string;
     };
@@ -150,6 +151,7 @@ export default function Users() {
       'Last Name': user.last_name,
       'Email': user.email,
       'Stage': user.stage,
+      'Internal': user.is_internal ? 'Yes' : 'No',
       'Admin': user.is_admin ? 'Yes' : 'No',
       'Created': new Date(user.created_at).toLocaleDateString()
     }));
@@ -194,7 +196,7 @@ export default function Users() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
@@ -215,6 +217,19 @@ export default function Users() {
                 <p className="text-sm text-gray-700 dark:text-gray-300">Admins</p>
                 <div className="text-xl font-bold text-gray-900 dark:text-gray-100">
                   {users.filter(u => u.is_admin).length}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
+                <UserCog className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-700 dark:text-gray-300">Internal Users</p>
+                <div className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                  {users.filter(u => u.is_internal).length}
                 </div>
               </div>
             </div>
@@ -308,6 +323,7 @@ export default function Users() {
                   <th className="text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider px-4 sm:px-6 py-3 whitespace-nowrap">User</th>
                   <th className="text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider px-4 sm:px-6 py-3 whitespace-nowrap">Stage</th>
                   <th className="text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider px-4 sm:px-6 py-3 whitespace-nowrap">Targets</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider px-4 sm:px-6 py-3 whitespace-nowrap">Internal</th>
                   <th className="text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider px-4 sm:px-6 py-3 whitespace-nowrap">Admin</th>
                   <th className="text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider px-4 sm:px-6 py-3 whitespace-nowrap">Actions</th>
                 </tr>
@@ -360,6 +376,21 @@ export default function Users() {
                     </td>
                     <td className="px-4 sm:px-6 py-4">
                       <button
+                        onClick={() => handleUpdateUser(user.id, { is_internal: !user.is_internal })}
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-1 rounded-lg transition-all duration-300 text-sm border",
+                          user.is_internal
+                            ? "bg-blue-500/10 text-blue-500 border-blue-500/30 hover:bg-blue-500/20"
+                            : "bg-gray-500/10 text-gray-400 border-gray-500/30 hover:bg-gray-500/20"
+                        )}
+                        title={user.is_internal ? 'Internal user - has full feature access' : 'External user - limited access'}
+                      >
+                        <UserCog className="w-4 h-4" />
+                        {user.is_internal ? 'Internal' : 'External'}
+                      </button>
+                    </td>
+                    <td className="px-4 sm:px-6 py-4">
+                      <button
                         onClick={() => handleUpdateUser(user.id, { is_admin: !user.is_admin })}
                         className={cn(
                           "flex items-center gap-2 px-3 py-1 rounded-lg transition-all duration-300 text-sm border",
@@ -367,6 +398,7 @@ export default function Users() {
                             ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/20"
                             : "bg-gray-500/10 text-gray-400 border-gray-500/30 hover:bg-gray-500/20"
                         )}
+                        title={user.is_admin ? 'Platform admin - can manage system settings' : 'Regular user'}
                       >
                         <Shield className="w-4 h-4" />
                         {user.is_admin ? 'Admin' : 'User'}
