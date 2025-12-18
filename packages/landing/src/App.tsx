@@ -13,6 +13,7 @@ import { WaitlistLandingPopup } from './pages/WaitlistLandingPopup';
 import { IntroductionPage } from './pages/IntroductionPage';
 import { IntroPage } from './pages/IntroPage';
 import { IntroducingPage } from './pages/IntroducingPage';
+import { LearnMore } from './pages/LearnMore';
 import { getAppUrl } from './lib/utils/siteUrl';
 
 // Initialize i18next for internationalization
@@ -31,6 +32,7 @@ function App() {
         <Route path="/introduction" element={<IntroductionPage />} />
         <Route path="/intro" element={<IntroPage />} />
         <Route path="/introducing" element={<IntroducingPage />} />
+        <Route path="/learnmore" element={<LearnMore />} />
 
         {/* Leaderboard */}
         <Route path="/waitlist/leaderboard" element={<LeaderboardLookup />} />
