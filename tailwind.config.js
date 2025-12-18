@@ -21,6 +21,12 @@ export default {
         sm: 'calc(var(--radius) - 4px)',
       },
       colors: {
+        // Brand colors - 60 Seconds Design System (for landing pages)
+        brand: {
+          violet: '#8129D7',
+          blue: '#2A5EDB',
+          teal: '#03AD9C',
+        },
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         orange: {

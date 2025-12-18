@@ -19,13 +19,36 @@
 
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  v_waitlist_entry RECORD;
+  v_first_name TEXT;
+  v_last_name TEXT;
 BEGIN
-  -- Insert profile for new user
+  -- Try to get user info from waitlist entry first
+  SELECT full_name, company_name INTO v_waitlist_entry
+  FROM meetings_waitlist
+  WHERE LOWER(email) = LOWER(NEW.email)
+    AND (user_id = NEW.id OR user_id IS NULL)
+  ORDER BY created_at ASC
+  LIMIT 1;
+
+  -- Parse name from waitlist or use metadata
+  IF v_waitlist_entry.full_name IS NOT NULL THEN
+    -- Split waitlist full_name into first and last
+    v_first_name := SPLIT_PART(TRIM(v_waitlist_entry.full_name), ' ', 1);
+    v_last_name := SUBSTRING(TRIM(v_waitlist_entry.full_name) FROM LENGTH(v_first_name) + 2);
+  ELSE
+    -- Fallback to metadata
+    v_first_name := COALESCE(NEW.raw_user_meta_data->>'first_name', '');
+    v_last_name := COALESCE(NEW.raw_user_meta_data->>'last_name', '');
+  END IF;
+
+  -- Insert profile for new user with waitlist data if available
   INSERT INTO public.profiles (id, first_name, last_name, email, stage)
   VALUES (
     NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'first_name', ''),
-    COALESCE(NEW.raw_user_meta_data->>'last_name', ''),
+    v_first_name,
+    v_last_name,
     NEW.email,
     'active'
   )

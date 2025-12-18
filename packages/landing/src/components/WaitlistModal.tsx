@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Check, Copy, X, PartyPopper, Mail } from 'lucide-react';
 import {
@@ -10,11 +11,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useWaitlistSignup } from '@/lib/hooks/useWaitlistSignup';
-import { savePartialSignup } from '@/lib/services/waitlistService';
-import { captureRegistrationUrl } from '@/lib/utils/registrationUrl';
-import { MEETING_RECORDER_OPTIONS, CRM_OPTIONS, TASK_MANAGER_OPTIONS } from '@/lib/types/waitlist';
-import type { WaitlistSignupData } from '@/lib/types/waitlist';
+import { useWaitlistSignup } from '@landing/lib/hooks/useWaitlistSignup';
+import { savePartialSignup } from '@landing/lib/services/waitlistService';
+import { captureRegistrationUrl } from '@landing/lib/utils/registrationUrl';
+import { MEETING_RECORDER_OPTIONS, CRM_OPTIONS, TASK_MANAGER_OPTIONS } from '@landing/lib/types/waitlist';
+import type { WaitlistSignupData } from '@landing/lib/types/waitlist';
 import { toast } from 'sonner';
 
 interface WaitlistModalProps {
@@ -25,10 +26,24 @@ interface WaitlistModalProps {
 }
 
 export function WaitlistModal({ isOpen, onClose, initialEmail = '', signupSource = 'join-popup' }: WaitlistModalProps) {
+  const navigate = useNavigate();
   const { signup, isSubmitting, success, simpleSuccess, reset } = useWaitlistSignup();
 
   // Check for either success state (gamification enabled or disabled)
   const isSuccess = success || simpleSuccess;
+
+  // Navigate to thank-you page when signup is successful
+  useEffect(() => {
+    if (simpleSuccess) {
+      const email = simpleSuccess.email.trim().toLowerCase();
+      const fullName = simpleSuccess.full_name.trim();
+      navigate('/waitlist/thank-you', {
+        state: { email, fullName }
+      });
+      // Close the modal after navigation
+      onClose();
+    }
+  }, [simpleSuccess, navigate, onClose]);
   const [copied, setCopied] = useState(false);
   const [formData, setFormData] = useState<WaitlistSignupData>({
     email: initialEmail,

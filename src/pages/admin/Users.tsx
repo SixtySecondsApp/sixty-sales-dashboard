@@ -16,10 +16,11 @@ import {
   Edit2,
   UserPlus,
   Star,
-  Target,
+  Target as TargetIcon,
   UserCheck,
   Trash2,
-  PlusCircle
+  PlusCircle,
+  Key
 } from 'lucide-react';
 import { useUsers } from '@/lib/hooks/useUsers';
 import { cn } from '@/lib/utils';
@@ -37,10 +38,12 @@ import {
 
 import { USER_STAGES } from '@/lib/hooks/useUser';
 import { format, parseISO } from 'date-fns';
-import { User } from '@/lib/hooks/useUsers';
+import { User, Target } from '@/lib/hooks/useUsers';
 import logger from '@/lib/utils/logger';
+import { AuthCodeGenerator } from '@/components/admin/AuthCodeGenerator';
 
 export default function Users() {
+  const [activeTab, setActiveTab] = useState<'users' | 'authCodes'>('users');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedStage, setSelectedStage] = useState('all');
@@ -186,14 +189,59 @@ export default function Users() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">User Management</h1>
             <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">Manage users, roles, and permissions</p>
           </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setActiveTab('authCodes')}
+              className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 text-sm border ${
+                activeTab === 'authCodes'
+                  ? 'bg-[#37bd7e]/20 text-[#37bd7e] border-[#37bd7e]/50'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Key className="w-4 h-4" />
+              Auth Codes
+            </button>
+            {activeTab === 'users' && (
+              <button
+                onClick={() => setEditingUser({ isNew: true })}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#37bd7e]/10 text-[#37bd7e] hover:bg-[#37bd7e]/20 transition-all duration-300 text-sm border border-[#37bd7e]/30 hover:border-[#37bd7e]/50"
+              >
+                <UserPlus className="w-4 h-4" />
+                Add User
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
           <button
-            onClick={() => setEditingUser({ isNew: true })}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#37bd7e]/10 text-[#37bd7e] hover:bg-[#37bd7e]/20 transition-all duration-300 text-sm border border-[#37bd7e]/30 hover:border-[#37bd7e]/50"
+            onClick={() => setActiveTab('users')}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === 'users'
+                ? 'border-[#37bd7e] text-[#37bd7e]'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
           >
-            <UserPlus className="w-4 h-4" />
-            Add User
+            Users
+          </button>
+          <button
+            onClick={() => setActiveTab('authCodes')}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === 'authCodes'
+                ? 'border-[#37bd7e] text-[#37bd7e]'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            Authentication Codes
           </button>
         </div>
+
+        {/* Tab Content */}
+        {activeTab === 'authCodes' ? (
+          <AuthCodeGenerator />
+        ) : (
+          <>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -370,7 +418,7 @@ export default function Users() {
                         onClick={() => setEditingUser({ ...(user as User), editingTargets: true })}
                         className="flex items-center gap-2 px-3 py-1 rounded-lg bg-violet-500/10 text-violet-500 hover:bg-violet-500/20 transition-all duration-300 text-sm border border-violet-500/30"
                       >
-                        <Target className="w-4 h-4" />
+                        <TargetIcon className="w-4 h-4" />
                         Edit Targets
                       </button>
                     </td>
@@ -454,6 +502,8 @@ export default function Users() {
             </table>
           </div>
         </div>
+          </>
+        )}
       </div>
 
       {/* Edit User Modal */}

@@ -1,15 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Mail, Lock, User, ArrowLeft } from 'lucide-react';
 import { useAccessCode } from '@/lib/hooks/useAccessCode';
 import { AccessCodeInput } from '@/components/AccessCodeInput';
 import { incrementCodeUsage } from '@/lib/services/accessCodeService';
+import { supabase } from '@/lib/supabase/clientV2';
 
 export default function Signup() {
   const [isLoading, setIsLoading] = useState(false);
+  const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -20,6 +22,60 @@ export default function Signup() {
   const navigate = useNavigate();
   const { signUp } = useAuth();
   const accessCode = useAccessCode();
+
+  // Pre-fill form from waitlist data or localStorage
+  useEffect(() => {
+    const prefillFromWaitlist = async () => {
+      // Check localStorage for waitlist data
+      const waitlistEmail = localStorage.getItem('waitlist_email');
+      const waitlistName = localStorage.getItem('waitlist_name');
+      const waitlistEntryId = searchParams.get('waitlist_entry') || localStorage.getItem('waitlist_entry_id');
+
+      if (waitlistEmail) {
+        setFormData(prev => ({ ...prev, email: waitlistEmail }));
+      }
+
+      if (waitlistName) {
+        const nameParts = waitlistName.trim().split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        setFormData(prev => ({
+          ...prev,
+          firstName,
+          lastName,
+        }));
+      }
+
+      // If we have a waitlist entry ID, try to fetch full data
+      if (waitlistEntryId && !waitlistEmail) {
+        try {
+          const { data: entry } = await supabase
+            .from('meetings_waitlist')
+            .select('email, full_name')
+            .eq('id', waitlistEntryId)
+            .single();
+
+          if (entry) {
+            setFormData(prev => ({ ...prev, email: entry.email || prev.email }));
+            if (entry.full_name) {
+              const nameParts = entry.full_name.trim().split(' ');
+              const firstName = nameParts[0] || '';
+              const lastName = nameParts.slice(1).join(' ') || '';
+              setFormData(prev => ({
+                ...prev,
+                firstName,
+                lastName,
+              }));
+            }
+          }
+        } catch (err) {
+          console.warn('Could not fetch waitlist entry:', err);
+        }
+      }
+    };
+
+    prefillFromWaitlist();
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,8 +119,37 @@ export default function Signup() {
       } else {
         // Increment code usage on successful signup
         await incrementCodeUsage(accessCode.code);
+        
+        // Get the newly created user
+        const { data: { user: newUser } } = await supabase.auth.getUser();
+        
+        if (newUser) {
+          // Try to auto-verify email if user has valid access code (linked to waitlist)
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token) {
+              const { data: verifyResult, error: verifyError } = await supabase.functions.invoke('auto-verify-email', {
+                body: { userId: newUser.id },
+                headers: {
+                  Authorization: `Bearer ${session.access_token}`
+                }
+              });
+
+              if (!verifyError && verifyResult?.success) {
+                // Email auto-verified, refresh session and go to onboarding
+                await supabase.auth.refreshSession();
+                toast.success('Account created! Redirecting to setup...');
+                navigate('/onboarding', { replace: true });
+                return;
+              }
+            }
+          } catch (verifyErr) {
+            console.warn('Auto-verification failed, user will need to verify email:', verifyErr);
+          }
+        }
+        
+        // Fallback: show verification screen
         toast.success('Account created! Please check your email to verify.');
-        // Redirect to email verification pending screen
         navigate(`/auth/verify-email?email=${encodeURIComponent(formData.email)}`);
       }
     } catch (error: any) {

@@ -14,7 +14,7 @@ import { getLoginUrl } from '../lib/utils/siteUrl';
 
 const VIDEO_URL = 'https://res.cloudinary.com/sixty-seconds/video/upload/v1765991844/60%20VSL%20-%20Waitlist/VSL1-descript-720p_fh7eoi.mp4';
 
-export function IntroductionPage() {
+export function IntroducingPage() {
   const [email, setEmail] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -313,10 +313,10 @@ export function IntroductionPage() {
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         initialEmail={email}
-        signupSource="introduction-vsl"
+        signupSource="introducing-vsl"
       />
     </div>
   );
 }
 
-export default IntroductionPage;
+export default IntroducingPage;

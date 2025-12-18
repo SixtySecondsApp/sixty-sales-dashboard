@@ -35,16 +35,12 @@
     <!-- Theme Initialization Script - MUST run before body renders -->
     <script>
       (function() {
-        // Get theme from localStorage or system preference
-        const savedTheme = localStorage.getItem('theme');
-        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        const theme = savedTheme || systemTheme;
+        // Force dark theme only - ignore system preferences and localStorage
+        const theme = 'dark';
 
         // Apply theme immediately to prevent flash
         document.documentElement.setAttribute('data-theme', theme);
-        if (theme === 'dark') {
-          document.documentElement.classList.add('dark');
-        }
+        document.documentElement.classList.add('dark');
       })();
     </script>
 

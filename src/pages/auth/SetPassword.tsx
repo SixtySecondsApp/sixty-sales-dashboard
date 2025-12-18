@@ -33,31 +33,61 @@ export default function SetPassword() {
         localStorage.setItem('waitlist_entry_id', entryId);
       }
 
-      // Check if user is authenticated
-      const { data: { session }, error } = await supabase.auth.getSession();
+      console.log('[SetPassword] Checking session for waitlist entry:', entryId);
 
-      if (error) {
-        console.error('Session check error:', error);
-        toast.error('Session error. Please try clicking the magic link again.');
-        navigate('/auth/login');
-        return;
+      // Check if user is authenticated - retry a few times as session might be establishing
+      let session = null;
+      let attempts = 0;
+      const maxAttempts = 5;
+
+      while (!session && attempts < maxAttempts) {
+        attempts++;
+        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error('[SetPassword] Session check error (attempt ' + attempts + '):', error);
+          if (attempts >= maxAttempts) {
+            toast.error('Session error. Please try clicking the invitation link again.');
+            navigate('/auth/login');
+            return;
+          }
+          // Wait a bit before retrying
+          await new Promise(resolve => setTimeout(resolve, 500));
+          continue;
+        }
+
+        if (currentSession?.user) {
+          session = currentSession;
+          console.log('[SetPassword] Session found:', {
+            userId: session.user.id,
+            email: session.user.email,
+            emailConfirmed: !!session.user.email_confirmed_at,
+            invitedAt: session.user.invited_at
+          });
+          break;
+        }
+
+        // No session yet, wait and retry
+        console.log('[SetPassword] No session yet (attempt ' + attempts + '), waiting...');
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       if (!session?.user) {
-        // No session - redirect to login
-        toast.error('Please click the magic link in your email to continue.');
+        // No session after retries - redirect to login
+        console.error('[SetPassword] No session found after ' + maxAttempts + ' attempts');
+        toast.error('Please click the invitation link in your email to continue.');
         navigate('/auth/login');
         return;
       }
 
       // User is authenticated
       setUserEmail(session.user.email || null);
-      
+
       // Check if user already has a password set (if not passwordless)
       // For passwordless users, we allow setting a password
       setIsCheckingSession(false);
     } catch (error: any) {
-      console.error('Error checking session:', error);
+      console.error('[SetPassword] Error checking session:', error);
       toast.error('An error occurred. Please try again.');
       navigate('/auth/login');
     }
@@ -121,7 +151,8 @@ export default function SetPassword() {
               .update({
                 user_id: session.user.id,
                 status: 'converted',
-                converted_at: new Date().toISOString()
+                converted_at: new Date().toISOString(),
+                invitation_accepted_at: new Date().toISOString()
               })
               .eq('id', entryIdToLink);
 
@@ -129,10 +160,20 @@ export default function SetPassword() {
               console.error('Error linking waitlist entry:', linkError);
               // Don't fail the password setup if linking fails - user can still proceed
             } else {
-              console.log('Successfully linked waitlist entry to user');
+              console.log('Successfully linked waitlist entry to user and tracked invitation acceptance');
             }
           } else {
             console.log('Waitlist entry already linked to user');
+            // Update invitation acceptance timestamp if not already set
+            await supabase
+              .from('meetings_waitlist')
+              .update({
+                invitation_accepted_at: new Date().toISOString(),
+                status: 'converted',
+                converted_at: new Date().toISOString()
+              })
+              .eq('id', entryIdToLink)
+              .is('invitation_accepted_at', null);
           }
 
           // Update user profile with waitlist entry data if available

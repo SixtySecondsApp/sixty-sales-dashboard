@@ -133,14 +133,16 @@ export function RouteGuard({
     return access;
   }, [requiredAccess, effectiveUserType, isPlatformAdmin, isOrgAdmin, isAdmin, isUserLoading, isPermissionsLoading, isFullyLoaded]);
 
-  // Redirect if no access (only after fully loaded)
+  // Redirect if no access (only after fully loaded and confirmed no access)
   useEffect(() => {
-    if (hasAccess === false) {
+    // Only redirect if we're fully loaded AND access is explicitly false
+    // Don't redirect if hasAccess is undefined (still loading)
+    if (isFullyLoaded && hasAccess === false) {
       const redirectTo = fallbackRoute || getRedirectForUnauthorized();
       // Use replace to avoid adding to history (user can't "back" into restricted page)
       navigate(redirectTo, { replace: true });
     }
-  }, [hasAccess, fallbackRoute, getRedirectForUnauthorized, navigate]);
+  }, [hasAccess, fallbackRoute, getRedirectForUnauthorized, navigate, isFullyLoaded]);
 
   // Show loading spinner while permissions are loading
   if (hasAccess === undefined) {

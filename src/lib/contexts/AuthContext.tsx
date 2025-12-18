@@ -391,19 +391,31 @@ const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       // Use helper function to get correct redirect URL
       const redirectUrl = getAuthRedirectUrl('/auth/reset-password');
-      
-      logger.log('Reset password redirect URL:', redirectUrl);
-      
-      const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
+
+      logger.log('=== PASSWORD RESET DEBUG ===');
+      logger.log('Email:', email.toLowerCase().trim());
+      logger.log('Redirect URL:', redirectUrl);
+      logger.log('Current window origin:', window.location.origin);
+
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
         redirectTo: redirectUrl,
       });
 
       if (error) {
+        logger.error('❌ Password reset error:', error);
+        logger.error('Error details:', {
+          message: error.message,
+          status: error.status,
+          name: error.name
+        });
         return { error: { message: authUtils.formatAuthError(error) } };
       }
 
+      logger.log('✅ Password reset email sent successfully');
+      logger.log('Response data:', data);
       return { error: null };
-    } catch (error) {
+    } catch (error: any) {
+      logger.error('❌ Password reset exception:', error);
       return { error: { message: authUtils.formatAuthError(error) } };
     }
   }, []);

@@ -23,46 +23,26 @@ function getSystemTheme(): ResolvedTheme {
 
 /**
  * Gets the currently applied theme from the DOM
- * This is useful for initial render to avoid flash
+ * Always returns dark theme
  */
 function getAppliedTheme(): ResolvedTheme {
-  if (typeof window === 'undefined') return 'dark'
-
-  try {
-    // Check if dark class is on document element (set by initializeTheme)
-    return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
-  } catch {
-    return 'dark'
-  }
+  return 'dark'
 }
 
 /**
  * Gets the stored theme preference from localStorage
- * Returns 'system' as default
+ * Always returns 'dark' - light theme not allowed
  */
 function getStoredTheme(): ThemeMode {
-  if (typeof window === 'undefined') return 'system'
-
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored === 'light' || stored === 'dark' || stored === 'system') {
-      return stored
-    }
-  } catch {
-    // Handle localStorage access errors
-  }
-
-  return 'system'
+  return 'dark'
 }
 
 /**
  * Resolves the theme mode to an actual theme (light or dark)
+ * Always returns dark theme - light theme not allowed
  */
 function resolveTheme(mode: ThemeMode): ResolvedTheme {
-  if (mode === 'system') {
-    return getSystemTheme()
-  }
-  return mode
+  return 'dark'
 }
 
 /**
@@ -104,35 +84,33 @@ function applyTheme(theme: ResolvedTheme) {
  * @property {Function} setThemeMode - Function to change theme preference
  */
 export function useTheme() {
-  const [themeMode, setThemeModeState] = useState<ThemeMode>(() => getStoredTheme())
-  // Use getAppliedTheme() to read from DOM (set by initializeTheme before React renders)
-  // This prevents flash of wrong theme/logo on initial render
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
-    getAppliedTheme()
-  )
+  // Always use dark theme
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(() => 'dark')
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => 'dark')
 
-  // Set theme mode and persist to localStorage
+  // Set theme mode - always forces to dark
   const setThemeMode = (mode: ThemeMode) => {
-    setThemeModeState(mode)
+    // Always set to dark regardless of input
+    const darkMode: ThemeMode = 'dark'
+    setThemeModeState(darkMode)
 
     try {
-      localStorage.setItem(STORAGE_KEY, mode)
+      localStorage.setItem(STORAGE_KEY, darkMode)
     } catch {
     }
 
-    const resolved = resolveTheme(mode)
+    const resolved: ResolvedTheme = 'dark'
     setResolvedTheme(resolved)
     applyTheme(resolved)
 
     // Dispatch custom event so other components using useTheme can sync
-    window.dispatchEvent(new CustomEvent('theme-changed', { detail: { mode, resolved } }))
+    window.dispatchEvent(new CustomEvent('theme-changed', { detail: { mode: darkMode, resolved } }))
   }
 
-  // Initialize theme on mount
+  // Initialize theme on mount - always dark
   useEffect(() => {
-    const resolved = resolveTheme(themeMode)
-    setResolvedTheme(resolved)
-    applyTheme(resolved)
+    setResolvedTheme('dark')
+    applyTheme('dark')
   }, [])
 
   // Listen for theme changes from other components
@@ -146,33 +124,8 @@ export function useTheme() {
     return () => window.removeEventListener('theme-changed', handleThemeChange as EventListener)
   }, [])
 
-  // Listen for system theme changes when in system mode
-  useEffect(() => {
-    if (themeMode !== 'system') return
-
-    try {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-
-      const handleChange = (e: MediaQueryListEvent) => {
-        const resolved = e.matches ? 'dark' : 'light'
-        setResolvedTheme(resolved)
-        applyTheme(resolved)
-      }
-
-      // Modern browsers
-      if (mediaQuery.addEventListener) {
-        mediaQuery.addEventListener('change', handleChange)
-        return () => mediaQuery.removeEventListener('change', handleChange)
-      }
-
-      // Legacy browsers
-      if (mediaQuery.addListener) {
-        mediaQuery.addListener(handleChange)
-        return () => mediaQuery.removeListener(handleChange)
-      }
-    } catch {
-    }
-  }, [themeMode])
+  // System theme listener disabled - dark theme only
+  // No need to listen for system theme changes
 
   return {
     themeMode,
@@ -186,7 +139,6 @@ export function useTheme() {
  * This prevents flash of wrong theme
  */
 export function initializeTheme() {
-  const mode = getStoredTheme()
-  const resolved = resolveTheme(mode)
-  applyTheme(resolved)
+  // Always initialize to dark theme
+  applyTheme('dark')
 }

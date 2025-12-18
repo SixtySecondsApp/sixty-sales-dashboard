@@ -95,7 +95,7 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
     }
   }, [hasCheckedOrg, activeOrg, userDomain, isPersonalEmail, user?.id]);
 
-  // Check if user has an organization and set initial name
+  // Check if user has an organization and get name from waitlist or org
   useEffect(() => {
     const initializeOrgName = async () => {
       if (orgLoading) return;
@@ -103,21 +103,55 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
       setHasCheckedOrg(true);
 
       if (activeOrg?.name) {
+        // Organization already exists (created by trigger)
         setOrgName(activeOrg.name);
         setSelectedOption(null); // User already has org, no choice needed
-      } else if (user) {
-        // No org exists, suggest a default name based on user info
-        const firstName = user.user_metadata?.first_name || '';
-        const lastName = user.user_metadata?.last_name || '';
-        const fullName = user.user_metadata?.full_name || `${firstName} ${lastName}`.trim();
+      } else if (user?.id) {
+        // Try to get company_name from waitlist entry
+        try {
+          const { data: waitlistEntry } = await supabase
+            .from('meetings_waitlist')
+            .select('company_name')
+            .eq('user_id', user.id)
+            .not('company_name', 'is', null)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .single();
 
-        if (fullName) {
-          setOrgName(`${fullName}'s Organization`);
-        } else if (user.email) {
-          const domain = user.email.split('@')[1];
-          if (domain) {
-            const companyName = domain.split('.')[0];
-            setOrgName(companyName.charAt(0).toUpperCase() + companyName.slice(1));
+          if (waitlistEntry?.company_name) {
+            // Use company name from waitlist (will be used by trigger to create org)
+            setOrgName(waitlistEntry.company_name.trim());
+          } else {
+            // Fallback to user's name
+            const firstName = user.user_metadata?.first_name || '';
+            const lastName = user.user_metadata?.last_name || '';
+            const fullName = user.user_metadata?.full_name || `${firstName} ${lastName}`.trim();
+
+            if (fullName) {
+              setOrgName(`${fullName}'s Organization`);
+            } else if (user.email) {
+              const domain = user.email.split('@')[1];
+              if (domain) {
+                const companyName = domain.split('.')[0];
+                setOrgName(companyName.charAt(0).toUpperCase() + companyName.slice(1));
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Error fetching waitlist entry:', err);
+          // Fallback to user's name
+          const firstName = user.user_metadata?.first_name || '';
+          const lastName = user.user_metadata?.last_name || '';
+          const fullName = user.user_metadata?.full_name || `${firstName} ${lastName}`.trim();
+
+          if (fullName) {
+            setOrgName(`${fullName}'s Organization`);
+          } else if (user.email) {
+            const domain = user.email.split('@')[1];
+            if (domain) {
+              const companyName = domain.split('.')[0];
+              setOrgName(companyName.charAt(0).toUpperCase() + companyName.slice(1));
+            }
           }
         }
       }
@@ -282,11 +316,12 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
     if (selectedOption === 'join' && selectedOrgId) {
       await handleJoinOrg();
     } else if (!activeOrg) {
+      // Organization should already be created by trigger, but if not, create it
       await handleCreateOrg();
-    } else if (activeOrg.name === orgName.trim()) {
-      onNext();
     } else {
-      await handleUpdateOrgName();
+      // Organization already exists (created by trigger with waitlist company_name)
+      // Just continue to next step
+      onNext();
     }
   };
 
@@ -472,21 +507,11 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
                   <label className="block text-sm font-medium text-gray-400 mb-2">
                     Organization Name
                   </label>
-                  <input
-                    type="text"
-                    value={orgName}
-                    onChange={(e) => {
-                      setOrgName(e.target.value);
-                      setError(null);
-                    }}
-                    placeholder="Acme Inc."
-                    maxLength={100}
-                    disabled={isUpdating}
-                    autoFocus
-                    className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-all disabled:opacity-50"
-                  />
+                  <div className="w-full bg-gray-700/30 border border-gray-600 rounded-lg px-4 py-3 text-white">
+                    {orgName || 'Loading...'}
+                  </div>
                   <p className="mt-2 text-xs text-gray-500">
-                    This will be visible to all team members you invite
+                    Your organization name was set from your waitlist registration. This will be visible to all team members you invite.
                   </p>
                 </div>
 
@@ -580,7 +605,7 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
             disabled={
               isUpdating ||
               (showJoinUI && !selectedOrgId) ||
-              (showCreateUI && !orgName.trim())
+              (showCreateUI && !orgName.trim() && !activeOrg)
             }
             className="bg-[#37bd7e] hover:bg-[#2da76c] text-white px-8"
           >

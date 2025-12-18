@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, ArrowRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { WaitlistModal } from '@landing/components/WaitlistModal';
 import {
   HeroSectionV4,
   IntegrationsSectionV4,
@@ -13,30 +16,19 @@ import { usePublicBrandingSettings } from '../lib/hooks/useBrandingSettings';
 import { useForceDarkMode } from '../lib/hooks/useForceDarkMode';
 import { getLoginUrl } from '../lib/utils/siteUrl';
 
-// Build version for deployment verification - remove after confirming deploy works
-const BUILD_VERSION = '2025-12-10-v2';
-
 /**
- * Meetings Landing Page V4
+ * Learn More Landing Page
  *
- * Combines the best elements from V1 and V3:
- * - V3 Hero Title: "Close More Deals Without Taking a Single Note"
- * - V1 Hero Background: Dark theme with animated gradient orbs
- * - V1 Hero Visual: Meeting cards with sentiment analysis
- * - V3 Top Cards: Metric cards (12 Deals, 8h, 24 Proposals)
- * - V3 FAQ: Early adopter objection handling
- * - V3 Header: Navigation with early adopter banner
+ * Default landing page for the application.
+ * Provides information about the product and features.
  */
-export function MeetingsLandingV4() {
+export function LearnMore() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [email, setEmail] = useState('');
+  const [showModal, setShowModal] = useState(false);
 
   // Force dark mode for landing pages
   useForceDarkMode();
-
-  // Log build version to console for deployment verification
-  useEffect(() => {
-    console.log(`[Landing] Build version: ${BUILD_VERSION}`);
-  }, []);
 
   // Branding settings for logos
   const { logoDark } = usePublicBrandingSettings();
@@ -44,6 +36,14 @@ export function MeetingsLandingV4() {
   // Close mobile menu when clicking a nav link
   const handleNavClick = () => {
     setMobileMenuOpen(false);
+  };
+
+  // Handle email form submission
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (email && email.includes('@')) {
+      setShowModal(true);
+    }
   };
 
   // Handle smooth scrolling for anchor links
@@ -60,7 +60,6 @@ export function MeetingsLandingV4() {
           const targetElement = document.getElementById(targetId);
 
           if (targetElement) {
-            // Use native scrollIntoView with block: 'start' to respect CSS scroll-margin-top
             targetElement.scrollIntoView({
               behavior: 'smooth',
               block: 'start',
@@ -76,7 +75,7 @@ export function MeetingsLandingV4() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 transition-colors duration-300">
-      {/* V4 Navigation - Fixed at top */}
+      {/* Navigation - Fixed at top */}
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-gray-950/90 border-b border-gray-800 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -85,17 +84,22 @@ export function MeetingsLandingV4() {
               className="flex items-center gap-3"
               whileHover={{ scale: 1.02 }}
             >
-              <img
-                src={logoDark}
-                alt="60"
-                className="h-10 w-auto transition-all duration-300"
-              />
+              {logoDark ? (
+                <img
+                  src={logoDark}
+                  alt="60"
+                  className="h-10 w-auto transition-all duration-300"
+                />
+              ) : (
+                <span className="text-xl font-bold text-[#37bd7e]">Sixty</span>
+              )}
             </motion.a>
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-8">
               <a href="#how-it-works" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">How It Works</a>
               <a href="#features" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">Features</a>
+              <a href="#integrations" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">Integrations</a>
               <a href="#faq" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">FAQ</a>
             </div>
 
@@ -106,14 +110,14 @@ export function MeetingsLandingV4() {
               >
                 Log In
               </a>
-              <motion.a
-                href="/waitlist"
-                className="hidden sm:block px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-all duration-200 shadow-lg shadow-blue-900/30"
+              <motion.button
+                onClick={() => setShowModal(true)}
+                className="hidden sm:block px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet text-white text-sm font-semibold hover:opacity-90 transition-all duration-200 shadow-lg shadow-brand-violet/25 cursor-pointer"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                Sign Up
-              </motion.a>
+                Get Started
+              </motion.button>
               {/* Mobile Menu Button */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -156,6 +160,13 @@ export function MeetingsLandingV4() {
                   Features
                 </a>
                 <a
+                  href="#integrations"
+                  onClick={handleNavClick}
+                  className="block py-2 px-3 rounded-lg text-base font-medium text-gray-300 hover:bg-gray-800 transition-colors"
+                >
+                  Integrations
+                </a>
+                <a
                   href="#faq"
                   onClick={handleNavClick}
                   className="block py-2 px-3 rounded-lg text-base font-medium text-gray-300 hover:bg-gray-800 transition-colors"
@@ -170,13 +181,15 @@ export function MeetingsLandingV4() {
                   >
                     Log In
                   </a>
-                  <a
-                    href="/waitlist"
-                    onClick={handleNavClick}
-                    className="block py-3 px-4 rounded-xl bg-blue-600 text-white text-center text-base font-semibold hover:bg-blue-700 transition-all"
+                  <button
+                    onClick={() => {
+                      handleNavClick();
+                      setShowModal(true);
+                    }}
+                    className="block w-full py-3 px-4 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet text-white text-center text-base font-semibold hover:opacity-90 transition-all cursor-pointer"
                   >
-                    Sign Up
-                  </a>
+                    Get Started
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -185,15 +198,31 @@ export function MeetingsLandingV4() {
       </nav>
 
       {/* Main Content */}
-      <main className="relative overflow-x-hidden bg-transparent">
-        <HeroSectionV4 />
-        <HowItWorksV4 />
-        <IntegrationsSectionV4 />
-        <FAQSectionV4 />
-        <FinalCTA />
+      <main className="relative overflow-x-hidden">
+        <div id="hero">
+          <HeroSectionV4 onCTAClick={() => setShowModal(true)} />
+        </div>
+        <div id="how-it-works">
+          <HowItWorksV4 />
+        </div>
+        <div id="integrations">
+          <IntegrationsSectionV4 />
+        </div>
+        <div id="faq">
+          <FAQSectionV4 />
+        </div>
+        <FinalCTA onOpenModal={() => setShowModal(true)} email={email} setEmail={setEmail} onEmailSubmit={handleEmailSubmit} />
       </main>
 
       <LandingFooter />
+
+      {/* Waitlist Modal */}
+      <WaitlistModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        initialEmail={email}
+        signupSource="learnmore"
+      />
     </div>
   );
 }

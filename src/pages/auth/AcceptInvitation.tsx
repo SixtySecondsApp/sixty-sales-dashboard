@@ -95,7 +95,7 @@ export default function AcceptInvitation() {
 
     // Redirect to dashboard after a short delay
     setTimeout(() => {
-      navigate('/');
+      navigate('/dashboard', { replace: true });
     }, 2000);
   };
 

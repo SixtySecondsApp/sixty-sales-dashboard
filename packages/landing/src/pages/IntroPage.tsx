@@ -3,13 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Sparkles, ArrowRight, Menu, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { WaitlistModal } from '@/components/WaitlistModal';
+import { WaitlistModal } from '@landing/components/WaitlistModal';
 import { usePublicBrandingSettings } from '@/lib/hooks/useBrandingSettings';
 import {
   HowItWorksV4,
   FAQSectionV4,
   LandingFooter
 } from '../components/components-v4';
+import { getLoginUrl } from '../lib/utils/siteUrl';
 
 const VIDEO_URL = 'https://res.cloudinary.com/sixty-seconds/video/upload/v1765991844/60%20VSL%20-%20Waitlist/VSL1-descript-720p_fh7eoi.mp4';
 
@@ -94,7 +95,7 @@ export function IntroPage() {
 
             <div className="flex items-center gap-3 sm:gap-4">
               <a
-                href="https://app.use60.com/auth/login"
+                href={getLoginUrl()}
                 className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200 hidden sm:block"
               >
                 Log In
@@ -150,7 +151,7 @@ export function IntroPage() {
                 </a>
                 <div className="pt-3 border-t border-gray-800 space-y-3">
                   <a
-                    href="https://app.use60.com/auth/login"
+                    href={getLoginUrl()}
                     onClick={handleNavClick}
                     className="block py-2 px-3 rounded-lg text-base font-medium text-gray-300 hover:bg-gray-800 transition-colors"
                   >

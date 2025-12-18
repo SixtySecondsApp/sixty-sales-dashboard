@@ -97,6 +97,7 @@ export function useFathomIntegration() {
             setLifetimeMeetingsCount(count);
           }
         } else {
+          // No integration - clear state
           setSyncState(null);
           setLifetimeMeetingsCount(0);
         }
@@ -109,7 +110,9 @@ export function useFathomIntegration() {
 
     fetchIntegration();
 
-    // Subscribe to real-time updates
+    // Set up real-time subscriptions
+    // These will work regardless of whether integration exists initially
+    // They'll update the state when integration is connected/disconnected
     const integrationSubscription = supabaseAny
       .channel('fathom_integrations_changes')
       .on(
@@ -123,8 +126,19 @@ export function useFathomIntegration() {
         (payload) => {
           if (payload.eventType === 'DELETE') {
             setIntegration(null);
+            setSyncState(null);
+            setLifetimeMeetingsCount(0);
           } else {
             setIntegration(payload.new as FathomOrgIntegration);
+            // Fetch sync state when integration is created/updated
+            supabaseAny
+              .from('fathom_org_sync_state')
+              .select('*')
+              .eq('org_id', activeOrgId)
+              .maybeSingle()
+              .then(({ data }) => {
+                if (data) setSyncState(data);
+              });
           }
         }
       )
@@ -151,6 +165,7 @@ export function useFathomIntegration() {
       .subscribe();
 
     // Listen for new meetings to refresh lifetime count
+    // Only count Fathom meetings (those with fathom_recording_id)
     const meetingsSubscription = supabaseAny
       .channel('meetings_changes')
       .on(
@@ -162,12 +177,22 @@ export function useFathomIntegration() {
           filter: `org_id=eq.${activeOrgId}`,
         },
         async () => {
-          const { count } = await supabaseAny
-            .from('meetings')
-            .select('id', { count: 'exact', head: true })
+          // Only update count if Fathom is connected
+          const { data: currentIntegration } = await supabaseAny
+            .from('fathom_org_integrations')
+            .select('id')
             .eq('org_id', activeOrgId)
-            .not('fathom_recording_id', 'is', null);
-          if (typeof count === 'number') setLifetimeMeetingsCount(count);
+            .eq('is_active', true)
+            .maybeSingle();
+          
+          if (currentIntegration) {
+            const { count } = await supabaseAny
+              .from('meetings')
+              .select('id', { count: 'exact', head: true })
+              .eq('org_id', activeOrgId)
+              .not('fathom_recording_id', 'is', null);
+            if (typeof count === 'number') setLifetimeMeetingsCount(count);
+          }
         }
       )
       .subscribe();

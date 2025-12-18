@@ -1,7 +1,16 @@
 import { motion } from 'framer-motion';
 import { ArrowRight, Clock, Zap } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
-export function FinalCTA() {
+interface FinalCTAProps {
+  onOpenModal?: () => void;
+  email?: string;
+  setEmail?: (email: string) => void;
+  onEmailSubmit?: (e: React.FormEvent) => void;
+}
+
+export function FinalCTA({ onOpenModal, email = '', setEmail, onEmailSubmit }: FinalCTAProps = {}) {
   return (
     <section className="relative py-24 lg:py-32 bg-gray-50 dark:bg-gray-950 overflow-hidden transition-colors duration-300">
       {/* Background Effects */}
@@ -100,21 +109,62 @@ export function FinalCTA() {
               Join sales teams already using 60 to automate intelligent meeting actions, coach their reps, increase proposal rates and close deals faster.
             </motion.p>
 
-            {/* CTAs */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.5 }}
-              className="flex justify-center mb-10"
-            >
-              <a href="/waitlist" className="group px-8 py-4 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet text-white font-semibold text-lg hover:from-[#2351C4] hover:to-[#7024C0] transition-all duration-300 shadow-lg shadow-brand-blue/30 hover:shadow-xl hover:shadow-brand-blue/40">
-                <span className="flex items-center justify-center gap-2">
-                  Sign Up Now
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </span>
-              </a>
-            </motion.div>
+            {/* Email Capture Form or CTA Button */}
+            {onOpenModal && setEmail && onEmailSubmit ? (
+              <motion.form
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.5 }}
+                onSubmit={onEmailSubmit}
+                className="w-full max-w-md mx-auto mb-10"
+              >
+                <div className="flex flex-col sm:flex-row gap-3 p-2 rounded-2xl backdrop-blur-xl bg-white/5 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+                  <Input
+                    type="email"
+                    placeholder="Enter your work email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="flex-1 h-12 bg-transparent border-0 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus-visible:ring-0 focus-visible:ring-offset-0 px-4"
+                  />
+                  <Button
+                    type="submit"
+                    className="h-12 px-6 bg-gradient-to-r from-brand-blue to-brand-violet hover:from-[#2351C4] hover:to-[#7024C0] text-white font-semibold rounded-xl whitespace-nowrap"
+                  >
+                    Get Early Access
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+              </motion.form>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.5 }}
+                className="flex justify-center mb-10"
+              >
+                {onOpenModal ? (
+                  <button
+                    onClick={onOpenModal}
+                    className="group px-8 py-4 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet text-white font-semibold text-lg hover:from-[#2351C4] hover:to-[#7024C0] transition-all duration-300 shadow-lg shadow-brand-blue/30 hover:shadow-xl hover:shadow-brand-blue/40 cursor-pointer"
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      Sign Up Now
+                      <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </span>
+                  </button>
+                ) : (
+                  <a href="/waitlist" className="group px-8 py-4 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet text-white font-semibold text-lg hover:from-[#2351C4] hover:to-[#7024C0] transition-all duration-300 shadow-lg shadow-brand-blue/30 hover:shadow-xl hover:shadow-brand-blue/40">
+                    <span className="flex items-center justify-center gap-2">
+                      Sign Up Now
+                      <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </span>
+                  </a>
+                )}
+              </motion.div>
+            )}
 
             {/* Trust Elements */}
             <motion.div

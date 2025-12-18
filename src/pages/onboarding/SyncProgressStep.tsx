@@ -138,6 +138,60 @@ export function SyncProgressStep({ onNext, onBack }: SyncProgressStepProps) {
 
   const hasMeetings = meetingCount > 0;
 
+  // If Fathom is not connected, show skip option and allow continuing
+  if (!fathomLoading && !isFathomConnected) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        className="w-full max-w-2xl mx-auto"
+      >
+        <div className="text-center mb-8">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: 'spring' }}
+            className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-[#37bd7e] to-[#2da76c] mb-6"
+          >
+            <CheckCircle2 className="w-10 h-10 text-white" />
+          </motion.div>
+          <h1 className="text-3xl font-bold mb-4 text-white">
+            Connect Fathom Later
+          </h1>
+          <p className="text-lg text-gray-400">
+            You can connect your Fathom account anytime from Settings to sync your meeting recordings.
+          </p>
+        </div>
+
+        <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-800/50 p-6 mb-8">
+          <p className="text-gray-300 text-center">
+            No worries! You can connect Fathom later from the Integrations page to start syncing your meetings.
+          </p>
+        </div>
+
+        <div className="flex gap-4 justify-center">
+          <Button
+            onClick={onBack}
+            variant="ghost"
+            className="text-gray-400 hover:text-white"
+          >
+            Back
+          </Button>
+          <Button
+            onClick={async () => {
+              await markFirstMeetingSynced();
+              onNext();
+            }}
+            className="bg-[#37bd7e] hover:bg-[#2da76c] text-white px-8"
+          >
+            Continue
+          </Button>
+        </div>
+      </motion.div>
+    );
+  }
+
   // Show loading state while checking Fathom connection
   if (fathomLoading) {
     return (
@@ -155,7 +209,7 @@ export function SyncProgressStep({ onNext, onBack }: SyncProgressStepProps) {
     );
   }
 
-  // If Fathom is not connected, show message and redirect back
+  // If Fathom is not connected, allow user to skip and continue
   if (!isFathomConnected) {
     return (
       <motion.div
@@ -164,46 +218,6 @@ export function SyncProgressStep({ onNext, onBack }: SyncProgressStepProps) {
         exit={{ opacity: 0, x: -20 }}
         className="w-full max-w-2xl mx-auto"
       >
-        <div className="text-center mb-8">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: 'spring' }}
-            className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 mb-6"
-          >
-            <AlertCircle className="w-10 h-10 text-white" />
-          </motion.div>
-          <h1 className="text-4xl font-bold mb-4 text-white">
-            Fathom Not Connected
-          </h1>
-          <p className="text-xl text-gray-400">
-            Please connect your Fathom account first to sync meetings
-          </p>
-        </div>
-
-        <div className="bg-yellow-900/20 border border-yellow-800/50 rounded-xl p-6 mb-8">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-6 h-6 text-yellow-400 flex-shrink-0" />
-            <div>
-              <p className="text-yellow-400 font-medium">Connection Required</p>
-              <p className="text-sm text-gray-400">
-                Go back to the previous step to connect your Fathom account before syncing meetings.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex gap-4 justify-center">
-          <Button
-            onClick={onBack}
-            className="bg-[#37bd7e] hover:bg-[#2da76c] text-white px-8 py-6 text-lg"
-          >
-            Back to Connect Fathom
-          </Button>
-        </div>
-      </motion.div>
-    );
-  }
 
   return (
     <motion.div
