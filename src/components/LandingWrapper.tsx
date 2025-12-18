@@ -66,6 +66,7 @@ export function LandingWrapper() {
         <Route index element={<MeetingsLandingV4 />} />
         <Route path="waitlist" element={<WaitlistLanding />} />
         <Route path="pricing" element={<PricingPage />} />
+        {/* For /landing/* routes, redirect to /landing if unmatched */}
         <Route path="*" element={<Navigate to="/landing" replace />} />
       </Routes>
     </Suspense>

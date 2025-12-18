@@ -359,7 +359,13 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/landing-drue" element={<DrueLanding />} />
 
         {/* Development-only: Local landing page preview */}
-        {import.meta.env.DEV && <Route path="/landing/*" element={<LandingWrapper />} />}
+        {import.meta.env.DEV && (
+          <>
+            <Route path="/landing/*" element={<LandingWrapper />} />
+            {/* Show landing page at root in dev mode */}
+            <Route path="/" element={<LandingWrapper />} />
+          </>
+        )}
 
         {/* Redirect landing pages to www.use60.com */}
         <Route path="/product/meetings" element={<ExternalRedirect url="https://www.use60.com" />} />
