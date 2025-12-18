@@ -6,10 +6,10 @@ import {
   X, Send, FileText, ClipboardList, Zap
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/clientV2';
-import { usePublicBrandingSettings } from '@landing/lib/hooks/useBrandingSettings';
-import { captureRegistrationUrl } from '@landing/lib/utils/registrationUrl';
-import { useForceDarkMode } from '@landing/lib/hooks/useForceDarkMode';
-import { WaitlistModal } from '@landing/components/WaitlistModal';
+import { usePublicBrandingSettings } from '@/lib/hooks/useBrandingSettings';
+import { captureRegistrationUrl } from '@/lib/utils/registrationUrl';
+import { useForceDarkMode } from '@/lib/hooks/useForceDarkMode';
+import { WaitlistModal } from '@/components/WaitlistModal';
 
 // Types
 interface FormData {
