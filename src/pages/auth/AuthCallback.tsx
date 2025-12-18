@@ -43,8 +43,32 @@ export default function AuthCallback() {
         const waitlistEntryId = searchParams.get('waitlist_entry') || localStorage.getItem('waitlist_entry_id');
         const next = searchParams.get('next') || '/dashboard';
 
+        console.log('[AuthCallback] Starting callback processing:', {
+          hasCode: !!code,
+          hasTokenHash: !!tokenHash,
+          type,
+          waitlistEntryId,
+          urlParams: Object.fromEntries(searchParams.entries()),
+          hash: window.location.hash
+        });
+
+        // Check if there are session tokens in URL hash (from invitation redirect)
+        // Supabase client should auto-handle these, but let's wait a moment for it to process
+        if (window.location.hash && window.location.hash.includes('access_token')) {
+          console.log('[AuthCallback] Found access_token in URL hash, waiting for Supabase to process...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
         // First check if we already have a session (user might already be logged in)
         let { data: { session } } = await supabase.auth.getSession();
+
+        console.log('[AuthCallback] Initial session check:', {
+          hasSession: !!session,
+          userId: session?.user?.id,
+          email: session?.user?.email,
+          emailConfirmed: !!session?.user?.email_confirmed_at,
+          invitedAt: session?.user?.invited_at
+        });
 
         // If we already have a valid session with verified email, skip verification and proceed
         if (session?.user?.email_confirmed_at) {
@@ -108,13 +132,13 @@ export default function AuthCallback() {
           }
         }
 
-        // If there's a token_hash (from email confirmation/magic link), verify it
+        // If there's a token_hash (from email confirmation/magic link/invite), verify it
         if (tokenHash && type) {
-          console.log('[AuthCallback] Verifying magic link with token_hash and type:', type);
-          
+          console.log('[AuthCallback] Verifying OTP with token_hash and type:', type);
+
           const { data: verifyData, error: otpError } = await supabase.auth.verifyOtp({
             token_hash: tokenHash,
-            type: type as 'signup' | 'recovery' | 'email' | 'magiclink',
+            type: type as 'signup' | 'invite' | 'recovery' | 'email' | 'magiclink',
           });
           
           if (otpError) {
@@ -168,32 +192,38 @@ export default function AuthCallback() {
         }
 
         if (session?.user) {
-          // Check if email is now verified
-          if (session.user.email_confirmed_at) {
+          // Check if this is an invitation flow (type=invite or user has invited_at timestamp)
+          const isInvitation = type === 'invite' || session.user.invited_at;
+
+          // For invitations, we should redirect to SetPassword even if email not confirmed
+          // For regular signups, we need email_confirmed_at to proceed
+          const shouldProceed = session.user.email_confirmed_at || isInvitation;
+
+          if (shouldProceed) {
             // Check if this is a waitlist user
             // 1. First check URL params (might be lost in redirect)
             // 2. Check localStorage (might have been stored before)
-            // 3. Check user metadata (stored when magic link was generated)
+            // 3. Check user metadata (stored when invitation was generated)
             // 4. Find by email (fallback)
             let storedWaitlistEntryId = waitlistEntryId || localStorage.getItem('waitlist_entry_id');
-            
+
             // Check user metadata for waitlist_entry_id
             if (!storedWaitlistEntryId && session.user.user_metadata?.waitlist_entry_id) {
               storedWaitlistEntryId = session.user.user_metadata.waitlist_entry_id;
             }
-            
-            // If still no waitlist_entry, try to find it by email (magic link might not preserve query params)
+
+            // If still no waitlist_entry, try to find it by email (invitation link might not preserve query params)
             if (!storedWaitlistEntryId && session.user.email) {
               try {
                 const { data: waitlistEntry } = await supabase
                   .from('meetings_waitlist')
-                  .select('id, status, user_id')
+                  .select('id, status, user_id, invited_user_id')
                   .eq('email', session.user.email)
                   .in('status', ['released', 'pending', 'converted'])
                   .order('created_at', { ascending: true })
                   .limit(1)
                   .maybeSingle();
-                
+
                 if (waitlistEntry) {
                   storedWaitlistEntryId = waitlistEntry.id;
                   localStorage.setItem('waitlist_entry_id', waitlistEntry.id);
@@ -202,18 +232,27 @@ export default function AuthCallback() {
                 console.error('Error finding waitlist entry:', err);
               }
             }
-            
-            // If this is a waitlist entry callback, redirect to password setup
-            if (storedWaitlistEntryId) {
-              console.log('[AuthCallback] Redirecting to SetPassword with waitlist_entry:', storedWaitlistEntryId);
-              localStorage.setItem('waitlist_entry_id', storedWaitlistEntryId);
-              navigate(`/auth/set-password?waitlist_entry=${storedWaitlistEntryId}`, { replace: true });
+
+            // If this is a waitlist/invitation callback, redirect to password setup
+            if (storedWaitlistEntryId || isInvitation) {
+              const finalWaitlistId = storedWaitlistEntryId || 'pending';
+              console.log('[AuthCallback] Redirecting invited user to SetPassword with waitlist_entry:', finalWaitlistId);
+              if (storedWaitlistEntryId) {
+                localStorage.setItem('waitlist_entry_id', storedWaitlistEntryId);
+              }
+              navigate(`/auth/set-password?waitlist_entry=${finalWaitlistId}`, { replace: true });
               return;
             }
-            
-            await navigateBasedOnOnboarding(session, next);
+
+            // Only proceed to onboarding if email is confirmed
+            if (session.user.email_confirmed_at) {
+              await navigateBasedOnOnboarding(session, next);
+            } else {
+              // Email not confirmed and not an invitation - need verification
+              navigate(`/auth/verify-email?email=${encodeURIComponent(session.user.email || '')}`, { replace: true });
+            }
           } else {
-            // Email still not confirmed, go to verify page
+            // Email still not confirmed and not an invitation, go to verify page
             navigate(`/auth/verify-email?email=${encodeURIComponent(session.user.email || '')}`, { replace: true });
           }
         } else {
