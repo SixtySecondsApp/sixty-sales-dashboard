@@ -87,6 +87,38 @@ export function useUsers() {
           .map(iu => iu.email.toLowerCase())
       );
 
+      // Fetch targets for all users
+      const { data: allTargets, error: targetsError } = await supabase
+        .from('targets')
+        .select('*')
+        .in('user_id', (profiles || []).map(p => p.id));
+
+      if (targetsError) {
+        logger.warn('Failed to fetch targets:', targetsError);
+      }
+
+      // Create a map of user_id -> targets array
+      const targetsMap = new Map<string, Target[]>();
+      (allTargets || []).forEach((target: any) => {
+        if (target.user_id) {
+          if (!targetsMap.has(target.user_id)) {
+            targetsMap.set(target.user_id, []);
+          }
+          targetsMap.get(target.user_id)!.push({
+            id: target.id,
+            user_id: target.user_id,
+            revenue_target: target.revenue_target,
+            outbound_target: target.outbound_target,
+            meetings_target: target.meetings_target,
+            proposal_target: target.proposal_target,
+            start_date: target.start_date,
+            end_date: target.end_date,
+            created_at: target.created_at,
+            updated_at: target.updated_at
+          });
+        }
+      });
+
       // Transform data to match expected User interface
       // Get current user's email from auth session
       const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -104,7 +136,7 @@ export function useUsers() {
           is_internal: internalEmails.has(email.toLowerCase()),
           created_at: profile.created_at || profile.updated_at || new Date().toISOString(),
           last_sign_in_at: null,
-          targets: [] // Will be loaded separately if needed
+          targets: targetsMap.get(profile.id) || []
         };
       });
 
@@ -140,6 +172,44 @@ export function useUsers() {
       const user = users.find(u => u.id === userId);
       if (!user) {
         throw new Error('User not found');
+      }
+
+      // Handle targets update if provided
+      if (targets !== undefined && Array.isArray(targets)) {
+        // Delete existing targets for this user
+        const { error: deleteError } = await supabase
+          .from('targets')
+          .delete()
+          .eq('user_id', userId);
+
+        if (deleteError) {
+          logger.warn('Error deleting old targets:', deleteError);
+          // Continue anyway - might be first time setting targets
+        }
+
+        // Insert new targets (filter out temporary IDs like 'new_xxx')
+        const targetsToInsert = targets
+          .filter(t => t && (t.id === undefined || !t.id.toString().startsWith('new_')))
+          .map(t => ({
+            user_id: userId,
+            revenue_target: t.revenue_target,
+            outbound_target: t.outbound_target,
+            meetings_target: t.meetings_target,
+            proposal_target: t.proposal_target,
+            start_date: t.start_date,
+            end_date: t.end_date,
+            ...(t.id && !t.id.toString().startsWith('new_') ? { id: t.id } : {})
+          }));
+
+        if (targetsToInsert.length > 0) {
+          const { error: insertError } = await supabase
+            .from('targets')
+            .insert(targetsToInsert);
+
+          if (insertError) {
+            throw insertError;
+          }
+        }
       }
 
       // Safety check: Prevent users from removing their own admin status
@@ -226,20 +296,72 @@ export function useUsers() {
 
   const deleteUser = async (userId: string) => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', userId);
-
-      if (error) {
-        throw error;
+      // Get current user to verify admin status
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        throw new Error('No authenticated user found');
       }
 
-      toast.success('User deleted successfully');
-      await fetchUsers();
+      // Prevent self-deletion
+      if (currentUser.id === userId) {
+        toast.error('You cannot delete your own account');
+        return;
+      }
+
+      // Try edge function first for proper deletion (handles auth.users and RLS)
+      try {
+        const { data, error } = await supabase.functions.invoke('delete-user', {
+          body: { userId }
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        if (data?.error) {
+          throw new Error(data.error);
+        }
+
+        toast.success('User deleted successfully');
+        await fetchUsers();
+        return;
+      } catch (edgeFunctionError: any) {
+        // If edge function fails (not deployed, network error, etc.), fallback to direct deletion
+        logger.warn('Edge function deletion failed, attempting direct deletion:', edgeFunctionError);
+        
+        // Check if it's a permission/authorization error - don't fallback in that case
+        if (edgeFunctionError?.status === 401 || edgeFunctionError?.status === 403) {
+          throw new Error('Unauthorized: Admin access required to delete users');
+        }
+
+        // Fallback: Direct deletion from profiles table
+        // Note: This won't delete from auth.users, but will remove the profile
+        const user = users.find(u => u.id === userId);
+        if (user?.email) {
+          // Deactivate in internal_users if exists
+          await supabase
+            .from('internal_users')
+            .update({ is_active: false, updated_at: new Date().toISOString() })
+            .eq('email', user.email.toLowerCase());
+        }
+
+        // Delete from profiles
+        const { error: deleteError } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', userId);
+
+        if (deleteError) {
+          throw deleteError;
+        }
+
+        toast.success('User deleted successfully');
+        await fetchUsers();
+      }
     } catch (error: any) {
       logger.error('Delete error:', error);
-      toast.error('Failed to delete user: ' + (error.message || 'Unknown error'));
+      const errorMessage = error.message || error.error || 'Unknown error';
+      toast.error('Failed to delete user: ' + errorMessage);
     }
   };
 

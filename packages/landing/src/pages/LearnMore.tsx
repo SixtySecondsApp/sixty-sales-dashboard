@@ -13,30 +13,17 @@ import { usePublicBrandingSettings } from '../lib/hooks/useBrandingSettings';
 import { useForceDarkMode } from '../lib/hooks/useForceDarkMode';
 import { getLoginUrl } from '../lib/utils/siteUrl';
 
-// Build version for deployment verification - remove after confirming deploy works
-const BUILD_VERSION = '2025-12-10-v2';
-
 /**
- * Meetings Landing Page V4
+ * Learn More Landing Page
  *
- * Combines the best elements from V1 and V3:
- * - V3 Hero Title: "Close More Deals Without Taking a Single Note"
- * - V1 Hero Background: Dark theme with animated gradient orbs
- * - V1 Hero Visual: Meeting cards with sentiment analysis
- * - V3 Top Cards: Metric cards (12 Deals, 8h, 24 Proposals)
- * - V3 FAQ: Early adopter objection handling
- * - V3 Header: Navigation with early adopter banner
+ * Default landing page for the application.
+ * Provides information about the product and features.
  */
-export function MeetingsLandingV4() {
+export function LearnMore() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Force dark mode for landing pages
   useForceDarkMode();
-
-  // Log build version to console for deployment verification
-  useEffect(() => {
-    console.log(`[Landing] Build version: ${BUILD_VERSION}`);
-  }, []);
 
   // Branding settings for logos
   const { logoDark } = usePublicBrandingSettings();
@@ -60,7 +47,6 @@ export function MeetingsLandingV4() {
           const targetElement = document.getElementById(targetId);
 
           if (targetElement) {
-            // Use native scrollIntoView with block: 'start' to respect CSS scroll-margin-top
             targetElement.scrollIntoView({
               behavior: 'smooth',
               block: 'start',
@@ -76,7 +62,7 @@ export function MeetingsLandingV4() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 transition-colors duration-300">
-      {/* V4 Navigation - Fixed at top */}
+      {/* Navigation - Fixed at top */}
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-gray-950/90 border-b border-gray-800 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -85,17 +71,22 @@ export function MeetingsLandingV4() {
               className="flex items-center gap-3"
               whileHover={{ scale: 1.02 }}
             >
-              <img
-                src={logoDark}
-                alt="60"
-                className="h-10 w-auto transition-all duration-300"
-              />
+              {logoDark ? (
+                <img
+                  src={logoDark}
+                  alt="60"
+                  className="h-10 w-auto transition-all duration-300"
+                />
+              ) : (
+                <span className="text-xl font-bold text-[#37bd7e]">Sixty</span>
+              )}
             </motion.a>
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-8">
               <a href="#how-it-works" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">How It Works</a>
               <a href="#features" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">Features</a>
+              <a href="#integrations" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">Integrations</a>
               <a href="#faq" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">FAQ</a>
             </div>
 
@@ -107,12 +98,12 @@ export function MeetingsLandingV4() {
                 Log In
               </a>
               <motion.a
-                href="/waitlist"
-                className="hidden sm:block px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-all duration-200 shadow-lg shadow-blue-900/30"
+                href={getLoginUrl()}
+                className="hidden sm:block px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet text-white text-sm font-semibold hover:opacity-90 transition-all duration-200 shadow-lg shadow-brand-violet/25"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                Sign Up
+                Get Started
               </motion.a>
               {/* Mobile Menu Button */}
               <button
@@ -156,6 +147,13 @@ export function MeetingsLandingV4() {
                   Features
                 </a>
                 <a
+                  href="#integrations"
+                  onClick={handleNavClick}
+                  className="block py-2 px-3 rounded-lg text-base font-medium text-gray-300 hover:bg-gray-800 transition-colors"
+                >
+                  Integrations
+                </a>
+                <a
                   href="#faq"
                   onClick={handleNavClick}
                   className="block py-2 px-3 rounded-lg text-base font-medium text-gray-300 hover:bg-gray-800 transition-colors"
@@ -171,11 +169,11 @@ export function MeetingsLandingV4() {
                     Log In
                   </a>
                   <a
-                    href="/waitlist"
+                    href={getLoginUrl()}
                     onClick={handleNavClick}
-                    className="block py-3 px-4 rounded-xl bg-blue-600 text-white text-center text-base font-semibold hover:bg-blue-700 transition-all"
+                    className="block py-3 px-4 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet text-white text-center text-base font-semibold hover:opacity-90 transition-all"
                   >
-                    Sign Up
+                    Get Started
                   </a>
                 </div>
               </div>
@@ -185,11 +183,19 @@ export function MeetingsLandingV4() {
       </nav>
 
       {/* Main Content */}
-      <main className="relative overflow-x-hidden bg-transparent">
-        <HeroSectionV4 />
-        <HowItWorksV4 />
-        <IntegrationsSectionV4 />
-        <FAQSectionV4 />
+      <main className="relative overflow-x-hidden">
+        <div id="hero">
+          <HeroSectionV4 />
+        </div>
+        <div id="how-it-works">
+          <HowItWorksV4 />
+        </div>
+        <div id="integrations">
+          <IntegrationsSectionV4 />
+        </div>
+        <div id="faq">
+          <FAQSectionV4 />
+        </div>
         <FinalCTA />
       </main>
 

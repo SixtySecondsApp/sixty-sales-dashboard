@@ -12,6 +12,7 @@ import { WaitlistLandingPage } from './pages/WaitlistLandingPage';
 import { WaitlistLandingPopup } from './pages/WaitlistLandingPopup';
 import { IntroductionPage } from './pages/IntroductionPage';
 import { IntroPage } from './pages/IntroPage';
+import { getAppUrl } from './lib/utils/siteUrl';
 
 // Initialize i18next for internationalization
 import './lib/i18n/config';
@@ -46,7 +47,8 @@ function App() {
 
 function RedirectToApp() {
   useEffect(() => {
-    window.location.href = 'https://app.use60.com' + window.location.pathname;
+    const appUrl = getAppUrl();
+    window.location.href = appUrl + window.location.pathname;
   }, []);
 
   return (

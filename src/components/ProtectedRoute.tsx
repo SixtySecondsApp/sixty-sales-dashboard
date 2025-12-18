@@ -24,7 +24,8 @@ const publicRoutes = [
   '/waitlist',
   '/pricing',
   '/intro',
-  '/introduction'
+  '/introduction',
+  '/learnmore'
 ];
 
 // Check if a route is a public waitlist route (including sub-routes)
@@ -44,16 +45,21 @@ const authRequiredRoutes = [
 ];
 
 // Routes that should NOT trigger onboarding redirect (allow completing onboarding)
+// Also includes /platform/* routes to preserve them on refresh
 const onboardingExemptRoutes = [
   '/onboarding',
   '/auth',
   '/debug',
   '/oauth',
-  '/platform/onboarding-simulator',
-  '/platform/email-templates' // Allow access to email templates during onboarding
+  '/platform' // All platform routes are exempt from onboarding redirect
 ];
 
-export function ProtectedRoute({ children, redirectTo = '/auth/login' }: ProtectedRouteProps) {
+// Helper to check if a route is exempt (including sub-routes)
+const isOnboardingExemptRoute = (pathname: string): boolean => {
+  return onboardingExemptRoutes.some(route => pathname.startsWith(route));
+};
+
+export function ProtectedRoute({ children, redirectTo = '/learnmore' }: ProtectedRouteProps) {
   const { isAuthenticated, loading, user } = useAuth();
   const { needsOnboarding, loading: onboardingLoading } = useOnboardingProgress();
   const navigate = useNavigate();
@@ -71,9 +77,7 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
   const isAuthRequiredRoute = authRequiredRoutes.some(route =>
     location.pathname === route || location.pathname.startsWith(route + '/')
   );
-  const isOnboardingExempt = onboardingExemptRoutes.some(route =>
-    location.pathname === route || location.pathname.startsWith(route)
-  );
+  const isOnboardingExempt = isOnboardingExemptRoute(location.pathname);
 
   // TEMPORARY DEV: Allow roadmap access in development for ticket implementation
   const isDevModeBypass = process.env.NODE_ENV === 'development' &&
@@ -121,6 +125,19 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
     // Don't redirect while loading auth, onboarding status, or email verification
     if (loading || onboardingLoading || isCheckingEmail) return;
 
+    // CRITICAL: If user is authenticated and on a protected route, NEVER redirect them away
+    // This preserves the current page on refresh
+    const isProtectedRoute = !isPublicRoute && !isPasswordRecovery && !isOAuthCallback && !isVerifyEmailRoute;
+    if (isAuthenticated && emailVerified && isProtectedRoute) {
+      // User is authenticated and on a protected route - allow them to stay
+      // Only redirect if they need onboarding and this route is not exempt
+      if (needsOnboarding && !isOnboardingExempt) {
+        navigate('/onboarding', { replace: true });
+      }
+      // Otherwise, let them stay on their current route
+      return;
+    }
+
     // If user is authenticated but email is not verified, redirect to verify-email
     // Skip this for public routes and the verify-email page itself
     if (isAuthenticated && emailVerified === false && !isPublicRoute && !isVerifyEmailRoute) {
@@ -130,12 +147,13 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
     }
 
     // If user is authenticated (and email verified) and on a public route (except password recovery and OAuth callbacks), redirect to app
-    if (isAuthenticated && emailVerified && isPublicRoute && !isPasswordRecovery && !isOAuthCallback && !isVerifyEmailRoute) {
+    // Exception: Don't redirect from /learnmore - let authenticated users view it if they want
+    if (isAuthenticated && emailVerified && isPublicRoute && !isPasswordRecovery && !isOAuthCallback && !isVerifyEmailRoute && location.pathname !== '/learnmore') {
       // If user needs onboarding, redirect to onboarding instead of app
       if (needsOnboarding) {
         navigate('/onboarding', { replace: true });
       } else {
-        navigate('/');
+        navigate('/dashboard', { replace: true });
       }
       return;
     }
@@ -167,13 +185,6 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
         state: { from: intendedPath },
         replace: true
       });
-      return;
-    }
-
-    // If user is authenticated (with verified email) but hasn't completed onboarding, redirect to onboarding
-    // Skip this check for onboarding-exempt routes (like the onboarding page itself)
-    if (isAuthenticated && emailVerified && needsOnboarding && !isOnboardingExempt && !isPublicRoute) {
-      navigate('/onboarding', { replace: true });
       return;
     }
   }, [isAuthenticated, loading, onboardingLoading, isCheckingEmail, emailVerified, needsOnboarding, isPublicRoute, isVerifyEmailRoute, isPasswordRecovery, isDevModeBypass, isAuthRequiredRoute, isOnboardingExempt, navigate, redirectTo, location, isRedirecting, user?.email]);

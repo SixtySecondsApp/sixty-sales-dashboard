@@ -51,6 +51,8 @@ const IntroPage = import.meta.env.DEV
   ? lazy(() => import('../../packages/landing/src/pages/IntroPage').then(m => ({ default: m.IntroPage })))
   : () => <Navigate to="/" replace />;
 
+const LearnMore = lazy(() => import('../../packages/landing/src/pages/LearnMore').then(m => ({ default: m.LearnMore })));
+
 /**
  * LandingWrapper - Development-only component for viewing landing pages locally
  *
@@ -147,6 +149,15 @@ export function IntroPageWrapper() {
   return (
     <Suspense fallback={<LandingLoader />}>
       <IntroPage />
+    </Suspense>
+  );
+}
+
+// Learn More page wrapper (for /learnmore route - always available)
+export function LearnMorePageWrapper() {
+  return (
+    <Suspense fallback={<LandingLoader />}>
+      <LearnMore />
     </Suspense>
   );
 }

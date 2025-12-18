@@ -136,6 +136,7 @@ import { useForceDarkMode } from '../lib/hooks/useForceDarkMode';
 import { WaitlistModal } from '../components/WaitlistModal';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
+import { getLoginUrl } from '../lib/utils/siteUrl';
 
 /**
  * Waitlist Landing Page with Popup Modal
@@ -273,7 +274,7 @@ export function WaitlistLandingPopup() {
 
             <div className="flex items-center gap-3 sm:gap-4">
               <a
-                href="https://app.use60.com/auth/login"
+                href={getLoginUrl()}
                 className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200 hidden sm:block"
               >
                 Log In
@@ -336,7 +337,7 @@ export function WaitlistLandingPopup() {
                 </a>
                 <div className="pt-3 border-t border-gray-800 space-y-3">
                   <a
-                    href="https://app.use60.com/auth/login"
+                    href={getLoginUrl()}
                     onClick={handleNavClick}
                     className="block py-2 px-3 rounded-lg text-base font-medium text-gray-300 hover:bg-gray-800 transition-colors"
                   >

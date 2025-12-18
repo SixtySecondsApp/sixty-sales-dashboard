@@ -293,9 +293,15 @@ const MeetingsList: React.FC = () => {
   // Auto-sync when user arrives with Fathom connected but no meetings
   // This handles users coming from onboarding who skipped the sync step
   // Only runs ONCE per page load - uses ref to prevent re-triggering
+  // IMPORTANT: Only sync if Fathom is actually connected
   useEffect(() => {
     // Skip if we've already attempted auto-sync this session
     if (autoSyncAttemptedRef.current) return
+    
+    // CRITICAL: Don't attempt sync if Fathom is not connected
+    if (!isConnected) {
+      return;
+    }
 
     const shouldAutoSync =
       !loading &&

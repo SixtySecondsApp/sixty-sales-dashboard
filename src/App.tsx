@@ -15,6 +15,7 @@ import { useInitializeAuditSession } from '@/lib/hooks/useAuditSession';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { InternalRouteGuard, OrgAdminRouteGuard, PlatformAdminRouteGuard } from '@/components/RouteGuard';
 import { RouteDebug } from '@/components/RouteDebug';
+import { DefaultRoute } from '@/components/DefaultRoute';
 import { usePerformanceOptimization } from '@/lib/hooks/usePerformanceOptimization';
 import { IntelligentPreloader } from '@/components/LazyComponents';
 import { webVitalsOptimizer } from '@/lib/utils/webVitals';
@@ -163,7 +164,7 @@ const InternalDomainsSettings = lazyWithRetry(() => import('@/pages/admin/Intern
 const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
 
 // Landing pages wrapper (dev-only for local preview)
-import { LandingWrapper, WaitlistPageWrapper, LeaderboardPageWrapper, WaitlistStatusPage, IntroductionPageWrapper, IntroPageWrapper } from '@/components/LandingWrapper';
+import { LandingWrapper, WaitlistPageWrapper, LeaderboardPageWrapper, WaitlistStatusPage, IntroductionPageWrapper, IntroPageWrapper, LearnMorePageWrapper } from '@/components/LandingWrapper';
 import { supabase } from '@/lib/supabase/clientV2';
 
 // Make main app's Supabase client available to landing package
@@ -358,13 +359,12 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         {/* Drue Landing Page - public access */}
         <Route path="/landing-drue" element={<DrueLanding />} />
 
+        {/* Learn More - Default landing page (always available) */}
+        <Route path="/learnmore" element={<LearnMorePageWrapper />} />
+
         {/* Development-only: Local landing page preview */}
         {import.meta.env.DEV && (
-          <>
-            <Route path="/landing/*" element={<LandingWrapper />} />
-            {/* Show landing page at root in dev mode */}
-            <Route path="/" element={<LandingWrapper />} />
-          </>
+          <Route path="/landing/*" element={<LandingWrapper />} />
         )}
 
         {/* Redirect landing pages to www.use60.com */}
@@ -431,8 +431,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/debug-auth" element={<DebugAuth />} />
                 <Route path="/debug/auth" element={<AuthDebug />} />
                 <Route path="/debug-permissions" element={<DebugPermissions />} />
-                {/* Home route - shows Activity Dashboard for internal users, Meeting Analytics for external */}
-                <Route path="/" element={<InternalRouteGuard><AppLayout><Dashboard /></AppLayout></InternalRouteGuard>} />
+                {/* Home route - redirects unauthenticated to /learnmore, authenticated to dashboard */}
+                <Route path="/" element={<DefaultRoute />} />
                 {/* Dashboard alias for backwards compatibility */}
                 <Route path="/dashboard" element={<InternalRouteGuard><AppLayout><Dashboard /></AppLayout></InternalRouteGuard>} />
                 {/* Internal-only routes - CRM and tools */}

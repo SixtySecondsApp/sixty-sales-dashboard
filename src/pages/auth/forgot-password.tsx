@@ -24,10 +24,16 @@ export default function ForgotPassword() {
 
   // Handle Supabase password reset (sends email with link)
   const handleSupabaseReset = async () => {
+    console.log('[ForgotPassword] Attempting password reset for:', email.toLowerCase().trim());
+    console.log('[ForgotPassword] Current window location:', window.location.href);
+
     const { error } = await resetPassword(email);
+
     if (error) {
-      toast.error(error.message);
+      console.error('[ForgotPassword] Reset failed:', error);
+      toast.error(error.message || 'Failed to send reset email. Please try again.');
     } else {
+      console.log('[ForgotPassword] ✅ Password reset email sent successfully');
       setIsSubmitted(true);
       toast.success('Password reset instructions sent to your email');
     }
@@ -67,7 +73,7 @@ export default function ForgotPassword() {
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId });
         toast.success('Password reset successful! You are now logged in.');
-        navigate('/');
+        navigate('/dashboard', { replace: true });
       } else {
         toast.error('Password reset incomplete. Please try again.');
       }

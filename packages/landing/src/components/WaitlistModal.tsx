@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Check, Copy, X, PartyPopper, Mail } from 'lucide-react';
 import {
@@ -25,10 +26,24 @@ interface WaitlistModalProps {
 }
 
 export function WaitlistModal({ isOpen, onClose, initialEmail = '', signupSource = 'join-popup' }: WaitlistModalProps) {
+  const navigate = useNavigate();
   const { signup, isSubmitting, success, simpleSuccess, reset } = useWaitlistSignup();
 
   // Check for either success state (gamification enabled or disabled)
   const isSuccess = success || simpleSuccess;
+
+  // Navigate to thank-you page when signup is successful
+  useEffect(() => {
+    if (simpleSuccess) {
+      const email = simpleSuccess.email.trim().toLowerCase();
+      const fullName = simpleSuccess.full_name.trim();
+      navigate('/waitlist/thank-you', {
+        state: { email, fullName }
+      });
+      // Close the modal after navigation
+      onClose();
+    }
+  }, [simpleSuccess, navigate, onClose]);
   const [copied, setCopied] = useState(false);
   const [formData, setFormData] = useState<WaitlistSignupData>({
     email: initialEmail,

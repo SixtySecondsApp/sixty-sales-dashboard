@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Mail, Lock, ArrowRight, KeyRound, ArrowLeft } from 'lucide-react';
@@ -14,7 +14,17 @@ export default function Login() {
   const [verificationCode, setVerificationCode] = useState('');
   const [needsVerification, setNeedsVerification] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { signIn, verifySecondFactor } = useAuth();
+  
+  // Get the intended destination from location state, or default to dashboard
+  const getRedirectPath = () => {
+    const from = (location.state as any)?.from;
+    if (from && from !== '/auth/login' && from !== '/learnmore') {
+      return from;
+    }
+    return '/dashboard';
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,8 +42,9 @@ export default function Login() {
           toast.error(error.message);
         }
       } else {
-        // Success is handled by AuthContext
-        navigate('/');
+        // Success - redirect to intended destination or dashboard
+        const redirectPath = getRedirectPath();
+        navigate(redirectPath, { replace: true });
       }
     } catch (error: any) {
       toast.error('An unexpected error occurred. Please try again.');
@@ -52,8 +63,9 @@ export default function Login() {
       if (error) {
         toast.error(error.message);
       } else {
-        // Success - navigate to home
-        navigate('/');
+        // Success - redirect to intended destination or dashboard
+        const redirectPath = getRedirectPath();
+        navigate(redirectPath, { replace: true });
       }
     } catch (error: any) {
       toast.error('Verification failed. Please try again.');
