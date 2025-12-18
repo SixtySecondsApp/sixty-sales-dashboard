@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, ArrowRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { WaitlistModal } from '@landing/components/WaitlistModal';
+import { WaitlistModal } from '@/components/WaitlistModal';
 import {
   HeroSectionV4,
   IntegrationsSectionV4,

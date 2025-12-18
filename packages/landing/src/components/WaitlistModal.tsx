@@ -11,11 +11,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useWaitlistSignup } from '@landing/lib/hooks/useWaitlistSignup';
-import { savePartialSignup } from '@landing/lib/services/waitlistService';
-import { captureRegistrationUrl } from '@landing/lib/utils/registrationUrl';
-import { MEETING_RECORDER_OPTIONS, CRM_OPTIONS, TASK_MANAGER_OPTIONS } from '@landing/lib/types/waitlist';
-import type { WaitlistSignupData } from '@landing/lib/types/waitlist';
+import { useWaitlistSignup } from '@/lib/hooks/useWaitlistSignup';
+import { savePartialSignup } from '@/lib/services/waitlistService';
+import { captureRegistrationUrl } from '@/lib/utils/registrationUrl';
+import { MEETING_RECORDER_OPTIONS, CRM_OPTIONS, TASK_MANAGER_OPTIONS } from '@/lib/types/waitlist';
+import type { WaitlistSignupData } from '@/lib/types/waitlist';
 import { toast } from 'sonner';
 
 interface WaitlistModalProps {
