@@ -56,7 +56,7 @@ export interface WaitlistStats {
 }
 
 /**
- * Grant access to a waitlist entry
+ * Grant access to a waitlist entry by sending a password setup invitation
  */
 export async function grantAccess(
   entryId: string,
@@ -64,23 +64,35 @@ export async function grantAccess(
   notes?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Update the entry with granted access timestamp
-    const { error: updateError } = await (supabase
-      .from('meetings_waitlist' as any)
-      .update({
-        status: 'released',
-        granted_access_at: new Date().toISOString(),
-        granted_by: adminUserId,
-        admin_notes: notes || null
-      })
-      .eq('id', entryId) as any);
+    // Call new invitation edge function instead of generating magic link
+    const { data: inviteData, error: inviteError } = await supabase.functions.invoke(
+      'send-waitlist-invitation',
+      {
+        body: {
+          entryId: entryId,
+          adminUserId: adminUserId,
+          adminNotes: notes
+        }
+      }
+    );
 
-    if (updateError) {
-      console.error('Failed to grant access:', updateError);
-      return { success: false, error: updateError.message };
+    if (inviteError) {
+      console.error('Failed to send invitation (edge function error):', inviteError);
+      return {
+        success: false,
+        error: inviteError?.message || 'Failed to send invitation'
+      };
     }
 
-    // Log the admin action (optional - table may not exist)
+    if (!inviteData?.success) {
+      console.error('Failed to send invitation (edge function returned error):', inviteData?.error);
+      return {
+        success: false,
+        error: inviteData?.error || 'Failed to send invitation'
+      };
+    }
+
+    // Log admin action (optional - table may not exist)
     try {
       await (supabase
         .from('waitlist_admin_actions' as any)
@@ -89,59 +101,10 @@ export async function grantAccess(
           admin_user_id: adminUserId,
           action_type: 'grant_access',
           notes: notes,
-          new_value: { status: 'released', granted_at: new Date().toISOString() }
+          new_value: { status: 'invited', invited_at: new Date().toISOString() }
         }) as any);
     } catch {
       // Admin actions table may not exist, continue without logging
-    }
-
-    // Get entry details to send magic link email
-    const { data: entry, error: fetchError } = await (supabase
-      .from('meetings_waitlist' as any)
-      .select('email, full_name')
-      .eq('id', entryId)
-      .single() as any) as { data: { email: string; full_name: string | null } | null; error: any };
-
-    if (!fetchError && entry) {
-      // Generate and send magic link email (same as resendMagicLink)
-      try {
-        // Generate magic link via Edge Function (uses Admin API, doesn't send email)
-        // IMPORTANT: This uses window.location.origin, so magic links will redirect to wherever
-        // the admin panel is running (localhost for local dev, production for prod).
-        const redirectTo = `${window.location.origin}/auth/callback?waitlist_entry=${entryId}`;
-        
-        const { data: linkData, error: linkError } = await supabase.functions.invoke('generate-magic-link', {
-          body: {
-            email: entry.email,
-            redirectTo,
-            data: {
-              waitlist_entry_id: entryId,
-              source: 'waitlist_grant_access',
-            },
-          },
-        });
-
-        if (!linkError && linkData?.success && linkData.magicLink) {
-          // Send email via encharge-send-email using our custom template
-          const firstName = entry.full_name?.split(' ')[0] || entry.email.split('@')[0];
-          await supabase.functions.invoke('encharge-send-email', {
-            body: {
-              template_type: 'magic_link_waitlist',
-              to_email: entry.email,
-              to_name: firstName,
-              variables: {
-                magic_link_url: linkData.magicLink,
-                user_name: firstName,
-                user_email: entry.email,
-                full_name: entry.full_name || entry.email,
-              },
-            },
-          });
-        }
-      } catch (emailError) {
-        // Log but don't fail - access was granted, email is secondary
-        console.error('Failed to send magic link email after granting access:', emailError);
-      }
     }
 
     return { success: true };

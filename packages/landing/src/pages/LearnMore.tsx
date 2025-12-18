@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, ArrowRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { WaitlistModal } from '@landing/components/WaitlistModal';
 import {
   HeroSectionV4,
   IntegrationsSectionV4,
@@ -21,6 +24,8 @@ import { getLoginUrl } from '../lib/utils/siteUrl';
  */
 export function LearnMore() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [email, setEmail] = useState('');
+  const [showModal, setShowModal] = useState(false);
 
   // Force dark mode for landing pages
   useForceDarkMode();
@@ -31,6 +36,14 @@ export function LearnMore() {
   // Close mobile menu when clicking a nav link
   const handleNavClick = () => {
     setMobileMenuOpen(false);
+  };
+
+  // Handle email form submission
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (email && email.includes('@')) {
+      setShowModal(true);
+    }
   };
 
   // Handle smooth scrolling for anchor links
@@ -97,14 +110,14 @@ export function LearnMore() {
               >
                 Log In
               </a>
-              <motion.a
-                href={getLoginUrl()}
-                className="hidden sm:block px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet text-white text-sm font-semibold hover:opacity-90 transition-all duration-200 shadow-lg shadow-brand-violet/25"
+              <motion.button
+                onClick={() => setShowModal(true)}
+                className="hidden sm:block px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet text-white text-sm font-semibold hover:opacity-90 transition-all duration-200 shadow-lg shadow-brand-violet/25 cursor-pointer"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
                 Get Started
-              </motion.a>
+              </motion.button>
               {/* Mobile Menu Button */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -168,13 +181,15 @@ export function LearnMore() {
                   >
                     Log In
                   </a>
-                  <a
-                    href={getLoginUrl()}
-                    onClick={handleNavClick}
-                    className="block py-3 px-4 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet text-white text-center text-base font-semibold hover:opacity-90 transition-all"
+                  <button
+                    onClick={() => {
+                      handleNavClick();
+                      setShowModal(true);
+                    }}
+                    className="block w-full py-3 px-4 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet text-white text-center text-base font-semibold hover:opacity-90 transition-all cursor-pointer"
                   >
                     Get Started
-                  </a>
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -185,7 +200,7 @@ export function LearnMore() {
       {/* Main Content */}
       <main className="relative overflow-x-hidden">
         <div id="hero">
-          <HeroSectionV4 />
+          <HeroSectionV4 onCTAClick={() => setShowModal(true)} />
         </div>
         <div id="how-it-works">
           <HowItWorksV4 />
@@ -196,10 +211,18 @@ export function LearnMore() {
         <div id="faq">
           <FAQSectionV4 />
         </div>
-        <FinalCTA />
+        <FinalCTA onOpenModal={() => setShowModal(true)} email={email} setEmail={setEmail} onEmailSubmit={handleEmailSubmit} />
       </main>
 
       <LandingFooter />
+
+      {/* Waitlist Modal */}
+      <WaitlistModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        initialEmail={email}
+        signupSource="learnmore"
+      />
     </div>
   );
 }

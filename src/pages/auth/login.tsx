@@ -4,6 +4,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Mail, Lock, ArrowRight, KeyRound, ArrowLeft } from 'lucide-react';
+import { usePublicBrandingSettings } from '@/lib/hooks/useBrandingSettings';
 
 export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
@@ -16,6 +17,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { signIn, verifySecondFactor } = useAuth();
+  const { logoDark } = usePublicBrandingSettings();
   
   // Get the intended destination from location state, or default to dashboard
   const getRedirectPath = () => {
@@ -80,20 +82,58 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.25),transparent)] pointer-events-none" />
-      
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md"
-      >
-        <div className="relative bg-gray-900/50 backdrop-blur-xl rounded-2xl border border-gray-800/50 p-6 sm:p-8 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 via-gray-900/70 to-gray-900/30 rounded-2xl -z-10" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.15),transparent)] rounded-2xl -z-10" />
-          <div className="absolute -right-20 -top-20 w-40 h-40 bg-[#37bd7e]/10 blur-3xl rounded-full" />
+    <div className="min-h-screen bg-gray-950 text-gray-100 transition-colors duration-300">
+      {/* Navigation - Fixed at top */}
+      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-gray-950/90 border-b border-gray-800 transition-colors duration-300">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <motion.a
+              href="/"
+              className="flex items-center gap-3"
+              whileHover={{ scale: 1.02 }}
+            >
+              {logoDark ? (
+                <img
+                  src={logoDark}
+                  alt="60"
+                  className="h-10 w-auto transition-all duration-300"
+                />
+              ) : (
+                <span className="text-xl font-bold text-[#37bd7e]">Sixty</span>
+              )}
+            </motion.a>
 
-          {!needsVerification ? (
+            <div className="flex items-center gap-3 sm:gap-4">
+              <Link
+                to="/learnmore"
+                className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200 hidden sm:block"
+              >
+                Learn More
+              </Link>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <div className="min-h-screen flex items-center justify-center p-4 pt-24 relative">
+        {/* Background Gradient Effects */}
+        <div className="absolute inset-0 z-0 pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-brand-violet/20 rounded-full blur-[120px]" />
+          <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-brand-blue/15 rounded-full blur-[100px]" />
+          <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-brand-teal/10 rounded-full blur-[100px]" />
+        </div>
+      
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative z-10 w-full max-w-md"
+        >
+          <div className="relative rounded-2xl overflow-hidden backdrop-blur-2xl bg-white/5 border border-white/10 shadow-2xl shadow-brand-violet/10 p-6 sm:p-8">
+            {/* Gradient Border Effect */}
+            <div className="absolute -inset-px bg-gradient-to-r from-brand-blue/20 via-brand-violet/20 to-brand-teal/20 rounded-2xl opacity-30 blur-sm -z-10" />
+
+            {!needsVerification ? (
             <>
               <div className="text-center mb-8">
                 <h1 className="text-3xl font-bold mb-2 text-white">Welcome back</h1>
@@ -112,7 +152,7 @@ export default function Login() {
                       required
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-brand-violet focus:border-brand-violet/50 transition-colors hover:bg-white/10"
                       placeholder="sarah@example.com"
                       disabled={isLoading}
                     />
@@ -126,7 +166,7 @@ export default function Login() {
                     </label>
                     <Link
                       to="/auth/forgot-password"
-                      className="text-xs text-[#37bd7e] hover:text-[#2da76c] font-medium transition-colors"
+                      className="text-xs text-brand-blue hover:text-brand-violet font-medium transition-colors"
                     >
                       Forgot Password?
                     </Link>
@@ -138,7 +178,7 @@ export default function Login() {
                       required
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-brand-violet focus:border-brand-violet/50 transition-colors hover:bg-white/10"
                       placeholder="••••••••"
                       disabled={isLoading}
                     />
@@ -148,7 +188,7 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-[#37bd7e] text-white py-2.5 rounded-xl font-medium hover:bg-[#2da76c] focus:outline-none focus:ring-2 focus:ring-[#37bd7e] focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#37bd7e]/20"
+                  className="w-full bg-gradient-to-r from-brand-blue to-brand-violet text-white py-2.5 rounded-xl font-semibold hover:from-[#2351C4] hover:to-[#7024C0] focus:outline-none focus:ring-2 focus:ring-brand-violet focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-violet/25"
                 >
                   {isLoading ? 'Signing in...' : 'Sign in'}
                 </button>
@@ -157,7 +197,7 @@ export default function Login() {
               <div className="mt-6 text-center">
                 <Link
                   to="/auth/signup"
-                  className="text-[#37bd7e] hover:text-[#2da76c] text-sm font-medium inline-flex items-center gap-1 transition-all duration-300 hover:gap-2"
+                  className="text-brand-blue hover:text-brand-violet text-sm font-medium inline-flex items-center gap-1 transition-all duration-300 hover:gap-2"
                 >
                   Create an account
                   <ArrowRight className="w-4 h-4" />
@@ -186,7 +226,7 @@ export default function Login() {
                       required
                       value={verificationCode}
                       onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50 text-center text-lg tracking-widest"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-brand-violet focus:border-brand-violet/50 transition-colors hover:bg-white/10 text-center text-lg tracking-widest"
                       placeholder="000000"
                       disabled={isLoading}
                       maxLength={6}
@@ -201,7 +241,7 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={isLoading || verificationCode.length !== 6}
-                  className="w-full bg-[#37bd7e] text-white py-2.5 rounded-xl font-medium hover:bg-[#2da76c] focus:outline-none focus:ring-2 focus:ring-[#37bd7e] focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#37bd7e]/20"
+                  className="w-full bg-gradient-to-r from-brand-blue to-brand-violet text-white py-2.5 rounded-xl font-semibold hover:from-[#2351C4] hover:to-[#7024C0] focus:outline-none focus:ring-2 focus:ring-brand-violet focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-violet/25"
                 >
                   {isLoading ? 'Verifying...' : 'Verify & Sign In'}
                 </button>
@@ -210,16 +250,17 @@ export default function Login() {
               <div className="mt-6 text-center">
                 <button
                   onClick={handleBackToLogin}
-                  className="text-[#37bd7e] hover:text-[#2da76c] text-sm font-medium inline-flex items-center gap-1 transition-all duration-300 hover:gap-2"
+                  className="text-brand-blue hover:text-brand-violet text-sm font-medium inline-flex items-center gap-1 transition-all duration-300 hover:gap-2"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Back to login
                 </button>
               </div>
             </>
-          )}
-        </div>
-      </motion.div>
+            )}
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 }

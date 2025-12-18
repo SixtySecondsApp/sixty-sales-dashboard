@@ -629,7 +629,7 @@ function WaitlistTableRow({
         {entry.company_name || '-'}
       </td>
 
-      {/* Tools (Combined: Dialer, Meeting Recorder, CRM) */}
+      {/* Tools (Combined: Dialer, Meeting Recorder, CRM, Task Manager) */}
       <td className="px-2 py-2 text-xs text-gray-600 dark:text-gray-400">
         <div className="flex flex-col gap-0.5 min-w-0">
           {entry.dialer_tool && (
@@ -650,7 +650,13 @@ function WaitlistTableRow({
               <span className="truncate">{entry.crm_tool === 'Other' && entry.crm_other ? entry.crm_other : entry.crm_tool}</span>
             </div>
           )}
-          {!entry.dialer_tool && !entry.meeting_recorder_tool && !entry.crm_tool && (
+          {entry.task_manager_tool && (
+            <div className="truncate text-[10px]" title={entry.task_manager_tool === 'Other' && entry.task_manager_other ? entry.task_manager_other : entry.task_manager_tool}>
+              <span className="mr-0.5">🔧</span>
+              <span className="truncate">{entry.task_manager_tool === 'Other' && entry.task_manager_other ? entry.task_manager_other : entry.task_manager_tool}</span>
+            </div>
+          )}
+          {!entry.dialer_tool && !entry.meeting_recorder_tool && !entry.crm_tool && !entry.task_manager_tool && (
             <span className="text-gray-400 dark:text-gray-500 text-[10px]">-</span>
           )}
         </div>

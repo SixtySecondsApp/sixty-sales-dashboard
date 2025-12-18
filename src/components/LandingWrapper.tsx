@@ -51,6 +51,10 @@ const IntroPage = import.meta.env.DEV
   ? lazy(() => import('../../packages/landing/src/pages/IntroPage').then(m => ({ default: m.IntroPage })))
   : () => <Navigate to="/" replace />;
 
+const IntroducingPage = import.meta.env.DEV
+  ? lazy(() => import('../../packages/landing/src/pages/IntroducingPage').then(m => ({ default: m.IntroducingPage })))
+  : () => <Navigate to="/" replace />;
+
 const LearnMore = lazy(() => import('../../packages/landing/src/pages/LearnMore').then(m => ({ default: m.LearnMore })));
 
 /**
@@ -149,6 +153,19 @@ export function IntroPageWrapper() {
   return (
     <Suspense fallback={<LandingLoader />}>
       <IntroPage />
+    </Suspense>
+  );
+}
+
+// Introducing page wrapper (for /introducing route - standalone)
+export function IntroducingPageWrapper() {
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <Suspense fallback={<LandingLoader />}>
+      <IntroducingPage />
     </Suspense>
   );
 }

@@ -163,7 +163,11 @@ const WORKFLOW_ANIMATION_DURATION = 4500;
 const DASHBOARD_DISPLAY_TIME = 5000; // 5 seconds
 const WORKFLOW_WAIT_AFTER = 4000; // 4 seconds after workflow completes (was 2s)
 
-export function HeroSectionV4() {
+interface HeroSectionV4Props {
+  onCTAClick?: () => void;
+}
+
+export function HeroSectionV4({ onCTAClick }: HeroSectionV4Props = {}) {
   const [mounted, setMounted] = useState(false);
   const [activeView, setActiveView] = useState<'dashboard' | 'workflow'>('dashboard');
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -258,13 +262,23 @@ export function HeroSectionV4() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4">
-              <a
-                href="/waitlist"
-                className="flex items-center justify-center gap-2 bg-gradient-to-r from-brand-blue to-brand-violet text-white px-8 py-4 rounded-xl font-heading font-bold hover:opacity-90 transition shadow-lg shadow-brand-blue/25"
-              >
-                Start for free
-                <ArrowRight className="w-4 h-4" />
-              </a>
+              {onCTAClick ? (
+                <button
+                  onClick={onCTAClick}
+                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-brand-blue to-brand-violet text-white px-8 py-4 rounded-xl font-heading font-bold hover:opacity-90 transition shadow-lg shadow-brand-blue/25 cursor-pointer"
+                >
+                  Start for free
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <a
+                  href="/waitlist"
+                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-brand-blue to-brand-violet text-white px-8 py-4 rounded-xl font-heading font-bold hover:opacity-90 transition shadow-lg shadow-brand-blue/25"
+                >
+                  Start for free
+                  <ArrowRight className="w-4 h-4" />
+                </a>
+              )}
             </div>
 
           </div>
