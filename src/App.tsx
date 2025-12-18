@@ -163,7 +163,7 @@ const InternalDomainsSettings = lazyWithRetry(() => import('@/pages/admin/Intern
 const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
 
 // Landing pages wrapper (dev-only for local preview)
-import { LandingWrapper, WaitlistPageWrapper, LeaderboardPageWrapper, WaitlistStatusPage } from '@/components/LandingWrapper';
+import { LandingWrapper, WaitlistPageWrapper, LeaderboardPageWrapper, WaitlistStatusPage, IntroductionPageWrapper, IntroPageWrapper } from '@/components/LandingWrapper';
 import { supabase } from '@/lib/supabase/clientV2';
 
 // Make main app's Supabase client available to landing package
@@ -380,6 +380,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
           <>
             <Route path="/waitlist/*" element={<WaitlistPageWrapper />} />
             <Route path="/leaderboard" element={<LeaderboardPageWrapper />} />
+            <Route path="/introduction" element={<IntroductionPageWrapper />} />
+            <Route path="/intro" element={<IntroPageWrapper />} />
           </>
         )}
         {!import.meta.env.DEV && (

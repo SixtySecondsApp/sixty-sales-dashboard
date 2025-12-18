@@ -22,7 +22,9 @@ const publicRoutes = [
   '/auth/google/callback',
   '/oauth/fathom/callback',
   '/waitlist',
-  '/pricing'
+  '/pricing',
+  '/intro',
+  '/introduction'
 ];
 
 // Check if a route is a public waitlist route (including sub-routes)

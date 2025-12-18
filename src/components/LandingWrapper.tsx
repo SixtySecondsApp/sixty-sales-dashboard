@@ -43,6 +43,14 @@ const WaitlistThankYouPage = import.meta.env.DEV
   ? lazy(() => import('../../packages/landing/src/pages/WaitlistThankYouPage'))
   : () => <Navigate to="/" replace />;
 
+const IntroductionPage = import.meta.env.DEV
+  ? lazy(() => import('../../packages/landing/src/pages/IntroductionPage').then(m => ({ default: m.IntroductionPage })))
+  : () => <Navigate to="/" replace />;
+
+const IntroPage = import.meta.env.DEV
+  ? lazy(() => import('../../packages/landing/src/pages/IntroPage').then(m => ({ default: m.IntroPage })))
+  : () => <Navigate to="/" replace />;
+
 /**
  * LandingWrapper - Development-only component for viewing landing pages locally
  *
@@ -113,6 +121,32 @@ export function LeaderboardPageWrapper() {
   return (
     <Suspense fallback={<LandingLoader />}>
       <LeaderboardLookup />
+    </Suspense>
+  );
+}
+
+// Introduction page wrapper (for /introduction route - standalone)
+export function IntroductionPageWrapper() {
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <Suspense fallback={<LandingLoader />}>
+      <IntroductionPage />
+    </Suspense>
+  );
+}
+
+// Intro page wrapper (for /intro route - standalone)
+export function IntroPageWrapper() {
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <Suspense fallback={<LandingLoader />}>
+      <IntroPage />
     </Suspense>
   );
 }

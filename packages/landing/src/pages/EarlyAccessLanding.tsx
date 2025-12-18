@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase/clientV2';
 import { usePublicBrandingSettings } from '@/lib/hooks/useBrandingSettings';
 import { captureRegistrationUrl } from '@/lib/utils/registrationUrl';
 import { useForceDarkMode } from '@/lib/hooks/useForceDarkMode';
-import { WaitlistModal } from '@/components/WaitlistModal';
+import { WaitlistModal } from '@landing/components/WaitlistModal';
 
 // Types
 interface FormData {
