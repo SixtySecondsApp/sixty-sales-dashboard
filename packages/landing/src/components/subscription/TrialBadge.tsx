@@ -5,7 +5,7 @@ import React from 'react';
 import { Clock, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTrialStatus } from '../../lib/hooks/useSubscription';
-import { useOrg } from '@/lib/contexts/OrgContext';
+import { useOrg } from '../../lib/contexts/OrgContext';
 
 interface TrialBadgeProps {
   showUpgradeLink?: boolean;

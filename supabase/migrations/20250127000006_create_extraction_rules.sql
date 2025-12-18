@@ -120,3 +120,4 @@ COMMENT ON TABLE meeting_type_templates IS 'Templates for extraction and content
 
 
 
+

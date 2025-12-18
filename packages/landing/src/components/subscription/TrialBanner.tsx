@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Clock, AlertTriangle, CreditCard, ArrowRight, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTrialStatus, useCreatePortalSession } from '../../lib/hooks/useSubscription';
-import { useOrg } from '@/lib/contexts/OrgContext';
+import { useOrg } from '../../lib/contexts/OrgContext';
 
 interface TrialBannerProps {
   dismissible?: boolean;

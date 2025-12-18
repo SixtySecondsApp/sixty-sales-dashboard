@@ -70,3 +70,4 @@ COMMENT ON COLUMN profiles.bio IS 'Optional user bio used to personalize AI resp
 
 
 
+

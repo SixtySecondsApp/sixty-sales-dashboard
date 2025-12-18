@@ -1,8 +1,11 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
-// Import landing package styles (includes Inter font and landing-specific CSS)
-import '../../packages/landing/src/styles/index.css';
+// Import landing package styles only in development
+// In production, landing pages are deployed separately with their own styles
+if (import.meta.env.DEV) {
+  import('../../packages/landing/src/styles/index.css');
+}
 
 // Note: Main app's Supabase client is set in App.tsx before this module loads
 
@@ -55,7 +58,9 @@ const IntroducingPage = import.meta.env.DEV
   ? lazy(() => import('../../packages/landing/src/pages/IntroducingPage').then(m => ({ default: m.IntroducingPage })))
   : () => <Navigate to="/" replace />;
 
-const LearnMore = lazy(() => import('../../packages/landing/src/pages/LearnMore').then(m => ({ default: m.LearnMore })));
+const LearnMore = import.meta.env.DEV
+  ? lazy(() => import('../../packages/landing/src/pages/LearnMore').then(m => ({ default: m.LearnMore })))
+  : () => <Navigate to="/" replace />;
 
 /**
  * LandingWrapper - Development-only component for viewing landing pages locally

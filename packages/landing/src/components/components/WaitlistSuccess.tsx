@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { WaitlistEntry } from '@/lib/types/waitlist';
-import { ConfettiService } from '@/lib/services/confettiService';
-import { getTierForPosition } from '@/lib/types/waitlist';
-import { useWaitlistRealtime } from '@/lib/hooks/useWaitlistRealtime';
+import type { WaitlistEntry } from '../../lib/types/waitlist';
+import { ConfettiService } from '../../lib/services/confettiService';
+import { getTierForPosition } from '../../lib/types/waitlist';
+import { useWaitlistRealtime } from '../../lib/hooks/useWaitlistRealtime';
 
 // Import gamification components
 import { PositionDisplay } from './gamification/PositionDisplay';

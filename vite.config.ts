@@ -1,14 +1,39 @@
-import { defineConfig } from 'vite';
+import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'path';
 import { workflowWebhookPlugin } from './vite.workflow-webhook';
 
+// Plugin to exclude landing package from production builds
+// Landing pages are deployed separately and should not be bundled in the main app
+function excludeLandingPackagePlugin(): Plugin {
+  return {
+    name: 'exclude-landing-package',
+    enforce: 'pre',
+    resolveId(id, importer) {
+      // In production, replace landing package imports with empty modules
+      if (process.env.NODE_ENV === 'production' && id.includes('packages/landing')) {
+        return { id: '\0virtual:empty-landing-module', moduleSideEffects: false };
+      }
+      return null;
+    },
+    load(id) {
+      if (id === '\0virtual:empty-landing-module') {
+        // Return an empty module that exports nothing
+        return 'export default function() { return null; }; export {};';
+      }
+      return null;
+    }
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
+    // Exclude landing package in production (must be first to intercept imports early)
+    excludeLandingPackagePlugin(),
     react({
-      // Optimize React for production  
+      // Optimize React for production
       babel: {
         plugins: [],
       },
