@@ -77,6 +77,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { TrialBanner } from '@/components/subscription/TrialBanner';
 import { useTrialStatus } from '@/lib/hooks/useSubscription';
 import { useOrg } from '@/lib/contexts/OrgContext';
+import { PasswordSetupModal } from '@/components/auth/PasswordSetupModal';
+import { usePasswordSetupRequired } from '@/lib/hooks/usePasswordSetupRequired';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { userData, isImpersonating, stopImpersonating } = useUser();
@@ -119,6 +121,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Initialize task notifications - this will show toasts for auto-created tasks
   useTaskNotifications();
+
+  // Check if user needs to set up their password (magic link users)
+  const { needsSetup: needsPasswordSetup, completeSetup: completePasswordSetup } = usePasswordSetupRequired();
 
   // Open/close QuickAdd via global modal events
   useEventListener('modal:opened', ({ type, context }) => {
@@ -839,6 +844,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       )}>
         {children}
         <QuickAdd isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />
+
+        {/* Password Setup Modal - shown for magic link users who haven't set a password */}
+        <PasswordSetupModal
+          isOpen={needsPasswordSetup === true}
+          userEmail={userData?.email || null}
+          onComplete={completePasswordSetup}
+        />
+
         {/* SmartSearch - Hidden */}
         {/* <SmartSearch
           isOpen={isSmartSearchOpen}

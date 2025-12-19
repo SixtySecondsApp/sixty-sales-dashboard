@@ -209,16 +209,7 @@ export function SyncProgressStep({ onNext, onBack }: SyncProgressStepProps) {
     );
   }
 
-  // If Fathom is not connected, allow user to skip and continue
-  if (!isFathomConnected) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -20 }}
-        className="w-full max-w-2xl mx-auto"
-      >
-
+  // Main content - Fathom is connected, show sync UI
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}

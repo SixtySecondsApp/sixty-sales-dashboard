@@ -233,14 +233,39 @@ export default function AuthCallback() {
               }
             }
 
-            // If this is a waitlist/invitation callback, redirect to password setup
+            // If this is a waitlist/invitation callback, redirect to dashboard with password setup flag
             if (storedWaitlistEntryId || isInvitation) {
               const finalWaitlistId = storedWaitlistEntryId || 'pending';
-              console.log('[AuthCallback] Redirecting invited user to SetPassword with waitlist_entry:', finalWaitlistId);
-              if (storedWaitlistEntryId) {
-                localStorage.setItem('waitlist_entry_id', storedWaitlistEntryId);
+              console.log('[AuthCallback] Setting up invited user for password setup on dashboard:', finalWaitlistId);
+
+              // Mark user as needing password setup - this triggers the modal on dashboard
+              try {
+                await supabase.auth.updateUser({
+                  data: { needs_password_setup: true, waitlist_entry_id: finalWaitlistId }
+                });
+              } catch (err) {
+                console.error('[AuthCallback] Error setting needs_password_setup flag:', err);
               }
-              navigate(`/auth/set-password?waitlist_entry=${finalWaitlistId}`, { replace: true });
+
+              // Link waitlist entry to user
+              if (finalWaitlistId && finalWaitlistId !== 'pending' && session?.user) {
+                try {
+                  await supabase.from('meetings_waitlist').update({
+                    user_id: session.user.id,
+                    status: 'converted',
+                    converted_at: new Date().toISOString(),
+                    invitation_accepted_at: new Date().toISOString()
+                  }).eq('id', finalWaitlistId);
+                } catch (err) {
+                  console.error('[AuthCallback] Error linking waitlist entry:', err);
+                }
+              }
+
+              // Clear localStorage
+              localStorage.removeItem('waitlist_entry_id');
+
+              // Redirect to dashboard - password modal will appear there
+              navigate('/dashboard', { replace: true });
               return;
             }
 
@@ -263,10 +288,19 @@ export default function AuthCallback() {
           const { data: retrySession } = await supabase.auth.getSession();
           if (retrySession?.session?.user) {
             console.log('[AuthCallback] Session found on retry');
-            // Session appeared, try again
+            // Session appeared, check if this is a waitlist user
             const finalWaitlistId = waitlistEntryId || localStorage.getItem('waitlist_entry_id') || retrySession.session.user.user_metadata?.waitlist_entry_id;
             if (finalWaitlistId) {
-              navigate(`/auth/set-password?waitlist_entry=${finalWaitlistId}`, { replace: true });
+              // Mark user as needing password setup
+              try {
+                await supabase.auth.updateUser({
+                  data: { needs_password_setup: true, waitlist_entry_id: finalWaitlistId }
+                });
+              } catch (err) {
+                console.error('[AuthCallback] Error setting needs_password_setup flag on retry:', err);
+              }
+              localStorage.removeItem('waitlist_entry_id');
+              navigate('/dashboard', { replace: true });
               return;
             }
             await navigateBasedOnOnboarding(retrySession.session, next);
@@ -282,8 +316,16 @@ export default function AuthCallback() {
         if (finalSession?.user?.email_confirmed_at) {
           // Check if this is a waitlist entry callback
           if (waitlistEntryId) {
-            localStorage.setItem('waitlist_entry_id', waitlistEntryId);
-            navigate(`/auth/set-password?waitlist_entry=${waitlistEntryId}`, { replace: true });
+            // Mark user as needing password setup
+            try {
+              await supabase.auth.updateUser({
+                data: { needs_password_setup: true, waitlist_entry_id: waitlistEntryId }
+              });
+            } catch (updateErr) {
+              console.error('[AuthCallback] Error setting needs_password_setup flag in catch:', updateErr);
+            }
+            localStorage.removeItem('waitlist_entry_id');
+            navigate('/dashboard', { replace: true });
             return;
           }
           navigate('/onboarding', { replace: true });
