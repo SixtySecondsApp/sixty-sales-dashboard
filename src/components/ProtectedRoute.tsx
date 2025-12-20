@@ -59,7 +59,7 @@ const isOnboardingExemptRoute = (pathname: string): boolean => {
   return onboardingExemptRoutes.some(route => pathname.startsWith(route));
 };
 
-export function ProtectedRoute({ children, redirectTo = '/learnmore' }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, redirectTo = '/auth/login' }: ProtectedRouteProps) {
   const { isAuthenticated, loading, user } = useAuth();
   const { needsOnboarding, loading: onboardingLoading } = useOnboardingProgress();
   const navigate = useNavigate();

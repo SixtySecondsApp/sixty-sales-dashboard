@@ -367,8 +367,10 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         {/* Drue Landing Page - public access */}
         <Route path="/landing-drue" element={<DrueLanding />} />
 
-        {/* Learn More - Default landing page (always available) */}
-        <Route path="/learnmore" element={<LearnMorePageWrapper />} />
+        {/* Learn More - Development only for local landing page testing */}
+        {import.meta.env.DEV && (
+          <Route path="/learnmore" element={<LearnMorePageWrapper />} />
+        )}
 
         {/* Development-only: Local landing page preview */}
         {import.meta.env.DEV && (
