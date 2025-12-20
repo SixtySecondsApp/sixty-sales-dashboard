@@ -54,44 +54,70 @@ serve(async (req) => {
     })
   }
 
-  // Verify org admin (owner/admin) membership
-  const { data: membership } = await svc
-    .from('organization_memberships')
-    .select('role')
-    .eq('org_id', orgId)
-    .eq('user_id', user.id)
-    .maybeSingle()
-  const role = membership?.role as string | undefined
-  const isAdmin = role === 'owner' || role === 'admin'
-  if (!isAdmin) {
-    return new Response(JSON.stringify({ success: false, error: 'Forbidden' }), {
-      status: 403,
+  try {
+    // Verify org admin (owner/admin) membership
+    const { data: membership, error: membershipError } = await svc
+      .from('organization_memberships')
+      .select('role')
+      .eq('org_id', orgId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError) {
+      console.error('Membership query error:', membershipError)
+      return new Response(JSON.stringify({ success: false, error: `Database error: ${membershipError.message}` }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const role = membership?.role as string | undefined
+    const isAdmin = role === 'owner' || role === 'admin'
+    if (!isAdmin) {
+      return new Response(JSON.stringify({ success: false, error: 'Forbidden - admin role required' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Disconnect the integration
+    const { error: updateError } = await svc
+      .from('hubspot_org_integrations')
+      .update({
+        is_active: false,
+        is_connected: false,
+        webhook_last_received_at: null,
+        webhook_last_event_id: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('org_id', orgId)
+
+    if (updateError) {
+      console.error('Update error:', updateError)
+      return new Response(JSON.stringify({ success: false, error: `Failed to disconnect: ${updateError.message}` }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Credentials remain stored but effectively disabled; rotate webhook token for safety.
+    await svc
+      .from('hubspot_org_integrations')
+      .update({ webhook_token: crypto.randomUUID().replace(/-/g, '') })
+      .eq('org_id', orgId)
+      .catch((e) => console.error('Failed to rotate webhook token:', e))
+
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  } catch (e: any) {
+    console.error('Disconnect error:', e)
+    return new Response(JSON.stringify({ success: false, error: e.message || 'Unknown error' }), {
+      status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
-
-  await svc
-    .from('hubspot_org_integrations')
-    .update({
-      is_active: false,
-      is_connected: false,
-      webhook_last_received_at: null,
-      webhook_last_event_id: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('org_id', orgId)
-
-  // Credentials remain stored but effectively disabled; rotate webhook token for safety.
-  await svc
-    .from('hubspot_org_integrations')
-    .update({ webhook_token: crypto.randomUUID().replace(/-/g, '') })
-    .eq('org_id', orgId)
-    .catch(() => {})
-
-  return new Response(JSON.stringify({ success: true }), {
-    status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
 })
 
 

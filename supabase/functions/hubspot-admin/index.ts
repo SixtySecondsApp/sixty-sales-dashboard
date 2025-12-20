@@ -45,11 +45,32 @@ serve(async (req) => {
     })
   }
 
-  const body = await req.json().catch(() => ({}))
+  let body: any = {}
+  try {
+    const rawBody = await req.text()
+    console.log('[hubspot-admin] Raw body received:', rawBody ? rawBody.substring(0, 200) : '(empty)')
+    if (rawBody) {
+      body = JSON.parse(rawBody)
+    }
+  } catch (e: any) {
+    console.error('[hubspot-admin] Body parse error:', e.message)
+    return new Response(JSON.stringify({ success: false, error: `Invalid JSON body: ${e.message}` }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
   const action: Action | null = typeof body.action === 'string' ? (body.action as Action) : null
   const orgId = typeof body.org_id === 'string' ? body.org_id : null
+
+  console.log('[hubspot-admin] Parsed action:', action, 'org_id:', orgId)
+
   if (!action || !orgId) {
-    return new Response(JSON.stringify({ success: false, error: 'Missing action or org_id' }), {
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Missing action or org_id',
+      received: { action: body.action, org_id: body.org_id, bodyKeys: Object.keys(body) }
+    }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
