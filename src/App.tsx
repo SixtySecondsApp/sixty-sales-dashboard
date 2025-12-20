@@ -210,6 +210,7 @@ const IntegrationRoadmap = lazyWithRetry(() => import('@/pages/platform/Integrat
 const IntegrationsDashboard = lazyWithRetry(() => import('@/pages/admin/IntegrationsDashboard'));
 const FathomIntegrationTests = lazyWithRetry(() => import('@/pages/admin/FathomIntegrationTests'));
 const HubSpotIntegrationTests = lazyWithRetry(() => import('@/pages/admin/HubSpotIntegrationTests'));
+const SlackIntegrationTests = lazyWithRetry(() => import('@/pages/admin/SlackIntegrationTests'));
 
 // Note: CompaniesPage and ContactsPage removed - routes now redirect to CRM
 
@@ -518,6 +519,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* Platform Admin - Integrations */}
                 <Route path="/platform/integrations/fathom" element={<PlatformAdminRouteGuard><AppLayout><FathomIntegrationTests /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/hubspot" element={<PlatformAdminRouteGuard><AppLayout><HubSpotIntegrationTests /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/integrations/slack" element={<PlatformAdminRouteGuard><AppLayout><SlackIntegrationTests /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/google" element={<PlatformAdminRouteGuard><AppLayout><GoogleIntegrationTests /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/savvycal" element={<PlatformAdminRouteGuard><AppLayout><SettingsSavvyCal /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/booking-sources" element={<PlatformAdminRouteGuard><AppLayout><SettingsBookingSources /></AppLayout></PlatformAdminRouteGuard>} />
