@@ -68,7 +68,8 @@ const EmailTemplates = lazyWithRetry(() =>
 const FunctionTesting = lazyWithRetry(() => import('@/pages/admin/FunctionTesting'));
 // WorkflowsTestSuite and WorkflowsE2ETestSuite - REMOVED (specialized test pages, keeping only API + Function testing)
 const AIProviderSettings = lazyWithRetry(() => import('@/components/settings/AIProviderSettings'));
-const GoogleIntegrationTests = lazyWithRetry(() => import('@/components/admin/GoogleIntegrationTests').then(m => ({ default: m.GoogleIntegrationTests })));
+const GoogleIntegrationTestsLegacy = lazyWithRetry(() => import('@/components/admin/GoogleIntegrationTests').then(m => ({ default: m.GoogleIntegrationTests })));
+const GoogleIntegrationTests = lazyWithRetry(() => import('@/pages/admin/GoogleIntegrationTestsNew'));
 const SettingsSavvyCal = lazyWithRetry(() => import('@/pages/admin/SettingsSavvyCal'));
 const SettingsBookingSources = lazyWithRetry(() => import('@/pages/admin/SettingsBookingSources'));
 // SystemHealth, Database, Reports, Documentation - REMOVED (scaffolded only, not functional)
@@ -521,6 +522,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/integrations/hubspot" element={<PlatformAdminRouteGuard><AppLayout><HubSpotIntegrationTests /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/slack" element={<PlatformAdminRouteGuard><AppLayout><SlackIntegrationTests /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/google" element={<PlatformAdminRouteGuard><AppLayout><GoogleIntegrationTests /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/integrations/google/debug" element={<PlatformAdminRouteGuard><AppLayout><GoogleIntegrationTestsLegacy /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/savvycal" element={<PlatformAdminRouteGuard><AppLayout><SettingsSavvyCal /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/booking-sources" element={<PlatformAdminRouteGuard><AppLayout><SettingsBookingSources /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/roadmap/:integrationId" element={<PlatformAdminRouteGuard><AppLayout><IntegrationRoadmap /></AppLayout></PlatformAdminRouteGuard>} />

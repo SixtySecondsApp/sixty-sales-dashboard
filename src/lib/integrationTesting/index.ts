@@ -9,3 +9,4 @@ export * from './testRunner';
 export { createFathomTests, fathomTestSuiteInfo, getFathomConnectionStatus } from './suites/fathomTests';
 export { createHubSpotTests, hubspotTestSuiteInfo, getHubSpotConnectionStatus } from './suites/hubspotTests';
 export { createSlackTests, slackTestSuiteInfo, getSlackConnectionStatus } from './suites/slackTests';
+export { createGoogleTests, googleTestSuiteInfo, getGoogleConnectionStatus } from './suites/googleTests';
