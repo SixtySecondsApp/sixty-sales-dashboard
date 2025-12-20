@@ -7,3 +7,4 @@
 export * from './types';
 export * from './testRunner';
 export { createFathomTests, fathomTestSuiteInfo, getFathomConnectionStatus } from './suites/fathomTests';
+export { createHubSpotTests, hubspotTestSuiteInfo, getHubSpotConnectionStatus } from './suites/hubspotTests';
