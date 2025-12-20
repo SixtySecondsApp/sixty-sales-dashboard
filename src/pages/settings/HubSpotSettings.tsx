@@ -346,18 +346,23 @@ function PipelineMappingCard({
   settings,
   onUpdate,
   isUpdating,
-  hubspotStages,
+  hubspotPipelines,
   isLoadingStages,
 }: {
   settings: HubSpotSettings['pipeline_mapping'];
   onUpdate: (settings: Partial<HubSpotSettings['pipeline_mapping']>) => void;
   isUpdating: boolean;
-  hubspotStages: Array<{ value: string; label: string }>;
+  hubspotPipelines: Array<{ id: string; label: string; stages: Array<{ id: string; label: string }> }>;
   isLoadingStages?: boolean;
 }) {
   const enabled = settings?.enabled ?? false;
   const stageMappings = settings?.stage_mappings || {};
   const syncDirection = settings?.sync_direction || 'bidirectional';
+  const selectedPipelineId = settings?.hubspot_pipeline_id || '';
+
+  // Get stages for the selected pipeline
+  const selectedPipeline = hubspotPipelines.find(p => p.id === selectedPipelineId) || hubspotPipelines[0];
+  const hubspotStages = selectedPipeline?.stages?.map(s => ({ value: s.id, label: s.label })) || DEFAULT_HUBSPOT_STAGES;
 
   return (
     <FeatureCard
@@ -369,6 +374,45 @@ function PipelineMappingCard({
       isUpdating={isUpdating}
     >
       <div className="space-y-4">
+        {/* Pipeline Selector */}
+        <div className="space-y-2">
+          <Label>HubSpot Pipeline</Label>
+          {isLoadingStages ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading pipelines...
+            </div>
+          ) : hubspotPipelines.length === 0 ? (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                No pipelines found. Make sure your HubSpot account has deal pipelines configured.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Select
+              value={selectedPipelineId || hubspotPipelines[0]?.id || ''}
+              onValueChange={(value) => {
+                // Clear stage mappings when pipeline changes
+                onUpdate({ hubspot_pipeline_id: value, stage_mappings: {} });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a HubSpot pipeline..." />
+              </SelectTrigger>
+              <SelectContent>
+                {hubspotPipelines.map((pipeline) => (
+                  <SelectItem key={pipeline.id} value={pipeline.id}>
+                    {pipeline.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        <Separator />
+
         <div className="space-y-2">
           <Label>Sync Direction</Label>
           <RadioGroup
@@ -394,46 +438,42 @@ function PipelineMappingCard({
         <Separator />
 
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label>Stage Mappings</Label>
-            {isLoadingStages && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Loading HubSpot stages...
-              </div>
-            )}
-          </div>
-          <div className="space-y-2">
-            {SIXTY_STAGES.map((stage) => (
-              <div key={stage.value} className="flex items-center gap-3">
-                <div className="w-1/3">
-                  <Badge variant="outline" className="w-full justify-center">
-                    {stage.label}
-                  </Badge>
+          <Label>Stage Mappings</Label>
+          {!selectedPipeline ? (
+            <p className="text-sm text-muted-foreground">Select a pipeline above to configure stage mappings.</p>
+          ) : (
+            <div className="space-y-2">
+              {SIXTY_STAGES.map((stage) => (
+                <div key={stage.value} className="flex items-center gap-3">
+                  <div className="w-1/3">
+                    <Badge variant="outline" className="w-full justify-center">
+                      {stage.label}
+                    </Badge>
+                  </div>
+                  <ArrowRightLeft className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <Select
+                    value={stageMappings[stage.value] || ''}
+                    onValueChange={(value) =>
+                      onUpdate({
+                        stage_mappings: { ...stageMappings, [stage.value]: value },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-2/3">
+                      <SelectValue placeholder="Select HubSpot stage..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {hubspotStages.map((hs) => (
+                        <SelectItem key={hs.value} value={hs.value}>
+                          {hs.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <ArrowRightLeft className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <Select
-                  value={stageMappings[stage.value] || ''}
-                  onValueChange={(value) =>
-                    onUpdate({
-                      stage_mappings: { ...stageMappings, [stage.value]: value },
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-2/3">
-                    <SelectValue placeholder="Select HubSpot stage..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {hubspotStages.map((hs) => (
-                      <SelectItem key={hs.value} value={hs.value}>
-                        {hs.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </FeatureCard>
@@ -1150,11 +1190,21 @@ export default function HubSpotSettings() {
 
   const handleReauthorize = useCallback(async () => {
     try {
+      // First disconnect, then reconnect
+      await disconnect();
       await connectHubSpot();
     } catch (e: any) {
       toast.error(e.message || 'Failed to initiate re-authorization');
     }
-  }, [connectHubSpot]);
+  }, [connectHubSpot, disconnect]);
+
+  const handleDisconnect = useCallback(async () => {
+    try {
+      await disconnect();
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to disconnect HubSpot');
+    }
+  }, [disconnect]);
 
   const handleTriggerSync = useCallback(
     async (syncType: 'deals' | 'contacts' | 'tasks', timePeriod: string) => {
@@ -1198,18 +1248,6 @@ export default function HubSpotSettings() {
     fetchHubspotData();
   }, [isConnected, getPipelines, getProperties]);
 
-  // Get stages for pipeline mapping from fetched data or defaults
-  const hubspotStages = useMemo(() => {
-    if (hubspotPipelines.length > 0) {
-      // Use stages from the first pipeline (or let user select pipeline)
-      const selectedPipeline = hubspotPipelines[0];
-      return selectedPipeline.stages.map((s) => ({
-        value: s.id,
-        label: s.label,
-      }));
-    }
-    return DEFAULT_HUBSPOT_STAGES;
-  }, [hubspotPipelines]);
 
   if (!canManage) {
     return (
@@ -1267,7 +1305,7 @@ export default function HubSpotSettings() {
           integration={integration}
           syncState={syncState}
           webhookUrl={webhookUrl}
-          onDisconnect={disconnect}
+          onDisconnect={handleDisconnect}
           onRefresh={refreshStatus}
           onReauthorize={handleReauthorize}
           isDisconnecting={disconnecting}
@@ -1304,7 +1342,7 @@ export default function HubSpotSettings() {
               settings={localSettings.pipeline_mapping}
               onUpdate={(updates) => updateSettings('pipeline_mapping', updates)}
               isUpdating={saving}
-              hubspotStages={hubspotStages}
+              hubspotPipelines={hubspotPipelines}
               isLoadingStages={loadingHubspotData}
             />
 
