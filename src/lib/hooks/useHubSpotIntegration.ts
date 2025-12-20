@@ -177,13 +177,13 @@ export function useHubSpotIntegration(enabled: boolean = true) {
           body: JSON.stringify({ action: 'save_settings', org_id: activeOrgId, settings }),
         });
         if (resp.error) throw new Error(resp.error.message || 'Failed to save settings');
-        toast.success('HubSpot settings saved');
-        await refreshStatus();
+        // Don't show toast for every auto-save - too noisy
+        // Don't refresh status - we already have the settings locally
       } finally {
         setSaving(false);
       }
     },
-    [activeOrgId, canManage, enabled, refreshStatus]
+    [activeOrgId, canManage, enabled]
   );
 
   const enqueue = useCallback(
