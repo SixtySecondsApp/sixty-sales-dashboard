@@ -10,3 +10,4 @@ export { createFathomTests, fathomTestSuiteInfo, getFathomConnectionStatus } fro
 export { createHubSpotTests, hubspotTestSuiteInfo, getHubSpotConnectionStatus } from './suites/hubspotTests';
 export { createSlackTests, slackTestSuiteInfo, getSlackConnectionStatus } from './suites/slackTests';
 export { createGoogleTests, googleTestSuiteInfo, getGoogleConnectionStatus } from './suites/googleTests';
+export { createSavvyCalTests, savvycalTestSuiteInfo, getSavvyCalConnectionStatus } from './suites/savvycalTests';
