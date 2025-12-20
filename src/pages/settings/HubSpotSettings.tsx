@@ -1206,6 +1206,14 @@ export default function HubSpotSettings() {
     }
   }, [disconnect]);
 
+  const handleConnect = useCallback(async () => {
+    try {
+      await connectHubSpot();
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to connect HubSpot');
+    }
+  }, [connectHubSpot]);
+
   const handleTriggerSync = useCallback(
     async (syncType: 'deals' | 'contacts' | 'tasks', timePeriod: string) => {
       setIsSyncing(true);
@@ -1322,7 +1330,7 @@ export default function HubSpotSettings() {
                 Connect your HubSpot account to enable pipeline sync, contact sync, deal sync, form
                 ingestion, and AI note writeback.
               </p>
-              <Button onClick={connectHubSpot}>
+              <Button onClick={handleConnect}>
                 <Zap className="h-4 w-4 mr-2" />
                 Connect HubSpot
               </Button>

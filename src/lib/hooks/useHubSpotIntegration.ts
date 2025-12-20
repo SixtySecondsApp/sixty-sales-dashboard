@@ -114,9 +114,16 @@ export function useHubSpotIntegration(enabled: boolean = true) {
       },
       body: { org_id: activeOrgId, redirect_path: '/integrations' },
     });
-    if (resp.error) throw new Error(resp.error.message || 'Failed to initiate HubSpot OAuth');
-    const url = (resp.data as any)?.authorization_url;
-    if (!url) throw new Error('Missing authorization_url');
+    if (resp.error) {
+      throw new Error(resp.error.message || 'Failed to initiate HubSpot OAuth');
+    }
+    if (!resp.data?.success) {
+      // Show the detailed message from the API if available
+      const errorMsg = resp.data?.message || resp.data?.error || 'Failed to initiate HubSpot OAuth';
+      throw new Error(errorMsg);
+    }
+    const url = resp.data?.authorization_url;
+    if (!url) throw new Error('Missing authorization_url from response');
     window.location.href = url;
   }, [activeOrgId, canManage, enabled]);
 
@@ -137,7 +144,13 @@ export function useHubSpotIntegration(enabled: boolean = true) {
         },
         body: { org_id: activeOrgId },
       });
-      if (resp.error) throw new Error(resp.error.message || 'Failed to disconnect HubSpot');
+      if (resp.error) {
+        throw new Error(resp.error.message || 'Failed to disconnect HubSpot');
+      }
+      if (!resp.data?.success) {
+        const errorMsg = resp.data?.message || resp.data?.error || 'Failed to disconnect HubSpot';
+        throw new Error(errorMsg);
+      }
       toast.success('HubSpot disconnected');
       await refreshStatus();
     } finally {
