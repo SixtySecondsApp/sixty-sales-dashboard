@@ -72,7 +72,7 @@ export function useHubSpotIntegration(enabled: boolean = true) {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: { action: 'status', org_id: activeOrgId },
+        body: JSON.stringify({ action: 'status', org_id: activeOrgId }),
       });
 
       if (resp.error) {
@@ -112,7 +112,7 @@ export function useHubSpotIntegration(enabled: boolean = true) {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: { org_id: activeOrgId, redirect_path: '/integrations' },
+      body: JSON.stringify({ org_id: activeOrgId, redirect_path: '/integrations' }),
     });
     if (resp.error) {
       throw new Error(resp.error.message || 'Failed to initiate HubSpot OAuth');
@@ -142,7 +142,7 @@ export function useHubSpotIntegration(enabled: boolean = true) {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: { org_id: activeOrgId },
+        body: JSON.stringify({ org_id: activeOrgId }),
       });
       if (resp.error) {
         throw new Error(resp.error.message || 'Failed to disconnect HubSpot');
@@ -174,7 +174,7 @@ export function useHubSpotIntegration(enabled: boolean = true) {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-          body: { action: 'save_settings', org_id: activeOrgId, settings },
+          body: JSON.stringify({ action: 'save_settings', org_id: activeOrgId, settings }),
         });
         if (resp.error) throw new Error(resp.error.message || 'Failed to save settings');
         toast.success('HubSpot settings saved');
@@ -200,7 +200,7 @@ export function useHubSpotIntegration(enabled: boolean = true) {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: { action: 'enqueue', org_id: activeOrgId, ...args },
+        body: JSON.stringify({ action: 'enqueue', org_id: activeOrgId, ...args }),
       });
       if (resp.error) throw new Error(resp.error.message || 'Failed to enqueue job');
     },
@@ -230,7 +230,7 @@ export function useHubSpotIntegration(enabled: boolean = true) {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: { action: 'get_properties', org_id: activeOrgId, object_type: objectType },
+        body: JSON.stringify({ action: 'get_properties', org_id: activeOrgId, object_type: objectType }),
       });
       if (resp.error) throw new Error(resp.error.message || 'Failed to fetch properties');
       if (!resp.data?.success) throw new Error(resp.data?.error || 'Failed to fetch properties');
@@ -259,7 +259,7 @@ export function useHubSpotIntegration(enabled: boolean = true) {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: { action: 'get_pipelines', org_id: activeOrgId },
+      body: JSON.stringify({ action: 'get_pipelines', org_id: activeOrgId }),
     });
     if (resp.error) throw new Error(resp.error.message || 'Failed to fetch pipelines');
     if (!resp.data?.success) throw new Error(resp.data?.error || 'Failed to fetch pipelines');
@@ -293,7 +293,7 @@ export function useHubSpotIntegration(enabled: boolean = true) {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: { action: 'trigger_sync', org_id: activeOrgId, ...args },
+        body: JSON.stringify({ action: 'trigger_sync', org_id: activeOrgId, ...args }),
       });
       if (resp.error) throw new Error(resp.error.message || 'Failed to trigger sync');
       if (!resp.data?.success) throw new Error(resp.data?.error || 'Failed to trigger sync');
