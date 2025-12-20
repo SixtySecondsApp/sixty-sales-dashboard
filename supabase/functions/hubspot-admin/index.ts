@@ -183,22 +183,21 @@ serve(async (req) => {
   if (action === 'get_properties') {
     const objectType = typeof body.object_type === 'string' ? body.object_type : 'deals'
 
-    // Get access token from integration
-    const { data: integration } = await svc
-      .from('hubspot_org_integrations')
+    // Get access token from credentials table (separate from integrations for security)
+    const { data: credentials } = await svc
+      .from('hubspot_org_credentials')
       .select('access_token, token_expires_at')
       .eq('org_id', orgId)
-      .eq('is_active', true)
       .maybeSingle()
 
-    if (!integration?.access_token) {
+    if (!credentials?.access_token) {
       return new Response(JSON.stringify({ success: false, error: 'HubSpot not connected' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    const client = new HubSpotClient({ accessToken: integration.access_token })
+    const client = new HubSpotClient({ accessToken: credentials.access_token })
 
     try {
       const properties = await client.request<{ results: any[] }>({
@@ -231,21 +230,21 @@ serve(async (req) => {
 
   // Get HubSpot deal pipelines and stages
   if (action === 'get_pipelines') {
-    const { data: integration } = await svc
-      .from('hubspot_org_integrations')
+    // Get access token from credentials table (separate from integrations for security)
+    const { data: credentials } = await svc
+      .from('hubspot_org_credentials')
       .select('access_token')
       .eq('org_id', orgId)
-      .eq('is_active', true)
       .maybeSingle()
 
-    if (!integration?.access_token) {
+    if (!credentials?.access_token) {
       return new Response(JSON.stringify({ success: false, error: 'HubSpot not connected' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    const client = new HubSpotClient({ accessToken: integration.access_token })
+    const client = new HubSpotClient({ accessToken: credentials.access_token })
 
     try {
       const pipelines = await client.request<{ results: any[] }>({
