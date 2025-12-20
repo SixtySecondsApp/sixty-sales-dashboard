@@ -71,10 +71,21 @@ export function useHubSpotIntegration(enabled: boolean = true) {
         headers: { Authorization: `Bearer ${token}` },
         body: { action: 'status', org_id: activeOrgId },
       });
-      if (resp.error) throw new Error(resp.error.message || 'Failed to load HubSpot status');
+
+      if (resp.error) {
+        console.error('[useHubSpotIntegration] Edge function error:', resp.error);
+        throw new Error(resp.error.message || 'Failed to load HubSpot status');
+      }
+
+      if (!resp.data?.success) {
+        console.error('[useHubSpotIntegration] API error:', resp.data);
+        throw new Error(resp.data?.error || 'Failed to load HubSpot status');
+      }
+
       setStatus(resp.data as StatusResponse);
     } catch (e: any) {
       console.error('[useHubSpotIntegration] status error:', e);
+      toast.error(`HubSpot status error: ${e.message || 'Unknown error'}`);
       setStatus(null);
     } finally {
       setLoading(false);

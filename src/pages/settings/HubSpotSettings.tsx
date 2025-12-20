@@ -1239,7 +1239,8 @@ export default function HubSpotSettings() {
         setHubspotDealProperties(dealProps);
       } catch (e: any) {
         console.error('Failed to fetch HubSpot data:', e);
-        // Don't show error toast, fall back to defaults
+        // Show error to user so they know what's happening
+        toast.error(`Failed to load HubSpot data: ${e.message || 'Unknown error'}`);
       } finally {
         setLoadingHubspotData(false);
       }
