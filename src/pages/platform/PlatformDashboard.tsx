@@ -166,13 +166,21 @@ const platformSections: Record<string, PlatformSection[]> = {
   ],
   'Integrations': [
     {
+      id: 'integration-testing',
+      title: 'Integration Testing',
+      description: 'Monitor integration health and run diagnostic tests',
+      icon: RefreshCw,
+      href: '/platform/integrations',
+      color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30',
+      badge: 'New',
+    },
+    {
       id: 'integration-roadmap',
       title: 'Integration Roadmap',
       description: 'Implementation plans for all coming-soon integrations (searchable)',
       icon: Layers,
       href: '/platform/integrations/roadmap',
       color: 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900/30',
-      badge: 'New',
     },
     {
       id: 'slack-demo',

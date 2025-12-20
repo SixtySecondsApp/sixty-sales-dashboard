@@ -206,6 +206,10 @@ const CronJobsAdmin = lazyWithRetry(() => import('@/pages/admin/CronJobsAdmin'))
 // Integration Roadmap
 const IntegrationRoadmap = lazyWithRetry(() => import('@/pages/platform/IntegrationRoadmap'));
 
+// Integration Testing Dashboard
+const IntegrationsDashboard = lazyWithRetry(() => import('@/pages/admin/IntegrationsDashboard'));
+const FathomIntegrationTests = lazyWithRetry(() => import('@/pages/admin/FathomIntegrationTests'));
+
 // Note: CompaniesPage and ContactsPage removed - routes now redirect to CRM
 
 // Loading component for better UX during code splitting
@@ -511,11 +515,14 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/ai/prompts" element={<PlatformAdminRouteGuard><AppLayout><AdminPromptSettings /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/features" element={<PlatformAdminRouteGuard><AppLayout><SaasAdminDashboard /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Platform Admin - Integrations */}
+                <Route path="/platform/integrations/fathom" element={<PlatformAdminRouteGuard><AppLayout><FathomIntegrationTests /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/google" element={<PlatformAdminRouteGuard><AppLayout><GoogleIntegrationTests /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/savvycal" element={<PlatformAdminRouteGuard><AppLayout><SettingsSavvyCal /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/booking-sources" element={<PlatformAdminRouteGuard><AppLayout><SettingsBookingSources /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/roadmap/:integrationId" element={<PlatformAdminRouteGuard><AppLayout><IntegrationRoadmap /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/roadmap" element={<PlatformAdminRouteGuard><AppLayout><IntegrationRoadmap /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* Integration Testing Dashboard - Main page */}
+                <Route path="/platform/integrations" element={<PlatformAdminRouteGuard><AppLayout><IntegrationsDashboard /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Platform Admin - Security & Audit */}
                 <Route path="/platform/audit" element={<PlatformAdminRouteGuard><AppLayout><AuditLogs /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/usage" element={<PlatformAdminRouteGuard><AppLayout><SaasAdminDashboard /></AppLayout></PlatformAdminRouteGuard>} />

@@ -1,0 +1,9 @@
+/**
+ * Integration Testing Module
+ *
+ * Provides a framework for testing integrations and monitoring their health
+ */
+
+export * from './types';
+export * from './testRunner';
+export { createFathomTests, fathomTestSuiteInfo, getFathomConnectionStatus } from './suites/fathomTests';
