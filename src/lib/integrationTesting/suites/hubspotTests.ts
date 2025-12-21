@@ -1137,8 +1137,8 @@ export function createHubSpotTests(orgId: string): IntegrationTest[] {
             return {
               testId: 'hubspot-form-ingestion',
               testName: 'Form Ingestion Status',
-              status: 'failed',
-              message: 'Form ingestion enabled but no forms selected',
+              status: 'skipped',
+              message: 'Form ingestion enabled but no forms configured yet',
             };
           }
 
