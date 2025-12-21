@@ -659,6 +659,14 @@ export default function IntegrationsDashboard() {
           </TabsContent>
 
           <TabsContent value="logs" className="mt-0">
+            <div className="flex justify-end mb-4">
+              <Link to="/platform/integrations/logs">
+                <Button variant="outline" size="sm">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Open Full Page
+                </Button>
+              </Link>
+            </div>
             <IntegrationSyncLogs />
           </TabsContent>
         </Tabs>

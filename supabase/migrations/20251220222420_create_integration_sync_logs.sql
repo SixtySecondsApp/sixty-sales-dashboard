@@ -77,6 +77,12 @@ ALTER TABLE integration_sync_logs ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
 
+-- Drop existing policies if they exist (for idempotency)
+DROP POLICY IF EXISTS "integration_sync_logs_service_role" ON integration_sync_logs;
+DROP POLICY IF EXISTS "integration_sync_logs_admin_select" ON integration_sync_logs;
+DROP POLICY IF EXISTS "integration_sync_logs_org_select" ON integration_sync_logs;
+DROP POLICY IF EXISTS "integration_sync_logs_user_select" ON integration_sync_logs;
+
 -- Service role can do everything (for edge functions)
 CREATE POLICY "integration_sync_logs_service_role" ON integration_sync_logs
   FOR ALL

@@ -31,11 +31,11 @@ CREATE TABLE IF NOT EXISTS integration_test_results (
 );
 
 -- Create indexes for efficient querying
-CREATE INDEX idx_integration_test_results_integration ON integration_test_results(integration_name);
-CREATE INDEX idx_integration_test_results_status ON integration_test_results(status);
-CREATE INDEX idx_integration_test_results_created_at ON integration_test_results(created_at DESC);
-CREATE INDEX idx_integration_test_results_org_id ON integration_test_results(org_id);
-CREATE INDEX idx_integration_test_results_integration_status ON integration_test_results(integration_name, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_integration_test_results_integration ON integration_test_results(integration_name);
+CREATE INDEX IF NOT EXISTS idx_integration_test_results_status ON integration_test_results(status);
+CREATE INDEX IF NOT EXISTS idx_integration_test_results_created_at ON integration_test_results(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_integration_test_results_org_id ON integration_test_results(org_id);
+CREATE INDEX IF NOT EXISTS idx_integration_test_results_integration_status ON integration_test_results(integration_name, status, created_at DESC);
 
 -- Create a view for latest test results per integration
 CREATE OR REPLACE VIEW latest_integration_test_results AS

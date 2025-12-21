@@ -966,7 +966,7 @@ function FormIngestionCard({
   onImmediateSave: () => Promise<void>;
   onPollForms: () => void;
   onLoadForms: () => void;
-  availableForms: Array<{ id: string; name: string; formType: string }>;
+  availableForms: Array<{ id: string; name: string; formType: string; archived?: boolean }>;
   isUpdating: boolean;
   isPolling: boolean;
   isLoadingForms: boolean;
@@ -1387,6 +1387,7 @@ export default function HubSpotSettings() {
     id: string;
     name: string;
     formType: string;
+    archived?: boolean;
   }>>([]);
   const [hubspotDealProperties, setHubspotDealProperties] = useState<Array<{
     name: string;
@@ -1533,7 +1534,7 @@ export default function HubSpotSettings() {
     [triggerSync]
   );
 
-  // Fetch HubSpot pipelines and properties when connected
+  // Fetch HubSpot pipelines, properties, and forms when connected
   useEffect(() => {
     if (!isConnected) return;
 
@@ -1547,6 +1548,10 @@ export default function HubSpotSettings() {
         // Fetch deal properties
         const dealProps = await getProperties('deals');
         setHubspotDealProperties(dealProps);
+
+        // Fetch forms for Form Ingestion feature
+        const forms = await getForms();
+        setHubspotForms(forms);
       } catch (e: any) {
         console.error('Failed to fetch HubSpot data:', e);
         // Show error to user so they know what's happening
@@ -1557,7 +1562,7 @@ export default function HubSpotSettings() {
     };
 
     fetchHubspotData();
-  }, [isConnected, getPipelines, getProperties]);
+  }, [isConnected, getPipelines, getProperties, getForms]);
 
 
   if (!canManage) {

@@ -1030,7 +1030,12 @@ async function handlePollFormSubmissions(params: { supabase: any; client: HubSpo
     }
 
     const results: any[] = Array.isArray(resp?.results) ? resp.results : []
-    if (!results.length) continue
+    console.log('[handlePollFormSubmissions] Form:', formGuid, 'returned', results.length, 'submissions')
+
+    if (!results.length) {
+      console.log('[handlePollFormSubmissions] No new submissions for form:', formGuid)
+      continue
+    }
 
     for (const submission of results) {
       const conversionId = submission?.conversionId ? String(submission.conversionId) : null
@@ -1074,13 +1079,27 @@ async function handlePollFormSubmissions(params: { supabase: any; client: HubSpo
           page_url: submission?.pageUrl || null,
         },
         owner_id: ownerId,
-        priority: 'medium',
+        priority: 'normal',
         status: 'new',
-        prep_status: 'not_started',
-        enrichment_status: 'not_started',
       }
 
-      await params.supabase.from('leads').insert(leadInsert).catch(() => {})
+      const { data: createdLead, error: leadError } = await params.supabase.from('leads').insert(leadInsert).select('id').maybeSingle()
+      if (leadError) {
+        console.error('[handlePollFormSubmissions] Failed to insert lead:', leadError.message)
+      } else if (createdLead?.id) {
+        console.log('[handlePollFormSubmissions] Created lead:', createdLead.id, 'from form submission:', conversionId)
+        // Log successful form submission ingestion
+        await logSyncOperation(params.supabase, {
+          orgId: params.orgId,
+          userId: params.connectedByUserId,
+          operation: 'pull',
+          direction: 'inbound',
+          entityType: 'form_submission',
+          entityId: createdLead.id,
+          entityName: email ? `Form: ${email}` : `Form submission ${conversionId}`,
+          metadata: { hubspot_form_id: formGuid, conversion_id: conversionId },
+        })
+      }
 
       // Auto task follow-up (best effort)
       if (ownerId) {

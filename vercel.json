@@ -179,6 +179,10 @@
     {
       "path": "/api/cron/slack-deal-room-archive",
       "schedule": "10 * * * *"
+    },
+    {
+      "path": "/api/cron/hubspot-process-queue",
+      "schedule": "*/5 * * * *"
     }
   ]
 } 

@@ -35,14 +35,17 @@ export function SavvyCalConfigModal({ open, onOpenChange }: SavvyCalConfigModalP
   const navigate = useNavigate();
   const [showWebhookGuide, setShowWebhookGuide] = useState(true);
   const [showApiTokenInput, setShowApiTokenInput] = useState(false);
+  const [showWebhookSecretInput, setShowWebhookSecretInput] = useState(false);
   const [apiToken, setApiToken] = useState('');
   const [webhookSecret, setWebhookSecret] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingSecret, setIsSavingSecret] = useState(false);
 
   const {
     status,
     isConnected,
     hasApiToken,
+    hasWebhookSecret,
     webhookUrl,
     webhookVerified,
     webhookLastReceived,
@@ -53,6 +56,7 @@ export function SavvyCalConfigModal({ open, onOpenChange }: SavvyCalConfigModalP
     syncing,
     connectApiToken,
     disconnect,
+    updateWebhookSecret,
     checkWebhook,
     triggerSync,
   } = useSavvyCalIntegration();
@@ -97,6 +101,19 @@ export function SavvyCalConfigModal({ open, onOpenChange }: SavvyCalConfigModalP
       await disconnect();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to disconnect');
+    }
+  };
+
+  const handleSaveWebhookSecret = async () => {
+    setIsSavingSecret(true);
+    try {
+      await updateWebhookSecret(webhookSecret.trim());
+      setWebhookSecret('');
+      setShowWebhookSecretInput(false);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to save webhook secret');
+    } finally {
+      setIsSavingSecret(false);
     }
   };
 
@@ -162,6 +179,80 @@ export function SavvyCalConfigModal({ open, onOpenChange }: SavvyCalConfigModalP
                     <span className="text-gray-500 dark:text-gray-400">Last Webhook:</span>
                     <p className="font-medium text-gray-900 dark:text-white">{formatDate(webhookLastReceived)}</p>
                   </div>
+                </div>
+
+                {/* Webhook Signing Secret */}
+                <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-gray-500" />
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                        Webhook Signing Secret
+                      </span>
+                    </div>
+                    {hasWebhookSecret ? (
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Configured
+                      </span>
+                    ) : (
+                      <span className="text-xs text-amber-600 dark:text-amber-400">
+                        Not configured
+                      </span>
+                    )}
+                  </div>
+
+                  {!showWebhookSecretInput ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowWebhookSecretInput(true)}
+                      disabled={!canManage}
+                      className="w-full text-xs"
+                    >
+                      <Key className="w-3 h-3 mr-2" />
+                      {hasWebhookSecret ? 'Update Signing Secret' : 'Add Signing Secret'}
+                    </Button>
+                  ) : (
+                    <div className="space-y-2 p-2 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                      <Input
+                        type="password"
+                        placeholder="whsec_..."
+                        value={webhookSecret}
+                        onChange={(e) => setWebhookSecret(e.target.value)}
+                        className="font-mono text-xs"
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Copy from SavvyCal after adding the webhook endpoint
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={handleSaveWebhookSecret}
+                          disabled={isSavingSecret || !webhookSecret.trim()}
+                          className="flex-1 text-xs"
+                        >
+                          {isSavingSecret ? (
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="w-3 h-3 mr-1" />
+                          )}
+                          Save
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setShowWebhookSecretInput(false);
+                            setWebhookSecret('');
+                          }}
+                          className="text-xs"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-2">
