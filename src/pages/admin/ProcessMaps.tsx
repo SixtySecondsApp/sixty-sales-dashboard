@@ -44,7 +44,7 @@ import {
 
 interface ProcessMap {
   id: string;
-  clerk_org_id: string;
+  org_id: string;
   process_type: 'integration' | 'workflow';
   process_name: string;
   title: string;
@@ -142,7 +142,7 @@ export default function ProcessMaps() {
       const { data, error } = await supabase
         .from('process_maps')
         .select('*')
-        .eq('clerk_org_id', orgId)
+        .eq('org_id', orgId)
         .order('updated_at', { ascending: false });
 
       if (error) {

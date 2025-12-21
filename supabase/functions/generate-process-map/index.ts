@@ -258,8 +258,8 @@ serve(async (req) => {
 
     // Get user's org
     const { data: membership, error: membershipError } = await supabaseClient
-      .from('org_memberships')
-      .select('clerk_org_id')
+      .from('organization_memberships')
+      .select('org_id')
       .eq('user_id', user.id)
       .limit(1)
       .single()
@@ -271,14 +271,14 @@ serve(async (req) => {
       )
     }
 
-    const clerkOrgId = membership.clerk_org_id
+    const orgId = membership.org_id
 
     // Check if process map already exists (unless regenerate)
     if (!regenerate) {
       const { data: existingMap } = await supabaseClient
         .from('process_maps')
         .select('id, title, mermaid_code, updated_at')
-        .eq('clerk_org_id', clerkOrgId)
+        .eq('org_id', orgId)
         .eq('process_type', processType)
         .eq('process_name', processName)
         .order('version', { ascending: false })
@@ -320,7 +320,7 @@ serve(async (req) => {
     const { data: latestVersion } = await supabaseClient
       .from('process_maps')
       .select('version')
-      .eq('clerk_org_id', clerkOrgId)
+      .eq('org_id', orgId)
       .eq('process_type', processType)
       .eq('process_name', processName)
       .order('version', { ascending: false })
@@ -348,7 +348,7 @@ serve(async (req) => {
     const { data: processMap, error: insertError } = await supabaseService
       .from('process_maps')
       .insert({
-        clerk_org_id: clerkOrgId,
+        org_id: orgId,
         process_type: processType,
         process_name: processName,
         title,
