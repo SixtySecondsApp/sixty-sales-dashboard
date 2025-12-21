@@ -32,10 +32,17 @@ import {
   Brain,
   GitBranch,
   Layers,
+  Copy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useOrgStore } from '@/lib/stores/orgStore';
@@ -422,6 +429,97 @@ export default function HubSpotIntegrationTests() {
     return categories;
   }, [tests]);
 
+  // Copy results for AI debugging
+  const handleCopyResultsForAI = async () => {
+    const resultArray = Array.from(results.entries());
+
+    const lines: string[] = [
+      '# HubSpot Integration Test Results',
+      '',
+      `**Date:** ${new Date().toLocaleString()}`,
+      `**Connection Status:** ${connectionStatus?.isConnected ? 'Connected' : 'Not Connected'}`,
+      connectionStatus?.accountInfo?.name ? `**Portal:** ${connectionStatus.accountInfo.name} (${connectionStatus.accountInfo.id})` : '',
+      connectionStatus?.error ? `**Connection Error:** ${connectionStatus.error}` : '',
+      '',
+      `## Summary`,
+      `- Total: ${summary.total}`,
+      `- Passed: ${summary.passed}`,
+      `- Failed: ${summary.failed + summary.error}`,
+      `- Skipped: ${summary.skipped}`,
+      `- Pending: ${summary.pending}`,
+      '',
+      '## Test Results',
+      '',
+    ];
+
+    // Group by status for easier reading
+    const failed = resultArray.filter(([_, r]) => r.status === 'failed' || r.status === 'error');
+    const passed = resultArray.filter(([_, r]) => r.status === 'passed');
+    const skipped = resultArray.filter(([_, r]) => r.status === 'skipped');
+    const pending = tests.filter(t => !results.has(t.name));
+
+    if (failed.length > 0) {
+      lines.push('### ❌ Failed Tests');
+      lines.push('');
+      failed.forEach(([testName, result]) => {
+        lines.push(`**${testName}**`);
+        lines.push(`- Status: ${result.status}`);
+        if (result.message) lines.push(`- Message: ${result.message}`);
+        if (result.duration) lines.push(`- Duration: ${result.duration}ms`);
+        if (result.errorDetails) {
+          lines.push('- Error Details:');
+          lines.push('```json');
+          lines.push(JSON.stringify(result.errorDetails, null, 2));
+          lines.push('```');
+        }
+        if (result.responseData) {
+          lines.push('- Response Data:');
+          lines.push('```json');
+          lines.push(JSON.stringify(result.responseData, null, 2));
+          lines.push('```');
+        }
+        lines.push('');
+      });
+    }
+
+    if (passed.length > 0) {
+      lines.push('### ✅ Passed Tests');
+      lines.push('');
+      passed.forEach(([testName, result]) => {
+        lines.push(`- **${testName}**: ${result.message || 'Passed'}`);
+      });
+      lines.push('');
+    }
+
+    if (skipped.length > 0) {
+      lines.push('### ⏭️ Skipped Tests');
+      lines.push('');
+      skipped.forEach(([testName, result]) => {
+        lines.push(`- **${testName}**: ${result.message || 'Skipped'}`);
+      });
+      lines.push('');
+    }
+
+    if (pending.length > 0) {
+      lines.push('### ⏳ Pending Tests (Not Run)');
+      lines.push('');
+      pending.forEach((test) => {
+        lines.push(`- **${test.name}**: ${test.description}`);
+      });
+      lines.push('');
+    }
+
+    const text = lines.filter(l => l !== undefined).join('\n');
+
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Test results copied to clipboard');
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      toast.error('Failed to copy to clipboard');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-950 p-6 flex items-center justify-center">
@@ -459,6 +557,15 @@ export default function HubSpotIntegrationTests() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleCopyResultsForAI}
+              disabled={results.size === 0}
+              title="Copy results for AI debugging"
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Copy for AI
+            </Button>
             <Button
               variant="outline"
               onClick={() => setShowHistory(!showHistory)}
@@ -595,45 +702,34 @@ export default function HubSpotIntegrationTests() {
           );
         })}
 
-        {/* History Panel */}
-        <AnimatePresence>
-          {showHistory && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden"
-            >
-              <div
-                className={cn(
-                  'bg-white dark:bg-gray-900/80 backdrop-blur-sm',
-                  'border border-gray-200 dark:border-gray-700/50 rounded-xl p-5',
-                  'shadow-sm dark:shadow-none'
-                )}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                    Test History
-                  </h2>
-                  <Badge variant="outline" className="text-xs">
-                    Last 20 runs
-                  </Badge>
-                </div>
-                {history.length === 0 ? (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
-                    No test history yet
-                  </p>
-                ) : (
-                  <div className="max-h-96 overflow-y-auto">
-                    {history.map((record) => (
-                      <HistoryItem key={record.id} record={record} />
-                    ))}
-                  </div>
-                )}
+        {/* History Dialog */}
+        <Dialog open={showHistory} onOpenChange={setShowHistory}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <div className="flex items-center justify-between">
+                <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  Test History
+                </DialogTitle>
+                <Badge variant="outline" className="text-xs">
+                  Last 20 runs
+                </Badge>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto mt-4">
+              {history.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
+                  No test history yet
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {history.map((record) => (
+                    <HistoryItem key={record.id} record={record} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Settings Link */}
         <div

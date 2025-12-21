@@ -173,18 +173,82 @@ async function createFailureAlert(
 
 /**
  * Get health summary for all integrations
+ * Uses latest_integration_test_results to show only the most recent test run counts
+ * (not cumulative totals from multiple runs)
  */
 export async function getIntegrationHealthSummary(): Promise<IntegrationHealthSummary[]> {
+  // Fetch the latest test results (one per test per integration)
   const { data, error } = await supabase
-    .from('integration_health_summary')
+    .from('latest_integration_test_results')
     .select('*');
 
   if (error) {
-    console.error('[IntegrationTestRunner] Failed to fetch health summary:', error);
+    console.error('[IntegrationTestRunner] Failed to fetch latest results:', error);
     return [];
   }
 
-  return data || [];
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  // Group by integration and calculate summary stats
+  const integrationMap = new Map<string, {
+    passed: number;
+    failed: number;
+    error: number;
+    total: number;
+    lastTestAt: string | null;
+  }>();
+
+  for (const record of data) {
+    const existing = integrationMap.get(record.integration_name) || {
+      passed: 0,
+      failed: 0,
+      error: 0,
+      total: 0,
+      lastTestAt: null,
+    };
+
+    existing.total++;
+    if (record.status === 'passed') existing.passed++;
+    else if (record.status === 'failed') existing.failed++;
+    else if (record.status === 'error') existing.error++;
+
+    // Track most recent test time
+    if (!existing.lastTestAt || (record.created_at && record.created_at > existing.lastTestAt)) {
+      existing.lastTestAt = record.created_at;
+    }
+
+    integrationMap.set(record.integration_name, existing);
+  }
+
+  // Convert to IntegrationHealthSummary format
+  const summaries: IntegrationHealthSummary[] = [];
+  for (const [integrationName, stats] of integrationMap) {
+    const passRate = stats.total > 0
+      ? Math.round((stats.passed / stats.total) * 1000) / 10
+      : 0;
+
+    let healthStatus: 'healthy' | 'warning' | 'critical' = 'healthy';
+    if (stats.failed > 0 || stats.error > 0) {
+      healthStatus = 'critical';
+    } else if (stats.passed < stats.total) {
+      healthStatus = 'warning';
+    }
+
+    summaries.push({
+      integration_name: integrationName,
+      passed_count: stats.passed,
+      failed_count: stats.failed,
+      error_count: stats.error,
+      total_tests: stats.total,
+      pass_rate: passRate,
+      last_test_at: stats.lastTestAt,
+      health_status: healthStatus,
+    });
+  }
+
+  return summaries;
 }
 
 /**

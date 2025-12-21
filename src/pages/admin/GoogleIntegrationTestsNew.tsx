@@ -31,6 +31,7 @@ import {
   FolderOpen,
   Database,
   LayoutList,
+  Copy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -426,6 +427,88 @@ export default function GoogleIntegrationTestsNew() {
     return categories;
   }, [tests]);
 
+  // Copy results for AI debugging
+  const handleCopyResultsForAI = async () => {
+    const resultArray = Array.from(results.entries());
+    const lines: string[] = [
+      '# Google Integration Test Results',
+      '',
+      `**Date:** ${new Date().toLocaleString()}`,
+      `**Connection Status:** ${connectionStatus?.isConnected ? 'Connected' : 'Not Connected'}`,
+      connectionStatus?.accountInfo?.email ? `**Account:** ${connectionStatus.accountInfo.email}` : '',
+      '',
+      '## Summary',
+      `- Total: ${summary.total}`,
+      `- Passed: ${summary.passed}`,
+      `- Failed: ${summary.failed + summary.error}`,
+      `- Skipped: ${summary.skipped}`,
+      `- Pending: ${summary.pending}`,
+      '',
+    ];
+
+    // Group by status for easier debugging
+    const failed = resultArray.filter(([_, r]) => r.status === 'failed' || r.status === 'error');
+    const passed = resultArray.filter(([_, r]) => r.status === 'passed');
+    const skipped = resultArray.filter(([_, r]) => r.status === 'skipped');
+    const pending = resultArray.filter(([_, r]) => r.status === 'pending' || r.status === 'running');
+
+    if (failed.length > 0) {
+      lines.push('## Failed Tests');
+      failed.forEach(([name, result]) => {
+        lines.push(`### ${name}`);
+        lines.push(`- **Status:** ${result.status}`);
+        if (result.message) lines.push(`- **Message:** ${result.message}`);
+        if (result.duration) lines.push(`- **Duration:** ${result.duration}ms`);
+        if (result.errorDetails) {
+          lines.push('- **Error Details:**');
+          lines.push('```json');
+          lines.push(JSON.stringify(result.errorDetails, null, 2));
+          lines.push('```');
+        }
+        if (result.responseData) {
+          lines.push('- **Response Data:**');
+          lines.push('```json');
+          lines.push(JSON.stringify(result.responseData, null, 2));
+          lines.push('```');
+        }
+        lines.push('');
+      });
+    }
+
+    if (passed.length > 0) {
+      lines.push('## Passed Tests');
+      passed.forEach(([name, result]) => {
+        lines.push(`- ${name}${result.duration ? ` (${result.duration}ms)` : ''}`);
+      });
+      lines.push('');
+    }
+
+    if (skipped.length > 0) {
+      lines.push('## Skipped Tests');
+      skipped.forEach(([name, result]) => {
+        lines.push(`- ${name}${result.message ? `: ${result.message}` : ''}`);
+      });
+      lines.push('');
+    }
+
+    if (pending.length > 0) {
+      lines.push('## Pending Tests');
+      pending.forEach(([name]) => {
+        lines.push(`- ${name}`);
+      });
+      lines.push('');
+    }
+
+    const text = lines.filter(Boolean).join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Test results copied to clipboard');
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      toast.error('Failed to copy results');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-950 p-6 flex items-center justify-center">
@@ -463,6 +546,15 @@ export default function GoogleIntegrationTestsNew() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleCopyResultsForAI}
+              disabled={results.size === 0}
+              title="Copy results for AI debugging"
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Copy for AI
+            </Button>
             <Button
               variant="outline"
               onClick={() => setShowHistory(!showHistory)}

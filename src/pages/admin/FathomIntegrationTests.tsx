@@ -28,6 +28,7 @@ import {
   Key,
   Cloud,
   BarChart3,
+  Copy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -394,9 +395,100 @@ export default function FathomIntegrationTests() {
       passed: resultArray.filter((r) => r.status === 'passed').length,
       failed: resultArray.filter((r) => r.status === 'failed').length,
       error: resultArray.filter((r) => r.status === 'error').length,
+      skipped: resultArray.filter((r) => r.status === 'skipped').length,
       pending: tests.length - resultArray.length,
     };
   }, [tests, results]);
+
+  // Copy results for AI debugging
+  const handleCopyResultsForAI = async () => {
+    const resultArray = Array.from(results.entries());
+
+    const lines: string[] = [
+      '# Fathom Integration Test Results',
+      '',
+      `**Date:** ${new Date().toLocaleString()}`,
+      `**Connection Status:** ${connectionStatus?.isConnected ? 'Connected' : 'Not Connected'}`,
+      connectionStatus?.accountInfo?.email ? `**Account:** ${connectionStatus.accountInfo.email}` : '',
+      connectionStatus?.error ? `**Connection Error:** ${connectionStatus.error}` : '',
+      '',
+      `## Summary`,
+      `- Total: ${summary.total}`,
+      `- Passed: ${summary.passed}`,
+      `- Failed: ${summary.failed + summary.error}`,
+      `- Skipped: ${summary.skipped}`,
+      `- Pending: ${summary.pending}`,
+      '',
+      '## Test Results',
+      '',
+    ];
+
+    const failed = resultArray.filter(([_, r]) => r.status === 'failed' || r.status === 'error');
+    const passed = resultArray.filter(([_, r]) => r.status === 'passed');
+    const skipped = resultArray.filter(([_, r]) => r.status === 'skipped');
+    const pending = tests.filter(t => !results.has(t.name));
+
+    if (failed.length > 0) {
+      lines.push('### ❌ Failed Tests');
+      lines.push('');
+      failed.forEach(([testName, result]) => {
+        lines.push(`**${testName}**`);
+        lines.push(`- Status: ${result.status}`);
+        if (result.message) lines.push(`- Message: ${result.message}`);
+        if (result.duration) lines.push(`- Duration: ${result.duration}ms`);
+        if (result.errorDetails) {
+          lines.push('- Error Details:');
+          lines.push('```json');
+          lines.push(JSON.stringify(result.errorDetails, null, 2));
+          lines.push('```');
+        }
+        if (result.responseData) {
+          lines.push('- Response Data:');
+          lines.push('```json');
+          lines.push(JSON.stringify(result.responseData, null, 2));
+          lines.push('```');
+        }
+        lines.push('');
+      });
+    }
+
+    if (passed.length > 0) {
+      lines.push('### ✅ Passed Tests');
+      lines.push('');
+      passed.forEach(([testName, result]) => {
+        lines.push(`- **${testName}**: ${result.message || 'Passed'}`);
+      });
+      lines.push('');
+    }
+
+    if (skipped.length > 0) {
+      lines.push('### ⏭️ Skipped Tests');
+      lines.push('');
+      skipped.forEach(([testName, result]) => {
+        lines.push(`- **${testName}**: ${result.message || 'Skipped'}`);
+      });
+      lines.push('');
+    }
+
+    if (pending.length > 0) {
+      lines.push('### ⏳ Pending Tests (Not Run)');
+      lines.push('');
+      pending.forEach((test) => {
+        lines.push(`- **${test.name}**: ${test.description}`);
+      });
+      lines.push('');
+    }
+
+    const text = lines.filter(l => l !== undefined).join('\n');
+
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Test results copied to clipboard');
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      toast.error('Failed to copy to clipboard');
+    }
+  };
 
   if (loading) {
     return (
@@ -435,6 +527,15 @@ export default function FathomIntegrationTests() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleCopyResultsForAI}
+              disabled={results.size === 0}
+              title="Copy results for AI debugging"
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Copy for AI
+            </Button>
             <Button
               variant="outline"
               onClick={() => setShowHistory(!showHistory)}

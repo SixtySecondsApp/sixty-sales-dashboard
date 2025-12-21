@@ -12,6 +12,44 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Helper for logging sync operations to integration_sync_logs table
+async function logSyncOperation(
+  supabase: any,
+  args: {
+    orgId?: string | null
+    userId?: string | null
+    operation: 'sync' | 'create' | 'update' | 'delete' | 'push' | 'pull' | 'webhook' | 'error'
+    direction: 'inbound' | 'outbound'
+    entityType: string
+    entityId?: string | null
+    entityName?: string | null
+    status?: 'success' | 'failed' | 'skipped'
+    errorMessage?: string | null
+    metadata?: Record<string, unknown>
+    batchId?: string | null
+  }
+): Promise<void> {
+  try {
+    await supabase.rpc('log_integration_sync', {
+      p_org_id: args.orgId ?? null,
+      p_user_id: args.userId ?? null,
+      p_integration_name: 'fathom',
+      p_operation: args.operation,
+      p_direction: args.direction,
+      p_entity_type: args.entityType,
+      p_entity_id: args.entityId ?? null,
+      p_entity_name: args.entityName ?? null,
+      p_status: args.status ?? 'success',
+      p_error_message: args.errorMessage ?? null,
+      p_metadata: args.metadata ?? {},
+      p_batch_id: args.batchId ?? null,
+    })
+  } catch (e) {
+    // Non-fatal: log to console but don't fail the sync
+    console.error('[fathom-sync] Failed to log sync operation:', e)
+  }
+}
+
 /**
  * Fathom Sync Engine Edge Function
  *
@@ -2469,6 +2507,24 @@ async function syncSingleCall(
       }
     } else {
     }
+
+    // Log successful meeting sync
+    const meetingTitle = call.title || call.meeting_title || 'Meeting'
+    const meetingDate = call.recording_start_time || call.scheduled_start_time
+    const formattedDate = meetingDate ? new Date(meetingDate).toLocaleDateString() : ''
+    await logSyncOperation(supabase, {
+      orgId,
+      userId,
+      operation: 'sync',
+      direction: 'inbound',
+      entityType: 'meeting',
+      entityId: meeting?.id || null,
+      entityName: `${meetingTitle}${formattedDate ? ` (${formattedDate})` : ''}`,
+      metadata: {
+        fathom_recording_id: call.recording_id || call.id,
+        duration_minutes: call.duration_minutes,
+      },
+    })
 
     return { success: true }
   } catch (error) {

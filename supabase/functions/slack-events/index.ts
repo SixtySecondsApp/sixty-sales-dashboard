@@ -5,7 +5,44 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+// Helper for logging sync operations to integration_sync_logs table
+async function logSyncOperation(
+  supabase: ReturnType<typeof createClient>,
+  args: {
+    orgId?: string | null
+    userId?: string | null
+    operation: 'sync' | 'create' | 'update' | 'delete' | 'push' | 'pull' | 'webhook' | 'error'
+    direction: 'inbound' | 'outbound'
+    entityType: string
+    entityId?: string | null
+    entityName?: string | null
+    status?: 'success' | 'failed' | 'skipped'
+    errorMessage?: string | null
+    metadata?: Record<string, unknown>
+    batchId?: string | null
+  }
+): Promise<void> {
+  try {
+    await supabase.rpc('log_integration_sync', {
+      p_org_id: args.orgId ?? null,
+      p_user_id: args.userId ?? null,
+      p_integration_name: 'slack',
+      p_operation: args.operation,
+      p_direction: args.direction,
+      p_entity_type: args.entityType,
+      p_entity_id: args.entityId ?? null,
+      p_entity_name: args.entityName ?? null,
+      p_status: args.status ?? 'success',
+      p_error_message: args.errorMessage ?? null,
+      p_metadata: args.metadata ?? {},
+      p_batch_id: args.batchId ?? null,
+    })
+  } catch (e) {
+    console.error('[slack-events] Failed to log sync operation:', e)
+  }
+}
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const slackSigningSecret = Deno.env.get('SLACK_SIGNING_SECRET');
 
@@ -109,13 +146,25 @@ async function handleEvent(
     case 'channel_archive':
       // A channel was archived - update our deal rooms if applicable
       if (event.channel) {
-        const { error } = await supabase
+        const { data: archivedRoom, error } = await supabase
           .from('slack_deal_rooms')
           .update({ is_archived: true, archived_at: new Date().toISOString() })
-          .eq('slack_channel_id', event.channel);
+          .eq('slack_channel_id', event.channel)
+          .select('id, org_id, channel_name')
+          .single();
 
         if (error) {
           console.error('Error updating deal room archive status:', error);
+        } else if (archivedRoom) {
+          await logSyncOperation(supabase, {
+            orgId: archivedRoom.org_id,
+            operation: 'webhook',
+            direction: 'inbound',
+            entityType: 'channel',
+            entityId: event.channel as string,
+            entityName: `#${archivedRoom.channel_name || event.channel} (archived)`,
+            metadata: { team_id: teamId },
+          });
         }
       }
       break;
@@ -123,13 +172,25 @@ async function handleEvent(
     case 'channel_unarchive':
       // A channel was unarchived
       if (event.channel) {
-        const { error } = await supabase
+        const { data: unarchivedRoom, error } = await supabase
           .from('slack_deal_rooms')
           .update({ is_archived: false, archived_at: null })
-          .eq('slack_channel_id', event.channel);
+          .eq('slack_channel_id', event.channel)
+          .select('id, org_id, channel_name')
+          .single();
 
         if (error) {
           console.error('Error updating deal room unarchive status:', error);
+        } else if (unarchivedRoom) {
+          await logSyncOperation(supabase, {
+            orgId: unarchivedRoom.org_id,
+            operation: 'webhook',
+            direction: 'inbound',
+            entityType: 'channel',
+            entityId: event.channel as string,
+            entityName: `#${unarchivedRoom.channel_name || event.channel} (unarchived)`,
+            metadata: { team_id: teamId },
+          });
         }
       }
       break;
@@ -165,7 +226,7 @@ async function handleEvent(
                 .eq('email', user.profile.email)
                 .single();
 
-              await supabase.from('slack_user_mappings').upsert({
+              const { error: upsertError } = await supabase.from('slack_user_mappings').upsert({
                 org_id: org.org_id,
                 slack_user_id: user.id,
                 slack_username: user.name,
@@ -177,6 +238,21 @@ async function handleEvent(
               }, {
                 onConflict: 'org_id,slack_user_id',
               });
+
+              if (!upsertError) {
+                await logSyncOperation(supabase, {
+                  orgId: org.org_id,
+                  operation: 'webhook',
+                  direction: 'inbound',
+                  entityType: 'user',
+                  entityId: user.id,
+                  entityName: `${user.profile?.display_name || user.real_name || user.name} (${user.profile?.email || 'no email'})`,
+                  metadata: {
+                    team_id: teamId,
+                    is_auto_matched: !!sixtyUser,
+                  },
+                });
+              }
             }
           }
         }

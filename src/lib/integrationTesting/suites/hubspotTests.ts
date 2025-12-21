@@ -132,9 +132,38 @@ export async function getHubSpotSettings(orgId: string): Promise<HubSpotSettings
 }
 
 /**
+ * Warmup the edge function to avoid cold start failures
+ * This is a silent ping that doesn't affect test results
+ */
+async function warmupEdgeFunction(): Promise<void> {
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) return;
+
+    // Fire-and-forget warmup request - don't wait for response
+    supabase.functions.invoke('hubspot-admin', {
+      headers: {
+        Authorization: `Bearer ${sessionData.session.access_token}`,
+      },
+      body: { action: 'status', org_id: 'warmup' },
+    }).catch(() => {
+      // Silently ignore warmup failures
+    });
+
+    // Small delay to let the warmup request initialize the function
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  } catch {
+    // Ignore warmup errors
+  }
+}
+
+/**
  * Create all HubSpot tests for a given org
  */
 export function createHubSpotTests(orgId: string): IntegrationTest[] {
+  // Trigger warmup immediately when tests are created
+  warmupEdgeFunction();
+
   return [
     // =========================================================================
     // Authentication & Connection Tests
@@ -355,7 +384,7 @@ export function createHubSpotTests(orgId: string): IntegrationTest[] {
       name: 'API Connectivity',
       description: 'Test connection to the HubSpot API using stored credentials',
       category: 'connectivity',
-      timeout: 20000,
+      timeout: 30000, // Increased for cold start + retries
       run: async (): Promise<TestResult> => {
         try {
           const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -370,15 +399,101 @@ export function createHubSpotTests(orgId: string): IntegrationTest[] {
           }
 
           // Try to get pipelines as a connectivity test
-          const response = await supabase.functions.invoke('hubspot-get-pipelines', {
-            headers: {
-              Authorization: `Bearer ${sessionData.session.access_token}`,
-            },
-            body: { org_id: orgId },
-          });
+          let response;
+          let lastErrorMessage = '';
+
+          // Try up to 3 times with increasing delays (1s, 2s, 3s)
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              if (attempt > 0) {
+                // Exponential backoff: 1s, 2s, 3s
+                const delay = 1000 * (attempt + 1);
+                console.log(`[HubSpot API Connectivity] Retry ${attempt + 1} after ${delay}ms delay...`);
+                await new Promise((resolve) => setTimeout(resolve, delay));
+              }
+
+              console.log(`[HubSpot API Connectivity] Attempt ${attempt + 1}...`);
+              const startTime = Date.now();
+
+              response = await supabase.functions.invoke('hubspot-admin', {
+                headers: {
+                  Authorization: `Bearer ${sessionData.session.access_token}`,
+                },
+                body: { action: 'get_pipelines', org_id: orgId },
+              });
+
+              const duration = Date.now() - startTime;
+              console.log(`[HubSpot API Connectivity] Attempt ${attempt + 1} completed in ${duration}ms`, response);
+
+              // Check if this is a transient connection error that should be retried
+              const errorMsg = response?.error?.message || '';
+              const isConnectionError =
+                errorMsg.includes('Failed to send a request') ||
+                errorMsg.includes('FunctionsFetchError') ||
+                errorMsg.includes('Failed to fetch') ||
+                errorMsg.includes('network') ||
+                errorMsg.includes('timeout');
+
+              if (isConnectionError && attempt < 2) {
+                console.log(`[HubSpot API Connectivity] Connection error, will retry: ${errorMsg}`);
+                lastErrorMessage = errorMsg;
+                continue; // Try again
+              }
+
+              // Got a valid response (success or non-transient error), break out
+              break;
+            } catch (e) {
+              const err = e instanceof Error ? e : new Error(String(e));
+              lastErrorMessage = err.message;
+              console.error(`[HubSpot API Connectivity] Attempt ${attempt + 1} threw exception:`, {
+                name: err.name,
+                message: err.message,
+              });
+              // Will continue to next attempt
+            }
+          }
+
+          if (!response) {
+            return {
+              testId: 'hubspot-api-connectivity',
+              testName: 'API Connectivity',
+              status: 'error',
+              message: `Edge function unreachable: ${lastErrorMessage || 'No response after 3 attempts'}`,
+              errorDetails: {
+                error: lastErrorMessage,
+                hint: 'This usually indicates a cold start timeout. Try running the tests again.',
+              },
+            };
+          }
 
           if (response.error) {
             const errorMessage = response.error.message || 'Unknown error';
+
+            // Log full error details for debugging
+            console.error('[HubSpot API Connectivity] Error response:', {
+              message: response.error.message,
+              name: response.error.name,
+              context: response.error.context,
+              status: response.error.status,
+            });
+
+            // Check for edge function unreachable errors first
+            if (
+              errorMessage.includes('Failed to send a request') ||
+              errorMessage.includes('FunctionsFetchError') ||
+              errorMessage.includes('Failed to fetch')
+            ) {
+              return {
+                testId: 'hubspot-api-connectivity',
+                testName: 'API Connectivity',
+                status: 'error',
+                message: 'Edge function unreachable - may be experiencing cold start',
+                errorDetails: {
+                  error: errorMessage,
+                  hint: 'Try running tests again - cold start should be resolved',
+                },
+              };
+            }
 
             if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
               return {
@@ -415,7 +530,11 @@ export function createHubSpotTests(orgId: string): IntegrationTest[] {
               testName: 'API Connectivity',
               status: 'failed',
               message: `API error: ${errorMessage}`,
-              errorDetails: { error: response.error },
+              errorDetails: {
+                error: errorMessage,
+                name: response.error.name,
+                context: response.error.context,
+              },
             };
           }
 
@@ -1131,11 +1250,12 @@ export function createHubSpotTests(orgId: string): IntegrationTest[] {
 
           // Try to get properties as a health check
           const startTime = Date.now();
-          const response = await supabase.functions.invoke('hubspot-get-properties', {
+          const response = await supabase.functions.invoke('hubspot-admin', {
             headers: {
               Authorization: `Bearer ${sessionData.session.access_token}`,
             },
             body: {
+              action: 'get_properties',
               org_id: orgId,
               object_type: 'contact',
             },

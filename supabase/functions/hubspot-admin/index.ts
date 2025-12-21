@@ -3,7 +3,113 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { HubSpotClient } from '../_shared/hubspot.ts'
 
+// HubSpot Admin Edge Function - v2
 type Action = 'status' | 'enqueue' | 'save_settings' | 'get_properties' | 'get_pipelines' | 'trigger_sync'
+
+/**
+ * Get a valid HubSpot access token, refreshing if expired or about to expire
+ */
+async function getValidAccessToken(
+  svc: ReturnType<typeof createClient>,
+  orgId: string
+): Promise<{ accessToken: string | null; error: string | null }> {
+  const { data: creds, error: credsError } = await svc
+    .from('hubspot_org_credentials')
+    .select('access_token, refresh_token, token_expires_at')
+    .eq('org_id', orgId)
+    .maybeSingle()
+
+  if (credsError || !creds) {
+    return { accessToken: null, error: 'HubSpot not connected' }
+  }
+
+  const accessToken = creds.access_token as string | null
+  const refreshToken = creds.refresh_token as string | null
+  const tokenExpiresAt = creds.token_expires_at as string | null
+
+  if (!accessToken || !refreshToken) {
+    return { accessToken: null, error: 'HubSpot not connected' }
+  }
+
+  // Check if token is expired or will expire within 5 minutes
+  const now = Date.now()
+  const expiresAt = tokenExpiresAt ? new Date(tokenExpiresAt).getTime() : 0
+  const isExpiredOrExpiring = expiresAt - now < 5 * 60 * 1000 // 5 minutes buffer
+
+  if (!isExpiredOrExpiring) {
+    return { accessToken, error: null }
+  }
+
+  // Token needs refresh
+  console.log('[hubspot-admin] Token expired or expiring soon, refreshing...')
+
+  const clientId = Deno.env.get('HUBSPOT_CLIENT_ID') || ''
+  const clientSecret = Deno.env.get('HUBSPOT_CLIENT_SECRET') || ''
+
+  if (!clientId || !clientSecret) {
+    return { accessToken: null, error: 'Server misconfigured: missing HubSpot credentials' }
+  }
+
+  try {
+    const tokenParams = new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+    })
+
+    const tokenResp = await fetch('https://api.hubapi.com/oauth/v1/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenParams.toString(),
+    })
+
+    const tokenData = await tokenResp.json()
+
+    if (!tokenResp.ok) {
+      const msg = tokenData?.message || tokenData?.error_description || 'Token refresh failed'
+      console.error('[hubspot-admin] Token refresh failed:', msg)
+
+      // If refresh token is invalid, mark as disconnected
+      if (tokenData?.error === 'invalid_grant' || tokenResp.status === 400) {
+        await svc
+          .from('hubspot_org_integrations')
+          .update({ is_active: false, is_connected: false, updated_at: new Date().toISOString() })
+          .eq('org_id', orgId)
+        return { accessToken: null, error: 'HubSpot connection expired. Please reconnect.' }
+      }
+
+      return { accessToken: null, error: `Token refresh failed: ${msg}` }
+    }
+
+    const newAccessToken = tokenData.access_token as string
+    const newRefreshToken = tokenData.refresh_token || refreshToken
+    const expiresIn = Number(tokenData.expires_in || 1800)
+    const newExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
+
+    // Update credentials in database
+    const { error: updateError } = await svc
+      .from('hubspot_org_credentials')
+      .update({
+        access_token: newAccessToken,
+        refresh_token: newRefreshToken,
+        token_expires_at: newExpiresAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('org_id', orgId)
+
+    if (updateError) {
+      console.error('[hubspot-admin] Failed to update refreshed token:', updateError)
+      return { accessToken: null, error: 'Failed to save refreshed token' }
+    }
+
+    console.log('[hubspot-admin] Token refreshed successfully, expires at:', newExpiresAt)
+    return { accessToken: newAccessToken, error: null }
+  } catch (e) {
+    console.error('[hubspot-admin] Token refresh error:', e)
+    return { accessToken: null, error: e instanceof Error ? e.message : 'Token refresh failed' }
+  }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -14,6 +120,7 @@ serve(async (req) => {
     })
   }
 
+  try {
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -125,9 +232,21 @@ serve(async (req) => {
 
   if (action === 'save_settings') {
     const settings = body.settings ?? {}
-    await svc
+    console.log('[hubspot-admin] Saving settings for org:', orgId, 'settings:', JSON.stringify(settings).substring(0, 200))
+
+    const { error: upsertError } = await svc
       .from('hubspot_settings')
       .upsert({ org_id: orgId, settings, updated_at: new Date().toISOString() }, { onConflict: 'org_id' })
+
+    if (upsertError) {
+      console.error('[hubspot-admin] Failed to save settings:', upsertError)
+      return new Response(JSON.stringify({ success: false, error: upsertError.message || 'Failed to save settings' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    console.log('[hubspot-admin] Settings saved successfully')
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -183,21 +302,17 @@ serve(async (req) => {
   if (action === 'get_properties') {
     const objectType = typeof body.object_type === 'string' ? body.object_type : 'deals'
 
-    // Get access token from credentials table (separate from integrations for security)
-    const { data: credentials } = await svc
-      .from('hubspot_org_credentials')
-      .select('access_token, token_expires_at')
-      .eq('org_id', orgId)
-      .maybeSingle()
+    // Get valid access token (auto-refreshes if expired)
+    const { accessToken, error: tokenError } = await getValidAccessToken(svc, orgId)
 
-    if (!credentials?.access_token) {
-      return new Response(JSON.stringify({ success: false, error: 'HubSpot not connected' }), {
+    if (!accessToken) {
+      return new Response(JSON.stringify({ success: false, error: tokenError || 'HubSpot not connected' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    const client = new HubSpotClient({ accessToken: credentials.access_token })
+    const client = new HubSpotClient({ accessToken })
 
     try {
       const properties = await client.request<{ results: any[] }>({
@@ -230,21 +345,17 @@ serve(async (req) => {
 
   // Get HubSpot deal pipelines and stages
   if (action === 'get_pipelines') {
-    // Get access token from credentials table (separate from integrations for security)
-    const { data: credentials } = await svc
-      .from('hubspot_org_credentials')
-      .select('access_token')
-      .eq('org_id', orgId)
-      .maybeSingle()
+    // Get valid access token (auto-refreshes if expired)
+    const { accessToken, error: tokenError } = await getValidAccessToken(svc, orgId)
 
-    if (!credentials?.access_token) {
-      return new Response(JSON.stringify({ success: false, error: 'HubSpot not connected' }), {
+    if (!accessToken) {
+      return new Response(JSON.stringify({ success: false, error: tokenError || 'HubSpot not connected' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    const client = new HubSpotClient({ accessToken: credentials.access_token })
+    const client = new HubSpotClient({ accessToken })
 
     try {
       const pipelines = await client.request<{ results: any[] }>({
@@ -312,13 +423,22 @@ serve(async (req) => {
       .eq('org_id', orgId)
       .maybeSingle()
 
+    // Map sync type to allowed job_type values
+    const jobTypeMap: Record<string, string> = {
+      deals: 'sync_deal',
+      contacts: 'sync_contact',
+      tasks: 'sync_task',
+    }
+    const jobType = jobTypeMap[syncType] || 'sync_deal'
+
     // Queue the sync job
-    await svc
+    console.log('[hubspot-admin] Queueing sync job:', { syncType, jobType, timePeriod, createdAfter, orgId })
+
+    const { error: insertError } = await svc
       .from('hubspot_sync_queue')
       .insert({
         org_id: orgId,
-        clerk_org_id: integration?.clerk_org_id || null,
-        job_type: `initial_sync_${syncType}`,
+        job_type: jobType,
         payload: {
           sync_type: syncType,
           time_period: timePeriod,
@@ -331,12 +451,21 @@ serve(async (req) => {
         attempts: 0,
         max_attempts: 5,
       })
-      .catch(async (e: any) => {
-        const msg = String(e?.message || '')
-        if (msg.toLowerCase().includes('duplicate key') || msg.toLowerCase().includes('unique')) return
-        throw e
-      })
 
+    if (insertError) {
+      // Ignore duplicate key errors (job already queued)
+      const msg = String(insertError.message || '')
+      if (!msg.toLowerCase().includes('duplicate key') && !msg.toLowerCase().includes('unique')) {
+        console.error('[hubspot-admin] Failed to queue sync job:', insertError)
+        return new Response(JSON.stringify({ success: false, error: insertError.message || 'Failed to queue sync' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      console.log('[hubspot-admin] Sync job already queued (duplicate key)')
+    }
+
+    console.log('[hubspot-admin] Sync job queued successfully')
     return new Response(
       JSON.stringify({
         success: true,
@@ -351,6 +480,14 @@ serve(async (req) => {
     status: 400,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
+
+  } catch (e: any) {
+    console.error('[hubspot-admin] Unhandled error:', e)
+    return new Response(JSON.stringify({ success: false, error: e.message || 'Internal server error' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
 })
 
 

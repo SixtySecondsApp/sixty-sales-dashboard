@@ -16,6 +16,7 @@ import {
   Clock,
   ExternalLink,
   Loader2,
+  Play,
   RefreshCw,
   Video,
   Mail,
@@ -31,7 +32,9 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import IntegrationSyncLogs from '@/components/admin/IntegrationSyncLogs';
 import { toast } from 'sonner';
 import {
   INTEGRATIONS,
@@ -45,7 +48,22 @@ import {
   getActiveAlerts,
   acknowledgeAlert,
   resolveAlert,
+  runTestSuite,
 } from '@/lib/integrationTesting/testRunner';
+import {
+  createFathomTests,
+  createHubSpotTests,
+  createSlackTests,
+  createGoogleTests,
+  createSavvyCalTests,
+  getFathomConnectionStatus,
+  getHubSpotConnectionStatus,
+  getSlackConnectionStatus,
+  getGoogleConnectionStatus,
+  getSavvyCalConnectionStatus,
+} from '@/lib/integrationTesting';
+import { useOrgStore } from '@/lib/stores/orgStore';
+import { useUser } from '@/lib/hooks/useUser';
 
 // Icon mapping for integrations
 const iconMap: Record<string, React.ElementType> = {
@@ -258,6 +276,11 @@ export default function IntegrationsDashboard() {
   const [alerts, setAlerts] = useState<IntegrationAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [runningAllTests, setRunningAllTests] = useState(false);
+  const [testProgress, setTestProgress] = useState<{ current: number; total: number; currentIntegration: string } | null>(null);
+
+  const activeOrgId = useOrgStore((s) => s.activeOrgId);
+  const { user } = useUser();
 
   const fetchData = async () => {
     try {
@@ -301,6 +324,66 @@ export default function IntegrationsDashboard() {
       fetchData();
     } else {
       toast.error('Failed to resolve alert');
+    }
+  };
+
+  // Run all tests across all integrations
+  const handleRunAllTests = async () => {
+    if (runningAllTests) return;
+
+    setRunningAllTests(true);
+    setTestProgress({ current: 0, total: 5, currentIntegration: '' });
+
+    const integrationTests = [
+      { name: 'fathom', displayName: 'Fathom', getStatus: getFathomConnectionStatus, createTests: createFathomTests, isOrgLevel: true },
+      { name: 'hubspot', displayName: 'HubSpot', getStatus: getHubSpotConnectionStatus, createTests: createHubSpotTests, isOrgLevel: true },
+      { name: 'slack', displayName: 'Slack', getStatus: getSlackConnectionStatus, createTests: createSlackTests, isOrgLevel: true },
+      { name: 'google', displayName: 'Google', getStatus: getGoogleConnectionStatus, createTests: createGoogleTests, isOrgLevel: false },
+      { name: 'savvycal', displayName: 'SavvyCal', getStatus: getSavvyCalConnectionStatus, createTests: createSavvyCalTests, isOrgLevel: true },
+    ];
+
+    let totalPassed = 0;
+    let totalFailed = 0;
+    let totalSkipped = 0;
+
+    for (let i = 0; i < integrationTests.length; i++) {
+      const integration = integrationTests[i];
+      setTestProgress({ current: i + 1, total: integrationTests.length, currentIntegration: integration.displayName });
+
+      try {
+        // Check connection status
+        const status = await integration.getStatus(integration.isOrgLevel ? activeOrgId : user?.id);
+
+        if (!status?.isConnected) {
+          totalSkipped++;
+          continue;
+        }
+
+        // Create and run tests
+        const tests = integration.createTests(integration.isOrgLevel ? activeOrgId! : user?.id!);
+        const result = await runTestSuite(integration.name, tests, 'manual', activeOrgId || undefined);
+
+        totalPassed += result.summary.passed;
+        totalFailed += result.summary.failed + result.summary.error;
+      } catch (error) {
+        console.error(`[IntegrationsDashboard] Failed to run ${integration.name} tests:`, error);
+        totalFailed++;
+      }
+    }
+
+    setRunningAllTests(false);
+    setTestProgress(null);
+
+    // Refresh data to show updated results
+    await fetchData();
+
+    // Show summary toast
+    if (totalFailed === 0 && totalPassed > 0) {
+      toast.success(`All tests passed! (${totalPassed} passed, ${totalSkipped} integrations skipped)`);
+    } else if (totalFailed > 0) {
+      toast.error(`Tests completed with failures (${totalPassed} passed, ${totalFailed} failed, ${totalSkipped} skipped)`);
+    } else {
+      toast.info('No connected integrations to test');
     }
   };
 
@@ -349,17 +432,51 @@ export default function IntegrationsDashboard() {
               Monitor integration health and run diagnostic tests
             </p>
           </div>
-          <Button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            variant="outline"
-          >
-            <RefreshCw className={cn('w-4 h-4 mr-2', refreshing && 'animate-spin')} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleRefresh}
+              disabled={refreshing || runningAllTests}
+              variant="outline"
+            >
+              <RefreshCw className={cn('w-4 h-4 mr-2', refreshing && 'animate-spin')} />
+              Refresh
+            </Button>
+            <Button
+              onClick={handleRunAllTests}
+              disabled={runningAllTests || refreshing}
+            >
+              {runningAllTests ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {testProgress
+                    ? `Testing ${testProgress.currentIntegration} (${testProgress.current}/${testProgress.total})`
+                    : 'Running...'}
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 mr-2" />
+                  Run All Tests
+                </>
+              )}
+            </Button>
+          </div>
         </div>
 
-        {/* Overall Status */}
+        {/* Tabs for Overview and Logs */}
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList className="bg-gray-100 dark:bg-gray-800/50">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="logs" className="flex items-center gap-2">
+              Logs
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-6 mt-0">
+            {/* Overall Status */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div
             className={cn(
@@ -539,6 +656,12 @@ export default function IntegrationsDashboard() {
             </Link>
           </div>
         </div>
+          </TabsContent>
+
+          <TabsContent value="logs" className="mt-0">
+            <IntegrationSyncLogs />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
