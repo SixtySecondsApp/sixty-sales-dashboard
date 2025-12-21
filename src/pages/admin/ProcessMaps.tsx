@@ -1,0 +1,562 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import {
+  GitBranch,
+  RefreshCw,
+  Loader2,
+  Search,
+  Link2,
+  Workflow,
+  Calendar,
+  Trash2,
+  Eye,
+  Clock,
+  LayoutGrid,
+  List,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase/clientV2';
+import { useOrgId } from '@/lib/contexts/OrgContext';
+import { MermaidRenderer } from '@/components/process-maps/MermaidRenderer';
+import { ProcessMapButton, ProcessType, ProcessName } from '@/components/process-maps/ProcessMapButton';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+
+interface ProcessMap {
+  id: string;
+  clerk_org_id: string;
+  process_type: 'integration' | 'workflow';
+  process_name: string;
+  title: string;
+  description: string | null;
+  mermaid_code: string;
+  generated_by: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Available processes for quick generation
+const AVAILABLE_PROCESSES: Array<{
+  type: ProcessType;
+  name: ProcessName;
+  label: string;
+  icon: React.ReactNode;
+  description: string;
+}> = [
+  {
+    type: 'integration',
+    name: 'hubspot',
+    label: 'HubSpot',
+    icon: <Link2 className="h-4 w-4 text-orange-500" />,
+    description: 'Bi-directional CRM sync with contacts, deals, and tasks',
+  },
+  {
+    type: 'integration',
+    name: 'google',
+    label: 'Google Workspace',
+    icon: <Calendar className="h-4 w-4 text-blue-500" />,
+    description: 'Gmail, Calendar, Drive, and Tasks integration',
+  },
+  {
+    type: 'integration',
+    name: 'fathom',
+    label: 'Fathom',
+    icon: <Workflow className="h-4 w-4 text-purple-500" />,
+    description: 'Meeting recordings, transcripts, and AI analysis',
+  },
+  {
+    type: 'integration',
+    name: 'slack',
+    label: 'Slack',
+    icon: <Link2 className="h-4 w-4 text-pink-500" />,
+    description: 'Team notifications and deal rooms',
+  },
+  {
+    type: 'integration',
+    name: 'justcall',
+    label: 'JustCall',
+    icon: <Link2 className="h-4 w-4 text-green-500" />,
+    description: 'Call recordings and transcript analysis',
+  },
+  {
+    type: 'integration',
+    name: 'savvycal',
+    label: 'SavvyCal',
+    icon: <Calendar className="h-4 w-4 text-indigo-500" />,
+    description: 'Booking sync and lead creation',
+  },
+  {
+    type: 'workflow',
+    name: 'meeting_intelligence',
+    label: 'Meeting Intelligence',
+    icon: <Workflow className="h-4 w-4 text-emerald-500" />,
+    description: 'AI-powered meeting analysis and action item extraction',
+  },
+  {
+    type: 'workflow',
+    name: 'task_extraction',
+    label: 'Task Extraction',
+    icon: <Workflow className="h-4 w-4 text-cyan-500" />,
+    description: 'Automatic task creation from meetings and calls',
+  },
+];
+
+export default function ProcessMaps() {
+  const orgId = useOrgId();
+  const [processMaps, setProcessMaps] = useState<ProcessMap[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'all' | 'integration' | 'workflow'>('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [selectedMap, setSelectedMap] = useState<ProcessMap | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  // Fetch process maps
+  const fetchProcessMaps = useCallback(async () => {
+    if (!orgId) return;
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('process_maps')
+        .select('*')
+        .eq('clerk_org_id', orgId)
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setProcessMaps(data || []);
+    } catch (error) {
+      console.error('Error fetching process maps:', error);
+      toast.error('Failed to load process maps');
+    } finally {
+      setLoading(false);
+    }
+  }, [orgId]);
+
+  useEffect(() => {
+    fetchProcessMaps();
+  }, [fetchProcessMaps]);
+
+  // Filter process maps
+  const filteredMaps = useMemo(() => {
+    let maps = processMaps;
+
+    // Filter by tab
+    if (activeTab !== 'all') {
+      maps = maps.filter((m) => m.process_type === activeTab);
+    }
+
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      maps = maps.filter(
+        (m) =>
+          m.title.toLowerCase().includes(query) ||
+          m.process_name.toLowerCase().includes(query) ||
+          m.description?.toLowerCase().includes(query)
+      );
+    }
+
+    return maps;
+  }, [processMaps, activeTab, searchQuery]);
+
+  // Get processes that don't have maps yet
+  const missingProcesses = useMemo(() => {
+    const existingKeys = new Set(
+      processMaps.map((m) => `${m.process_type}:${m.process_name}`)
+    );
+    return AVAILABLE_PROCESSES.filter(
+      (p) => !existingKeys.has(`${p.type}:${p.name}`)
+    );
+  }, [processMaps]);
+
+  const handleViewMap = useCallback((map: ProcessMap) => {
+    setSelectedMap(map);
+    setDialogOpen(true);
+  }, []);
+
+  const handleDeleteMap = useCallback(
+    async (mapId: string) => {
+      setDeleting(mapId);
+      try {
+        const { error } = await supabase
+          .from('process_maps')
+          .delete()
+          .eq('id', mapId);
+
+        if (error) {
+          throw error;
+        }
+
+        setProcessMaps((prev) => prev.filter((m) => m.id !== mapId));
+        toast.success('Process map deleted');
+      } catch (error) {
+        console.error('Error deleting process map:', error);
+        toast.error('Failed to delete process map');
+      } finally {
+        setDeleting(null);
+      }
+    },
+    []
+  );
+
+  const handleMapGenerated = useCallback(() => {
+    fetchProcessMaps();
+  }, [fetchProcessMaps]);
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  return (
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <GitBranch className="h-6 w-6 text-emerald-500" />
+            Process Maps
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Visualize integration and workflow processes with AI-generated diagrams
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={fetchProcessMaps}>
+            <RefreshCw className="h-4 w-4 mr-1.5" />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Quick Generate Cards */}
+      {missingProcesses.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Generate Process Maps</CardTitle>
+            <CardDescription>
+              Click to generate AI-powered visualization for each process
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {missingProcesses.map((process) => (
+                <div
+                  key={`${process.type}:${process.name}`}
+                  className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {process.icon}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{process.label}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {process.type}
+                      </p>
+                    </div>
+                  </div>
+                  <ProcessMapButton
+                    processType={process.type}
+                    processName={process.name}
+                    variant="ghost"
+                    size="sm"
+                    showLabel={false}
+                  />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+          <TabsList>
+            <TabsTrigger value="all">
+              All
+              <Badge variant="secondary" className="ml-1.5">
+                {processMaps.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="integration">
+              Integrations
+              <Badge variant="secondary" className="ml-1.5">
+                {processMaps.filter((m) => m.process_type === 'integration').length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="workflow">
+              Workflows
+              <Badge variant="secondary" className="ml-1.5">
+                {processMaps.filter((m) => m.process_type === 'workflow').length}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search process maps..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <div className="flex items-center border rounded-md">
+            <Button
+              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('grid')}
+              className="rounded-r-none"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+              className="rounded-l-none"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Process Maps Grid/List */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : filteredMaps.length === 0 ? (
+        <Card className="py-12">
+          <CardContent className="flex flex-col items-center justify-center text-center">
+            <GitBranch className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium">No process maps found</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              {searchQuery
+                ? 'Try a different search term'
+                : 'Generate your first process map using the cards above'}
+            </p>
+          </CardContent>
+        </Card>
+      ) : viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredMaps.map((map) => (
+            <Card key={map.id} className="group hover:shadow-md transition-shadow">
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <CardTitle className="text-base truncate">{map.title}</CardTitle>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline" className="text-xs">
+                        {map.process_type}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        v{map.version}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleViewMap(map)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete process map?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete "{map.title}". This action
+                            cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDeleteMap(map.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div
+                  className="aspect-video bg-gray-50 dark:bg-gray-800/50 rounded-md overflow-hidden cursor-pointer border"
+                  onClick={() => handleViewMap(map)}
+                >
+                  <MermaidRenderer
+                    code={map.mermaid_code}
+                    showControls={false}
+                    showCode={false}
+                    className="border-0 shadow-none"
+                  />
+                </div>
+                <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  <span>Updated {formatDate(map.updated_at)}</span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filteredMaps.map((map) => (
+            <Card key={map.id} className="group">
+              <CardContent className="py-3 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="p-2 rounded-md bg-gray-100 dark:bg-gray-800">
+                    <GitBranch className="h-5 w-5 text-emerald-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{map.title}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Badge variant="outline" className="text-xs">
+                        {map.process_type}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        v{map.version}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        &middot; {formatDate(map.updated_at)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ProcessMapButton
+                    processType={map.process_type}
+                    processName={map.process_name as ProcessName}
+                    variant="ghost"
+                    size="sm"
+                    label="Regenerate"
+                  />
+                  <Button variant="outline" size="sm" onClick={() => handleViewMap(map)}>
+                    <Eye className="h-4 w-4 mr-1.5" />
+                    View
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete process map?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete "{map.title}". This action
+                          cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDeleteMap(map.id)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* View Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitBranch className="h-5 w-5 text-emerald-500" />
+              {selectedMap?.title}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedMap?.description || 'Process visualization diagram'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-auto">
+            {selectedMap && (
+              <MermaidRenderer
+                code={selectedMap.mermaid_code}
+                showControls={true}
+                showCode={true}
+              />
+            )}
+          </div>
+
+          <div className="flex items-center justify-between pt-4 border-t">
+            <div className="text-xs text-muted-foreground">
+              {selectedMap && (
+                <>
+                  Version {selectedMap.version} &middot; Updated{' '}
+                  {formatDate(selectedMap.updated_at)}
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {selectedMap && (
+                <ProcessMapButton
+                  processType={selectedMap.process_type}
+                  processName={selectedMap.process_name as ProcessName}
+                  variant="outline"
+                  size="sm"
+                  label="Regenerate"
+                />
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

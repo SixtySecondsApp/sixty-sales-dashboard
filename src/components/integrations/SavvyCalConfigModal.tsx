@@ -25,6 +25,7 @@ import {
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useSavvyCalIntegration } from '@/lib/hooks/useSavvyCalIntegration';
+import { ProcessMapButton } from '@/components/process-maps';
 
 interface SavvyCalConfigModalProps {
   open: boolean;
@@ -420,18 +421,28 @@ export function SavvyCalConfigModal({ open, onOpenChange }: SavvyCalConfigModalP
                 your meetings are coming from.
               </AlertDescription>
             </Alert>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3 w-full"
-              onClick={() => {
-                onOpenChange(false);
-                navigate('/admin/savvycal');
-              }}
-            >
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Manage Link Mappings
-            </Button>
+            <div className="mt-3 space-y-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  onOpenChange(false);
+                  navigate('/admin/savvycal');
+                }}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Manage Link Mappings
+              </Button>
+              <ProcessMapButton
+                processType="integration"
+                processName="savvycal"
+                variant="outline"
+                size="sm"
+                label="View Process Map"
+                className="w-full"
+              />
+            </div>
           </ConfigSection>
         </>
       )}

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase/clientV2';
+import { ProcessMapButton } from '@/components/process-maps';
 import { useOrgId } from '@/lib/contexts/OrgContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -514,6 +515,13 @@ export default function TasksDemo() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <ProcessMapButton
+            processType="workflow"
+            processName="task_extraction"
+            variant="outline"
+            size="sm"
+            label="Process Map"
+          />
           <Button variant="outline" size="sm" onClick={openInDetail} disabled={!activityId}>
             <ArrowUpRight className="w-4 h-4 mr-1.5" />
             Open detail
