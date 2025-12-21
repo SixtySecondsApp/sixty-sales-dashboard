@@ -272,7 +272,7 @@ serve(async (req) => {
       .eq('org_id', orgId)
       .maybeSingle()
 
-    await svc
+    const { error: insertError } = await svc
       .from('hubspot_sync_queue')
       .insert({
         org_id: orgId,
@@ -285,12 +285,14 @@ serve(async (req) => {
         attempts: 0,
         max_attempts: 10,
       })
-      .catch(async (e: any) => {
-        // If unique violation on dedupe_key, treat as ok
-        const msg = String(e?.message || '')
-        if (msg.toLowerCase().includes('duplicate key') || msg.toLowerCase().includes('unique')) return
-        throw e
-      })
+
+    // Ignore duplicate key errors (job already queued)
+    if (insertError) {
+      const msg = String(insertError.message || '')
+      if (!msg.toLowerCase().includes('duplicate key') && !msg.toLowerCase().includes('unique')) {
+        throw new Error(insertError.message || 'Failed to enqueue job')
+      }
+    }
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
