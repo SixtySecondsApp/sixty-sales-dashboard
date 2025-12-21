@@ -299,6 +299,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30',
     },
     {
+      id: 'intelligence-tests',
+      title: 'Intelligence Test Runner',
+      description: 'Run and visualize meeting intelligence unit tests with AI debugging',
+      icon: Brain,
+      href: '/platform/intelligence-tests',
+      color: 'text-pink-600 bg-pink-100 dark:bg-pink-900/30',
+      badge: 'New',
+    },
+    {
       id: 'onboarding-simulator',
       title: 'Onboarding Simulator',
       description: 'Simulate and visualize the free trial journey',

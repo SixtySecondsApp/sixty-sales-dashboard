@@ -195,7 +195,10 @@ export function createSavvyCalTests(orgId: string): IntegrationTest[] {
             };
           }
 
-          const hasToken = response.data?.hasApiToken || response.data?.has_api_token;
+          // Check secrets_summary from edge function response
+          const hasToken = response.data?.secrets_summary?.has_api_token ||
+                          response.data?.hasApiToken ||
+                          response.data?.has_api_token;
 
           if (!hasToken) {
             return {
@@ -203,6 +206,7 @@ export function createSavvyCalTests(orgId: string): IntegrationTest[] {
               testName: 'API Token Validation',
               status: 'failed',
               message: 'No API token configured',
+              responseData: { rawResponse: response.data },
             };
           }
 
@@ -213,7 +217,9 @@ export function createSavvyCalTests(orgId: string): IntegrationTest[] {
             message: 'API token is configured',
             responseData: {
               hasToken: true,
-              hasWebhookSecret: response.data?.hasWebhookSecret || response.data?.has_webhook_secret,
+              hasWebhookSecret: response.data?.secrets_summary?.has_webhook_secret ||
+                               response.data?.hasWebhookSecret ||
+                               response.data?.has_webhook_secret,
             },
           };
         } catch (error) {
@@ -380,6 +386,92 @@ export function createSavvyCalTests(orgId: string): IntegrationTest[] {
           return {
             testId: 'savvycal-webhook-configuration',
             testName: 'Webhook Configuration',
+            status: 'error',
+            message: error instanceof Error ? error.message : 'Unknown error',
+          };
+        }
+      },
+    },
+
+    {
+      id: 'savvycal-webhook-signing-secret',
+      name: 'Webhook Signing Secret',
+      description: 'Verify webhook signing secret is configured for secure webhook validation',
+      category: 'webhook',
+      timeout: 10000,
+      run: async (): Promise<TestResult> => {
+        try {
+          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+          if (sessionError || !sessionData.session) {
+            return {
+              testId: 'savvycal-webhook-signing-secret',
+              testName: 'Webhook Signing Secret',
+              status: 'error',
+              message: 'No active session',
+            };
+          }
+
+          const response = await supabase.functions.invoke('savvycal-config', {
+            headers: {
+              Authorization: `Bearer ${sessionData.session.access_token}`,
+            },
+            body: {
+              action: 'status',
+              org_id: orgId,
+            },
+          });
+
+          if (response.error) {
+            return {
+              testId: 'savvycal-webhook-signing-secret',
+              testName: 'Webhook Signing Secret',
+              status: 'failed',
+              message: response.error.message || 'Failed to check webhook secret status',
+              errorDetails: { error: response.error },
+            };
+          }
+
+          const hasWebhookSecret = response.data?.secrets_summary?.has_webhook_secret;
+          const webhookConfigured = response.data?.integration?.webhook_configured_at;
+
+          if (!webhookConfigured) {
+            return {
+              testId: 'savvycal-webhook-signing-secret',
+              testName: 'Webhook Signing Secret',
+              status: 'skipped',
+              message: 'Webhook not configured yet',
+            };
+          }
+
+          if (!hasWebhookSecret) {
+            return {
+              testId: 'savvycal-webhook-signing-secret',
+              testName: 'Webhook Signing Secret',
+              status: 'failed',
+              message: 'Webhook signing secret not configured - webhooks are not verified',
+              responseData: {
+                webhookConfigured: true,
+                signingSecretConfigured: false,
+                recommendation: 'Add the signing secret from SavvyCal to enable HMAC signature verification',
+              },
+            };
+          }
+
+          return {
+            testId: 'savvycal-webhook-signing-secret',
+            testName: 'Webhook Signing Secret',
+            status: 'passed',
+            message: 'Webhook signing secret configured - incoming webhooks are verified',
+            responseData: {
+              webhookConfigured: true,
+              signingSecretConfigured: true,
+            },
+          };
+        } catch (error) {
+          return {
+            testId: 'savvycal-webhook-signing-secret',
+            testName: 'Webhook Signing Secret',
             status: 'error',
             message: error instanceof Error ? error.message : 'Unknown error',
           };
@@ -694,15 +786,15 @@ export function createSavvyCalTests(orgId: string): IntegrationTest[] {
     {
       id: 'savvycal-database-health',
       name: 'Database Health',
-      description: 'Verify SavvyCal-related database tables are accessible',
+      description: 'Verify SavvyCal-specific database tables are accessible',
       category: 'infrastructure',
       timeout: 10000,
       run: async (): Promise<TestResult> => {
         try {
+          // Only test SavvyCal-specific tables (leads table has different RLS and is tested in Lead Data Integrity)
           const tables = [
             { name: 'savvycal_integrations', query: supabase.from('savvycal_integrations').select('id').eq('org_id', orgId).limit(1) },
             { name: 'savvycal_source_mappings', query: supabase.from('savvycal_source_mappings').select('id').eq('org_id', orgId).limit(1) },
-            { name: 'leads', query: supabase.from('leads').select('id').eq('org_id', orgId).limit(1) },
           ];
 
           const results: Record<string, boolean> = {};

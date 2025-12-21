@@ -276,6 +276,32 @@ export function useHubSpotIntegration(enabled: boolean = true) {
     }>;
   }, [activeOrgId, enabled]);
 
+  const getForms = useCallback(async () => {
+    if (!enabled) throw new Error('HubSpot integration is disabled');
+    if (!activeOrgId) throw new Error('No active organization selected');
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error('No active session');
+
+    const resp = await supabase.functions.invoke('hubspot-admin', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action: 'get_forms', org_id: activeOrgId }),
+    });
+    if (resp.error) throw new Error(resp.error.message || 'Failed to fetch forms');
+    if (!resp.data?.success) throw new Error(resp.data?.error || 'Failed to fetch forms');
+    return resp.data.forms as Array<{
+      id: string;
+      name: string;
+      formType: string;
+      createdAt: string;
+      updatedAt: string;
+      archived: boolean;
+    }>;
+  }, [activeOrgId, enabled]);
+
   const triggerSync = useCallback(
     async (args: {
       sync_type: 'deals' | 'contacts' | 'tasks';
@@ -329,6 +355,7 @@ export function useHubSpotIntegration(enabled: boolean = true) {
     triggerPollForms,
     getProperties,
     getPipelines,
+    getForms,
     triggerSync,
   };
 }

@@ -116,63 +116,61 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
       timeout: 15000,
       run: async (): Promise<TestResult> => {
         try {
-          const { data: integration, error: integrationError } = await supabase
-            .from('fathom_org_integrations')
-            .select('id, access_token, refresh_token, token_expires_at')
-            .eq('org_id', orgId)
-            .eq('is_active', true)
-            .maybeSingle();
+          // Call the test-fathom-token edge function which has service role access
+          // to verify tokens stored in fathom_org_credentials table
+          const { data, error } = await supabase.functions.invoke('test-fathom-token', {
+            body: { org_id: orgId },
+          });
 
-          if (integrationError || !integration) {
+          if (error) {
+            return {
+              testId: 'fathom-token-validation',
+              testName: 'OAuth Token Validation',
+              status: 'error',
+              message: `Edge function error: ${error.message}`,
+            };
+          }
+
+          if (!data) {
             return {
               testId: 'fathom-token-validation',
               testName: 'OAuth Token Validation',
               status: 'failed',
-              message: 'No active integration found',
+              message: 'No response from token validation',
             };
           }
 
-          // Check if we have tokens
-          if (!integration.access_token) {
+          if (!data.success) {
             return {
               testId: 'fathom-token-validation',
               testName: 'OAuth Token Validation',
               status: 'failed',
-              message: 'No access token stored',
+              message: data.error || data.message || 'Token validation failed',
+              errorDetails: data.error ? { details: data.error } : undefined,
             };
           }
 
-          // Check token expiry
-          if (integration.token_expires_at) {
-            const expiresAt = new Date(integration.token_expires_at);
+          // Token is valid - extract expiry info if available
+          const integration = data.integration;
+          if (integration?.expires_at) {
+            const expiresAt = new Date(integration.expires_at);
             const now = new Date();
+            const minutesUntilExpiry = Math.round((expiresAt.getTime() - now.getTime()) / 60000);
 
-            if (expiresAt <= now) {
-              // Token is expired, check if we have refresh token
-              if (!integration.refresh_token) {
-                return {
-                  testId: 'fathom-token-validation',
-                  testName: 'OAuth Token Validation',
-                  status: 'failed',
-                  message: 'Access token expired and no refresh token available',
-                };
-              }
-
+            if (minutesUntilExpiry <= 0) {
               return {
                 testId: 'fathom-token-validation',
                 testName: 'OAuth Token Validation',
                 status: 'passed',
-                message: 'Access token expired but refresh token available',
+                message: 'Token expired but refresh available',
                 responseData: {
                   tokenExpired: true,
-                  hasRefreshToken: true,
-                  expiresAt: integration.token_expires_at,
+                  expiresAt: integration.expires_at,
+                  email: integration.email,
+                  meetingsCount: data.api_test?.meetings_count,
                 },
               };
             }
-
-            // Token is still valid
-            const minutesUntilExpiry = Math.round((expiresAt.getTime() - now.getTime()) / 60000);
 
             return {
               testId: 'fathom-token-validation',
@@ -181,9 +179,10 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
               message: `Token valid for ${minutesUntilExpiry} more minutes`,
               responseData: {
                 tokenExpired: false,
-                hasRefreshToken: !!integration.refresh_token,
-                expiresAt: integration.token_expires_at,
+                expiresAt: integration.expires_at,
                 minutesUntilExpiry,
+                email: integration.email,
+                meetingsCount: data.api_test?.meetings_count,
               },
             };
           }
@@ -192,9 +191,10 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
             testId: 'fathom-token-validation',
             testName: 'OAuth Token Validation',
             status: 'passed',
-            message: 'Token present (no expiry info)',
+            message: data.message || 'Token is valid',
             responseData: {
-              hasRefreshToken: !!integration.refresh_token,
+              email: integration?.email,
+              meetingsCount: data.api_test?.meetings_count,
             },
           };
         } catch (error) {
@@ -219,35 +219,45 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
       timeout: 20000,
       run: async (): Promise<TestResult> => {
         try {
-          // Get session for auth header
-          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+          // Use test-fathom-token edge function which is designed for quick connectivity tests
+          // It verifies the token and makes a test API call to Fathom
+          const { data, error } = await supabase.functions.invoke('test-fathom-token', {
+            body: { org_id: orgId },
+          });
 
-          if (sessionError || !sessionData.session) {
+          if (error) {
+            const errorMessage = error.message || 'Unknown error';
+
+            if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
+              return {
+                testId: 'fathom-api-connectivity',
+                testName: 'API Connectivity',
+                status: 'failed',
+                message: 'Authentication failed - token may be invalid',
+                errorDetails: { error: errorMessage },
+              };
+            }
+
             return {
               testId: 'fathom-api-connectivity',
               testName: 'API Connectivity',
               status: 'error',
-              message: 'No active session',
+              message: `Edge function error: ${errorMessage}`,
+              errorDetails: { error: errorMessage },
             };
           }
 
-          // Call the edge function to test API connectivity
-          // We'll use a minimal sync request that just validates the connection
-          const response = await supabase.functions.invoke('fathom-sync', {
-            headers: {
-              Authorization: `Bearer ${sessionData.session.access_token}`,
-            },
-            body: {
-              org_id: orgId,
-              sync_type: 'manual',
-              limit: 1, // Only fetch 1 meeting to test connectivity
-              dry_run: true, // Don't actually sync
-            },
-          });
+          if (!data) {
+            return {
+              testId: 'fathom-api-connectivity',
+              testName: 'API Connectivity',
+              status: 'failed',
+              message: 'No response from connectivity test',
+            };
+          }
 
-          if (response.error) {
-            // Check for specific error types
-            const errorMessage = response.error.message || 'Unknown error';
+          if (!data.success) {
+            const errorMessage = data.error || data.message || 'API connection failed';
 
             if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
               return {
@@ -274,7 +284,7 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
               testName: 'API Connectivity',
               status: 'failed',
               message: `API error: ${errorMessage}`,
-              errorDetails: { error: response.error },
+              errorDetails: { error: data.error },
             };
           }
 
@@ -282,8 +292,12 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
             testId: 'fathom-api-connectivity',
             testName: 'API Connectivity',
             status: 'passed',
-            message: 'Successfully connected to Fathom API',
-            responseData: response.data,
+            message: `Connected to Fathom API (${data.api_test?.meetings_count || 0} meetings found)`,
+            responseData: {
+              meetingsCount: data.api_test?.meetings_count,
+              hasMore: data.api_test?.has_more,
+              email: data.integration?.email,
+            },
           };
         } catch (error) {
           return {
@@ -429,7 +443,7 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
           // Get recent synced meetings
           const { data: meetings, error } = await supabase
             .from('meetings')
-            .select('id, title, start_time, external_id, transcript_text, summary')
+            .select('id, title, meeting_start, fathom_recording_id, transcript_text, summary')
             .eq('org_id', orgId)
             .not('fathom_recording_id', 'is', null)
             .order('created_at', { ascending: false })
@@ -462,9 +476,9 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
               issueCount++;
               issues.push(`Meeting ${meeting.id} missing title`);
             }
-            if (!meeting.start_time) {
+            if (!meeting.meeting_start) {
               issueCount++;
-              issues.push(`Meeting ${meeting.id} missing start_time`);
+              issues.push(`Meeting ${meeting.id} missing meeting_start`);
             }
           }
 
@@ -581,40 +595,25 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
       timeout: 15000,
       run: async (): Promise<TestResult> => {
         try {
-          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-
-          if (sessionError || !sessionData.session) {
-            return {
-              testId: 'fathom-edge-function-health',
-              testName: 'Edge Function Health',
-              status: 'error',
-              message: 'No active session',
-            };
-          }
-
-          // Attempt to invoke the sync function with a health check
+          // Use test-fathom-token which is a lightweight edge function
+          // specifically designed for quick health checks
           const startTime = Date.now();
-          const response = await supabase.functions.invoke('fathom-sync', {
-            headers: {
-              Authorization: `Bearer ${sessionData.session.access_token}`,
-            },
-            body: {
-              org_id: orgId,
-              health_check: true, // Minimal operation
-            },
+          const { data, error } = await supabase.functions.invoke('test-fathom-token', {
+            body: { org_id: orgId },
           });
 
           const duration = Date.now() - startTime;
 
-          if (response.error) {
+          if (error) {
             // Even an error response means the function is running
             // We're just checking that the function responds
+            const errorMessage = error.message || '';
 
             // Check if it's a "not connected" error which is expected
-            const errorMessage = response.error.message || '';
             if (
               errorMessage.includes('No active') ||
-              errorMessage.includes('not connected')
+              errorMessage.includes('not connected') ||
+              errorMessage.includes('No active Fathom')
             ) {
               return {
                 testId: 'fathom-edge-function-health',
@@ -633,6 +632,20 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
               responseData: {
                 responseTime: duration,
                 errorType: errorMessage.substring(0, 50),
+              },
+            };
+          }
+
+          // Check if response indicates a problem but function is working
+          if (data && !data.success) {
+            return {
+              testId: 'fathom-edge-function-health',
+              testName: 'Edge Function Health',
+              status: 'passed',
+              message: `Edge function responding (${duration}ms)`,
+              responseData: {
+                responseTime: duration,
+                note: 'Function responded but integration may have issues',
               },
             };
           }

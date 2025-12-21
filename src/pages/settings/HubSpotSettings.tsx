@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -952,19 +953,46 @@ function TaskSyncCard({
 function FormIngestionCard({
   settings,
   onUpdate,
+  onImmediateSave,
   onPollForms,
+  onLoadForms,
+  availableForms,
   isUpdating,
   isPolling,
+  isLoadingForms,
 }: {
   settings: HubSpotSettings['form_ingestion'];
   onUpdate: (settings: Partial<HubSpotSettings['form_ingestion']>) => void;
+  onImmediateSave: () => Promise<void>;
   onPollForms: () => void;
+  onLoadForms: () => void;
+  availableForms: Array<{ id: string; name: string; formType: string; archived?: boolean }>;
   isUpdating: boolean;
   isPolling: boolean;
+  isLoadingForms: boolean;
 }) {
   const enabled = settings?.enabled ?? false;
   const autoCreateContact = settings?.auto_create_contact ?? true;
   const enabledForms = settings?.enabled_forms || [];
+  const [isSavingForms, setIsSavingForms] = useState(false);
+
+  const handleFormToggle = async (formId: string, checked: boolean) => {
+    // Update local state
+    if (checked) {
+      onUpdate({ enabled_forms: [...enabledForms, formId] });
+    } else {
+      onUpdate({ enabled_forms: enabledForms.filter((id) => id !== formId) });
+    }
+    // Save immediately (don't wait for debounce)
+    setIsSavingForms(true);
+    try {
+      // Small delay to let state update propagate
+      await new Promise((r) => setTimeout(r, 100));
+      await onImmediateSave();
+    } finally {
+      setIsSavingForms(false);
+    }
+  };
 
   return (
     <FeatureCard
@@ -992,6 +1020,64 @@ function FormIngestionCard({
 
         <Separator />
 
+        {/* Form Selection */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label>Select Forms to Monitor</Label>
+            <Button variant="outline" size="sm" onClick={onLoadForms} disabled={isLoadingForms}>
+              {isLoadingForms ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              {availableForms.length > 0 ? 'Refresh' : 'Load Forms'}
+            </Button>
+          </div>
+
+          {availableForms.length > 0 ? (
+            <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
+              {availableForms
+                .filter((form) => !form.archived)
+                .map((form) => (
+                  <div key={form.id} className="flex items-center justify-between py-1">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`form-${form.id}`}
+                        checked={enabledForms.includes(form.id)}
+                        onCheckedChange={(checked) => handleFormToggle(form.id, checked === true)}
+                        disabled={isUpdating || isSavingForms}
+                      />
+                      <label
+                        htmlFor={`form-${form.id}`}
+                        className="text-sm cursor-pointer flex-1"
+                      >
+                        {form.name}
+                      </label>
+                    </div>
+                    <span className="text-xs text-muted-foreground capitalize">
+                      {form.formType?.replace(/_/g, ' ') || 'form'}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          ) : (
+            <Alert>
+              <FileText className="h-4 w-4" />
+              <AlertDescription>
+                No forms loaded. Click "Load Forms" to fetch available forms from HubSpot.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {enabledForms.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {enabledForms.length} form{enabledForms.length !== 1 ? 's' : ''} selected for monitoring
+            </p>
+          )}
+        </div>
+
+        <Separator />
+
         <div className="flex items-center justify-between">
           <div>
             <Label>Poll Form Submissions</Label>
@@ -999,7 +1085,12 @@ function FormIngestionCard({
               Manually trigger a poll for new form submissions
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={onPollForms} disabled={isPolling}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onPollForms}
+            disabled={isPolling || enabledForms.length === 0}
+          >
             {isPolling ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
             ) : (
@@ -1008,15 +1099,6 @@ function FormIngestionCard({
             Poll Now
           </Button>
         </div>
-
-        {enabledForms.length === 0 && (
-          <Alert>
-            <FileText className="h-4 w-4" />
-            <AlertDescription>
-              No forms configured. Click "Poll Now" to fetch available forms from HubSpot.
-            </AlertDescription>
-          </Alert>
-        )}
       </div>
     </FeatureCard>
   );
@@ -1288,16 +1370,24 @@ export default function HubSpotSettings() {
     triggerPollForms,
     getProperties,
     getPipelines,
+    getForms,
     triggerSync,
   } = useHubSpotIntegration();
 
   const [localSettings, setLocalSettings] = useState<HubSpotSettings>({});
   const [isPollingForms, setIsPollingForms] = useState(false);
+  const [isLoadingForms, setIsLoadingForms] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [hubspotPipelines, setHubspotPipelines] = useState<Array<{
     id: string;
     label: string;
     stages: Array<{ id: string; label: string }>;
+  }>>([]);
+  const [hubspotForms, setHubspotForms] = useState<Array<{
+    id: string;
+    name: string;
+    formType: string;
+    archived?: boolean;
   }>>([]);
   const [hubspotDealProperties, setHubspotDealProperties] = useState<Array<{
     name: string;
@@ -1367,6 +1457,40 @@ export default function HubSpotSettings() {
     }
   }, [triggerPollForms]);
 
+  const handleLoadForms = useCallback(async () => {
+    setIsLoadingForms(true);
+    try {
+      const forms = await getForms();
+      setHubspotForms(forms);
+      if (forms.length === 0) {
+        toast.info('No forms found in your HubSpot account');
+      } else {
+        toast.success(`Loaded ${forms.length} forms from HubSpot`);
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to load forms');
+    } finally {
+      setIsLoadingForms(false);
+    }
+  }, [getForms]);
+
+  // Immediate save function for form selection (bypasses debounce)
+  const handleImmediateSave = useCallback(async () => {
+    // Clear any pending debounced save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    // Save current local settings immediately
+    try {
+      await saveSettings(localSettings);
+      toast.success('Form selection saved');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to save settings');
+      throw e;
+    }
+  }, [saveSettings, localSettings]);
+
   const handleReauthorize = useCallback(async () => {
     try {
       // First disconnect, then reconnect
@@ -1410,7 +1534,7 @@ export default function HubSpotSettings() {
     [triggerSync]
   );
 
-  // Fetch HubSpot pipelines and properties when connected
+  // Fetch HubSpot pipelines, properties, and forms when connected
   useEffect(() => {
     if (!isConnected) return;
 
@@ -1424,6 +1548,10 @@ export default function HubSpotSettings() {
         // Fetch deal properties
         const dealProps = await getProperties('deals');
         setHubspotDealProperties(dealProps);
+
+        // Fetch forms for Form Ingestion feature
+        const forms = await getForms();
+        setHubspotForms(forms);
       } catch (e: any) {
         console.error('Failed to fetch HubSpot data:', e);
         // Show error to user so they know what's happening
@@ -1434,7 +1562,7 @@ export default function HubSpotSettings() {
     };
 
     fetchHubspotData();
-  }, [isConnected, getPipelines, getProperties]);
+  }, [isConnected, getPipelines, getProperties, getForms]);
 
 
   if (!canManage) {
@@ -1563,9 +1691,13 @@ export default function HubSpotSettings() {
             <FormIngestionCard
               settings={localSettings.form_ingestion}
               onUpdate={(updates) => updateSettings('form_ingestion', updates)}
+              onImmediateSave={handleImmediateSave}
               onPollForms={handlePollForms}
+              onLoadForms={handleLoadForms}
+              availableForms={hubspotForms}
               isUpdating={saving}
               isPolling={isPollingForms}
+              isLoadingForms={isLoadingForms}
             />
 
             <AIWritebackCard

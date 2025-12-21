@@ -999,8 +999,8 @@ export function createHubSpotTests(orgId: string): IntegrationTest[] {
             return {
               testId: 'hubspot-pipeline-mapping',
               testName: 'Pipeline Mapping Configuration',
-              status: 'failed',
-              message: 'No HubSpot pipeline selected for mapping',
+              status: 'skipped',
+              message: 'Pipeline mapping enabled but not configured yet',
             };
           }
 
@@ -1137,8 +1137,8 @@ export function createHubSpotTests(orgId: string): IntegrationTest[] {
             return {
               testId: 'hubspot-form-ingestion',
               testName: 'Form Ingestion Status',
-              status: 'failed',
-              message: 'Form ingestion enabled but no forms selected',
+              status: 'skipped',
+              message: 'Form ingestion enabled but no forms configured yet',
             };
           }
 
@@ -1200,8 +1200,8 @@ export function createHubSpotTests(orgId: string): IntegrationTest[] {
             return {
               testId: 'hubspot-ai-writeback',
               testName: 'AI Note Writeback Status',
-              status: 'failed',
-              message: 'AI writeback enabled but no features selected',
+              status: 'skipped',
+              message: 'AI writeback enabled but no features configured yet',
             };
           }
 

@@ -201,6 +201,7 @@ const MeetingIntelligenceDemo = lazyWithRetry(() => import('@/pages/admin/Meetin
 const MeetingIntelligenceDemoSimple = lazyWithRetry(() => import('@/pages/admin/MeetingIntelligenceDemoSimple'));
 const TasksDemo = lazyWithRetry(() => import('@/pages/admin/TasksDemo'));
 const ProcessMaps = lazyWithRetry(() => import('@/pages/admin/ProcessMaps'));
+const IntelligenceTestRunner = lazyWithRetry(() => import('@/pages/admin/IntelligenceTestRunner'));
 
 // Cron Jobs Admin
 const CronJobsAdmin = lazyWithRetry(() => import('@/pages/admin/CronJobsAdmin'));
@@ -554,6 +555,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/tasks-demo" element={<InternalRouteGuard><AppLayout><TasksDemo /></AppLayout></InternalRouteGuard>} />
                 {/* Process Maps - AI-generated process visualization */}
                 <Route path="/platform/process-maps" element={<InternalRouteGuard><AppLayout><ProcessMaps /></AppLayout></InternalRouteGuard>} />
+                {/* Intelligence Test Runner (internal-only): run and visualize unit tests */}
+                <Route path="/platform/intelligence-tests" element={<InternalRouteGuard><AppLayout><IntelligenceTestRunner /></AppLayout></InternalRouteGuard>} />
                 {/* Platform Dashboard - MUST be last (catch-all for /platform) */}
                 <Route path="/platform" element={<PlatformAdminRouteGuard><AppLayout><PlatformDashboard /></AppLayout></PlatformAdminRouteGuard>} />
 

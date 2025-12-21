@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit, Save, XCircle, Upload, Search, Copy, Zap, ExternalLink, ChevronDown, ChevronUp, Loader2, ShieldCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Plus, Trash2, Edit, Save, XCircle, Upload, Search, Copy, Zap, ExternalLink, ChevronDown, ChevronUp, Loader2, ShieldCheck, Play, TestTube2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -854,6 +855,36 @@ export default function SettingsSavvyCal() {
               )}
             </CardContent>
           </Card>
+
+        {/* Integration Tests Card */}
+        <Card className="border-2 border-cyan-200 dark:border-cyan-800 bg-cyan-50/50 dark:bg-cyan-950/20">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-cyan-600 p-2 rounded-lg">
+                  <TestTube2 className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Integration Tests</CardTitle>
+                  <CardDescription>
+                    Run diagnostic tests to verify your SavvyCal integration is working correctly
+                  </CardDescription>
+                </div>
+              </div>
+              <Link to="/platform/integrations/savvycal/tests">
+                <Button className="gap-2 bg-cyan-600 hover:bg-cyan-700 text-white">
+                  <Play className="h-4 w-4" />
+                  Run Tests
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              <p>Tests include: API connectivity, webhook configuration, webhook signing secret, lead data integrity, and more.</p>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Source Mappings Card */}
         <Card>
