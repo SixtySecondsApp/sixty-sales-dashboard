@@ -4,7 +4,7 @@ import { corsHeaders } from '../_shared/cors.ts'
 import { HubSpotClient } from '../_shared/hubspot.ts'
 
 // HubSpot Admin Edge Function - v2
-type Action = 'status' | 'enqueue' | 'save_settings' | 'get_properties' | 'get_pipelines' | 'trigger_sync'
+type Action = 'status' | 'enqueue' | 'save_settings' | 'get_properties' | 'get_pipelines' | 'get_forms' | 'trigger_sync'
 
 /**
  * Get a valid HubSpot access token, refreshing if expired or about to expire
@@ -382,6 +382,48 @@ serve(async (req) => {
       )
     } catch (e: any) {
       return new Response(JSON.stringify({ success: false, error: e.message || 'Failed to fetch pipelines' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
+  // Get HubSpot forms
+  if (action === 'get_forms') {
+    // Get valid access token (auto-refreshes if expired)
+    const { accessToken, error: tokenError } = await getValidAccessToken(svc, orgId)
+
+    if (!accessToken) {
+      return new Response(JSON.stringify({ success: false, error: tokenError || 'HubSpot not connected' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const client = new HubSpotClient({ accessToken })
+
+    try {
+      const forms = await client.request<{ results: any[] }>({
+        method: 'GET',
+        path: '/marketing/v3/forms',
+      })
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          forms: forms.results.map((f: any) => ({
+            id: f.id,
+            name: f.name,
+            formType: f.formType,
+            createdAt: f.createdAt,
+            updatedAt: f.updatedAt,
+            archived: f.archived,
+          })),
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } catch (e: any) {
+      return new Response(JSON.stringify({ success: false, error: e.message || 'Failed to fetch forms' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
