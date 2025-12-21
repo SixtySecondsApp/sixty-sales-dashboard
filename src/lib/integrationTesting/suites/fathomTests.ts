@@ -443,7 +443,7 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
           // Get recent synced meetings
           const { data: meetings, error } = await supabase
             .from('meetings')
-            .select('id, title, start_time, fathom_recording_id, transcript_text, summary')
+            .select('id, title, meeting_start, fathom_recording_id, transcript_text, summary')
             .eq('org_id', orgId)
             .not('fathom_recording_id', 'is', null)
             .order('created_at', { ascending: false })
@@ -476,9 +476,9 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
               issueCount++;
               issues.push(`Meeting ${meeting.id} missing title`);
             }
-            if (!meeting.start_time) {
+            if (!meeting.meeting_start) {
               issueCount++;
-              issues.push(`Meeting ${meeting.id} missing start_time`);
+              issues.push(`Meeting ${meeting.id} missing meeting_start`);
             }
           }
 
