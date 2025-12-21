@@ -953,6 +953,7 @@ function TaskSyncCard({
 function FormIngestionCard({
   settings,
   onUpdate,
+  onImmediateSave,
   onPollForms,
   onLoadForms,
   availableForms,
@@ -962,6 +963,7 @@ function FormIngestionCard({
 }: {
   settings: HubSpotSettings['form_ingestion'];
   onUpdate: (settings: Partial<HubSpotSettings['form_ingestion']>) => void;
+  onImmediateSave: () => Promise<void>;
   onPollForms: () => void;
   onLoadForms: () => void;
   availableForms: Array<{ id: string; name: string; formType: string }>;
@@ -972,12 +974,23 @@ function FormIngestionCard({
   const enabled = settings?.enabled ?? false;
   const autoCreateContact = settings?.auto_create_contact ?? true;
   const enabledForms = settings?.enabled_forms || [];
+  const [isSavingForms, setIsSavingForms] = useState(false);
 
-  const handleFormToggle = (formId: string, checked: boolean) => {
+  const handleFormToggle = async (formId: string, checked: boolean) => {
+    // Update local state
     if (checked) {
       onUpdate({ enabled_forms: [...enabledForms, formId] });
     } else {
       onUpdate({ enabled_forms: enabledForms.filter((id) => id !== formId) });
+    }
+    // Save immediately (don't wait for debounce)
+    setIsSavingForms(true);
+    try {
+      // Small delay to let state update propagate
+      await new Promise((r) => setTimeout(r, 100));
+      await onImmediateSave();
+    } finally {
+      setIsSavingForms(false);
     }
   };
 
@@ -1032,7 +1045,7 @@ function FormIngestionCard({
                         id={`form-${form.id}`}
                         checked={enabledForms.includes(form.id)}
                         onCheckedChange={(checked) => handleFormToggle(form.id, checked === true)}
-                        disabled={isUpdating}
+                        disabled={isUpdating || isSavingForms}
                       />
                       <label
                         htmlFor={`form-${form.id}`}
@@ -1460,6 +1473,23 @@ export default function HubSpotSettings() {
     }
   }, [getForms]);
 
+  // Immediate save function for form selection (bypasses debounce)
+  const handleImmediateSave = useCallback(async () => {
+    // Clear any pending debounced save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    // Save current local settings immediately
+    try {
+      await saveSettings(localSettings);
+      toast.success('Form selection saved');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to save settings');
+      throw e;
+    }
+  }, [saveSettings, localSettings]);
+
   const handleReauthorize = useCallback(async () => {
     try {
       // First disconnect, then reconnect
@@ -1656,6 +1686,7 @@ export default function HubSpotSettings() {
             <FormIngestionCard
               settings={localSettings.form_ingestion}
               onUpdate={(updates) => updateSettings('form_ingestion', updates)}
+              onImmediateSave={handleImmediateSave}
               onPollForms={handlePollForms}
               onLoadForms={handleLoadForms}
               availableForms={hubspotForms}
