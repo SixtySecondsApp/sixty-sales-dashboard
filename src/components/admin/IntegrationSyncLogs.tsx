@@ -11,7 +11,7 @@ import {
   Loader2,
   RefreshCw,
   Radio,
-  RadioOff,
+  CircleOff,
   ChevronDown,
   CheckCircle,
   XCircle,
@@ -344,7 +344,7 @@ export default function IntegrationSyncLogs() {
               </>
             ) : (
               <>
-                <RadioOff className="w-4 h-4 mr-2" />
+                <CircleOff className="w-4 h-4 mr-2" />
                 Paused
               </>
             )}
