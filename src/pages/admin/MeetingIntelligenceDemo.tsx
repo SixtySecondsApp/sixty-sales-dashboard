@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ProcessMapButton } from '@/components/process-maps';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -660,10 +661,19 @@ export default function MeetingIntelligenceDemo() {
             Test and configure call type workflows, pipeline automation, and AI coaching features
           </p>
         </div>
-        <Button variant="outline" onClick={loadData} disabled={loading}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh Data
-        </Button>
+        <div className="flex items-center gap-2">
+          <ProcessMapButton
+            processType="workflow"
+            processName="meeting_intelligence"
+            variant="outline"
+            size="default"
+            label="Process Map"
+          />
+          <Button variant="outline" onClick={loadData} disabled={loading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh Data
+          </Button>
+        </div>
       </div>
 
       {/* Stats Overview */}

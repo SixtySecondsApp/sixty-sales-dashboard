@@ -16,6 +16,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useHubSpotIntegration } from '@/lib/hooks/useHubSpotIntegration';
+import { ProcessMapButton } from '@/components/process-maps';
 
 export function HubSpotConfigModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const navigate = useNavigate();
@@ -202,6 +203,13 @@ export function HubSpotConfigModal({ open, onOpenChange }: { open: boolean; onOp
                   Open HubSpot
                 </a>
               </Button>
+              <ProcessMapButton
+                processType="integration"
+                processName="hubspot"
+                variant="outline"
+                size="sm"
+                label="Process Map"
+              />
             </div>
           </div>
         </ConfigSection>

@@ -12,6 +12,7 @@ import { Mail, Calendar, FolderOpen, ListTodo, RefreshCw, Loader2, CheckCircle, 
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useUser } from '@/lib/hooks/useUser';
+import { ProcessMapButton } from '@/components/process-maps';
 
 interface GoogleConfigModalProps {
   open: boolean;
@@ -333,25 +334,34 @@ export function GoogleConfigModal({ open, onOpenChange }: GoogleConfigModalProps
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Verify your Google integration is working correctly by testing all connected services.
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleTestConnection}
-            disabled={isTesting || !integration}
-            className="w-full"
-          >
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleTestConnection}
+              disabled={isTesting || !integration}
+              className="flex-1"
+            >
             {isTesting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Testing...
-              </>
-            ) : (
-              <>
-                <TestTube2 className="w-4 h-4 mr-2" />
-                Test Connection
-              </>
-            )}
-          </Button>
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                <>
+                  <TestTube2 className="w-4 h-4 mr-2" />
+                  Test Connection
+                </>
+              )}
+            </Button>
+            <ProcessMapButton
+              processType="integration"
+              processName="google"
+              variant="outline"
+              size="sm"
+              label="Process Map"
+            />
+          </div>
           
           {testResult && (
             <div className="space-y-2 mt-3">
