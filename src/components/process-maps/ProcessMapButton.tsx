@@ -32,6 +32,7 @@ interface ProcessMapButtonProps {
   className?: string;
   showLabel?: boolean;
   label?: string;
+  onGenerated?: () => void;
 }
 
 interface ProcessMap {
@@ -55,6 +56,7 @@ export function ProcessMapButton({
   className,
   showLabel = true,
   label = 'Process Map',
+  onGenerated,
 }: ProcessMapButtonProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -105,6 +107,7 @@ export function ProcessMapButton({
 
           if (data.generated) {
             toast.success('Process map generated successfully');
+            onGenerated?.();
           } else if (data.cached) {
             // Cached version, no toast needed
           }
@@ -121,7 +124,7 @@ export function ProcessMapButton({
         setRegenerating(false);
       }
     },
-    [processType, processName]
+    [processType, processName, onGenerated]
   );
 
   const handleClick = useCallback(() => {

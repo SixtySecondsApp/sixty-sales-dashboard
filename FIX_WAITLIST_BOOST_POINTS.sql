@@ -194,3 +194,6 @@ SELECT 'SUCCESS: Boost points trigger installed!' as status;
 
 
 
+
+
+

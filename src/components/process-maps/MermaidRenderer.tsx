@@ -10,6 +10,8 @@ import {
   ZoomOut,
   RotateCcw,
   Maximize2,
+  Minimize2,
+  Code2,
   Loader2,
   AlertCircle
 } from 'lucide-react';
@@ -25,6 +27,53 @@ interface MermaidRendererProps {
 }
 
 /**
+ * Sanitize Mermaid code to fix common AI-generated syntax issues
+ */
+function sanitizeMermaidCode(code: string): string {
+  let sanitized = code;
+
+  // Fix 1: Escape forward slashes in labels that might be interpreted as trapezoid delimiters
+  // Pattern: NodeId[/text] or NodeId[text/text] should be NodeId["text with /"]
+  // This regex finds bracket content with unquoted slashes
+  sanitized = sanitized.replace(
+    /\[([^\]"]*\/[^\]"]*)\]/g,
+    (match, content) => {
+      // If already quoted, leave it alone
+      if (content.startsWith('"') && content.endsWith('"')) return match;
+      // Wrap content in quotes to escape special characters
+      return `["${content}"]`;
+    }
+  );
+
+  // Fix 2: Fix <br/> followed by special characters that cause lexical errors
+  // The issue is when <br/> appears before ] without proper quoting
+  sanitized = sanitized.replace(
+    /\[([^\]"]*<br\s*\/?>[^\]"]*)\]/gi,
+    (match, content) => {
+      // If already quoted, leave it alone
+      if (content.startsWith('"') && content.endsWith('"')) return match;
+      // Wrap content in quotes
+      return `["${content}"]`;
+    }
+  );
+
+  // Fix 3: Ensure labels with dashes surrounded by spaces are quoted
+  // Pattern like "NodeId[Text - More Text]" should be "NodeId["Text - More Text"]"
+  sanitized = sanitized.replace(
+    /\[([^\]"]*\s-\s[^\]"]*)\]/g,
+    (match, content) => {
+      if (content.startsWith('"') && content.endsWith('"')) return match;
+      return `["${content}"]`;
+    }
+  );
+
+  // Fix 4: Remove any double-double quotes that might result from over-escaping
+  sanitized = sanitized.replace(/\[""([^"]+)""\]/g, '["$1"]');
+
+  return sanitized;
+}
+
+/**
  * MermaidRenderer component that renders Mermaid diagrams client-side.
  * Uses dynamic import to load mermaid library only when needed.
  */
@@ -37,12 +86,14 @@ export const MermaidRenderer = memo(function MermaidRenderer({
   showCode = false,
 }: MermaidRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const [svgContent, setSvgContent] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [showCodePanel, setShowCodePanel] = useState(showCode);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Initialize and render mermaid diagram
   const renderDiagram = useCallback(async () => {
@@ -82,8 +133,11 @@ export const MermaidRenderer = memo(function MermaidRenderer({
       // Generate unique ID for this diagram
       const id = `mermaid-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
+      // Sanitize the code to fix common AI-generated syntax issues
+      const sanitizedCode = sanitizeMermaidCode(code);
+
       // Render the diagram
-      const { svg } = await mermaid.default.render(id, code);
+      const { svg } = await mermaid.default.render(id, sanitizedCode);
       setSvgContent(svg);
     } catch (err) {
       console.error('Mermaid render error:', err);
@@ -202,8 +256,42 @@ export const MermaidRenderer = memo(function MermaidRenderer({
     setZoom(1);
   }, []);
 
+  const handleFullscreen = useCallback(async () => {
+    if (!cardRef.current) return;
+
+    try {
+      if (!document.fullscreenElement) {
+        await cardRef.current.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch (err) {
+      console.error('Fullscreen error:', err);
+      toast.error('Fullscreen not supported');
+    }
+  }, []);
+
+  // Listen for fullscreen changes (e.g., user presses Escape)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
   return (
-    <Card className={cn('overflow-hidden', className)}>
+    <Card
+      ref={cardRef}
+      className={cn(
+        'overflow-hidden',
+        isFullscreen && 'fixed inset-0 z-50 rounded-none bg-background',
+        className
+      )}
+    >
       {(title || description) && (
         <CardHeader className="pb-3">
           {title && <CardTitle className="text-lg">{title}</CardTitle>}
@@ -252,10 +340,22 @@ export const MermaidRenderer = memo(function MermaidRenderer({
               <Button
                 variant="ghost"
                 size="sm"
+                onClick={handleFullscreen}
+                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="h-4 w-4" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setShowCodePanel(!showCodePanel)}
                 title={showCodePanel ? 'Hide code' : 'Show code'}
               >
-                <Maximize2 className="h-4 w-4" />
+                <Code2 className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"
@@ -303,7 +403,7 @@ export const MermaidRenderer = memo(function MermaidRenderer({
               ref={containerRef}
               className="overflow-auto p-4"
               style={{
-                maxHeight: '600px',
+                maxHeight: isFullscreen ? 'calc(100vh - 120px)' : '600px',
               }}
             >
               <div

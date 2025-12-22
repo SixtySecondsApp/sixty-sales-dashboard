@@ -256,6 +256,56 @@ serve(async (req) => {
       )
     }
 
+    // Verify user is a platform admin (internal + is_admin)
+    // Use service role to check admin status securely
+    const supabaseService = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
+
+    // Check if user is a platform admin (must be in internal_users AND have is_admin = true)
+    const { data: profile, error: profileError } = await supabaseService
+      .from('profiles')
+      .select('email, is_admin')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !profile) {
+      return new Response(
+        JSON.stringify({ error: 'User profile not found' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Check if user is admin
+    if (!profile.is_admin) {
+      return new Response(
+        JSON.stringify({ error: 'Platform admin access required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Check if user is in internal_users whitelist
+    const { data: internalUser, error: internalError } = await supabaseService
+      .from('internal_users')
+      .select('email')
+      .eq('email', profile.email?.toLowerCase())
+      .eq('is_active', true)
+      .single()
+
+    if (internalError || !internalUser) {
+      return new Response(
+        JSON.stringify({ error: 'Internal user access required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Get user's org
     const { data: membership, error: membershipError } = await supabaseClient
       .from('organization_memberships')
@@ -332,19 +382,7 @@ serve(async (req) => {
     // Format title
     const title = formatTitle(processType, processName)
 
-    // Use service role to insert (bypasses RLS for admin operations)
-    const supabaseService = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    )
-
-    // Store in database
+    // Store in database (using supabaseService created earlier for admin check)
     const { data: processMap, error: insertError } = await supabaseService
       .from('process_maps')
       .insert({
@@ -420,6 +458,10 @@ Guidelines:
    - [(Text)] for databases
    - [[Text]] for subroutines
 8. Color-code by category if helpful using :::className
+9. IMPORTANT - Special characters in labels:
+   - Wrap labels containing special characters (/, #, &, etc.) in double quotes
+   - Example: NodeId["/command-name"] NOT NodeId[/command-name]
+   - This prevents Mermaid lexical parsing errors
 
 Return ONLY the Mermaid code, no markdown code blocks, no explanation.
 The code must be valid Mermaid syntax that can be rendered directly.`

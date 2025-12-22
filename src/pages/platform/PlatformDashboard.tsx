@@ -35,6 +35,7 @@ import {
   Brain,
   Clock,
   ListChecks,
+  Share2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -262,6 +263,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: ListChecks,
       href: '/platform/tasks-demo',
       color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30',
+      badge: 'New',
+    },
+    {
+      id: 'process-maps',
+      title: 'Process Maps',
+      description: 'AI-generated Mermaid diagrams visualizing integration flows and workflows',
+      icon: Share2,
+      href: '/platform/process-maps',
+      color: 'text-violet-600 bg-violet-100 dark:bg-violet-900/30',
       badge: 'New',
     },
     {

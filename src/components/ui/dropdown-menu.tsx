@@ -159,3 +159,9 @@ export function DropdownMenuItem({
     </button>
   );
 }
+
+export function DropdownMenuSeparator({ className = '' }: { className?: string }) {
+  return (
+    <div className={`-mx-1 my-1 h-px bg-slate-200 dark:bg-gray-700 ${className}`} />
+  );
+}

@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useEffect, Suspense, lazy } from 'react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryClient';
+import { useEffect, Suspense } from 'react';
 import { Toaster } from '@/components/ui/sonner';
 import { createApiMonitor } from '@/lib/utils/apiUtils';
 import { API_BASE_URL } from '@/lib/config';
@@ -16,6 +17,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { InternalRouteGuard, OrgAdminRouteGuard, PlatformAdminRouteGuard } from '@/components/RouteGuard';
 import { RouteDebug } from '@/components/RouteDebug';
 import { DefaultRoute } from '@/components/DefaultRoute';
+import { RouteLoader, ExternalRedirect } from '@/components/routing';
 import { usePerformanceOptimization } from '@/lib/hooks/usePerformanceOptimization';
 import { IntelligentPreloader } from '@/components/LazyComponents';
 import { webVitalsOptimizer } from '@/lib/utils/webVitals';
@@ -23,11 +25,12 @@ import { webVitalsOptimizer } from '@/lib/utils/webVitals';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import logger from '@/lib/utils/logger';
 import { StateProvider } from '@/lib/communication/StateManagement';
-import { serviceWorkerManager, detectAndResolveCacheConflicts } from '@/lib/utils/serviceWorkerUtils';
+import { serviceWorkerManager } from '@/lib/utils/serviceWorkerUtils';
 import { VersionManager } from '@/components/VersionManager';
-import { lazyWithRetry } from '@/lib/utils/dynamicImport';
 
-// Use regular dashboard - optimization had issues
+// ============================================================
+// DIRECT IMPORTS (Critical path - must load immediately)
+// ============================================================
 import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/auth/login';
 import AuthCallback from '@/pages/auth/AuthCallback';
@@ -37,144 +40,59 @@ import MeetingThumbnail from '@/pages/MeetingThumbnail';
 import BrowserlessTest from '@/pages/BrowserlessTest';
 import PublicProposal from '@/pages/PublicProposal';
 import DrueLanding from '@/pages/DrueLanding';
-const MeetingsWaitlist = lazyWithRetry(() => import('@/pages/platform/MeetingsWaitlist'));
-const OnboardingSimulator = lazyWithRetry(() => import('@/pages/platform/OnboardingSimulator'));
-const PricingControl = lazyWithRetry(() => import('@/pages/platform/PricingControl'));
-const CostAnalysis = lazyWithRetry(() => import('@/pages/platform/CostAnalysis'));
-const LaunchChecklist = lazyWithRetry(() => import('@/pages/platform/LaunchChecklist'));
-const ActivationDashboard = lazyWithRetry(() => import('@/pages/platform/ActivationDashboard'));
-
-// Heavy routes - lazy load with retry mechanism to handle cache issues
-const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
-const Heatmap = lazyWithRetry(() => import('@/pages/Heatmap'));
-const SalesFunnel = lazyWithRetry(() => import('@/pages/SalesFunnel'));
-const Profile = lazyWithRetry(() => import('@/pages/Profile'));
-// Calendar page removed - users now redirected to Google Calendar directly
-
-// Admin routes - lazy load with retry (infrequently accessed, more prone to cache issues)
-const Users = lazyWithRetry(() => import('@/pages/admin/Users'));
-const PipelineSettings = lazyWithRetry(() => import('@/pages/admin/PipelineSettings'));
-const AuditLogs = lazyWithRetry(() => import('@/pages/admin/AuditLogs'));
-const SmartTasksAdmin = lazyWithRetry(() => import('@/pages/SmartTasksAdmin'));
-const PipelineAutomationAdmin = lazyWithRetry(() => import('@/pages/PipelineAutomationAdmin'));
-const EmailTemplates = lazyWithRetry(() => 
-  import('@/pages/admin/EmailTemplates').catch((err) => {
-    console.error('Failed to load EmailTemplates:', err);
-    // Return a fallback component
-    return { default: () => <div>Error loading Email Templates. Check console.</div> };
-  })
-);
-// ApiTesting already imported below
-const FunctionTesting = lazyWithRetry(() => import('@/pages/admin/FunctionTesting'));
-// WorkflowsTestSuite and WorkflowsE2ETestSuite - REMOVED (specialized test pages, keeping only API + Function testing)
-const AIProviderSettings = lazyWithRetry(() => import('@/components/settings/AIProviderSettings'));
-const GoogleIntegrationTestsLegacy = lazyWithRetry(() => import('@/components/admin/GoogleIntegrationTests').then(m => ({ default: m.GoogleIntegrationTests })));
-const GoogleIntegrationTests = lazyWithRetry(() => import('@/pages/admin/GoogleIntegrationTestsNew'));
-const SettingsSavvyCal = lazyWithRetry(() => import('@/pages/admin/SettingsSavvyCal'));
-const SettingsBookingSources = lazyWithRetry(() => import('@/pages/admin/SettingsBookingSources'));
-// SystemHealth, Database, Reports, Documentation - REMOVED (scaffolded only, not functional)
-const HealthRules = lazyWithRetry(() => import('@/pages/admin/HealthRules'));
-const LogoSettings = lazyWithRetry(() => import('@/pages/settings/LogoSettings'));
-const EmailCategorizationSettings = lazyWithRetry(() => import('@/pages/admin/EmailCategorizationSettings'));
-
-// Health Monitoring routes
-const DealHealthDashboard = lazyWithRetry(() => import('@/components/DealHealthDashboard').then(m => ({ default: m.DealHealthDashboard })));
-const RelationshipHealth = lazyWithRetry(() => import('@/pages/RelationshipHealth'));
-const HealthMonitoring = lazyWithRetry(() => import('@/pages/HealthMonitoring'));
-
-// Auth routes - lazy load with retry except login
-const Signup = lazyWithRetry(() => import('@/pages/auth/signup'));
-const VerifyEmail = lazyWithRetry(() => import('@/pages/auth/VerifyEmail'));
-const ForgotPassword = lazyWithRetry(() => import('@/pages/auth/forgot-password'));
-const ResetPassword = lazyWithRetry(() => import('@/pages/auth/reset-password'));
-const SetPassword = lazyWithRetry(() => import('@/pages/auth/SetPassword'));
-const Onboarding = lazyWithRetry(() => import('@/pages/onboarding'));
-
-// Large feature routes - lazy load with retry (most prone to cache issues)
-const PipelinePage = lazyWithRetry(() => import('@/pages/PipelinePage').then(module => ({ default: module.PipelinePage })));
-const ActivityProcessingPage = lazyWithRetry(() => import('@/pages/ActivityProcessingPage'));
-const TasksPage = lazyWithRetry(() => import('@/pages/TasksPage'));
-const ProjectsHub = lazyWithRetry(() => import('@/pages/ProjectsHub'));
-const GoogleTasksSettings = lazyWithRetry(() => import('@/pages/GoogleTasksSettings'));
-const Roadmap = lazyWithRetry(() => import('@/pages/Roadmap'));
-const Releases = lazyWithRetry(() => import('@/pages/Releases'));
-const Clients = lazyWithRetry(() => import('@/pages/Clients'));
-const TestFallback = lazyWithRetry(() => import('@/pages/TestFallback'));
-const MeetingsPage = lazyWithRetry(() => import('@/pages/MeetingsPage'));
-const MeetingIntelligence = lazyWithRetry(() => import('@/pages/MeetingIntelligence'));
-const MeetingSentimentAnalytics = lazyWithRetry(() => import('@/pages/MeetingSentimentAnalytics'));
-const FreepikFlow = lazyWithRetry(() => import('@/components/workflows/FreepikFlow'));
-const Calls = lazyWithRetry(() => import('@/pages/Calls.tsx'));
-const CallDetail = lazyWithRetry(() => import('@/pages/CallDetail.tsx'));
-const DebugAuth = lazyWithRetry(() => import('@/pages/DebugAuth'));
-const AuthDebug = lazyWithRetry(() => import('@/pages/debug/AuthDebug'));
-const DebugPermissions = lazyWithRetry(() => import('@/pages/DebugPermissions'));
-const DebugMeetings = lazyWithRetry(() => import('@/pages/DebugMeetings'));
-const ApiTesting = lazyWithRetry(() => import('@/pages/ApiTesting'));
-const TestNotifications = lazyWithRetry(() => import('@/pages/TestNotifications'));
-const Events = lazyWithRetry(() => import('@/pages/Events'));
-
-// CRM routes - heavy components, lazy load with retry
-const CRM = lazyWithRetry(() => import('@/pages/CRM'));
-const ElegantCRM = lazyWithRetry(() => import('@/pages/ElegantCRM'));
-// Admin pages removed - now using /platform routes instead
-const Insights = lazyWithRetry(() => import('@/pages/Insights'));
-const Workflows = lazyWithRetry(() => import('@/pages/Workflows'));
-const Integrations = lazyWithRetry(() => import('@/pages/Integrations'));
-const GoogleCallback = lazyWithRetry(() => import('@/pages/GoogleCallback'));
-// Import FathomCallback directly (not lazy) to ensure it loads for OAuth callbacks
 import FathomCallback from '@/pages/auth/FathomCallback';
-
-// Wrapper to verify route matching
-const FathomCallbackWrapper = () => {
-  console.log('🔴 FathomCallbackWrapper rendered - route matched!', window.location.href);
-  return <FathomCallback />;
-};
-const FormDisplay = lazyWithRetry(() => import('@/pages/FormDisplay'));
-const CompaniesTable = lazyWithRetry(() => import('@/pages/companies/CompaniesTable'));
-const CompanyProfile = lazyWithRetry(() => import('@/pages/companies/CompanyProfile'));
-const ContactsTable = lazyWithRetry(() => import('@/pages/contacts/ContactsTable'));
-const ContactRecord = lazyWithRetry(() => import('@/pages/contacts/ContactRecord'));
-const DealRecord = lazyWithRetry(() => import('@/pages/deals/DealRecord'));
-// Email page removed - users now redirected to Gmail directly
-const Preferences = lazyWithRetry(() => import('@/pages/Preferences'));
-const SettingsPage = lazyWithRetry(() => import('@/pages/Settings'));
-const AISettings = lazyWithRetry(() => import('@/pages/settings/AISettings'));
-const TaskSyncSettings = lazyWithRetry(() => import('@/pages/settings/TaskSyncSettings'));
-const CoachingPreferences = lazyWithRetry(() => import('@/pages/settings/CoachingPreferences'));
-const AccountSettings = lazyWithRetry(() => import('@/pages/settings/AccountSettings'));
-const AppearanceSettings = lazyWithRetry(() => import('@/pages/settings/AppearanceSettings'));
-const AIPersonalizationPage = lazyWithRetry(() => import('@/pages/settings/AIPersonalizationPage'));
-const SalesCoachingPage = lazyWithRetry(() => import('@/pages/settings/SalesCoachingPage'));
-const APIKeysPage = lazyWithRetry(() => import('@/pages/settings/APIKeysPage'));
-const EmailSyncPage = lazyWithRetry(() => import('@/pages/settings/EmailSyncPage'));
-const TaskSyncPage = lazyWithRetry(() => import('@/pages/settings/TaskSyncPage'));
-const MeetingSyncPage = lazyWithRetry(() => import('@/pages/settings/MeetingSyncPage'));
-const TeamMembersPage = lazyWithRetry(() => import('@/pages/settings/TeamMembersPage'));
-const CallTypeSettings = lazyWithRetry(() => import('@/pages/settings/CallTypeSettings'));
-const PipelineAutomationSettings = lazyWithRetry(() => import('@/pages/settings/PipelineAutomationSettings'));
-const FollowUpSettings = lazyWithRetry(() => import('@/pages/settings/FollowUpSettings'));
-const OrganizationSettingsPage = lazyWithRetry(() => import('@/pages/settings/OrganizationSettingsPage'));
-const TeamAnalytics = lazyWithRetry(() => import('@/pages/insights/TeamAnalytics'));
-const ContentTopics = lazyWithRetry(() => import('@/pages/insights/ContentTopics'));
-const AdminModelSettings = lazyWithRetry(() => import('@/pages/admin/AdminModelSettings'));
-const AdminPromptSettings = lazyWithRetry(() => import('@/pages/admin/PromptSettings'));
-const LeadsInbox = lazyWithRetry(() => import('@/pages/leads/LeadsInbox'));
-const SaasAdminDashboard = lazyWithRetry(() => import('@/pages/SaasAdminDashboard'));
-const InternalDomainsSettings = lazyWithRetry(() => import('@/pages/admin/InternalDomainsSettings'));
-const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
 
 // Landing pages wrapper (dev-only for local preview)
 import { LandingWrapper, WaitlistPageWrapper, LeaderboardPageWrapper, WaitlistStatusPage, IntroductionPageWrapper, IntroPageWrapper, IntroducingPageWrapper, LearnMorePageWrapper } from '@/components/LandingWrapper';
 import { supabase } from '@/lib/supabase/clientV2';
 
+// Wrapper for FathomCallback route
+const FathomCallbackWrapper = () => <FathomCallback />;
+
+// ============================================================
+// LAZY IMPORTS (Code-split for performance)
+// ============================================================
+import {
+  // Platform Admin
+  MeetingsWaitlist, OnboardingSimulator, PricingControl, CostAnalysis, LaunchChecklist,
+  ActivationDashboard, PlatformDashboard, IntegrationRoadmap, Users, PipelineSettings,
+  AuditLogs, SmartTasksAdmin, PipelineAutomationAdmin, EmailTemplates, FunctionTesting,
+  AIProviderSettings, GoogleIntegrationTestsLegacy, GoogleIntegrationTests, SettingsSavvyCal,
+  SettingsBookingSources, HealthRules, EmailCategorizationSettings, AdminModelSettings,
+  AdminPromptSettings, InternalDomainsSettings, SlackDemo, MeetingIntelligenceDemo,
+  MeetingIntelligenceDemoSimple, TasksDemo, ProcessMaps, IntelligenceTestRunner,
+  CronJobsAdmin, SaasAdminDashboard, IntegrationsDashboard, FathomIntegrationTests,
+  HubSpotIntegrationTests, SlackIntegrationTests, SavvyCalIntegrationTests,
+  // Auth
+  Signup, VerifyEmail, ForgotPassword, ResetPassword, SetPassword, Onboarding,
+  // CRM & Data
+  CRM, ElegantCRM, PipelinePage, FormDisplay, CompaniesTable, CompanyProfile,
+  ContactsTable, ContactRecord, DealRecord, LeadsInbox, Clients,
+  DealHealthDashboard, RelationshipHealth, HealthMonitoring,
+  // Features
+  MeetingsPage, MeetingIntelligence, MeetingSentimentAnalytics, Calls, CallDetail,
+  TasksPage, ProjectsHub, GoogleTasksSettings, Events, ActivityLog,
+  ActivityProcessingPage, Workflows, FreepikFlow, Copilot,
+  // Settings
+  SettingsPage, Preferences, Profile, AISettings, TaskSyncSettings, CoachingPreferences,
+  AccountSettings, AppearanceSettings, AIPersonalizationPage, SalesCoachingPage,
+  APIKeysPage, EmailSyncPage, TaskSyncPage, MeetingSyncPage, TeamMembersPage,
+  CallTypeSettings, PipelineAutomationSettings, FollowUpSettings, OrganizationSettingsPage,
+  LogoSettings, SlackSettings, JustCallSettings, HubSpotSettings, OrgBranding, OrgBilling,
+  // Insights
+  Insights, Heatmap, SalesFunnel, TeamAnalytics, ContentTopics,
+  // Misc
+  Integrations, GoogleCallback, Roadmap, Releases, ApiTesting, TestFallback,
+  // Debug
+  DebugAuth, AuthDebug, DebugPermissions, DebugMeetings, TestNotifications,
+} from '@/routes/lazyPages';
+
+// ============================================================
+// SUPABASE GLOBAL INITIALIZATION
+// ============================================================
 // Make main app's Supabase client available to landing package
-// Set it immediately and ensure it's available on window before any landing code runs
 if (typeof window !== 'undefined') {
-  // Set it on window - this must happen BEFORE any landing package code loads
   (window as any).__MAIN_APP_SUPABASE__ = supabase;
-  
-  // Verify it's set correctly
   if ((window as any).__MAIN_APP_SUPABASE__) {
     console.log('[App] Main app Supabase client set on window for landing package', {
       hasFrom: typeof (window as any).__MAIN_APP_SUPABASE__.from === 'function',
@@ -184,82 +102,6 @@ if (typeof window !== 'undefined') {
     console.error('[App] Failed to set Supabase client on window!');
   }
 }
-
-// New 3-tier architecture routes
-const PlatformDashboard = lazyWithRetry(() => import('@/pages/platform/PlatformDashboard'));
-const OrgBranding = lazyWithRetry(() => import('@/pages/org/OrgBranding'));
-const OrgBilling = lazyWithRetry(() => import('@/pages/OrgBilling'));
-
-// Slack integration routes
-const SlackSettings = lazyWithRetry(() => import('@/pages/settings/SlackSettings'));
-const JustCallSettings = lazyWithRetry(() => import('@/pages/settings/JustCallSettings.tsx'));
-const HubSpotSettings = lazyWithRetry(() => import('@/pages/settings/HubSpotSettings'));
-const SlackDemo = lazyWithRetry(() => import('@/pages/admin/SlackDemo'));
-
-// Meeting Intelligence demo
-const MeetingIntelligenceDemo = lazyWithRetry(() => import('@/pages/admin/MeetingIntelligenceDemo'));
-const MeetingIntelligenceDemoSimple = lazyWithRetry(() => import('@/pages/admin/MeetingIntelligenceDemoSimple'));
-const TasksDemo = lazyWithRetry(() => import('@/pages/admin/TasksDemo'));
-const ProcessMaps = lazyWithRetry(() => import('@/pages/admin/ProcessMaps'));
-const IntelligenceTestRunner = lazyWithRetry(() => import('@/pages/admin/IntelligenceTestRunner'));
-
-// Cron Jobs Admin
-const CronJobsAdmin = lazyWithRetry(() => import('@/pages/admin/CronJobsAdmin'));
-
-// Integration Roadmap
-const IntegrationRoadmap = lazyWithRetry(() => import('@/pages/platform/IntegrationRoadmap'));
-
-// Integration Testing Dashboard
-const IntegrationsDashboard = lazyWithRetry(() => import('@/pages/admin/IntegrationsDashboard'));
-const FathomIntegrationTests = lazyWithRetry(() => import('@/pages/admin/FathomIntegrationTests'));
-const HubSpotIntegrationTests = lazyWithRetry(() => import('@/pages/admin/HubSpotIntegrationTests'));
-const SlackIntegrationTests = lazyWithRetry(() => import('@/pages/admin/SlackIntegrationTests'));
-const SavvyCalIntegrationTests = lazyWithRetry(() => import('@/pages/admin/SavvyCalIntegrationTests'));
-
-// Note: CompaniesPage and ContactsPage removed - routes now redirect to CRM
-
-// Loading component for better UX during code splitting
-const RouteLoader = () => (
-  <div className="flex items-center justify-center min-h-[400px]">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
-  </div>
-);
-
-// External redirect component for Google services
-const ExternalRedirect: React.FC<{ url: string }> = ({ url }) => {
-  useEffect(() => {
-    window.location.href = url;
-  }, [url]);
-
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
-      <p className="text-gray-500">Redirecting to Google...</p>
-    </div>
-  );
-};
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes - keep cached data longer (formerly cacheTime)
-      retry: 1,
-      refetchOnWindowFocus: false, // Prevent refetch on window focus
-      refetchOnReconnect: true, // Only refetch on reconnect
-      refetchOnMount: false, // Don't refetch if data is fresh
-    },
-  },
-});
-
-// Make queryClient and service worker utilities globally available
-declare global {
-  interface Window {
-    queryClient: QueryClient;
-    detectAndResolveCacheConflicts?: typeof detectAndResolveCacheConflicts;
-  }
-}
-window.queryClient = queryClient;
 
 function App() {
   // Initialize performance optimizations
@@ -294,11 +136,6 @@ function App() {
     
     // Initialize Web Vitals optimization
     webVitalsOptimizer.initializeMonitoring(process.env.NODE_ENV === 'production');
-    
-    // Make service worker utilities globally available
-    if (typeof window !== 'undefined') {
-      window.detectAndResolveCacheConflicts = detectAndResolveCacheConflicts;
-    }
     
     // Enhanced performance logging with optimization metrics
     if (process.env.NODE_ENV === 'development') {
@@ -359,6 +196,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
     <>
       <IntelligentPreloader />
       <Routes>
+        {/* ========== PUBLIC ROUTES (No Auth Required) ========== */}
         {/* Public pages for screenshot automation - MUST be outside ProtectedRoute */}
         <Route path="/meetings/thumbnail/:meetingId" element={<MeetingThumbnail />} />
         <Route path="/browserless-test" element={<BrowserlessTest />} />
@@ -408,7 +246,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/features/meetings-v4" element={<ExternalRedirect url="https://www.use60.com" />} />
         <Route path="/pricing" element={<ExternalRedirect url="https://www.use60.com#pricing" />} />
 
-        {/* Auth routes that should also be accessible without protection */}
+        {/* ========== AUTH ROUTES (Public) ========== */}
         <Route path="/auth/login" element={<Login />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/auth/signup" element={<Signup />} />
@@ -424,17 +262,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         {/* Organization invitation acceptance (can be accessed logged in or out) */}
         <Route path="/invite/:token" element={<AcceptInvitation />} />
 
-        {/* Debug: Log unmatched OAuth routes */}
-        <Route path="/callback" element={
-          <div style={{ padding: '20px', color: 'white', background: 'red' }}>
-            <h1>⚠️ Route /callback matched (not /oauth/fathom/callback)</h1>
-            <p>Current URL: {window.location.href}</p>
-            <p>Expected: /oauth/fathom/callback</p>
-            <script dangerouslySetInnerHTML={{__html: `console.error('🔴 WRONG ROUTE: /callback instead of /oauth/fathom/callback');`}} />
-          </div>
-        } />
-        
-        {/* All other routes wrapped in ProtectedRoute */}
+        {/* ========== PROTECTED ROUTES (Auth Required) ========== */}
         <Route path="/*" element={
           <ProtectedRoute>
             <RouteDebug />

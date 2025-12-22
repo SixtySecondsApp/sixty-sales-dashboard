@@ -41,7 +41,26 @@ interface ContactEmail {
   to: string;
   date: string;
   snippet: string;
+  // Extended properties used by the component
+  direction?: 'inbound' | 'outbound';
+  is_read?: boolean;
+  from_email?: string;
+  from_name?: string;
+  body_plain?: string;
+  to_emails?: string[];
+  sent_at?: string;
 }
+
+// Stub service until googleEmailService is implemented
+const googleEmailService = {
+  getContactEmails: async (_contactId: string, _limit: number): Promise<ContactEmail[]> => {
+    // Return empty array until service is implemented
+    return [];
+  },
+  markEmailAsRead: async (_emailId: string): Promise<void> => {
+    // No-op until service is implemented
+  }
+};
 
 interface ContactEmailHistoryProps {
   contactId: string;

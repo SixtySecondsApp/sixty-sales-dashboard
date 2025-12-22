@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, ExternalLink, Loader2, AlertCircle, Play, FileText, MessageSquare, Sparkles, ListTodo, Trash2, CheckCircle2, Plus, X, RefreshCw, BarChart3 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, AlertCircle, Play, FileText, MessageSquare, Sparkles, ListTodo, Trash2, CheckCircle2, Plus, X, RefreshCw, BarChart3, Clock } from 'lucide-react';
 import FathomPlayerV2, { FathomPlayerV2Handle } from '@/components/FathomPlayerV2';
 import { AskAIChat } from '@/components/meetings/AskAIChat';
 import { MeetingContent } from '@/components/meetings/MeetingContent';
@@ -22,6 +22,9 @@ import { TalkTimeChart } from '@/components/meetings/analytics/TalkTimeChart';
 import { CoachingInsights } from '@/components/meetings/analytics/CoachingInsights';
 import { useActivationTracking } from '@/lib/hooks/useActivationTracking';
 import { useOnboardingProgress } from '@/lib/hooks/useOnboardingProgress';
+
+// Processing status type for real-time UI updates
+type ProcessingStatus = 'pending' | 'processing' | 'complete' | 'failed';
 
 interface Meeting {
   id: string;
@@ -49,6 +52,10 @@ interface Meeting {
   classification_confidence?: number | null;
   contact?: any;
   company?: any;
+  // Processing status columns for real-time UI updates
+  thumbnail_status?: ProcessingStatus;
+  transcript_status?: ProcessingStatus;
+  summary_status?: ProcessingStatus;
 }
 
 interface MeetingAttendee {
@@ -317,6 +324,28 @@ export function MeetingDetail() {
     };
 
     fetchMeetingDetails();
+  }, [id]);
+
+  // Real-time subscription for processing status updates
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`meeting_detail_${id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'meetings',
+        filter: `id=eq.${id}`,
+      }, (payload) => {
+        const updated = payload.new as Meeting;
+        setMeeting((prev) => prev ? { ...prev, ...updated } : null);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [id]);
 
   // NORTH STAR METRIC: Track first summary viewed
@@ -1065,6 +1094,30 @@ export function MeetingDetail() {
                         }
                       })()}
                     </div>
+                  ) : meeting.summary_status === 'processing' ? (
+                    <div className="flex items-center gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                      <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
+                      <div>
+                        <p className="text-sm font-medium text-blue-400">Generating summary...</p>
+                        <p className="text-xs text-muted-foreground mt-1">This usually takes 1-2 minutes after the transcript is ready.</p>
+                      </div>
+                    </div>
+                  ) : meeting.summary_status === 'pending' ? (
+                    <div className="flex items-center gap-3 p-4 bg-zinc-800/50 border border-zinc-700 rounded-lg">
+                      <Clock className="h-5 w-5 text-zinc-400" />
+                      <div>
+                        <p className="text-sm font-medium text-zinc-300">Queued for processing</p>
+                        <p className="text-xs text-muted-foreground mt-1">Summary will be generated once the transcript is ready.</p>
+                      </div>
+                    </div>
+                  ) : meeting.summary_status === 'failed' ? (
+                    <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                      <AlertCircle className="h-5 w-5 text-red-400" />
+                      <div>
+                        <p className="text-sm font-medium text-red-400">Summary generation failed</p>
+                        <p className="text-xs text-muted-foreground mt-1">Please try syncing again from Fathom.</p>
+                      </div>
+                    </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       Summary will be available after Fathom processes the recording (5-10 minutes after meeting ends).
@@ -1114,6 +1167,30 @@ export function MeetingDetail() {
                             <div key={idx} className="text-muted-foreground">{line}</div>
                           ) : null;
                         })}
+                      </div>
+                    </div>
+                  ) : meeting.transcript_status === 'processing' ? (
+                    <div className="flex items-center gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                      <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
+                      <div>
+                        <p className="text-sm font-medium text-blue-400">Fetching transcript...</p>
+                        <p className="text-xs text-muted-foreground mt-1">Downloading from Fathom. This usually takes 1-3 minutes.</p>
+                      </div>
+                    </div>
+                  ) : meeting.transcript_status === 'pending' ? (
+                    <div className="flex items-center gap-3 p-4 bg-zinc-800/50 border border-zinc-700 rounded-lg">
+                      <Clock className="h-5 w-5 text-zinc-400" />
+                      <div>
+                        <p className="text-sm font-medium text-zinc-300">Queued for processing</p>
+                        <p className="text-xs text-muted-foreground mt-1">Transcript will be fetched from Fathom shortly.</p>
+                      </div>
+                    </div>
+                  ) : meeting.transcript_status === 'failed' ? (
+                    <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                      <AlertCircle className="h-5 w-5 text-red-400" />
+                      <div>
+                        <p className="text-sm font-medium text-red-400">Transcript fetch failed</p>
+                        <p className="text-xs text-muted-foreground mt-1">Please try syncing again from Fathom.</p>
                       </div>
                     </div>
                   ) : (

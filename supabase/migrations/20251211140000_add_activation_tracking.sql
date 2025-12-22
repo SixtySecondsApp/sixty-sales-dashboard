@@ -252,3 +252,6 @@ COMMENT ON FUNCTION get_activation_funnel(DATE, DATE) IS 'Get activation funnel 
 
 
 
+
+
+

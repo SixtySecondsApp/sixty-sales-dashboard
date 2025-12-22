@@ -19,7 +19,7 @@ import {
   FileText,
   Bell
 } from 'lucide-react';
-import { useDealStages } from '@/lib/hooks/deals/useDealStages';
+import { useDealStages } from '@/lib/hooks/useDealStages';
 import { supabase } from '@/lib/supabase/clientV2';
 
 interface AutomationAction {

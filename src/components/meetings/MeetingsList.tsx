@@ -35,7 +35,10 @@ import {
   Play,
   Lightbulb,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Loader2,
+  FileText,
+  Sparkles
 } from 'lucide-react'
 import { MeetingUsageBar } from '@/components/MeetingUsageIndicator'
 
@@ -51,6 +54,9 @@ const formatDuration = (minutes: number | null | undefined): string => {
   }
   return `${minutes}m`
 }
+
+// Processing status type for real-time UI updates
+type ProcessingStatus = 'pending' | 'processing' | 'complete' | 'failed'
 
 interface Meeting {
   id: string
@@ -77,6 +83,10 @@ interface Meeting {
   next_actions_count: number | null
   meeting_type?: 'discovery' | 'demo' | 'negotiation' | 'closing' | 'follow_up' | 'general' | null
   classification_confidence?: number | null
+  // Processing status columns for real-time UI updates
+  thumbnail_status?: ProcessingStatus
+  transcript_status?: ProcessingStatus
+  summary_status?: ProcessingStatus
   company?: {
     name: string
     domain: string
@@ -400,6 +410,47 @@ const MeetingsList: React.FC = () => {
 
     ensureThumbnails()
   }, [meetings, thumbnailsEnsured])
+
+  // Real-time subscription for meeting status updates
+  // This enables live UI updates when thumbnails, transcripts, and summaries are processed
+  useEffect(() => {
+    if (!activeOrgId) return
+
+    const channel = supabase
+      .channel('meeting_status_updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'meetings',
+          filter: `org_id=eq.${activeOrgId}`,
+        },
+        (payload) => {
+          const updated = payload.new as Meeting
+          // Update local state with new status columns
+          setMeetings((prev) =>
+            prev.map((m) =>
+              m.id === updated.id
+                ? {
+                    ...m,
+                    thumbnail_url: updated.thumbnail_url ?? m.thumbnail_url,
+                    thumbnail_status: updated.thumbnail_status ?? m.thumbnail_status,
+                    transcript_status: updated.transcript_status ?? m.transcript_status,
+                    summary_status: updated.summary_status ?? m.summary_status,
+                    summary: updated.summary ?? m.summary,
+                  }
+                : m
+            )
+          )
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [activeOrgId])
 
   const fetchMeetings = async () => {
     if (!user) return
@@ -769,7 +820,7 @@ const MeetingsList: React.FC = () => {
                 >
                   {/* Video Thumbnail Area */}
                   <div className="relative aspect-video bg-gray-100/80 dark:bg-gray-800/40 rounded-xl mb-4 overflow-hidden border border-gray-200/30 dark:border-gray-700/20">
-                    {meeting.thumbnail_url ? (
+                    {meeting.thumbnail_url && !meeting.thumbnail_url.includes('dummyimage.com') ? (
                       <img
                         src={meeting.thumbnail_url}
                         alt={meeting.title}
@@ -781,6 +832,27 @@ const MeetingsList: React.FC = () => {
                         }}
                       />
                     ) : null}
+
+                    {/* Thumbnail Processing Indicator */}
+                    {meeting.thumbnail_status === 'processing' && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm">
+                        <div className="flex flex-col items-center gap-2">
+                          <Loader2 className="h-8 w-8 text-white animate-spin" />
+                          <span className="text-xs text-white/80">Generating thumbnail...</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Thumbnail Pending (Queued) Indicator */}
+                    {meeting.thumbnail_status === 'pending' && !meeting.thumbnail_url && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="flex flex-col items-center gap-2 text-gray-400 dark:text-gray-500">
+                          <Video className="h-12 w-12" />
+                          <span className="text-xs">Queued</span>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Overlay gradient */}
                     <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                     {/* Play Button Overlay */}
@@ -794,6 +866,34 @@ const MeetingsList: React.FC = () => {
                       <Clock className="h-3 w-3" />
                       {formatDuration(meeting.duration_minutes)}
                     </div>
+
+                    {/* Processing Status Badges (top-left) */}
+                    {(meeting.transcript_status === 'processing' || meeting.summary_status === 'processing') && (
+                      <div className="absolute top-2 left-2 flex flex-col gap-1">
+                        {meeting.transcript_status === 'processing' && (
+                          <div className="px-2 py-1 bg-blue-500/90 backdrop-blur-sm rounded-md text-[10px] text-white flex items-center gap-1.5">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <FileText className="h-3 w-3" />
+                          </div>
+                        )}
+                        {meeting.summary_status === 'processing' && (
+                          <div className="px-2 py-1 bg-purple-500/90 backdrop-blur-sm rounded-md text-[10px] text-white flex items-center gap-1.5">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <Sparkles className="h-3 w-3" />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Queued Status Badge */}
+                    {meeting.transcript_status === 'pending' && meeting.summary_status === 'pending' && (
+                      <div className="absolute top-2 left-2">
+                        <div className="px-2 py-1 bg-gray-500/80 backdrop-blur-sm rounded-md text-[10px] text-white flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          Queued
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Content */}

@@ -115,18 +115,29 @@ async function processRetryJob(
           updated_at: new Date().toISOString(),
         })
         .eq('id', job.id)
-      
-      // Also mark meeting fetch attempts as complete
+
+      // Also mark meeting fetch attempts as complete and update status
       await supabase
         .from('meetings')
         .update({
           transcript_fetch_attempts: job.attempt_count,
           last_transcript_fetch_at: new Date().toISOString(),
+          transcript_status: 'complete',
+          summary_status: 'complete',
         })
         .eq('id', job.meeting_id)
 
       return { success: true }
     }
+
+    // Update meeting status to 'processing' when starting to fetch
+    await supabase
+      .from('meetings')
+      .update({
+        transcript_status: 'processing',
+        summary_status: 'processing',
+      })
+      .eq('id', job.meeting_id)
 
     // Get Fathom integration
     const { data: integration, error: integrationError } = await supabase
@@ -165,12 +176,14 @@ async function processRetryJob(
           })
           .eq('id', job.id)
 
-        // Update meeting fetch attempts
+        // Update meeting fetch attempts and status to failed
         await supabase
           .from('meetings')
           .update({
             transcript_fetch_attempts: nextAttempt,
             last_transcript_fetch_at: new Date().toISOString(),
+            transcript_status: 'failed',
+            summary_status: 'failed',
           })
           .eq('id', job.meeting_id)
 
@@ -180,7 +193,7 @@ async function processRetryJob(
       // Schedule next retry in 5 minutes
       const nextRetryAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
       console.log(`⏳ Scheduling next retry for meeting ${job.meeting_id} at ${nextRetryAt} (attempt ${nextAttempt + 1})`)
-      
+
       await supabase
         .from('fathom_transcript_retry_jobs')
         .update({
@@ -191,12 +204,14 @@ async function processRetryJob(
         })
         .eq('id', job.id)
 
-      // Update meeting fetch attempts
+      // Update meeting fetch attempts - keep status as 'pending' (queued for retry)
       await supabase
         .from('meetings')
         .update({
           transcript_fetch_attempts: nextAttempt,
           last_transcript_fetch_at: new Date().toISOString(),
+          transcript_status: 'pending',
+          summary_status: 'pending',
         })
         .eq('id', job.meeting_id)
 
@@ -217,7 +232,7 @@ async function processRetryJob(
       console.error(`⚠️  Failed to fetch enhanced summary for meeting ${job.meeting_id}:`, error instanceof Error ? error.message : String(error))
     }
 
-    // Store transcript in meeting
+    // Store transcript in meeting and update status to 'complete'
     const { error: updateError } = await supabase
       .from('meetings')
       .update({
@@ -225,6 +240,8 @@ async function processRetryJob(
         summary: summaryData?.summary || meeting.summary,
         transcript_fetch_attempts: job.attempt_count + 1,
         last_transcript_fetch_at: new Date().toISOString(),
+        transcript_status: 'complete',
+        summary_status: summaryData?.summary ? 'complete' : 'pending',
       })
       .eq('id', job.meeting_id)
 
@@ -270,13 +287,17 @@ serve(async (req) => {
   }
 
   try {
-    // Verify this is an internal cron request (basic security)
+    // Verify this is an authorized request (service role key or cron secret)
     const authHeader = req.headers.get('Authorization')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    const cronSecret = Deno.env.get('CRON_SECRET')
 
-    if (!authHeader || !authHeader.includes(serviceRoleKey || '')) {
+    const isServiceRoleAuth = authHeader && serviceRoleKey && authHeader.includes(serviceRoleKey)
+    const isCronAuth = authHeader && cronSecret && authHeader.includes(cronSecret)
+
+    if (!isServiceRoleAuth && !isCronAuth) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized: Must use service role key' }),
+        JSON.stringify({ error: 'Unauthorized: Must use service role key or cron secret' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }

@@ -135,20 +135,41 @@ export default function ProcessMaps() {
 
   // Fetch process maps
   const fetchProcessMaps = useCallback(async () => {
-    if (!orgId) return;
+    if (!orgId) {
+      console.warn('ProcessMaps: No orgId available');
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      console.log('ProcessMaps: Fetching maps for org:', orgId);
+      const { data, error, count } = await supabase
         .from('process_maps')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('org_id', orgId)
         .order('updated_at', { ascending: false });
 
       if (error) {
-        throw error;
+        // Check if it's an RLS error vs table doesn't exist
+        if (error.code === '42501' || error.message?.includes('permission denied')) {
+          console.error('ProcessMaps: RLS policy blocking access. User may not be a platform admin.');
+          toast.error('Access denied. Platform admin privileges required.', {
+            description: 'Only internal users with admin status can view process maps.'
+          });
+        } else if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          console.error('ProcessMaps: Table does not exist. Run migrations.');
+          toast.error('Process maps feature not configured.', {
+            description: 'Database table missing. Contact support.'
+          });
+        } else {
+          throw error;
+        }
+        setProcessMaps([]);
+        return;
       }
 
+      console.log(`ProcessMaps: Loaded ${data?.length || 0} maps (total count: ${count})`);
       setProcessMaps(data || []);
     } catch (error) {
       console.error('Error fetching process maps:', error);
@@ -289,6 +310,7 @@ export default function ProcessMaps() {
                     variant="ghost"
                     size="sm"
                     showLabel={false}
+                    onGenerated={handleMapGenerated}
                   />
                 </div>
               ))}
@@ -474,6 +496,7 @@ export default function ProcessMaps() {
                     variant="ghost"
                     size="sm"
                     label="Regenerate"
+                    onGenerated={handleMapGenerated}
                   />
                   <Button variant="outline" size="sm" onClick={() => handleViewMap(map)}>
                     <Eye className="h-4 w-4 mr-1.5" />
@@ -551,6 +574,7 @@ export default function ProcessMaps() {
                   variant="outline"
                   size="sm"
                   label="Regenerate"
+                  onGenerated={handleMapGenerated}
                 />
               )}
             </div>
