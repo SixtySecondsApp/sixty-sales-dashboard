@@ -32,6 +32,9 @@ interface MermaidRendererProps {
 function sanitizeMermaidCode(code: string): string {
   let sanitized = code;
 
+  // Fix 0: Remove any BOM or invisible characters at the start
+  sanitized = sanitized.replace(/^\uFEFF/, '').trim();
+
   // Fix 1: Escape forward slashes in labels that might be interpreted as trapezoid delimiters
   // Pattern: NodeId[/text] or NodeId[text/text] should be NodeId["text with /"]
   // This regex finds bracket content with unquoted slashes
@@ -69,6 +72,45 @@ function sanitizeMermaidCode(code: string): string {
 
   // Fix 4: Remove any double-double quotes that might result from over-escaping
   sanitized = sanitized.replace(/\[""([^"]+)""\]/g, '["$1"]');
+
+  // Fix 5: Fix labels with colons that can cause issues
+  sanitized = sanitized.replace(
+    /\[([^\]"]*:[^\]"]*)\]/g,
+    (match, content) => {
+      if (content.startsWith('"') && content.endsWith('"')) return match;
+      return `["${content}"]`;
+    }
+  );
+
+  // Fix 6: Fix labels with ampersands
+  sanitized = sanitized.replace(
+    /\[([^\]"]*&[^\]"]*)\]/g,
+    (match, content) => {
+      if (content.startsWith('"') && content.endsWith('"')) return match;
+      return `["${content}"]`;
+    }
+  );
+
+  // Fix 7: Fix labels with parentheses that aren't shape definitions
+  sanitized = sanitized.replace(
+    /\[([^\]"]*\([^\)]+\)[^\]"]*)\]/g,
+    (match, content) => {
+      if (content.startsWith('"') && content.endsWith('"')) return match;
+      return `["${content}"]`;
+    }
+  );
+
+  // Fix 8: Replace smart quotes with regular quotes
+  sanitized = sanitized.replace(/[""]/g, '"').replace(/['']/g, "'");
+
+  // Fix 9: Fix common "text" issues where text has special chars
+  sanitized = sanitized.replace(
+    /\[([^\]"]*[#@!$%^*+=|\\<>?][^\]"]*)\]/g,
+    (match, content) => {
+      if (content.startsWith('"') && content.endsWith('"')) return match;
+      return `["${content}"]`;
+    }
+  );
 
   return sanitized;
 }
