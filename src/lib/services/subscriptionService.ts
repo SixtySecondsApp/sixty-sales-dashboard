@@ -210,12 +210,11 @@ export async function getOrgUsageLimits(orgId: string): Promise<UsageLimits | nu
     meetingsUsed = usageData?.meetings_count || 0;
   }
 
-  // Get active user count
+  // Get active user count (all members in the table are active - no status column)
   const { count: activeUsers } = await supabase
     .from('organization_memberships')
     .select('*', { count: 'exact', head: true })
-    .eq('org_id', orgId)
-    .eq('status', 'active');
+    .eq('org_id', orgId);
 
   const meetingsLimit = subscription.custom_max_meetings || plan.max_meetings_per_month;
   const usersLimit = subscription.custom_max_users || plan.max_users;

@@ -480,13 +480,15 @@ const MeetingsList: React.FC = () => {
       const to = from + ITEMS_PER_PAGE - 1
 
       // Use explicit any to avoid deep type instantiation issues
+      // Note: Removed explicit FK name for company - let PostgREST infer the relationship
+      // Also query tasks via the tasks_meeting_id_fkey relationship
       const queryBase = supabase
         .from('meetings')
         .select(`
           *,
-          company:companies!fk_meetings_company_id(name, domain),
+          company:companies(name, domain),
           action_items:meeting_action_items(completed),
-          tasks(status)
+          tasks!tasks_meeting_id_fkey(status)
         `)
         .order('meeting_start', { ascending: false })
         .range(from, to) as any

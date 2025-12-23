@@ -132,7 +132,7 @@ export function MeetingsView({
           .from('meetings')
           .select(`
             *,
-            company:companies!fk_meetings_company_id(name, domain),
+            company:companies(name, domain),
             action_items:meeting_action_items(completed)
           `)
           .order('meeting_start', { ascending: false });
