@@ -71,8 +71,17 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
 
   const isPublicRoute = publicRoutes.includes(location.pathname) || isPublicWaitlistRoute(location.pathname);
   const isVerifyEmailRoute = location.pathname === '/auth/verify-email';
-  const isPasswordRecovery = location.pathname === '/auth/reset-password' &&
-    location.hash.includes('type=recovery');
+
+  // Check both hash AND search params for password recovery indicators
+  // Supabase uses different formats: token_hash in search params (modern) or type=recovery in hash (legacy)
+  const searchParams = new URLSearchParams(location.search);
+  const hashParams = new URLSearchParams(location.hash.slice(1));
+  const isPasswordRecovery = location.pathname === '/auth/reset-password' && (
+    location.hash.includes('type=recovery') ||
+    searchParams.get('type') === 'recovery' ||
+    searchParams.has('token_hash') ||
+    hashParams.get('type') === 'recovery'
+  );
   const isOAuthCallback = location.pathname.includes('/oauth/') || location.pathname.includes('/callback');
   const isAuthRequiredRoute = authRequiredRoutes.some(route =>
     location.pathname === route || location.pathname.startsWith(route + '/')

@@ -43,8 +43,9 @@ export function getLoginUrl(): string {
  * @param path - The path to redirect to (e.g., '/auth/reset-password')
  */
 export function getAuthRedirectUrl(path: string): string {
-  const siteUrl = getSiteUrl();
+  // Auth redirects should always go to the app domain, not the landing site
+  const appUrl = getAppUrl();
   // Ensure path starts with /
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${siteUrl}${normalizedPath}`;
+  return `${appUrl}${normalizedPath}`;
 }
