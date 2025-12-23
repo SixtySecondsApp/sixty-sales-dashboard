@@ -38,6 +38,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
+import { ProcessMapButton } from '@/components/process-maps';
 
 interface SlackConfigModalProps {
   open: boolean;
@@ -192,9 +193,9 @@ export function SlackConfigModal({ open, onOpenChange }: SlackConfigModalProps) 
         </ConfigSection>
 
         {/* Configure Button */}
-        <div className="pt-2">
-          <Button 
-            onClick={handleOpenSettings} 
+        <div className="pt-2 space-y-2">
+          <Button
+            onClick={handleOpenSettings}
             className="w-full gap-2"
             variant="outline"
           >
@@ -202,6 +203,14 @@ export function SlackConfigModal({ open, onOpenChange }: SlackConfigModalProps) 
             Configure Slack Settings
             <ExternalLink className="h-3 w-3 ml-auto" />
           </Button>
+          <ProcessMapButton
+            processType="integration"
+            processName="slack"
+            variant="outline"
+            size="sm"
+            label="View Process Map"
+            className="w-full"
+          />
         </div>
 
         {/* Danger Zone */}
@@ -251,6 +260,10 @@ export function SlackConfigModal({ open, onOpenChange }: SlackConfigModalProps) 
     </TooltipProvider>
   );
 }
+
+
+
+
 
 
 

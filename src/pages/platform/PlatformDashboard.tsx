@@ -35,6 +35,7 @@ import {
   Brain,
   Clock,
   ListChecks,
+  Share2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -166,13 +167,21 @@ const platformSections: Record<string, PlatformSection[]> = {
   ],
   'Integrations': [
     {
+      id: 'integration-testing',
+      title: 'Integration Testing',
+      description: 'Monitor integration health and run diagnostic tests',
+      icon: RefreshCw,
+      href: '/platform/integrations',
+      color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30',
+      badge: 'New',
+    },
+    {
       id: 'integration-roadmap',
       title: 'Integration Roadmap',
       description: 'Implementation plans for all coming-soon integrations (searchable)',
       icon: Layers,
       href: '/platform/integrations/roadmap',
       color: 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900/30',
-      badge: 'New',
     },
     {
       id: 'slack-demo',
@@ -257,6 +266,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       badge: 'New',
     },
     {
+      id: 'process-maps',
+      title: 'Process Maps',
+      description: 'AI-generated Mermaid diagrams visualizing integration flows and workflows',
+      icon: Share2,
+      href: '/platform/process-maps',
+      color: 'text-violet-600 bg-violet-100 dark:bg-violet-900/30',
+      badge: 'New',
+    },
+    {
       id: 'cron-jobs',
       title: 'Cron Jobs',
       description: 'Monitor and manage scheduled jobs with failure notifications',
@@ -289,6 +307,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: Target,
       href: '/platform/dev/function-testing',
       color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30',
+    },
+    {
+      id: 'intelligence-tests',
+      title: 'Intelligence Test Runner',
+      description: 'Run and visualize meeting intelligence unit tests with AI debugging',
+      icon: Brain,
+      href: '/platform/intelligence-tests',
+      color: 'text-pink-600 bg-pink-100 dark:bg-pink-900/30',
+      badge: 'New',
     },
     {
       id: 'onboarding-simulator',

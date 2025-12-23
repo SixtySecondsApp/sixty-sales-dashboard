@@ -125,6 +125,32 @@ export function useSavvyCalIntegration() {
     await refreshStatus();
   }, [activeOrgId, canManage, isAuthenticated, refreshStatus]);
 
+  const updateWebhookSecret = useCallback(
+    async (webhookSecret: string) => {
+      if (!activeOrgId) throw new Error('No active organization selected');
+      if (!canManage) throw new Error('Only organization owners/admins can update webhook secret');
+      if (!isAuthenticated) throw new Error('Please sign in to update webhook secret');
+
+      const resp = await supabase.functions.invoke('savvycal-config', {
+        body: {
+          action: 'update_webhook_secret',
+          org_id: activeOrgId,
+          webhook_secret: webhookSecret,
+        },
+      });
+
+      if (resp.error) throw new Error(resp.error.message || 'Failed to update webhook secret');
+
+      const data = resp.data;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success('Webhook secret updated');
+      await refreshStatus();
+      return data;
+    },
+    [activeOrgId, canManage, isAuthenticated, refreshStatus]
+  );
+
   const checkWebhook = useCallback(async (): Promise<WebhookCheckResult | null> => {
     if (!activeOrgId) throw new Error('No active organization selected');
     if (!canManage) throw new Error('Only organization owners/admins can check webhook');
@@ -199,6 +225,7 @@ export function useSavvyCalIntegration() {
     status,
     isConnected: Boolean(status?.connected),
     hasApiToken: Boolean(status?.secrets_summary?.has_api_token),
+    hasWebhookSecret: Boolean(status?.secrets_summary?.has_webhook_secret),
     webhookUrl: status?.integration?.webhook_url || getWebhookUrl(),
     webhookVerified: Boolean(status?.integration?.webhook_configured_at),
     webhookLastReceived: status?.integration?.webhook_last_received_at,
@@ -210,10 +237,15 @@ export function useSavvyCalIntegration() {
     refreshStatus,
     connectApiToken,
     disconnect,
+    updateWebhookSecret,
     checkWebhook,
     triggerSync,
   };
 }
+
+
+
+
 
 
 

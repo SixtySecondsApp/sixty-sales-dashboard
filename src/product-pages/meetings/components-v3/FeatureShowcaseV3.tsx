@@ -42,7 +42,7 @@ const features = [
 
 export function FeatureShowcaseV3() {
   return (
-    <section id="features" className="relative py-24 bg-gray-50 dark:bg-gray-900/50">
+    <section id="features" className="relative pt-6 pb-9 lg:pt-9 lg:pb-12 bg-[#0a0d14]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <motion.div
@@ -53,15 +53,15 @@ export function FeatureShowcaseV3() {
           className="text-center mb-16"
         >
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
-            <span className="bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
               Three Features That
             </span>
             <br />
-            <span className="bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
               Actually Close Deals
             </span>
           </h2>
-          <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+          <p className="text-xl text-gray-400 max-w-3xl mx-auto">
             Forget feature lists with 20+ bullet points. These three capabilities do the heavy lifting—everything else is just noise.
           </p>
         </motion.div>
@@ -81,26 +81,26 @@ export function FeatureShowcaseV3() {
               <div className={`absolute inset-0 bg-gradient-to-r ${feature.bgGradient} rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
 
               {/* Card */}
-              <div className="relative h-full p-8 rounded-2xl bg-white dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none hover:shadow-xl dark:hover:shadow-none hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-300">
+              <div className="relative h-full p-8 rounded-2xl bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 hover:border-gray-600 transition-all duration-300">
                 {/* Icon */}
                 <div className={`inline-flex p-3 rounded-xl bg-gradient-to-r ${feature.bgGradient} mb-6`}>
                   <feature.icon className={`w-6 h-6 bg-gradient-to-r ${feature.gradient} bg-clip-text text-transparent`} strokeWidth={2} />
                 </div>
 
                 {/* Title */}
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">
+                <h3 className="text-xl font-bold text-white mb-4 leading-tight">
                   {feature.title}
                 </h3>
 
                 {/* Description */}
-                <p className="text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
+                <p className="text-gray-400 mb-6 leading-relaxed">
                   {feature.description}
                 </p>
 
                 {/* Benefits */}
                 <ul className="space-y-3 mb-6">
                   {feature.benefits.map((benefit, idx) => (
-                    <li key={idx} className="flex items-start gap-3 text-sm text-gray-700 dark:text-gray-300">
+                    <li key={idx} className="flex items-start gap-3 text-sm text-gray-300">
                       <CheckCircle2 className={`w-5 h-5 flex-shrink-0 mt-0.5 bg-gradient-to-r ${feature.gradient} bg-clip-text text-transparent`} />
                       <span>{benefit}</span>
                     </li>
@@ -125,8 +125,8 @@ export function FeatureShowcaseV3() {
           transition={{ duration: 0.6, delay: 0.3 }}
           className="text-center mt-16"
         >
-          <p className="text-lg text-gray-600 dark:text-gray-400 mb-6">
-            These three features save sales teams <span className="font-bold text-emerald-600 dark:text-emerald-400">10+ hours every week</span>.
+          <p className="text-lg text-gray-400 mb-6">
+            These three features save sales teams <span className="font-bold text-emerald-400">10+ hours every week</span>.
           </p>
           <motion.a
             href="/auth/signup"

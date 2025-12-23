@@ -51,6 +51,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { useOrgStore } from '@/lib/stores/orgStore';
+import { ProcessMapButton } from '@/components/process-maps';
 
 interface FathomConfigModalProps {
   open: boolean;
@@ -361,6 +362,14 @@ export function FathomConfigModal({ open, onOpenChange }: FathomConfigModalProps
                   )}
                   Sync
                 </Button>
+
+                <ProcessMapButton
+                  processType="integration"
+                  processName="fathom"
+                  variant="outline"
+                  size="sm"
+                  showLabel={false}
+                />
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Sparkles, ArrowRight, Menu, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { WaitlistModal } from '@/components/WaitlistModal';
+import { WaitlistModal } from '../components/WaitlistModal';
 import { usePublicBrandingSettings } from '@/lib/hooks/useBrandingSettings';
 import {
   HowItWorksV4,

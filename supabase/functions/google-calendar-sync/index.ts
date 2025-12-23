@@ -19,6 +19,43 @@ import { getCorsHeaders, handleCorsPreflightRequest, errorResponse, jsonResponse
 import { authenticateRequest, getUserOrgId } from '../_shared/edgeAuth.ts';
 import { getGoogleIntegration } from '../_shared/googleOAuth.ts';
 
+// Helper for logging sync operations to integration_sync_logs table
+async function logSyncOperation(
+  supabase: any,
+  args: {
+    orgId: string | null
+    userId?: string | null
+    operation: 'sync' | 'create' | 'update' | 'delete' | 'push' | 'pull' | 'webhook' | 'error'
+    direction: 'inbound' | 'outbound'
+    entityType: string
+    entityId?: string | null
+    entityName?: string | null
+    status?: 'success' | 'failed' | 'skipped'
+    errorMessage?: string | null
+    metadata?: Record<string, unknown>
+    batchId?: string | null
+  }
+): Promise<void> {
+  try {
+    await supabase.rpc('log_integration_sync', {
+      p_org_id: args.orgId,
+      p_user_id: args.userId ?? null,
+      p_integration_name: 'google_calendar',
+      p_operation: args.operation,
+      p_direction: args.direction,
+      p_entity_type: args.entityType,
+      p_entity_id: args.entityId ?? null,
+      p_entity_name: args.entityName ?? null,
+      p_status: args.status ?? 'success',
+      p_error_message: args.errorMessage ?? null,
+      p_metadata: args.metadata ?? {},
+      p_batch_id: args.batchId ?? null,
+    })
+  } catch (e) {
+    console.error('[google-calendar-sync] Failed to log sync operation:', e)
+  }
+}
+
 interface SyncRequest {
   action: 'incremental-sync';
   syncToken?: string;
@@ -396,6 +433,25 @@ serve(async (req) => {
           } else {
             stats.created++;
           }
+
+          // Log successful event sync
+          const eventTitle = ev.summary || '(No title)'
+          const eventStart = ev.start?.dateTime || ev.start?.date
+          const formattedDate = eventStart ? new Date(eventStart).toLocaleDateString() : ''
+          await logSyncOperation(supabase, {
+            orgId,
+            userId,
+            operation: isCancelled ? 'delete' : 'sync',
+            direction: 'inbound',
+            entityType: 'event',
+            entityId: eventDbId,
+            entityName: `${eventTitle}${formattedDate ? ` (${formattedDate})` : ''}`,
+            metadata: {
+              google_event_id: ev.id,
+              all_day: !ev.start?.dateTime,
+              attendees_count: Array.isArray(ev.attendees) ? ev.attendees.length : 0,
+            },
+          })
 
           // Upsert attendees
           if (Array.isArray(ev.attendees) && ev.attendees.length > 0) {

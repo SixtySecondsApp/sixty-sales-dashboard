@@ -40,6 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_admin_actions_created ON waitlist_admin_actions(c
 ALTER TABLE waitlist_admin_actions ENABLE ROW LEVEL SECURITY;
 
 -- RLS policy: Only admins can view admin actions
+DROP POLICY IF EXISTS "Admins can view waitlist admin actions" ON waitlist_admin_actions;
 CREATE POLICY "Admins can view waitlist admin actions"
   ON waitlist_admin_actions
   FOR SELECT
@@ -49,6 +50,7 @@ CREATE POLICY "Admins can view waitlist admin actions"
   );
 
 -- RLS policy: Only admins can insert admin actions
+DROP POLICY IF EXISTS "Admins can insert waitlist admin actions" ON waitlist_admin_actions;
 CREATE POLICY "Admins can insert waitlist admin actions"
   ON waitlist_admin_actions
   FOR INSERT

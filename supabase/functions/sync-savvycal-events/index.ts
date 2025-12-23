@@ -19,6 +19,43 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
+// Helper for logging sync operations to integration_sync_logs table
+async function logSyncOperation(
+  supabase: ReturnType<typeof createClient>,
+  args: {
+    orgId?: string | null
+    userId?: string | null
+    operation: 'sync' | 'create' | 'update' | 'delete' | 'push' | 'pull' | 'webhook' | 'error'
+    direction: 'inbound' | 'outbound'
+    entityType: string
+    entityId?: string | null
+    entityName?: string | null
+    status?: 'success' | 'failed' | 'skipped'
+    errorMessage?: string | null
+    metadata?: Record<string, unknown>
+    batchId?: string | null
+  }
+): Promise<void> {
+  try {
+    await supabase.rpc('log_integration_sync', {
+      p_org_id: args.orgId ?? null,
+      p_user_id: args.userId ?? null,
+      p_integration_name: 'savvycal',
+      p_operation: args.operation,
+      p_direction: args.direction,
+      p_entity_type: args.entityType,
+      p_entity_id: args.entityId ?? null,
+      p_entity_name: args.entityName ?? null,
+      p_status: args.status ?? 'success',
+      p_error_message: args.errorMessage ?? null,
+      p_metadata: args.metadata ?? {},
+      p_batch_id: args.batchId ?? null,
+    })
+  } catch (e) {
+    console.error('[sync-savvycal-events] Failed to log sync operation:', e)
+  }
+}
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
@@ -282,6 +319,25 @@ async function syncOrgEvents(
         if (response.ok) {
           results.push({ id: event.id, success: true });
           console.log(`[Sync] Org ${orgId}: ✅ Synced event ${event.id}`);
+
+          // Log successful event sync
+          const schedulerName = event.scheduler
+            ? `${event.scheduler.first_name || ''} ${event.scheduler.last_name || ''}`.trim() || event.scheduler.email
+            : event.attendees?.[0]?.email || 'Unknown';
+          const eventDate = new Date(event.start_at).toLocaleDateString();
+          await logSyncOperation(supabase, {
+            orgId,
+            operation: 'sync',
+            direction: 'inbound',
+            entityType: 'meeting',
+            entityId: event.id,
+            entityName: `${event.summary || 'Meeting'} with ${schedulerName} (${eventDate})`,
+            metadata: {
+              duration_minutes: event.duration,
+              scheduler_email: event.scheduler?.email,
+              link_slug: event.link?.slug,
+            },
+          });
         } else {
           results.push({ id: event.id, success: false, error: text });
           console.error(`[Sync] Org ${orgId}: ❌ Failed to sync event ${event.id}: ${text}`);

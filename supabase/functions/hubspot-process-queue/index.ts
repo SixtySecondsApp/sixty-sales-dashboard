@@ -30,6 +30,44 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// Helper for logging sync operations to integration_sync_logs table
+async function logSyncOperation(
+  supabase: any,
+  args: {
+    orgId: string
+    userId?: string | null
+    operation: 'sync' | 'create' | 'update' | 'delete' | 'push' | 'pull' | 'webhook' | 'error'
+    direction: 'inbound' | 'outbound'
+    entityType: string
+    entityId?: string | null
+    entityName?: string | null
+    status?: 'success' | 'failed' | 'skipped'
+    errorMessage?: string | null
+    metadata?: Record<string, unknown>
+    batchId?: string | null
+  }
+): Promise<void> {
+  try {
+    await supabase.rpc('log_integration_sync', {
+      p_org_id: args.orgId,
+      p_user_id: args.userId ?? null,
+      p_integration_name: 'hubspot',
+      p_operation: args.operation,
+      p_direction: args.direction,
+      p_entity_type: args.entityType,
+      p_entity_id: args.entityId ?? null,
+      p_entity_name: args.entityName ?? null,
+      p_status: args.status ?? 'success',
+      p_error_message: args.errorMessage ?? null,
+      p_metadata: args.metadata ?? {},
+      p_batch_id: args.batchId ?? null,
+    })
+  } catch (e) {
+    // Non-fatal: log to console but don't fail the sync
+    console.error('[hubspot-process-queue] Failed to log sync operation:', e)
+  }
+}
+
 function safeJsonParse(text: string): any {
   try {
     return JSON.parse(text)
@@ -282,6 +320,19 @@ async function handleSyncContact(params: {
         sixtyKey: email,
         hubspotModifiedAt: props.hs_lastmodifieddate ?? null,
       })
+
+      // Log successful inbound contact sync
+      const displayName = [props.firstname, props.lastname].filter(Boolean).join(' ') || email
+      await logSyncOperation(params.supabase, {
+        orgId: params.orgId,
+        userId: params.connectedByUserId,
+        operation: existing?.id ? 'update' : 'create',
+        direction: 'inbound',
+        entityType: 'contact',
+        entityId: String(contactRow.id),
+        entityName: `${displayName} (${email})`,
+        metadata: { hubspot_id: id },
+      })
     }
 
     return
@@ -345,6 +396,18 @@ async function handleSyncContact(params: {
         sixtyKey: String(contact.email).toLowerCase(),
         hubspotModifiedAt: found?.properties?.hs_lastmodifieddate ?? null,
       })
+
+      // Log successful outbound contact update
+      const displayName = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.email
+      await logSyncOperation(params.supabase, {
+        orgId: params.orgId,
+        operation: 'update',
+        direction: 'outbound',
+        entityType: 'contact',
+        entityId: String(contact.id),
+        entityName: `${displayName} (${contact.email})`,
+        metadata: { hubspot_id: String(found.id) },
+      })
     } else {
       const created = await params.client.request<any>({
         method: 'POST',
@@ -361,6 +424,18 @@ async function handleSyncContact(params: {
           sixtyId: String(contact.id),
           sixtyKey: String(contact.email).toLowerCase(),
           hubspotModifiedAt: created?.properties?.hs_lastmodifieddate ?? null,
+        })
+
+        // Log successful outbound contact creation
+        const displayName = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || contact.email
+        await logSyncOperation(params.supabase, {
+          orgId: params.orgId,
+          operation: 'create',
+          direction: 'outbound',
+          entityType: 'contact',
+          entityId: String(contact.id),
+          entityName: `${displayName} (${contact.email})`,
+          metadata: { hubspot_id: String(created.id) },
         })
       }
     }
@@ -432,6 +507,18 @@ async function handleSyncDeal(params: {
       hubspotModifiedAt: props.hs_lastmodifieddate ?? null,
     })
 
+    // Log successful inbound deal sync
+    const dealDisplayName = `${props.dealname || deal.name}${props.amount ? ` $${Number(props.amount).toLocaleString()}` : ''}`
+    await logSyncOperation(params.supabase, {
+      orgId: params.orgId,
+      operation: 'update',
+      direction: 'inbound',
+      entityType: 'deal',
+      entityId: String(deal.id),
+      entityName: dealDisplayName,
+      metadata: { hubspot_id: hsId },
+    })
+
     return
   }
 
@@ -497,6 +584,18 @@ async function handleSyncDeal(params: {
         sixtyId: String(deal.id),
         hubspotModifiedAt: found?.properties?.hs_lastmodifieddate ?? null,
       })
+
+      // Log successful outbound deal update
+      const dealDisplayName = `${deal.name}${deal.value ? ` $${Number(deal.value).toLocaleString()}` : ''}`
+      await logSyncOperation(params.supabase, {
+        orgId: params.orgId,
+        operation: 'update',
+        direction: 'outbound',
+        entityType: 'deal',
+        entityId: String(deal.id),
+        entityName: dealDisplayName,
+        metadata: { hubspot_id: String(found.id) },
+      })
     } else {
       const created = await params.client.request<any>({
         method: 'POST',
@@ -512,6 +611,18 @@ async function handleSyncDeal(params: {
           hubspotId: String(created.id),
           sixtyId: String(deal.id),
           hubspotModifiedAt: created?.properties?.hs_lastmodifieddate ?? null,
+        })
+
+        // Log successful outbound deal creation
+        const dealDisplayName = `${deal.name}${deal.value ? ` $${Number(deal.value).toLocaleString()}` : ''}`
+        await logSyncOperation(params.supabase, {
+          orgId: params.orgId,
+          operation: 'create',
+          direction: 'outbound',
+          entityType: 'deal',
+          entityId: String(deal.id),
+          entityName: dealDisplayName,
+          metadata: { hubspot_id: String(created.id) },
         })
       }
     }
@@ -599,6 +710,17 @@ async function handleSyncTask(params: {
       sixtyId: sixtyTaskId,
       hubspotModifiedAt: props.hs_lastmodifieddate ?? null,
     })
+
+    // Log successful inbound task sync
+    await logSyncOperation(params.supabase, {
+      orgId: params.orgId,
+      operation: 'update',
+      direction: 'inbound',
+      entityType: 'task',
+      entityId: sixtyTaskId,
+      entityName: props.hs_task_subject || 'Task',
+      metadata: { hubspot_id: hsId, status: props.hs_task_status },
+    })
     return
   }
 
@@ -653,6 +775,17 @@ async function handleSyncTask(params: {
         sixtyId: String(task.id),
         hubspotModifiedAt: found?.properties?.hs_lastmodifieddate ?? null,
       })
+
+      // Log successful outbound task update
+      await logSyncOperation(params.supabase, {
+        orgId: params.orgId,
+        operation: 'update',
+        direction: 'outbound',
+        entityType: 'task',
+        entityId: String(task.id),
+        entityName: task.title || 'Task',
+        metadata: { hubspot_id: String(found.id), completed: task.completed },
+      })
     } else {
       const created = await params.client.request<any>({
         method: 'POST',
@@ -667,6 +800,17 @@ async function handleSyncTask(params: {
           hubspotId: String(created.id),
           sixtyId: String(task.id),
           hubspotModifiedAt: created?.properties?.hs_lastmodifieddate ?? null,
+        })
+
+        // Log successful outbound task creation
+        await logSyncOperation(params.supabase, {
+          orgId: params.orgId,
+          operation: 'create',
+          direction: 'outbound',
+          entityType: 'task',
+          entityId: String(task.id),
+          entityName: task.title || 'Task',
+          metadata: { hubspot_id: String(created.id), completed: task.completed },
         })
       }
     }
@@ -829,32 +973,69 @@ function escapeAttr(input: string): string {
 }
 
 async function handlePollFormSubmissions(params: { supabase: any; client: HubSpotClient; orgId: string; payload: any; connectedByUserId: string | null }) {
-  // settings.settings.forms: [{ form_guid: string, enabled: boolean }]
+  // Read form_ingestion settings - enabled_forms is an array of form IDs
   const { data: settingsRow } = await params.supabase.from('hubspot_settings').select('settings').eq('org_id', params.orgId).maybeSingle()
   const settings = (settingsRow as any)?.settings || (settingsRow as any)?.data?.settings || {}
-  const forms: Array<{ form_guid: string; enabled?: boolean }> = Array.isArray(settings?.forms) ? settings.forms : []
-  const enabledForms = forms.filter((f) => f?.form_guid && (f.enabled ?? true))
-  if (!enabledForms.length) return
+
+  // Support both new format (form_ingestion.enabled_forms) and old format (settings.forms)
+  let enabledFormIds: string[] = []
+
+  // New format: form_ingestion.enabled_forms is an array of form IDs
+  if (settings?.form_ingestion?.enabled_forms && Array.isArray(settings.form_ingestion.enabled_forms)) {
+    enabledFormIds = settings.form_ingestion.enabled_forms.filter((id: any) => typeof id === 'string' && id.length > 0)
+  }
+  // Legacy format: settings.forms is an array of { form_guid, enabled }
+  else if (Array.isArray(settings?.forms)) {
+    enabledFormIds = settings.forms
+      .filter((f: any) => f?.form_guid && (f.enabled ?? true))
+      .map((f: any) => String(f.form_guid))
+  }
+
+  if (!enabledFormIds.length) {
+    console.log('[handlePollFormSubmissions] No enabled forms configured for org:', params.orgId)
+    return
+  }
+
+  console.log('[handlePollFormSubmissions] Polling', enabledFormIds.length, 'forms for org:', params.orgId)
 
   // sync cursor stored in hubspot_org_sync_state.cursors.forms[form_guid] = after
   const { data: syncStateRow } = await params.supabase.from('hubspot_org_sync_state').select('cursors').eq('org_id', params.orgId).maybeSingle()
   const cursors = (syncStateRow as any)?.cursors || (syncStateRow as any)?.data?.cursors || {}
   const formCursors = (cursors?.forms && typeof cursors.forms === 'object') ? cursors.forms : {}
 
-  for (const form of enabledForms) {
-    const formGuid = String(form.form_guid)
+  for (const formId of enabledFormIds) {
+    const formGuid = String(formId)
     let after = formCursors[formGuid] ? String(formCursors[formGuid]) : null
 
-    // fetch up to 50 submissions per run (legacy endpoint)
-    const resp = await params.client.request<any>({
-      method: 'GET',
-      path: `/form-integrations/v1/submissions/forms/${encodeURIComponent(formGuid)}`,
-      query: { limit: 50, ...(after ? { after } : {}) },
-      retries: 2,
-    })
+    console.log('[handlePollFormSubmissions] Fetching submissions for form:', formGuid, 'after:', after)
+
+    // Try the new Marketing API first, fall back to legacy if needed
+    let resp: any
+    try {
+      resp = await params.client.request<any>({
+        method: 'GET',
+        path: `/marketing/v3/forms/${encodeURIComponent(formGuid)}/submissions`,
+        query: { limit: 50, ...(after ? { after } : {}) },
+        retries: 2,
+      })
+    } catch (e: any) {
+      // Fall back to legacy endpoint if new one fails
+      console.log('[handlePollFormSubmissions] New API failed, trying legacy endpoint:', e.message)
+      resp = await params.client.request<any>({
+        method: 'GET',
+        path: `/form-integrations/v1/submissions/forms/${encodeURIComponent(formGuid)}`,
+        query: { limit: 50, ...(after ? { after } : {}) },
+        retries: 2,
+      })
+    }
 
     const results: any[] = Array.isArray(resp?.results) ? resp.results : []
-    if (!results.length) continue
+    console.log('[handlePollFormSubmissions] Form:', formGuid, 'returned', results.length, 'submissions')
+
+    if (!results.length) {
+      console.log('[handlePollFormSubmissions] No new submissions for form:', formGuid)
+      continue
+    }
 
     for (const submission of results) {
       const conversionId = submission?.conversionId ? String(submission.conversionId) : null
@@ -898,13 +1079,27 @@ async function handlePollFormSubmissions(params: { supabase: any; client: HubSpo
           page_url: submission?.pageUrl || null,
         },
         owner_id: ownerId,
-        priority: 'medium',
+        priority: 'normal',
         status: 'new',
-        prep_status: 'not_started',
-        enrichment_status: 'not_started',
       }
 
-      await params.supabase.from('leads').insert(leadInsert).catch(() => {})
+      const { data: createdLead, error: leadError } = await params.supabase.from('leads').insert(leadInsert).select('id').maybeSingle()
+      if (leadError) {
+        console.error('[handlePollFormSubmissions] Failed to insert lead:', leadError.message)
+      } else if (createdLead?.id) {
+        console.log('[handlePollFormSubmissions] Created lead:', createdLead.id, 'from form submission:', conversionId)
+        // Log successful form submission ingestion
+        await logSyncOperation(params.supabase, {
+          orgId: params.orgId,
+          userId: params.connectedByUserId,
+          operation: 'pull',
+          direction: 'inbound',
+          entityType: 'form_submission',
+          entityId: createdLead.id,
+          entityName: email ? `Form: ${email}` : `Form submission ${conversionId}`,
+          metadata: { hubspot_form_id: formGuid, conversion_id: conversionId },
+        })
+      }
 
       // Auto task follow-up (best effort)
       if (ownerId) {

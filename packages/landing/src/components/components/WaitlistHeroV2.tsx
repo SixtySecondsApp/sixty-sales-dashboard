@@ -5,11 +5,11 @@ import { Sparkles, Users, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useWaitlistSignup } from '@/lib/hooks/useWaitlistSignup';
-import { DIALER_OPTIONS, MEETING_RECORDER_OPTIONS, CRM_OPTIONS, TASK_MANAGER_OPTIONS } from '@/lib/types/waitlist';
-import type { WaitlistSignupData } from '@/lib/types/waitlist';
+import { useWaitlistSignup } from '../../lib/hooks/useWaitlistSignup';
+import { DIALER_OPTIONS, MEETING_RECORDER_OPTIONS, CRM_OPTIONS, TASK_MANAGER_OPTIONS } from '../../lib/types/waitlist';
+import type { WaitlistSignupData } from '../../lib/types/waitlist';
 import { LiveWaitlistCount } from './gamification/LiveWaitlistCount';
-import { captureRegistrationUrl } from '@/lib/utils/registrationUrl';
+import { captureRegistrationUrl } from '../../lib/utils/registrationUrl';
 
 export function WaitlistHeroV2() {
   const navigate = useNavigate();

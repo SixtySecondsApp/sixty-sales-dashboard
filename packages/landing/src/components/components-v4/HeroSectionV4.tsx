@@ -247,7 +247,7 @@ export function HeroSectionV4({ onCTAClick }: HeroSectionV4Props = {}) {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-blue opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-blue"></span>
               </span>
-              Now integrating with Slack & Salesforce
+              Early access • 50% lifetime discount
             </div>
 
             <h1 className="text-5xl lg:text-6xl font-heading font-bold tracking-tight text-gray-900 dark:text-gray-100 leading-[1.1] mb-6">

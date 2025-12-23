@@ -503,6 +503,15 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     navSection: 'platform',
     order: 53,
   },
+  // Process Maps - AI-generated process visualization
+  {
+    path: '/platform/process-maps',
+    access: 'platformAdmin',
+    label: 'Process Maps',
+    showInNav: false,
+    navSection: 'platform',
+    order: 54,
+  },
   // Slack Settings (Org Admin)
   {
     path: '/settings/integrations/slack',

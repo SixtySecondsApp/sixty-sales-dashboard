@@ -62,3 +62,7 @@ COMMENT ON TRIGGER aa_set_signup_position_trigger ON meetings_waitlist IS
 
 
 
+
+
+
+

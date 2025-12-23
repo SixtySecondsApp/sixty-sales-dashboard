@@ -12,6 +12,44 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Helper for logging sync operations to integration_sync_logs table
+async function logSyncOperation(
+  supabase: any,
+  args: {
+    orgId?: string | null
+    userId?: string | null
+    operation: 'sync' | 'create' | 'update' | 'delete' | 'push' | 'pull' | 'webhook' | 'error'
+    direction: 'inbound' | 'outbound'
+    entityType: string
+    entityId?: string | null
+    entityName?: string | null
+    status?: 'success' | 'failed' | 'skipped'
+    errorMessage?: string | null
+    metadata?: Record<string, unknown>
+    batchId?: string | null
+  }
+): Promise<void> {
+  try {
+    await supabase.rpc('log_integration_sync', {
+      p_org_id: args.orgId ?? null,
+      p_user_id: args.userId ?? null,
+      p_integration_name: 'fathom',
+      p_operation: args.operation,
+      p_direction: args.direction,
+      p_entity_type: args.entityType,
+      p_entity_id: args.entityId ?? null,
+      p_entity_name: args.entityName ?? null,
+      p_status: args.status ?? 'success',
+      p_error_message: args.errorMessage ?? null,
+      p_metadata: args.metadata ?? {},
+      p_batch_id: args.batchId ?? null,
+    })
+  } catch (e) {
+    // Non-fatal: log to console but don't fail the sync
+    console.error('[fathom-sync] Failed to log sync operation:', e)
+  }
+}
+
 /**
  * Fathom Sync Engine Edge Function
  *
@@ -701,14 +739,25 @@ serve(async (req) => {
     let meetingsSynced = 0
     let totalMeetingsFound = 0
     const errors: Array<{ call_id: string; error: string }> = []
+    let bulkSyncFastMode = false // Track if fast mode was used for bulk sync
 
     // Single call sync (webhook-triggered)
     if (sync_type === 'webhook') {
       // If webhook_payload is provided, use it directly
       if (webhook_payload) {
         // Webhook syncs are for new meetings (not historical)
+        // DO NOT skip transcript fetch for webhooks - we want full processing for single meetings
         if (!effectiveUserIdForOwnership) throw new Error('Cannot resolve user context for webhook sync')
-        const result = await syncSingleCall(supabase, effectiveUserIdForOwnership, orgId, integration, webhook_payload, skip_thumbnails, false)
+        const result = await syncSingleCall(
+          supabase,
+          effectiveUserIdForOwnership,
+          orgId,
+          integration,
+          webhook_payload,
+          skip_thumbnails ?? false, // skipThumbnails
+          false, // markAsHistorical
+          false // skipTranscriptFetch - process transcripts immediately for webhooks
+        )
 
         if (result.success) {
           meetingsSynced = 1
@@ -720,7 +769,16 @@ serve(async (req) => {
       } else if (call_id) {
         // Legacy: fetch single call by ID (not historical)
         if (!effectiveUserIdForOwnership) throw new Error('Cannot resolve user context for webhook sync')
-        const result = await syncSingleCall(supabase, effectiveUserIdForOwnership, orgId, integration, call_id, skip_thumbnails, false)
+        const result = await syncSingleCall(
+          supabase,
+          effectiveUserIdForOwnership,
+          orgId,
+          integration,
+          call_id,
+          skip_thumbnails ?? false, // skipThumbnails
+          false, // markAsHistorical
+          false // skipTranscriptFetch - process transcripts immediately
+        )
 
         if (result.success) {
           meetingsSynced = 1
@@ -764,11 +822,11 @@ serve(async (req) => {
             apiEndDate = now.toISOString()
             break
           case 'onboarding_fast':
-            // Phase 1: Just 3 most recent meetings for instant value
+            // Phase 1: 9 most recent meetings for instant value with full processing
             apiStartDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
             apiEndDate = now.toISOString()
-            syncLimit = 3 // Only sync 3 meetings
-            console.log('[fathom-sync] Onboarding fast sync: limiting to 3 most recent meetings')
+            syncLimit = 9 // Sync 9 meetings fully (with thumbnails, transcripts, summaries)
+            console.log('[fathom-sync] Onboarding fast sync: limiting to 9 most recent meetings with full processing')
             break
           case 'onboarding_background':
             // Phase 2: Rest of last 30 days (for free tier)
@@ -799,6 +857,21 @@ serve(async (req) => {
       // If user specified a limit or we set one for onboarding, only fetch one batch
       const isLimitedSync = !!syncLimit || !!limit
 
+      // BULK SYNC OPTIMIZATION: For syncs with many meetings, use fast mode
+      // to avoid Edge Function timeout. Thumbnails and transcripts will be
+      // processed by background jobs (fathom-transcript-retry cron).
+      // Fast mode is auto-enabled when:
+      // - Processing more than 10 meetings AND
+      // - Not a limited/onboarding sync (which should be quick by design)
+      const BULK_THRESHOLD = 10
+      let useFastMode = false
+      let fastModeSkipThumbnails = skip_thumbnails ?? false
+      let fastModeSkipTranscripts = false
+
+      // Track how many meetings have been fully processed (with thumbnails + transcripts)
+      const FULL_PROCESSING_LIMIT = 9
+      let meetingsFullyProcessed = 0
+
       while (hasMore && pageCount < maxPages) {
         pageCount++
         const response = await fetchFathomCalls(integration, {
@@ -808,18 +881,58 @@ serve(async (req) => {
           cursor,
         }, supabase)
 
-        const calls = response.items
+        let calls = response.items
         totalMeetingsFound += calls.length
+
+        // Sort by newest first (recording_start_time or created_at descending)
+        // This ensures the most recent meetings get priority processing
+        calls = calls.sort((a: any, b: any) => {
+          const dateA = new Date(a.recording_start_time || a.created_at || 0).getTime()
+          const dateB = new Date(b.recording_start_time || b.created_at || 0).getTime()
+          return dateB - dateA // Descending (newest first)
+        })
+
+        // Auto-enable fast mode if we're processing many meetings
+        // This check runs after first page fetch so we know the total scope
+        if (!useFastMode && !isLimitedSync && (totalMeetingsFound > BULK_THRESHOLD || (response.has_more && calls.length > 0))) {
+          useFastMode = true
+          bulkSyncFastMode = true // Set outer variable for response
+          console.log(`⚡ BULK SYNC: Auto-enabled fast mode (${totalMeetingsFound}+ meetings detected). First ${FULL_PROCESSING_LIMIT} meetings will be fully processed, rest in background.`)
+        }
 
         // Process each call
         for (const call of calls) {
           try {
             // Pass markAsHistorical flag for onboarding syncs
             if (!effectiveUserIdForOwnership) throw new Error('Cannot resolve user context for sync')
-            const result = await syncSingleCall(supabase, effectiveUserIdForOwnership, orgId, integration, call, skip_thumbnails, markAsHistorical)
+
+            // Determine if this meeting should be fully processed
+            // First 9 meetings get full processing (thumbnails + transcripts)
+            // After that, use fast mode for bulk syncs
+            const shouldProcessFully = meetingsFullyProcessed < FULL_PROCESSING_LIMIT
+            const skipThumbsForThis = shouldProcessFully ? false : (useFastMode ? true : fastModeSkipThumbnails)
+            const skipTranscriptsForThis = shouldProcessFully ? false : (useFastMode ? true : fastModeSkipTranscripts)
+
+            if (shouldProcessFully) {
+              console.log(`🎯 Full processing for meeting ${meetingsFullyProcessed + 1}/${FULL_PROCESSING_LIMIT}: ${call.title || call.recording_id}`)
+            }
+
+            const result = await syncSingleCall(
+              supabase,
+              effectiveUserIdForOwnership,
+              orgId,
+              integration,
+              call,
+              skipThumbsForThis,
+              markAsHistorical,
+              skipTranscriptsForThis
+            )
 
             if (result.success) {
               meetingsSynced++
+              if (shouldProcessFully) {
+                meetingsFullyProcessed++
+              }
             } else {
               errors.push({ call_id: String(call.recording_id || call.id), error: result.error || 'Unknown error' })
             }
@@ -841,6 +954,12 @@ serve(async (req) => {
           cursor = response.cursor
         }
       }
+
+      // Log bulk sync completion
+      if (useFastMode) {
+        console.log(`⚡ BULK SYNC COMPLETE: ${meetingsSynced}/${totalMeetingsFound} meetings saved. Transcripts/thumbnails queued for background processing.`)
+      }
+
       // Fallback: if nothing found in the selected window, retry once without date filters
       if (totalMeetingsFound === 0 && (apiStartDate || apiEndDate)) {
         const retryResponse = await fetchFathomCalls(integration, { limit: apiLimit }, supabase)
@@ -852,7 +971,16 @@ serve(async (req) => {
             try {
               // Fallback retries also use markAsHistorical flag
               if (!effectiveUserIdForOwnership) throw new Error('Cannot resolve user context for sync')
-              const result = await syncSingleCall(supabase, effectiveUserIdForOwnership, orgId, integration, call, skip_thumbnails, markAsHistorical)
+              const result = await syncSingleCall(
+                supabase,
+                effectiveUserIdForOwnership,
+                orgId,
+                integration,
+                call,
+                fastModeSkipThumbnails,
+                markAsHistorical,
+                fastModeSkipTranscripts
+              )
               if (result.success) meetingsSynced++
             } catch (error) {
             }
@@ -1007,6 +1135,35 @@ serve(async (req) => {
       }
     }
 
+    // BULK SYNC: Trigger background transcript processing if fast mode was used
+    if (bulkSyncFastMode && meetingsSynced > 0) {
+      console.log(`📋 Triggering background transcript processor for ${meetingsSynced} queued meetings`)
+      try {
+        // Fire-and-forget: Don't await to avoid blocking the sync response
+        fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/fathom-transcript-retry`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            batch_size: 10, // Process 10 meetings at a time
+          }),
+        }).then(response => {
+          if (response.ok) {
+            console.log(`✅ Background transcript processor triggered successfully`)
+          } else {
+            console.warn(`⚠️  Background transcript processor returned status ${response.status}`)
+          }
+        }).catch(err => {
+          console.error(`⚠️  Failed to trigger background transcript processor:`, err)
+        })
+      } catch (triggerError) {
+        // Non-fatal - cron job will pick up the queue anyway
+        console.error(`⚠️  Error triggering background transcript processor:`, triggerError)
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -1014,6 +1171,11 @@ serve(async (req) => {
         meetings_synced: meetingsSynced,
         total_meetings_found: totalMeetingsFound,
         errors: errors.length > 0 ? errors : undefined,
+        // Fast mode indicator - transcripts will be processed in background
+        fast_mode: bulkSyncFastMode,
+        fast_mode_message: bulkSyncFastMode
+          ? 'Meetings synced successfully. Transcripts and summaries will be processed in the background and may take a few minutes to appear.'
+          : undefined,
         // Free tier limit info
         upgrade_required: upgradeRequired,
         limit_warning: limitWarning,
@@ -1592,6 +1754,10 @@ async function autoFetchTranscriptAndAnalyze(
 
 /**
  * Sync a single call from Fathom to database
+ *
+ * @param skipTranscriptFetch - When true, skips transcript/summary fetching and AI analysis.
+ *                              Meeting will be queued for background processing via fathom-transcript-retry.
+ *                              Use this for bulk syncs to avoid Edge Function timeout.
  */
 async function syncSingleCall(
   supabase: any,
@@ -1600,7 +1766,8 @@ async function syncSingleCall(
   integration: any,
   call: any, // Directly receive the call object from bulk API
   skipThumbnails: boolean = false,
-  markAsHistorical: boolean = false // Mark as historical import (doesn't count toward new meeting limit)
+  markAsHistorical: boolean = false, // Mark as historical import (doesn't count toward new meeting limit)
+  skipTranscriptFetch: boolean = false // Skip transcript/summary fetch for bulk syncs
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Call object already contains all necessary data from bulk API
@@ -1868,6 +2035,22 @@ async function syncSingleCall(
     // Use summary from bulk API response only (don't fetch separately)
     // Summary and transcript should be fetched on-demand via separate endpoint
     const summaryText: string | null = call.default_summary || call.summary || null
+    // Determine initial processing statuses based on skip flags and available data
+    // - 'complete': Already has data or successfully processed
+    // - 'pending': Queued for background processing
+    // - 'processing': Currently being processed (set during actual processing)
+    const initialThumbnailStatus = skipThumbnails
+      ? 'pending'  // Queued for background thumbnail generation
+      : (thumbnailUrl && !thumbnailUrl.includes('dummyimage.com') ? 'complete' : 'pending')
+
+    const initialTranscriptStatus = skipTranscriptFetch
+      ? 'pending'  // Queued for background transcript fetch
+      : 'processing'  // Will be updated after transcript fetch
+
+    const initialSummaryStatus = skipTranscriptFetch
+      ? 'pending'  // Queued for background summary generation
+      : (summaryText ? 'complete' : 'processing')  // Will be updated after AI analysis
+
     // Map to meetings table schema using actual Fathom API fields
     const meetingData: Record<string, any> = {
       org_id: orgId, // Required for RLS compliance
@@ -1890,6 +2073,10 @@ async function syncSingleCall(
       talk_time_judgement: null, // Not available in bulk API response
       fathom_embed_url: embedUrl,
       thumbnail_url: thumbnailUrl,
+      // Processing status columns for real-time UI updates
+      thumbnail_status: initialThumbnailStatus,
+      transcript_status: initialTranscriptStatus,
+      summary_status: initialSummaryStatus,
       // Additional metadata fields
       fathom_created_at: call.created_at || null,
       transcript_language: call.transcript_language || 'en',
@@ -2048,6 +2235,13 @@ async function syncSingleCall(
     // This allows the thumbnail function to persist directly to the database
     if (meeting && (!thumbnailUrl || thumbnailUrl.includes('dummyimage.com')) && embedUrl && !skipThumbnails) {
       console.log(`🖼️  Retrying thumbnail generation for meeting ${meeting.id} (recording ${call.recording_id})`)
+
+      // Update status to 'processing' before thumbnail generation
+      await supabase
+        .from('meetings')
+        .update({ thumbnail_status: 'processing' })
+        .eq('id', meeting.id)
+
       try {
         const retryThumbnail = await generateVideoThumbnail(
           call.recording_id,
@@ -2058,9 +2252,26 @@ async function syncSingleCall(
         if (retryThumbnail && !retryThumbnail.includes('via.placeholder.com')) {
           thumbnailUrl = retryThumbnail
           console.log(`✅ Retry thumbnail generation successful for meeting ${meeting.id}`)
+
+          // Update status to 'complete' on success
+          await supabase
+            .from('meetings')
+            .update({ thumbnail_status: 'complete' })
+            .eq('id', meeting.id)
+        } else {
+          // Still pending - no valid thumbnail generated
+          await supabase
+            .from('meetings')
+            .update({ thumbnail_status: 'pending' })
+            .eq('id', meeting.id)
         }
       } catch (error) {
         console.warn(`⚠️  Thumbnail retry failed for meeting ${meeting.id}:`, error instanceof Error ? error.message : String(error))
+        // Mark as failed so UI can show appropriate state
+        await supabase
+          .from('meetings')
+          .update({ thumbnail_status: 'failed' })
+          .eq('id', meeting.id)
       }
     }
     
@@ -2072,57 +2283,108 @@ async function syncSingleCall(
         .catch(err => undefined)
     }
 
-    // REFRESH TOKEN BEFORE FETCHING TRANSCRIPT/SUMMARY
-    // Webhook syncs don't go through fetchFathomCalls, so we need to refresh here
-    try {
-      console.log(`🔄 Attempting token refresh (${integration._scope || 'user'} scope) before fetching transcript`)
-      const refreshedToken = await refreshAccessToken(supabase, integration, integration._scope === 'org' ? 'org' : 'user')
-      // Update integration object with refreshed token for subsequent API calls
-      integration.access_token = refreshedToken
-      console.log(`✅ Token refreshed successfully (${integration._scope || 'user'} scope)`)
-    } catch (error) {
-      // Log the error but continue with existing token
-      console.error(`⚠️ Token refresh failed (${integration._scope || 'user'} scope):`, error instanceof Error ? error.message : String(error))
-      console.error('Token refresh error details:', error)
-      // Continue with existing token - it might still work
-    }
+    // TRANSCRIPT/SUMMARY FETCHING
+    // For bulk syncs (skipTranscriptFetch=true), skip immediate fetching to avoid timeout.
+    // The meeting will be processed by the background fathom-transcript-retry job.
+    if (skipTranscriptFetch) {
+      console.log(`⏭️  Skipping transcript fetch for meeting ${meeting.id} (bulk sync mode) - will process in background`)
 
-    // AUTO-FETCH TRANSCRIPT AND SUMMARY
-    // Attempt to fetch transcript and summary automatically for AI analysis
-    await autoFetchTranscriptAndAnalyze(supabase, ownerUserId, integration, meeting, call)
-
-    // Check if transcript was fetched - if not, enqueue retry job
-    try {
-      const { data: updatedMeeting, error: checkError } = await supabase
-        .from('meetings')
-        .select('id, transcript_text, fathom_recording_id, transcript_fetch_attempts')
-        .eq('id', meeting.id)
-        .single()
-
-      if (!checkError && updatedMeeting && !updatedMeeting.transcript_text) {
-        // Transcript still not available - enqueue retry job
-        const recordingId = call.recording_id || call.id || updatedMeeting.fathom_recording_id
-        if (recordingId) {
-          console.log(`📋 Enqueueing transcript retry job for meeting ${updatedMeeting.id} (recording: ${recordingId}, attempts: ${updatedMeeting.transcript_fetch_attempts || 0})`)
-          
-          const { data: retryJobId, error: enqueueError } = await supabase
+      // Queue for background processing
+      const recordingId = call.recording_id || call.id || meeting.fathom_recording_id
+      if (recordingId) {
+        try {
+          const { error: enqueueError } = await supabase
             .rpc('enqueue_transcript_retry', {
-              p_meeting_id: updatedMeeting.id,
+              p_meeting_id: meeting.id,
               p_user_id: ownerUserId,
               p_recording_id: String(recordingId),
-              p_initial_attempt_count: updatedMeeting.transcript_fetch_attempts || 1,
+              p_initial_attempt_count: 0, // Fresh start for background processing
             })
-
           if (enqueueError) {
-            console.error(`⚠️  Failed to enqueue retry job: ${enqueueError.message}`)
+            console.warn(`⚠️  Failed to enqueue background job for meeting ${meeting.id}: ${enqueueError.message}`)
           } else {
-            console.log(`✅ Enqueued retry job ${retryJobId} for meeting ${updatedMeeting.id}`)
+            console.log(`📋 Queued meeting ${meeting.id} for background transcript processing`)
           }
+        } catch (err) {
+          // Non-fatal
+          console.warn(`⚠️  Error queueing meeting ${meeting.id} for background:`, err instanceof Error ? err.message : String(err))
         }
       }
-    } catch (error) {
-      // Non-fatal - log but don't fail the sync
-      console.error(`⚠️  Error checking/enqueueing retry job:`, error instanceof Error ? error.message : String(error))
+    } else {
+      // REFRESH TOKEN BEFORE FETCHING TRANSCRIPT/SUMMARY
+      // Webhook syncs don't go through fetchFathomCalls, so we need to refresh here
+      try {
+        console.log(`🔄 Attempting token refresh (${integration._scope || 'user'} scope) before fetching transcript`)
+        const refreshedToken = await refreshAccessToken(supabase, integration, integration._scope === 'org' ? 'org' : 'user')
+        // Update integration object with refreshed token for subsequent API calls
+        integration.access_token = refreshedToken
+        console.log(`✅ Token refreshed successfully (${integration._scope || 'user'} scope)`)
+      } catch (error) {
+        // Log the error but continue with existing token
+        console.error(`⚠️ Token refresh failed (${integration._scope || 'user'} scope):`, error instanceof Error ? error.message : String(error))
+        console.error('Token refresh error details:', error)
+        // Continue with existing token - it might still work
+      }
+
+      // Update status to 'processing' before transcript fetch
+      await supabase
+        .from('meetings')
+        .update({ transcript_status: 'processing', summary_status: 'processing' })
+        .eq('id', meeting.id)
+
+      // AUTO-FETCH TRANSCRIPT AND SUMMARY
+      // Attempt to fetch transcript and summary automatically for AI analysis
+      await autoFetchTranscriptAndAnalyze(supabase, ownerUserId, integration, meeting, call)
+
+      // Check if transcript was fetched and update status accordingly
+      try {
+        const { data: updatedMeeting, error: checkError } = await supabase
+          .from('meetings')
+          .select('id, transcript_text, summary, fathom_recording_id, transcript_fetch_attempts')
+          .eq('id', meeting.id)
+          .single()
+
+        if (!checkError && updatedMeeting) {
+          // Update transcript status based on result
+          const transcriptStatus = updatedMeeting.transcript_text ? 'complete' : 'pending'
+          const summaryStatus = updatedMeeting.summary ? 'complete' : 'pending'
+
+          await supabase
+            .from('meetings')
+            .update({ transcript_status: transcriptStatus, summary_status: summaryStatus })
+            .eq('id', meeting.id)
+
+          if (!updatedMeeting.transcript_text) {
+            // Transcript still not available - enqueue retry job
+            const recordingId = call.recording_id || call.id || updatedMeeting.fathom_recording_id
+            if (recordingId) {
+              console.log(`📋 Enqueueing transcript retry job for meeting ${updatedMeeting.id} (recording: ${recordingId}, attempts: ${updatedMeeting.transcript_fetch_attempts || 0})`)
+
+              const { data: retryJobId, error: enqueueError } = await supabase
+                .rpc('enqueue_transcript_retry', {
+                  p_meeting_id: updatedMeeting.id,
+                  p_user_id: ownerUserId,
+                  p_recording_id: String(recordingId),
+                  p_initial_attempt_count: updatedMeeting.transcript_fetch_attempts || 1,
+                })
+
+              if (enqueueError) {
+                console.error(`⚠️  Failed to enqueue retry job: ${enqueueError.message}`)
+              } else {
+                console.log(`✅ Enqueued retry job ${retryJobId} for meeting ${updatedMeeting.id}`)
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // Non-fatal - log but don't fail the sync
+        console.error(`⚠️  Error checking/enqueueing retry job:`, error instanceof Error ? error.message : String(error))
+        // Mark as failed on error
+        await supabase
+          .from('meetings')
+          .update({ transcript_status: 'failed', summary_status: 'failed' })
+          .eq('id', meeting.id)
+      }
     }
 
     // Process participants (use calendar_invitees from actual API)
@@ -2469,6 +2731,24 @@ async function syncSingleCall(
       }
     } else {
     }
+
+    // Log successful meeting sync
+    const meetingTitle = call.title || call.meeting_title || 'Meeting'
+    const meetingDate = call.recording_start_time || call.scheduled_start_time
+    const formattedDate = meetingDate ? new Date(meetingDate).toLocaleDateString() : ''
+    await logSyncOperation(supabase, {
+      orgId,
+      userId,
+      operation: 'sync',
+      direction: 'inbound',
+      entityType: 'meeting',
+      entityId: meeting?.id || null,
+      entityName: `${meetingTitle}${formattedDate ? ` (${formattedDate})` : ''}`,
+      metadata: {
+        fathom_recording_id: call.recording_id || call.id,
+        duration_minutes: call.duration_minutes,
+      },
+    })
 
     return { success: true }
   } catch (error) {

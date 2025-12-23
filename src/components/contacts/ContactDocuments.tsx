@@ -28,7 +28,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  // DropdownMenuSeparator // TODO: Not exported from dropdown-menu component
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
   Select,
@@ -37,13 +37,12 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-// TODO: Tooltip component not implemented yet
-// import {
-//   Tooltip,
-//   TooltipContent,
-//   TooltipProvider,
-//   TooltipTrigger
-// } from '@/components/ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip';
 import { 
   Dialog, 
   DialogContent, 

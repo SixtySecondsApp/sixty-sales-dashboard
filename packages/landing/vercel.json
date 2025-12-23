@@ -1,8 +1,15 @@
 {
-  "installCommand": "npm install",
-  "buildCommand": "cd packages/landing && npm run build",
-  "outputDirectory": "packages/landing/dist",
+  "installCommand": "cd ../.. && npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "framework": "vite",
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/learnmore",
+      "permanent": false
+    }
+  ],
   "headers": [
     {
       "source": "/assets/(.*)",

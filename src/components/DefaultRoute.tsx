@@ -9,7 +9,7 @@ import { Loader2 } from 'lucide-react';
  * It should NOT affect any other routes like /dashboard, /crm, etc.
  *
  * - Authenticated users on "/" → /dashboard
- * - Unauthenticated users on "/" → /learnmore
+ * - Unauthenticated users on "/" → /auth/login
  */
 export function DefaultRoute() {
   const { isAuthenticated, loading } = useAuth();
@@ -32,10 +32,10 @@ export function DefaultRoute() {
     );
   }
 
-  // Redirect based on authentication status (only for root path)
+  // Redirect based on authentication status
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  return <Navigate to="/learnmore" replace />;
+  return <Navigate to="/auth/login" replace />;
 }

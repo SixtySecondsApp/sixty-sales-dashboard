@@ -14,6 +14,43 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders, handleCorsPreflightRequest, jsonResponse, errorResponse } from '../_shared/corsHelper.ts';
 import { authenticateRequest } from '../_shared/edgeAuth.ts';
 
+// Helper for logging sync operations to integration_sync_logs table
+async function logSyncOperation(
+  supabase: any,
+  args: {
+    orgId?: string | null
+    userId?: string | null
+    operation: 'sync' | 'create' | 'update' | 'delete' | 'push' | 'pull' | 'webhook' | 'error'
+    direction: 'inbound' | 'outbound'
+    entityType: string
+    entityId?: string | null
+    entityName?: string | null
+    status?: 'success' | 'failed' | 'skipped'
+    errorMessage?: string | null
+    metadata?: Record<string, unknown>
+    batchId?: string | null
+  }
+): Promise<void> {
+  try {
+    await supabase.rpc('log_integration_sync', {
+      p_org_id: args.orgId ?? null,
+      p_user_id: args.userId ?? null,
+      p_integration_name: 'google_tasks',
+      p_operation: args.operation,
+      p_direction: args.direction,
+      p_entity_type: args.entityType,
+      p_entity_id: args.entityId ?? null,
+      p_entity_name: args.entityName ?? null,
+      p_status: args.status ?? 'success',
+      p_error_message: args.errorMessage ?? null,
+      p_metadata: args.metadata ?? {},
+      p_batch_id: args.batchId ?? null,
+    })
+  } catch (e) {
+    console.error('[google-tasks] Failed to log sync operation:', e)
+  }
+}
+
 async function refreshAccessToken(refreshToken: string, supabase: any, userId: string): Promise<string> {
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
@@ -264,6 +301,21 @@ serve(async (req) => {
         }
 
         result = await response.json();
+
+        // Log task creation
+        await logSyncOperation(supabase, {
+          userId,
+          operation: 'create',
+          direction: 'outbound',
+          entityType: 'task',
+          entityId: result.id,
+          entityName: result.title || params.title,
+          metadata: {
+            task_list_id: taskListId,
+            due: params.due,
+            status: params.status,
+          },
+        })
         break;
       }
 
@@ -295,6 +347,20 @@ serve(async (req) => {
         }
 
         result = await response.json();
+
+        // Log task update
+        await logSyncOperation(supabase, {
+          userId,
+          operation: 'update',
+          direction: 'outbound',
+          entityType: 'task',
+          entityId: taskId,
+          entityName: result.title || updateData.title,
+          metadata: {
+            task_list_id: taskListId,
+            fields_updated: Object.keys(updateData),
+          },
+        })
         break;
       }
 
@@ -318,6 +384,19 @@ serve(async (req) => {
         }
 
         result = { success: true };
+
+        // Log task deletion
+        await logSyncOperation(supabase, {
+          userId,
+          operation: 'delete',
+          direction: 'outbound',
+          entityType: 'task',
+          entityId: taskId,
+          entityName: `Task ${taskId}`,
+          metadata: {
+            task_list_id: taskListId,
+          },
+        })
         break;
       }
 

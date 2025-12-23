@@ -26,7 +26,7 @@ GRANT EXECUTE ON FUNCTION increment_invite_code_usage(TEXT) TO authenticated;
 -- Also grant to anon for pre-signup validation scenarios
 GRANT EXECUTE ON FUNCTION increment_invite_code_usage(TEXT) TO anon;
 
-COMMENT ON FUNCTION increment_invite_code_usage IS
+COMMENT ON FUNCTION increment_invite_code_usage(TEXT) IS
 'Increments the usage count for an invite code. Called after successful account signup.';
 
 -- ============================================================================

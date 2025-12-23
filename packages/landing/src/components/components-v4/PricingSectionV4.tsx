@@ -6,8 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useLocalization } from '../../lib/hooks/useLocalization';
 import { LocaleSelector } from '../LocaleSelector';
-import { usePublicPlans } from '@/lib/hooks/useSubscription';
-import type { SubscriptionPlan } from '@/lib/types/subscription';
+import { usePublicPlans } from '../../lib/hooks/useSubscription';
+import type { SubscriptionPlan } from '../../lib/types/subscription';
 
 export function PricingSectionV4() {
   const navigate = useNavigate();

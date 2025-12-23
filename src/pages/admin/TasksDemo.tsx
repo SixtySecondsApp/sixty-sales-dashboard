@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase/clientV2';
+import { ProcessMapButton, MermaidRenderer } from '@/components/process-maps';
 import { useOrgId } from '@/lib/contexts/OrgContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -456,37 +457,101 @@ export default function TasksDemo() {
 
   const flowMermaid = useMemo(() => {
     return `flowchart TD
-  subgraph ingestion[Ingestion]
-    fathom[Fathom_sync_cron_webhook] --> meetings[meetings_row_created_or_updated]
-    justcall[JustCall_sync_webhook] --> calls[calls_row_created_or_updated]
-  end
+    subgraph sources["Source Activities"]
+        fathom["Meeting Transcripts<br/>from Fathom"]
+        justcall["Call Transcripts<br/>from JustCall"]
+        crm["Activity Notes<br/>from CRM"]
+    end
 
-  subgraph suggestions[Next_action_suggestions]
-    meetings -->|automatic_db_trigger_when_transcript_or_summary_added| pgTriggerMeetings[trigger_auto_suggest_next_actions_meeting]
-    pgTriggerMeetings -->|pg_net_http_post| suggestFn[suggest-next-actions_edge_function]
-    calls -->|manual_in_this_demo| suggestFn
-    suggestFn --> suggestionsTable[next_action_suggestions_rows]
-    suggestionsTable -->|manual_accept| acceptRpc[accept_next_action_suggestion_rpc]
-    acceptRpc --> tasks[tasks_row_created_or_updated]
-  end
+    subgraph extraction["AI Extraction"]
+        extract_meetings["extract-action-items<br/>Edge Function"]
+        extract_calls["extract-call-action-items<br/>Edge Function"]
+        claude["Claude AI<br/>Identifies Actionable Items"]
+    end
 
-  subgraph actionItems[Action_items_to_tasks]
-    meetings -->|manual_click_extract| extractMeeting[extract-action-items_edge_function]
-    extractMeeting --> meetingAIs[meeting_action_items_rows]
-    calls -->|manual_click_extract| extractCall[extract-call-action-items_edge_function]
-    extractCall --> callAIs[call_action_items_rows]
-    meetingAIs -->|manual_convert_selected| createTaskUnified[create-task-unified_edge_function]
-    callAIs -->|manual_convert_selected| createTaskUnified
-    createTaskUnified --> tasks
-  end
+    subgraph storage["Action Item Storage"]
+        meeting_table["meeting_action_items<br/>Table"]
+        call_table["call_action_items<br/>Table"]
+        dedup["Deduplication<br/>Check"]
+    end
 
-  subgraph smartTasks[Smart_tasks_automation]
-    activities[activities_insert_with_deal_id] -->|automatic_db_trigger| smartTrigger[trigger_create_smart_tasks]
-    smartTrigger --> smartFn[create_smart_tasks_plpgsql]
-    smartFn -->|org_scoped_templates| tasks
-  end
+    subgraph rules["Custom Extraction Rules"]
+        rule_config["task_extraction_rules<br/>User-Defined Triggers"]
+        rule_extract["Rule-Based Items<br/>High Confidence"]
+    end
 
-  tasks --> notifications[notifications_overdue_cron_with_guardrails]
+    subgraph classification["Importance Classification"]
+        importance["AI Assigns Importance<br/>critical/high/medium/low"]
+    end
+
+    subgraph conversion["Task Conversion"]
+        unified_func["create-task-unified<br/>Edge Function"]
+        manual_ui["Manual Conversion<br/>via UI Selection"]
+        auto_convert["Auto-Conversion<br/>Based on Thresholds"]
+    end
+
+    subgraph smart["Smart Tasks"]
+        triggers["Database Triggers<br/>on activities table"]
+        templates["smart_task_templates<br/>Define Follow-ups"]
+        auto_create["Automatic Task Creation<br/>for Deal-Linked Activities"]
+    end
+
+    subgraph sync["Task Sync"]
+        google_sync["Google Tasks Sync<br/>if enabled"]
+        hubspot_sync["HubSpot Task Sync<br/>if connected"]
+    end
+
+    subgraph notifications["Overdue Notifications"]
+        cron_job["Cron Job<br/>Checks Overdue Tasks"]
+        send_notif["Send Notifications<br/>with Guardrails"]
+    end
+
+    fathom --> extract_meetings
+    justcall --> extract_calls
+    crm --> claude
+
+    extract_meetings --> claude
+    extract_calls --> claude
+
+    claude --> dedup
+    rule_config --> rule_extract
+    rule_extract --> dedup
+
+    dedup --> meeting_table
+    dedup --> call_table
+
+    meeting_table --> importance
+    call_table --> importance
+
+    importance --> unified_func
+    importance --> manual_ui
+    importance --> auto_convert
+
+    unified_func --> conversion_decision{Task Created?}
+    manual_ui --> conversion_decision
+    auto_convert --> conversion_decision
+
+    conversion_decision -->|Yes| triggers
+    triggers --> templates
+    templates --> auto_create
+
+    auto_create --> google_sync
+    auto_create --> hubspot_sync
+
+    google_sync --> cron_job
+    hubspot_sync --> cron_job
+
+    cron_job --> send_notif
+
+    style sources fill:#e1f5ff
+    style extraction fill:#f3e5f5
+    style storage fill:#e8f5e9
+    style rules fill:#fff3e0
+    style classification fill:#fce4ec
+    style conversion fill:#f1f8e9
+    style smart fill:#ede7f6
+    style sync fill:#e0f2f1
+    style notifications fill:#ffebee
 `;
   }, []);
 
@@ -514,6 +579,13 @@ export default function TasksDemo() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <ProcessMapButton
+            processType="workflow"
+            processName="task_extraction"
+            variant="outline"
+            size="sm"
+            label="Process Map"
+          />
           <Button variant="outline" size="sm" onClick={openInDetail} disabled={!activityId}>
             <ArrowUpRight className="w-4 h-4 mr-1.5" />
             Open detail
@@ -569,35 +641,13 @@ export default function TasksDemo() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between gap-3 flex-wrap">
-              <span>Flow diagram (Mermaid)</span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(`\`\`\`mermaid\n${flowMermaid}\n\`\`\``);
-                    toast.success('Copied Mermaid diagram');
-                  } catch {
-                    toast.error('Copy failed');
-                  }
-                }}
-              >
-                Copy
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre className="text-xs overflow-auto rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/30 p-3">
-              <code>{`~~~mermaid\n${flowMermaid}\n~~~`}</code>
-            </pre>
-            <div className="mt-2 text-xs text-muted-foreground">
-              Copy/paste into any Mermaid renderer (or a GitHub comment) to visualize.
-            </div>
-          </CardContent>
-        </Card>
+        <MermaidRenderer
+          code={flowMermaid}
+          title="Task Extraction Flow"
+          description="Visual diagram showing how tasks are extracted from meetings and calls"
+          showControls={true}
+          showCode={true}
+        />
       </div>
 
       <Card>

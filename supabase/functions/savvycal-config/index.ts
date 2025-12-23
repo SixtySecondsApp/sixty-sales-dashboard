@@ -12,7 +12,7 @@ import { serve } from 'https://deno.land/std@0.190.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getUserOrgId, requireOrgRole } from '../_shared/edgeAuth.ts';
 
-type Action = 'status' | 'connect_api_token' | 'check_webhook' | 'disconnect' | 'trigger_sync';
+type Action = 'status' | 'connect_api_token' | 'check_webhook' | 'disconnect' | 'trigger_sync' | 'update_webhook_secret';
 
 const SAVVYCAL_API_BASE = 'https://api.savvycal.com/v1';
 
@@ -388,6 +388,44 @@ serve(async (req) => {
     }
 
     // =====================================================================
+    // ACTION: update_webhook_secret
+    // =====================================================================
+    if (action === 'update_webhook_secret') {
+      const webhookSecret = typeof body.webhook_secret === 'string' ? body.webhook_secret.trim() : '';
+
+      const { data: integration } = await service
+        .from('savvycal_integrations')
+        .select('id')
+        .eq('org_id', orgId)
+        .maybeSingle();
+
+      if (!integration) {
+        return jsonResponse({ error: 'No SavvyCal integration configured' }, req, 400);
+      }
+
+      const { error: updateErr } = await service
+        .from('savvycal_integration_secrets')
+        .update({
+          webhook_secret: webhookSecret || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('integration_id', integration.id);
+
+      if (updateErr) {
+        return jsonResponse({ error: `Failed to update webhook secret: ${updateErr.message}` }, req, 500);
+      }
+
+      return jsonResponse(
+        {
+          success: true,
+          has_webhook_secret: Boolean(webhookSecret),
+        },
+        req,
+        200
+      );
+    }
+
+    // =====================================================================
     // ACTION: disconnect
     // =====================================================================
     if (action === 'disconnect') {
@@ -422,6 +460,10 @@ serve(async (req) => {
     return jsonResponse({ error: e?.message || 'Unexpected error' }, req, 500);
   }
 });
+
+
+
+
 
 
 

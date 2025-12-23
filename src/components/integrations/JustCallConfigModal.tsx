@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Copy, RefreshCw, PhoneCall, KeyRound, Link2Off } from 'lucide-react';
 import { toast } from 'sonner';
 import { useJustCallIntegration } from '@/lib/hooks/useJustCallIntegration';
+import { ProcessMapButton } from '@/components/process-maps';
+import { supabase } from '@/lib/supabase/clientV2';
 
 interface JustCallConfigModalProps {
   open: boolean;
@@ -163,6 +165,13 @@ export function JustCallConfigModal({ open, onOpenChange }: JustCallConfigModalP
               <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
               Sync
             </Button>
+            <ProcessMapButton
+              processType="integration"
+              processName="justcall"
+              variant="outline"
+              size="sm"
+              showLabel={false}
+            />
           </div>
 
           {!canManage && (
@@ -273,6 +282,10 @@ export function JustCallConfigModal({ open, onOpenChange }: JustCallConfigModalP
     </ConfigureModal>
   );
 }
+
+
+
+
 
 
 

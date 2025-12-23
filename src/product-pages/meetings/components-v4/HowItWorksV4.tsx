@@ -97,7 +97,7 @@ export function HowItWorksV4() {
   return (
     <section
       id="how-it-works"
-      className="relative py-24 lg:py-32 bg-gradient-to-b from-[#0a0d14] to-[#0d1117] overflow-hidden"
+      className="relative pt-6 pb-24 lg:pt-9 lg:pb-32 bg-gradient-to-b from-[#0a0d14] to-[#0d1117] overflow-hidden"
     >
       {/* Background Ambient Glows */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">

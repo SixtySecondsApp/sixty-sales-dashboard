@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -44,6 +45,12 @@ import {
   Play,
   Download,
   Calendar,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Webhook,
+  Link,
+  Check,
 } from 'lucide-react';
 
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -304,6 +311,182 @@ function ConnectionStatusCard({
   );
 }
 
+function WebhookSetupGuide({
+  webhookUrl,
+  hubId,
+}: {
+  webhookUrl: string;
+  hubId: string | null;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [copiedStep, setCopiedStep] = useState<number | null>(null);
+
+  const copyToClipboard = useCallback((text: string, step: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedStep(step);
+    setTimeout(() => setCopiedStep(null), 2000);
+  }, []);
+
+  // Determine the correct HubSpot region URL
+  const hubspotDevUrl = hubId
+    ? `https://app.hubspot.com/developer/${hubId}/applications`
+    : 'https://app.hubspot.com/developer/';
+
+  const steps = [
+    {
+      title: 'Go to HubSpot Developer Portal',
+      description: 'Open your HubSpot developer account to access webhook settings.',
+      action: (
+        <Button variant="outline" size="sm" asChild>
+          <a href={hubspotDevUrl} target="_blank" rel="noopener noreferrer">
+            <ExternalLink className="h-4 w-4 mr-2" />
+            Open Developer Portal
+          </a>
+        </Button>
+      ),
+    },
+    {
+      title: 'Select or Create an App',
+      description:
+        'In the developer portal, find your existing app or create a new private app. Click on the app to open its settings.',
+      tip: 'If you used OAuth to connect, find the app named "Sixty" or similar that was created during authentication.',
+    },
+    {
+      title: 'Navigate to Webhooks',
+      description:
+        'In your app settings, click on "Webhooks" in the left sidebar to access webhook configuration.',
+    },
+    {
+      title: 'Copy the Webhook URL',
+      description: 'Copy the webhook URL below and use it in HubSpot:',
+      action: (
+        <div className="flex items-center gap-2 mt-2">
+          <code className="text-xs bg-muted px-3 py-2 rounded flex-1 truncate font-mono">
+            {webhookUrl}
+          </code>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => copyToClipboard(webhookUrl, 4)}
+          >
+            {copiedStep === 4 ? (
+              <Check className="h-4 w-4 text-green-500" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      ),
+    },
+    {
+      title: 'Create Webhook Subscriptions',
+      description:
+        'Click "Create subscription" and paste the webhook URL. Then select the events you want to receive:',
+      list: [
+        'deal.creation - When a deal is created in HubSpot',
+        'deal.propertyChange - When deal properties change (stage, amount, etc.)',
+        'deal.deletion - When a deal is deleted',
+        'contact.creation - When a contact is created',
+        'contact.propertyChange - When contact properties change',
+        'contact.deletion - When a contact is deleted',
+      ],
+      tip: 'Start with deal events if you primarily want to sync deals. You can add more subscriptions later.',
+    },
+    {
+      title: 'Save and Activate',
+      description:
+        'After adding subscriptions, make sure to save your changes and verify the webhook is active. HubSpot will start sending events to Sixty in real-time.',
+    },
+  ];
+
+  return (
+    <Card className="mt-4">
+      <CardHeader className="pb-3">
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-orange-500/10 rounded-lg">
+              <Webhook className="h-5 w-5 text-orange-500" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Webhook Setup Guide</CardTitle>
+              <CardDescription>
+                Configure HubSpot webhooks to receive real-time updates in Sixty
+              </CardDescription>
+            </div>
+          </div>
+          {isExpanded ? (
+            <ChevronUp className="h-5 w-5 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-5 w-5 text-muted-foreground" />
+          )}
+        </button>
+      </CardHeader>
+
+      {isExpanded && (
+        <CardContent className="pt-0">
+          <div className="space-y-6">
+            <Alert>
+              <Link className="h-4 w-4" />
+              <AlertDescription>
+                Webhooks allow HubSpot to send real-time updates to Sixty when records change.
+                This enables instant sync instead of periodic polling.
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-4">
+              {steps.map((step, index) => (
+                <div key={index} className="flex gap-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium text-primary">
+                      {index + 1}
+                    </div>
+                  </div>
+                  <div className="flex-1 space-y-2 pb-4 border-b last:border-0 last:pb-0">
+                    <h4 className="font-medium">{step.title}</h4>
+                    <p className="text-sm text-muted-foreground">{step.description}</p>
+                    {step.list && (
+                      <ul className="text-sm space-y-1 mt-2 ml-4">
+                        {step.list.map((item, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                            <span className="text-muted-foreground">{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {step.tip && (
+                      <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded mt-2">
+                        <strong>Tip:</strong> {step.tip}
+                      </p>
+                    )}
+                    {step.action && <div className="mt-2">{step.action}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h4 className="font-medium mb-2 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                Troubleshooting
+              </h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>• If webhooks aren't working, verify the URL is correctly copied without extra spaces</li>
+                <li>• Check that your app has the required scopes enabled (CRM API access)</li>
+                <li>• HubSpot may take a few minutes to start sending webhook events after setup</li>
+                <li>• Use HubSpot's webhook testing feature to verify the connection</li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 function FeatureCard({
   icon: Icon,
   title,
@@ -346,18 +529,23 @@ function PipelineMappingCard({
   settings,
   onUpdate,
   isUpdating,
-  hubspotStages,
+  hubspotPipelines,
   isLoadingStages,
 }: {
   settings: HubSpotSettings['pipeline_mapping'];
   onUpdate: (settings: Partial<HubSpotSettings['pipeline_mapping']>) => void;
   isUpdating: boolean;
-  hubspotStages: Array<{ value: string; label: string }>;
+  hubspotPipelines: Array<{ id: string; label: string; stages: Array<{ id: string; label: string }> }>;
   isLoadingStages?: boolean;
 }) {
   const enabled = settings?.enabled ?? false;
   const stageMappings = settings?.stage_mappings || {};
   const syncDirection = settings?.sync_direction || 'bidirectional';
+  const selectedPipelineId = settings?.hubspot_pipeline_id || '';
+
+  // Get stages for the selected pipeline
+  const selectedPipeline = hubspotPipelines.find(p => p.id === selectedPipelineId) || hubspotPipelines[0];
+  const hubspotStages = selectedPipeline?.stages?.map(s => ({ value: s.id, label: s.label })) || DEFAULT_HUBSPOT_STAGES;
 
   return (
     <FeatureCard
@@ -369,6 +557,45 @@ function PipelineMappingCard({
       isUpdating={isUpdating}
     >
       <div className="space-y-4">
+        {/* Pipeline Selector */}
+        <div className="space-y-2">
+          <Label>HubSpot Pipeline</Label>
+          {isLoadingStages ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading pipelines...
+            </div>
+          ) : hubspotPipelines.length === 0 ? (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                No pipelines found. Make sure your HubSpot account has deal pipelines configured.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Select
+              value={selectedPipelineId || hubspotPipelines[0]?.id || ''}
+              onValueChange={(value) => {
+                // Clear stage mappings when pipeline changes
+                onUpdate({ hubspot_pipeline_id: value, stage_mappings: {} });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a HubSpot pipeline..." />
+              </SelectTrigger>
+              <SelectContent>
+                {hubspotPipelines.map((pipeline) => (
+                  <SelectItem key={pipeline.id} value={pipeline.id}>
+                    {pipeline.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        <Separator />
+
         <div className="space-y-2">
           <Label>Sync Direction</Label>
           <RadioGroup
@@ -394,46 +621,42 @@ function PipelineMappingCard({
         <Separator />
 
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label>Stage Mappings</Label>
-            {isLoadingStages && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Loading HubSpot stages...
-              </div>
-            )}
-          </div>
-          <div className="space-y-2">
-            {SIXTY_STAGES.map((stage) => (
-              <div key={stage.value} className="flex items-center gap-3">
-                <div className="w-1/3">
-                  <Badge variant="outline" className="w-full justify-center">
-                    {stage.label}
-                  </Badge>
+          <Label>Stage Mappings</Label>
+          {!selectedPipeline ? (
+            <p className="text-sm text-muted-foreground">Select a pipeline above to configure stage mappings.</p>
+          ) : (
+            <div className="space-y-2">
+              {SIXTY_STAGES.map((stage) => (
+                <div key={stage.value} className="flex items-center gap-3">
+                  <div className="w-1/3">
+                    <Badge variant="outline" className="w-full justify-center">
+                      {stage.label}
+                    </Badge>
+                  </div>
+                  <ArrowRightLeft className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <Select
+                    value={stageMappings[stage.value] || ''}
+                    onValueChange={(value) =>
+                      onUpdate({
+                        stage_mappings: { ...stageMappings, [stage.value]: value },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-2/3">
+                      <SelectValue placeholder="Select HubSpot stage..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {hubspotStages.map((hs) => (
+                        <SelectItem key={hs.value} value={hs.value}>
+                          {hs.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <ArrowRightLeft className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <Select
-                  value={stageMappings[stage.value] || ''}
-                  onValueChange={(value) =>
-                    onUpdate({
-                      stage_mappings: { ...stageMappings, [stage.value]: value },
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-2/3">
-                    <SelectValue placeholder="Select HubSpot stage..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {hubspotStages.map((hs) => (
-                      <SelectItem key={hs.value} value={hs.value}>
-                        {hs.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </FeatureCard>
@@ -730,19 +953,46 @@ function TaskSyncCard({
 function FormIngestionCard({
   settings,
   onUpdate,
+  onImmediateSave,
   onPollForms,
+  onLoadForms,
+  availableForms,
   isUpdating,
   isPolling,
+  isLoadingForms,
 }: {
   settings: HubSpotSettings['form_ingestion'];
   onUpdate: (settings: Partial<HubSpotSettings['form_ingestion']>) => void;
+  onImmediateSave: () => Promise<void>;
   onPollForms: () => void;
+  onLoadForms: () => void;
+  availableForms: Array<{ id: string; name: string; formType: string; archived?: boolean }>;
   isUpdating: boolean;
   isPolling: boolean;
+  isLoadingForms: boolean;
 }) {
   const enabled = settings?.enabled ?? false;
   const autoCreateContact = settings?.auto_create_contact ?? true;
   const enabledForms = settings?.enabled_forms || [];
+  const [isSavingForms, setIsSavingForms] = useState(false);
+
+  const handleFormToggle = async (formId: string, checked: boolean) => {
+    // Update local state
+    if (checked) {
+      onUpdate({ enabled_forms: [...enabledForms, formId] });
+    } else {
+      onUpdate({ enabled_forms: enabledForms.filter((id) => id !== formId) });
+    }
+    // Save immediately (don't wait for debounce)
+    setIsSavingForms(true);
+    try {
+      // Small delay to let state update propagate
+      await new Promise((r) => setTimeout(r, 100));
+      await onImmediateSave();
+    } finally {
+      setIsSavingForms(false);
+    }
+  };
 
   return (
     <FeatureCard
@@ -770,6 +1020,64 @@ function FormIngestionCard({
 
         <Separator />
 
+        {/* Form Selection */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label>Select Forms to Monitor</Label>
+            <Button variant="outline" size="sm" onClick={onLoadForms} disabled={isLoadingForms}>
+              {isLoadingForms ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              {availableForms.length > 0 ? 'Refresh' : 'Load Forms'}
+            </Button>
+          </div>
+
+          {availableForms.length > 0 ? (
+            <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
+              {availableForms
+                .filter((form) => !form.archived)
+                .map((form) => (
+                  <div key={form.id} className="flex items-center justify-between py-1">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`form-${form.id}`}
+                        checked={enabledForms.includes(form.id)}
+                        onCheckedChange={(checked) => handleFormToggle(form.id, checked === true)}
+                        disabled={isUpdating || isSavingForms}
+                      />
+                      <label
+                        htmlFor={`form-${form.id}`}
+                        className="text-sm cursor-pointer flex-1"
+                      >
+                        {form.name}
+                      </label>
+                    </div>
+                    <span className="text-xs text-muted-foreground capitalize">
+                      {form.formType?.replace(/_/g, ' ') || 'form'}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          ) : (
+            <Alert>
+              <FileText className="h-4 w-4" />
+              <AlertDescription>
+                No forms loaded. Click "Load Forms" to fetch available forms from HubSpot.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {enabledForms.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {enabledForms.length} form{enabledForms.length !== 1 ? 's' : ''} selected for monitoring
+            </p>
+          )}
+        </div>
+
+        <Separator />
+
         <div className="flex items-center justify-between">
           <div>
             <Label>Poll Form Submissions</Label>
@@ -777,7 +1085,12 @@ function FormIngestionCard({
               Manually trigger a poll for new form submissions
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={onPollForms} disabled={isPolling}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onPollForms}
+            disabled={isPolling || enabledForms.length === 0}
+          >
             {isPolling ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
             ) : (
@@ -786,15 +1099,6 @@ function FormIngestionCard({
             Poll Now
           </Button>
         </div>
-
-        {enabledForms.length === 0 && (
-          <Alert>
-            <FileText className="h-4 w-4" />
-            <AlertDescription>
-              No forms configured. Click "Poll Now" to fetch available forms from HubSpot.
-            </AlertDescription>
-          </Alert>
-        )}
       </div>
     </FeatureCard>
   );
@@ -1066,17 +1370,24 @@ export default function HubSpotSettings() {
     triggerPollForms,
     getProperties,
     getPipelines,
+    getForms,
     triggerSync,
   } = useHubSpotIntegration();
 
   const [localSettings, setLocalSettings] = useState<HubSpotSettings>({});
   const [isPollingForms, setIsPollingForms] = useState(false);
-  const [hasLocalChanges, setHasLocalChanges] = useState(false);
+  const [isLoadingForms, setIsLoadingForms] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [hubspotPipelines, setHubspotPipelines] = useState<Array<{
     id: string;
     label: string;
     stages: Array<{ id: string; label: string }>;
+  }>>([]);
+  const [hubspotForms, setHubspotForms] = useState<Array<{
+    id: string;
+    name: string;
+    formType: string;
+    archived?: boolean;
   }>>([]);
   const [hubspotDealProperties, setHubspotDealProperties] = useState<Array<{
     name: string;
@@ -1086,13 +1397,16 @@ export default function HubSpotSettings() {
   const [loadingHubspotData, setLoadingHubspotData] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isSavingRef = useRef(false);
+  const hasInitializedRef = useRef(false);
 
-  // Initialize local settings from server (only when no local changes pending)
+  // Initialize local settings from server ONLY on first load
+  // After that, localSettings is the source of truth
   useEffect(() => {
-    if (rawSettings && Object.keys(rawSettings).length > 0 && !hasLocalChanges && !isSavingRef.current) {
+    if (rawSettings && Object.keys(rawSettings).length > 0 && !hasInitializedRef.current) {
       setLocalSettings(rawSettings as HubSpotSettings);
+      hasInitializedRef.current = true;
     }
-  }, [rawSettings, hasLocalChanges]);
+  }, [rawSettings]);
 
   const updateSettings = useCallback(
     (section: keyof HubSpotSettings, updates: any) => {
@@ -1107,16 +1421,11 @@ export default function HubSpotSettings() {
           [section]: { ...(prev[section] || {}), ...updates },
         };
 
-        // Mark as having local changes
-        setHasLocalChanges(true);
-
         // Debounced save after 1 second of no changes
         saveTimeoutRef.current = setTimeout(async () => {
           isSavingRef.current = true;
           try {
             await saveSettings(newSettings);
-            // Reset local changes flag after successful save
-            setHasLocalChanges(false);
           } catch (e: any) {
             toast.error(e.message || 'Failed to save settings');
           } finally {
@@ -1148,11 +1457,63 @@ export default function HubSpotSettings() {
     }
   }, [triggerPollForms]);
 
+  const handleLoadForms = useCallback(async () => {
+    setIsLoadingForms(true);
+    try {
+      const forms = await getForms();
+      setHubspotForms(forms);
+      if (forms.length === 0) {
+        toast.info('No forms found in your HubSpot account');
+      } else {
+        toast.success(`Loaded ${forms.length} forms from HubSpot`);
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to load forms');
+    } finally {
+      setIsLoadingForms(false);
+    }
+  }, [getForms]);
+
+  // Immediate save function for form selection (bypasses debounce)
+  const handleImmediateSave = useCallback(async () => {
+    // Clear any pending debounced save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    // Save current local settings immediately
+    try {
+      await saveSettings(localSettings);
+      toast.success('Form selection saved');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to save settings');
+      throw e;
+    }
+  }, [saveSettings, localSettings]);
+
   const handleReauthorize = useCallback(async () => {
     try {
+      // First disconnect, then reconnect
+      await disconnect();
       await connectHubSpot();
     } catch (e: any) {
       toast.error(e.message || 'Failed to initiate re-authorization');
+    }
+  }, [connectHubSpot, disconnect]);
+
+  const handleDisconnect = useCallback(async () => {
+    try {
+      await disconnect();
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to disconnect HubSpot');
+    }
+  }, [disconnect]);
+
+  const handleConnect = useCallback(async () => {
+    try {
+      await connectHubSpot();
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to connect HubSpot');
     }
   }, [connectHubSpot]);
 
@@ -1173,7 +1534,7 @@ export default function HubSpotSettings() {
     [triggerSync]
   );
 
-  // Fetch HubSpot pipelines and properties when connected
+  // Fetch HubSpot pipelines, properties, and forms when connected
   useEffect(() => {
     if (!isConnected) return;
 
@@ -1187,29 +1548,22 @@ export default function HubSpotSettings() {
         // Fetch deal properties
         const dealProps = await getProperties('deals');
         setHubspotDealProperties(dealProps);
+
+        // Fetch forms for Form Ingestion feature
+        const forms = await getForms();
+        setHubspotForms(forms);
       } catch (e: any) {
         console.error('Failed to fetch HubSpot data:', e);
-        // Don't show error toast, fall back to defaults
+        // Show error to user so they know what's happening
+        toast.error(`Failed to load HubSpot data: ${e.message || 'Unknown error'}`);
       } finally {
         setLoadingHubspotData(false);
       }
     };
 
     fetchHubspotData();
-  }, [isConnected, getPipelines, getProperties]);
+  }, [isConnected, getPipelines, getProperties, getForms]);
 
-  // Get stages for pipeline mapping from fetched data or defaults
-  const hubspotStages = useMemo(() => {
-    if (hubspotPipelines.length > 0) {
-      // Use stages from the first pipeline (or let user select pipeline)
-      const selectedPipeline = hubspotPipelines[0];
-      return selectedPipeline.stages.map((s) => ({
-        value: s.id,
-        label: s.label,
-      }));
-    }
-    return DEFAULT_HUBSPOT_STAGES;
-  }, [hubspotPipelines]);
 
   if (!canManage) {
     return (
@@ -1267,12 +1621,20 @@ export default function HubSpotSettings() {
           integration={integration}
           syncState={syncState}
           webhookUrl={webhookUrl}
-          onDisconnect={disconnect}
+          onDisconnect={handleDisconnect}
           onRefresh={refreshStatus}
           onReauthorize={handleReauthorize}
           isDisconnecting={disconnecting}
           isRefreshing={loading}
         />
+
+        {/* Webhook Setup Guide - shown when connected and webhook URL is available */}
+        {isConnected && webhookUrl && (
+          <WebhookSetupGuide
+            webhookUrl={webhookUrl}
+            hubId={integration?.hubspot_portal_id || integration?.hubspot_hub_id || null}
+          />
+        )}
 
         {!isConnected ? (
           <Card>
@@ -1283,7 +1645,7 @@ export default function HubSpotSettings() {
                 Connect your HubSpot account to enable pipeline sync, contact sync, deal sync, form
                 ingestion, and AI note writeback.
               </p>
-              <Button onClick={connectHubSpot}>
+              <Button onClick={handleConnect}>
                 <Zap className="h-4 w-4 mr-2" />
                 Connect HubSpot
               </Button>
@@ -1304,7 +1666,7 @@ export default function HubSpotSettings() {
               settings={localSettings.pipeline_mapping}
               onUpdate={(updates) => updateSettings('pipeline_mapping', updates)}
               isUpdating={saving}
-              hubspotStages={hubspotStages}
+              hubspotPipelines={hubspotPipelines}
               isLoadingStages={loadingHubspotData}
             />
 
@@ -1329,9 +1691,13 @@ export default function HubSpotSettings() {
             <FormIngestionCard
               settings={localSettings.form_ingestion}
               onUpdate={(updates) => updateSettings('form_ingestion', updates)}
+              onImmediateSave={handleImmediateSave}
               onPollForms={handlePollForms}
+              onLoadForms={handleLoadForms}
+              availableForms={hubspotForms}
               isUpdating={saving}
               isPolling={isPollingForms}
+              isLoadingForms={isLoadingForms}
             />
 
             <AIWritebackCard

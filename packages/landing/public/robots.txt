@@ -1,0 +1,18 @@
+# robots.txt for www.use60.com
+User-agent: *
+Allow: /
+
+# Block debug/utility pages
+Disallow: /debug-*
+Disallow: /test-*
+Disallow: /clear-*
+Disallow: /fix-*
+Disallow: /session-*
+Disallow: /login-helper*
+Disallow: /direct-login*
+Disallow: /force-update*
+Disallow: /quick-fix*
+Disallow: /thumbnail*
+
+# Sitemap location
+Sitemap: https://www.use60.com/sitemap.xml

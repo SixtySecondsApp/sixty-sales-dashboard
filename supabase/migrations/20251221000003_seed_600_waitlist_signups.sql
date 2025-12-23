@@ -1,4 +1,4 @@
--- Seed 600 fake waitlist signups for testing and social proof
+-- Seed 588 fake waitlist signups for testing and social proof
 -- These will be marked as is_seeded = true so they can be filtered in admin view
 
 -- Temporarily disable admin action logging trigger if it exists (it requires waitlist_admin_actions table)
@@ -33,8 +33,8 @@ BEGIN
     -- Get current max position
   SELECT COALESCE(MAX(mw.signup_position), 0) INTO signup_pos FROM meetings_waitlist mw;
   
-  -- Generate 600 fake signups
-  FOR i IN 1..600 LOOP
+  -- Generate 588 fake signups
+  FOR i IN 1..588 LOOP
     -- Random selections
     first_name := first_names[1 + floor(random() * array_length(first_names, 1))::int];
     last_name := last_names[1 + floor(random() * array_length(last_names, 1))::int];
@@ -119,7 +119,7 @@ BEGIN
   UPDATE meetings_waitlist mw
   SET effective_position = GREATEST(1, mw.signup_position - (mw.referral_count * 5));
   
-  RAISE NOTICE 'Successfully created 600 seeded waitlist entries';
+  RAISE NOTICE 'Successfully created 588 seeded waitlist entries';
 END $$;
 
 -- Re-enable admin action logging trigger if the table exists

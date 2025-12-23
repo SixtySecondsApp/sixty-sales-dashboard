@@ -135,6 +135,7 @@
     "i18next-browser-languagedetector": "^8.2.0",
     "ioredis": "^5.7.0",
     "lucide-react": "^0.314.0",
+    "mermaid": "^11.12.2",
     "node-cache": "^5.1.2",
     "node-fetch": "^3.3.2",
     "papaparse": "^5.5.3",

@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Check, X } from 'lucide-react';
-import { usePlans, useStartFreeTrial, useCurrentSubscription } from '@/lib/hooks/useSubscription';
-import { useCurrency } from '@/lib/hooks/useCurrency';
-import { useAuth } from '@/lib/contexts/AuthContext';
-import { useOrg } from '@/lib/contexts/OrgContext';
-import { PricingCard } from '@/components/subscription/PricingCard';
-import { BillingToggle } from '@/components/subscription/BillingToggle';
-import { CurrencySelector } from '@/components/subscription/CurrencySelector';
-import type { SubscriptionPlan, BillingCycle } from '@/lib/types/subscription';
+import { usePlans, useStartFreeTrial, useCurrentSubscription } from '../../lib/hooks/useSubscription';
+import { useCurrency } from '../../lib/hooks/useCurrency';
+import { useAuth } from '../../lib/contexts/AuthContext';
+import { useOrg } from '../../lib/contexts/OrgContext';
+import { PricingCard } from '../subscription/PricingCard';
+import { BillingToggle } from '../subscription/BillingToggle';
+import { CurrencySelector } from '../subscription/CurrencySelector';
+import type { SubscriptionPlan, BillingCycle } from '../../lib/types/subscription';
 
 // Base prices in USD cents (converted from GBP at ~1.27 rate)
 const BASE_PRICES_USD: Record<string, number> = {
