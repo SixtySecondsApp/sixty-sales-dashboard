@@ -12,7 +12,7 @@ export function WaitlistThankYou({ email, fullName, onClose }: WaitlistThankYouP
   const firstName = fullName.split(' ')[0];
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-white dark:bg-gray-950 transition-colors duration-300">
+    <section className="relative min-h-[100dvh] flex items-center justify-center overflow-hidden bg-white dark:bg-gray-950 transition-colors duration-300">
       {/* Subtle Background Glow */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-emerald-500/5 dark:bg-emerald-900/10 blur-[100px] rounded-full pointer-events-none -z-10" />
 
