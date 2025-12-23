@@ -82,9 +82,9 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 transition-colors duration-300">
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100 transition-colors duration-300">
       {/* Navigation - Fixed at top */}
-      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-gray-950/90 border-b border-gray-800 transition-colors duration-300">
+      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-gray-900/90 border-b border-gray-800/50 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <motion.a
@@ -119,9 +119,7 @@ export default function Login() {
       <div className="min-h-screen flex items-center justify-center p-4 pt-24 relative">
         {/* Background Gradient Effects */}
         <div className="absolute inset-0 z-0 pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-brand-violet/20 rounded-full blur-[120px]" />
-          <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-brand-blue/15 rounded-full blur-[100px]" />
-          <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-brand-teal/10 rounded-full blur-[100px]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.25),transparent)]" />
         </div>
       
         <motion.div
@@ -129,9 +127,11 @@ export default function Login() {
           animate={{ opacity: 1, y: 0 }}
           className="relative z-10 w-full max-w-md"
         >
-          <div className="relative rounded-2xl overflow-hidden backdrop-blur-2xl bg-white/5 border border-white/10 shadow-2xl shadow-brand-violet/10 p-6 sm:p-8">
-            {/* Gradient Border Effect */}
-            <div className="absolute -inset-px bg-gradient-to-r from-brand-blue/20 via-brand-violet/20 to-brand-teal/20 rounded-2xl opacity-30 blur-sm -z-10" />
+          <div className="relative rounded-2xl overflow-hidden backdrop-blur-xl bg-gray-900/50 border border-gray-800/50 shadow-2xl p-6 sm:p-8">
+            {/* Background Gradient Effects */}
+            <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 via-gray-900/70 to-gray-900/30 rounded-2xl -z-10" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.15),transparent)] rounded-2xl -z-10" />
+            <div className="absolute -right-20 -top-20 w-40 h-40 bg-[#37bd7e]/10 blur-3xl rounded-full" />
 
             {!needsVerification ? (
             <>
@@ -152,7 +152,7 @@ export default function Login() {
                       required
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-brand-violet focus:border-brand-violet/50 transition-colors hover:bg-white/10"
+                      className="w-full bg-gray-700 border border-gray-600 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-600"
                       placeholder="sarah@example.com"
                       disabled={isLoading}
                     />
@@ -166,7 +166,7 @@ export default function Login() {
                     </label>
                     <Link
                       to="/auth/forgot-password"
-                      className="text-xs text-brand-blue hover:text-brand-violet font-medium transition-colors"
+                      className="text-xs text-[#37bd7e] hover:text-[#2da76c] font-medium transition-colors"
                     >
                       Forgot Password?
                     </Link>
@@ -178,7 +178,7 @@ export default function Login() {
                       required
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-brand-violet focus:border-brand-violet/50 transition-colors hover:bg-white/10"
+                      className="w-full bg-gray-700 border border-gray-600 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-600"
                       placeholder="••••••••"
                       disabled={isLoading}
                     />
@@ -188,7 +188,7 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-gradient-to-r from-brand-blue to-brand-violet text-white py-2.5 rounded-xl font-semibold hover:from-[#2351C4] hover:to-[#7024C0] focus:outline-none focus:ring-2 focus:ring-brand-violet focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-violet/25"
+                  className="w-full bg-[#37bd7e] text-white py-2.5 rounded-xl font-medium hover:bg-[#2da76c] focus:outline-none focus:ring-2 focus:ring-[#37bd7e] focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#37bd7e]/20"
                 >
                   {isLoading ? 'Signing in...' : 'Sign in'}
                 </button>
@@ -197,7 +197,7 @@ export default function Login() {
               <div className="mt-6 text-center">
                 <Link
                   to="/auth/signup"
-                  className="text-brand-blue hover:text-brand-violet text-sm font-medium inline-flex items-center gap-1 transition-all duration-300 hover:gap-2"
+                  className="text-[#37bd7e] hover:text-[#2da76c] text-sm font-medium inline-flex items-center gap-1 transition-all duration-300 hover:gap-2"
                 >
                   Create an account
                   <ArrowRight className="w-4 h-4" />
@@ -226,7 +226,7 @@ export default function Login() {
                       required
                       value={verificationCode}
                       onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-brand-violet focus:border-brand-violet/50 transition-colors hover:bg-white/10 text-center text-lg tracking-widest"
+                      className="w-full bg-gray-700 border border-gray-600 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-600 text-center text-lg tracking-widest"
                       placeholder="000000"
                       disabled={isLoading}
                       maxLength={6}
@@ -241,7 +241,7 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={isLoading || verificationCode.length !== 6}
-                  className="w-full bg-gradient-to-r from-brand-blue to-brand-violet text-white py-2.5 rounded-xl font-semibold hover:from-[#2351C4] hover:to-[#7024C0] focus:outline-none focus:ring-2 focus:ring-brand-violet focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-brand-violet/25"
+                  className="w-full bg-[#37bd7e] text-white py-2.5 rounded-xl font-medium hover:bg-[#2da76c] focus:outline-none focus:ring-2 focus:ring-[#37bd7e] focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#37bd7e]/20"
                 >
                   {isLoading ? 'Verifying...' : 'Verify & Sign In'}
                 </button>
@@ -250,7 +250,7 @@ export default function Login() {
               <div className="mt-6 text-center">
                 <button
                   onClick={handleBackToLogin}
-                  className="text-brand-blue hover:text-brand-violet text-sm font-medium inline-flex items-center gap-1 transition-all duration-300 hover:gap-2"
+                  className="text-[#37bd7e] hover:text-[#2da76c] text-sm font-medium inline-flex items-center gap-1 transition-all duration-300 hover:gap-2"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Back to login
