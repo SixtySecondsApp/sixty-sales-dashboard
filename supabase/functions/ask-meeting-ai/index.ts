@@ -61,6 +61,16 @@ serve(async (req) => {
       }
     )
 
+    // Get the authenticated user
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'User not authenticated' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    const userId = user.id
+
     // Fetch meeting transcript
     const { data: meeting, error: meetingError } = await supabaseClient
       .from('meetings')
@@ -123,7 +133,8 @@ Instructions:
 - If the transcript doesn't contain information to answer a question, say so clearly
 - Be concise but thorough in your responses
 - Reference specific moments or speakers when relevant
-- Maintain a helpful, professional tone`
+- Maintain a helpful, professional tone`;
+
     // Call Claude Haiku 4 API
     const model = Deno.env.get('CLAUDE_MODEL') || 'claude-haiku-4-5-20251001'
     const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
