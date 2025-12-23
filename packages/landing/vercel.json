@@ -1,6 +1,7 @@
 {
+  "ignoreCommand": "git diff HEAD^ HEAD --quiet -- packages/landing",
   "installCommand": "cd ../.. && npm install",
-  "buildCommand": "npm run build",
+  "buildCommand": "sleep 120 && npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
   "redirects": [
