@@ -33,6 +33,7 @@ export interface User {
   created_at: string;
   last_sign_in_at: string | null;
   targets: Target[];
+  full_name?: string | null;
 }
 
 export function useUsers() {
@@ -46,7 +47,7 @@ export function useUsers() {
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
-      
+
       // Get current user first
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (!currentUser) {
@@ -57,7 +58,7 @@ export function useUsers() {
 
       // Skip RPC function as it doesn't exist in this database
       logger.log('Using direct profiles query method');
-      
+
       // Fallback: Query profiles and get auth info via edge function
       // Explicitly select columns to avoid RLS issues with select('*')
       // Note: profiles table has first_name and last_name, NOT full_name
@@ -122,7 +123,7 @@ export function useUsers() {
       // Transform data to match expected User interface
       // Get current user's email from auth session
       const { data: { user: authUser } } = await supabase.auth.getUser();
-      
+
       const usersData = (profiles || []).map((profile) => {
         const email = profile.email || `user_${profile.id.slice(0, 8)}@private.local`;
         return {
@@ -136,7 +137,10 @@ export function useUsers() {
           is_internal: internalEmails.has(email.toLowerCase()),
           created_at: profile.created_at || profile.updated_at || new Date().toISOString(),
           last_sign_in_at: null,
-          targets: targetsMap.get(profile.id) || []
+          targets: targetsMap.get(profile.id) || [],
+          full_name: profile.first_name && profile.last_name
+            ? `${profile.first_name} ${profile.last_name}`
+            : null
         };
       });
 
@@ -160,14 +164,14 @@ export function useUsers() {
       toast.error("Cannot update user: User ID missing.");
       return;
     }
-    
+
     try {
       // Get current user to check if they're trying to remove their own admin status
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-      
+
       // Extract targets, is_internal, and profile updates
       const { targets, is_internal, ...profileUpdates } = updates;
-      
+
       // Get user email for internal_users table operations
       const user = users.find(u => u.id === userId);
       if (!user) {
@@ -228,7 +232,7 @@ export function useUsers() {
             .from('internal_users')
             .upsert({
               email: user.email.toLowerCase(),
-              name: user.first_name && user.last_name 
+              name: user.first_name && user.last_name
                 ? `${user.first_name} ${user.last_name}`.trim()
                 : user.email,
               is_active: true,
@@ -253,7 +257,7 @@ export function useUsers() {
           }
         }
       }
-      
+
       // Update profile
       if (Object.keys(profileUpdates).length > 0) {
         // Only update allowed profile fields
@@ -273,7 +277,7 @@ export function useUsers() {
         if ('stage' in profileUpdates) {
           allowedUpdates.stage = profileUpdates.stage;
         }
-        
+
         if (Object.keys(allowedUpdates).length > 0) {
           const { error: profileError } = await supabase
             .from('profiles')
@@ -328,7 +332,7 @@ export function useUsers() {
       } catch (edgeFunctionError: any) {
         // If edge function fails (not deployed, network error, etc.), fallback to direct deletion
         logger.warn('Edge function deletion failed, attempting direct deletion:', edgeFunctionError);
-        
+
         // Check if it's a permission/authorization error - don't fallback in that case
         if (edgeFunctionError?.status === 401 || edgeFunctionError?.status === 403) {
           throw new Error('Unauthorized: Admin access required to delete users');
@@ -380,7 +384,7 @@ export function useUsers() {
 
       // Call the impersonate-user edge function to get a magic link
       const { data, error } = await supabase.functions.invoke('impersonate-user', {
-        body: { 
+        body: {
           userId,
           adminId: currentUser.id,
           adminEmail: currentUser.email,
@@ -397,10 +401,10 @@ export function useUsers() {
       // Check if we got the old response format (email/password)
       if (data?.email && data?.password) {
         logger.warn('Edge Function is returning old format. Using fallback password-based impersonation.');
-        
+
         // Store original user info for restoration
         setImpersonationData(currentUser.id, currentUser.email!);
-        
+
         // Sign in with the temporary password (old method)
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: data.email,
@@ -420,24 +424,24 @@ export function useUsers() {
         // New session-based impersonation
         // Store original user info for restoration
         setImpersonationData(currentUser.id, currentUser.email!);
-        
+
         // Set the new session directly
         const { error: setSessionError } = await supabase.auth.setSession(data.session);
-        
+
         if (setSessionError) {
           throw setSessionError;
         }
-        
+
         toast.success('Impersonation started successfully!');
-        
+
         // Reload to refresh the app with the new session
         window.location.reload();
       } else if (data?.magicLink) {
         // Fallback to magic link impersonation
         setImpersonationData(currentUser.id, currentUser.email!);
-        
+
         toast.success('Starting impersonation...');
-        
+
         // Redirect to the magic link
         window.location.href = data.magicLink;
       } else {
@@ -450,11 +454,37 @@ export function useUsers() {
     }
   };
 
+  const inviteUser = async (email: string, firstName?: string, lastName?: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/update-password`,
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+            full_name: firstName && lastName ? `${firstName} ${lastName}` : undefined,
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      toast.success(`Invitation sent to ${email}`);
+      // Refresh logic if needed, but the user won't appear until they sign in.
+    } catch (error: any) {
+      logger.error('Invite error:', error);
+      toast.error('Failed to invite user: ' + error.message);
+      throw error;
+    }
+  };
+
   return {
     users,
     isLoading,
     updateUser,
     deleteUser,
     impersonateUser,
+    inviteUser,
   };
 }

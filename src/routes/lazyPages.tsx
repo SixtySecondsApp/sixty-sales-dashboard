@@ -63,6 +63,7 @@ export const VerifyEmail = lazyWithRetry(() => import('@/pages/auth/VerifyEmail'
 export const ForgotPassword = lazyWithRetry(() => import('@/pages/auth/forgot-password'));
 export const ResetPassword = lazyWithRetry(() => import('@/pages/auth/reset-password'));
 export const SetPassword = lazyWithRetry(() => import('@/pages/auth/SetPassword'));
+export const UpdatePassword = lazyWithRetry(() => import('@/pages/auth/UpdatePassword'));
 export const Onboarding = lazyWithRetry(() => import('@/pages/onboarding'));
 
 // ============================================================

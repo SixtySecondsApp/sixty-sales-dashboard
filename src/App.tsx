@@ -64,7 +64,7 @@ import {
   CronJobsAdmin, SaasAdminDashboard, IntegrationsDashboard, FathomIntegrationTests,
   HubSpotIntegrationTests, SlackIntegrationTests, SavvyCalIntegrationTests,
   // Auth
-  Signup, VerifyEmail, ForgotPassword, ResetPassword, SetPassword, Onboarding,
+  Signup, VerifyEmail, ForgotPassword, ResetPassword, SetPassword, Onboarding, UpdatePassword,
   // CRM & Data
   CRM, ElegantCRM, PipelinePage, FormDisplay, CompaniesTable, CompanyProfile,
   ContactsTable, ContactRecord, DealRecord, LeadsInbox, Clients,
@@ -112,15 +112,15 @@ function App() {
     enableMemoryCleanup: true,
     debugMode: process.env.NODE_ENV === 'development'
   });
-  
+
   // Initialize API connection monitoring
   useEffect(() => {
     const monitor = createApiMonitor(API_BASE_URL, 30000); // Check every 30 seconds
     monitor.start();
-    
+
     const cleanup = () => monitor.stop();
     addCleanup(cleanup);
-    
+
     return cleanup;
   }, [addCleanup]);
 
@@ -130,13 +130,13 @@ function App() {
   // Initialize performance monitoring
   useEffect(() => {
     const performanceMonitor = PerformanceMonitor.getInstance();
-    
+
     // Enable performance monitoring in production for real user monitoring
     performanceMonitor.setEnabled(true);
-    
+
     // Initialize Web Vitals optimization
     webVitalsOptimizer.initializeMonitoring(process.env.NODE_ENV === 'production');
-    
+
     // Enhanced performance logging with optimization metrics
     if (process.env.NODE_ENV === 'development') {
       const interval = setInterval(() => {
@@ -146,23 +146,23 @@ function App() {
           logger.log('🚀 Optimization Metrics:', performanceMetrics);
         });
       }, 30000); // Every 30 seconds
-      
+
       const cleanup = () => {
         clearInterval(interval);
         performanceMonitor.cleanup();
       };
-      
+
       addCleanup(cleanup);
       return cleanup;
     }
-    
+
     const cleanup = () => performanceMonitor.cleanup();
     addCleanup(cleanup);
     return cleanup;
   }, [measurePerformance, performanceMetrics, addCleanup]);
 
   return (
-    <ErrorBoundary 
+    <ErrorBoundary
       onError={(error, errorInfo) => {
         logger.error('Application Error Boundary caught error:', error, errorInfo);
         // You could send this to your error reporting service here
@@ -254,7 +254,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/auth/forgot-password" element={<ForgotPassword />} />
         <Route path="/auth/reset-password" element={<ResetPassword />} />
         <Route path="/auth/set-password" element={<SetPassword />} />
-        
+        <Route path="/update-password" element={<UpdatePassword />} />
+
         {/* OAuth callback routes - must be public for external redirects */}
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
         <Route path="/oauth/fathom/callback" element={<FathomCallbackWrapper />} />
@@ -314,7 +315,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/team/billing" element={<Navigate to="/settings/billing" replace />} />
                 <Route path="/team/billing/success" element={<Navigate to="/settings/billing" replace />} />
                 <Route path="/team/billing/cancel" element={<Navigate to="/settings/billing" replace />} />
-                
+
                 {/* Legacy /org routes redirect to /team */}
                 <Route path="/org" element={<Navigate to="/settings" replace />} />
                 <Route path="/org/team" element={<Navigate to="/settings/team-members" replace />} />
@@ -326,7 +327,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* Tier 3: Platform Admin Routes (Internal + is_admin only) */}
                 {/* Platform Admin - All specific routes MUST come before /platform route */}
                 {/* DEBUG: Test route to verify routing works */}
-                <Route path="/platform/test-route" element={<div style={{padding: '50px', color: 'white', background: 'green'}}>TEST ROUTE WORKS! Path: /platform/test-route</div>} />
+                <Route path="/platform/test-route" element={<div style={{ padding: '50px', color: 'white', background: 'green' }}>TEST ROUTE WORKS! Path: /platform/test-route</div>} />
                 {/* DEBUG: Unguarded email templates to test if guards are the issue */}
                 <Route path="/platform/email-templates-test" element={<AppLayout><EmailTemplates /></AppLayout>} />
                 {/* Platform Admin - Email Templates */}
@@ -402,15 +403,15 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/calendar" element={<ExternalRedirect url="https://calendar.google.com" />} />
                 <Route path="/events" element={<InternalRouteGuard><AppLayout><Events /></AppLayout></InternalRouteGuard>} />
                 <Route path="/leads" element={<InternalRouteGuard><AppLayout><LeadsInbox /></AppLayout></InternalRouteGuard>} />
-                
+
                 {/* Form Display Routes */}
                 <Route path="/form/:formId" element={<Suspense fallback={<IntelligentPreloader />}><FormDisplay /></Suspense>} />
                 <Route path="/form-test/:formId" element={<Suspense fallback={<IntelligentPreloader />}><FormDisplay /></Suspense>} />
-                
+
                 {/* Redirect to CRM with appropriate tab */}
                 <Route path="/contacts" element={<Navigate to="/crm?tab=contacts" replace />} />
                 <Route path="/companies" element={<Navigate to="/crm?tab=companies" replace />} />
-                
+
                 {/* Legacy routes for backward compatibility */}
                 <Route path="/heatmap" element={<Navigate to="/insights" replace />} />
                 <Route path="/funnel" element={<Navigate to="/insights" replace />} />
@@ -423,7 +424,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* Legacy redirects for 3-tier migration (keep for 3-6 months) */}
                 <Route path="/saas-admin" element={<Navigate to="/platform" replace />} />
                 <Route path="/settings/team" element={<Navigate to="/settings" replace />} />
-                
+
                 {/* Individual record routes - Internal only */}
                 <Route path="/companies/:companyId" element={<InternalRouteGuard><AppLayout><CompanyProfile /></AppLayout></InternalRouteGuard>} />
                 <Route path="/crm/companies/:companyId" element={<InternalRouteGuard><AppLayout><CompanyProfile /></AppLayout></InternalRouteGuard>} />
