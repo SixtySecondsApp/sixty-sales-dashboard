@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Sparkles, ArrowRight, Menu, X } from 'lucide-react';
+import { Sparkles, ArrowRight, Menu, X } from 'lucide-react';
+import { OptimizedCloudinaryVideo } from '../components/OptimizedCloudinaryVideo';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { WaitlistModal } from '../components/WaitlistModal';
@@ -17,9 +18,7 @@ const VIDEO_URL = 'https://res.cloudinary.com/sixty-seconds/video/upload/v176649
 export function IntroPage() {
   const [email, setEmail] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
 
   // Get logo from branding settings
   const { logoDark } = usePublicBrandingSettings();
@@ -28,13 +27,6 @@ export function IntroPage() {
     e.preventDefault();
     if (email && email.includes('@')) {
       setShowModal(true);
-    }
-  };
-
-  const handlePlayVideo = () => {
-    if (videoRef.current) {
-      videoRef.current.play();
-      setIsPlaying(true);
     }
   };
 
@@ -227,36 +219,7 @@ export function IntroPage() {
               transition={{ duration: 0.6, delay: 0.6 }}
               className="relative w-full max-w-3xl mb-8"
             >
-              <div className="relative rounded-2xl overflow-hidden backdrop-blur-2xl bg-white/5 border border-white/10 shadow-2xl shadow-brand-violet/10">
-                {/* Video Element */}
-                <video
-                  ref={videoRef}
-                  src={VIDEO_URL}
-                  controls={isPlaying}
-                  playsInline
-                  className="w-full aspect-video bg-gray-900"
-                  poster=""
-                  onEnded={() => setIsPlaying(false)}
-                />
-
-                {/* Play Button Overlay */}
-                {!isPlaying && (
-                  <button
-                    onClick={handlePlayVideo}
-                    className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/20 transition-colors group cursor-pointer"
-                    aria-label="Play video"
-                  >
-                    <div className="relative">
-                      {/* Pulse Ring */}
-                      <div className="absolute inset-0 rounded-full bg-white/20 animate-ping" />
-                      {/* Play Icon - White circle with solid purple play */}
-                      <div className="relative bg-white rounded-full p-5 md:p-7 transition-all group-hover:scale-110 shadow-xl">
-                        <Play className="w-10 h-10 md:w-14 md:h-14 text-brand-violet fill-brand-violet ml-1" />
-                      </div>
-                    </div>
-                  </button>
-                )}
-              </div>
+              <OptimizedCloudinaryVideo src={VIDEO_URL} />
             </motion.div>
 
             {/* Email Capture Form */}

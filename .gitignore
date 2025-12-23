@@ -117,3 +117,17 @@ local-scripts/
 dev-utils/
 **/local-only/
 .env*.local
+
+# Temporary debugging/migration files
+production_dump.sql
+test-results.json
+migration_preview.txt
+
+# One-off SQL scripts (should be in migrations)
+FIX_*.sql
+CHECK_*.sql
+DEBUG_*.sql
+VERIFY_*.sql
+SIMPLE_*.sql
+FINAL_*.sql
+CLEANUP_*.sql

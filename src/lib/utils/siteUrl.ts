@@ -10,8 +10,7 @@ export function getSiteUrl(): string {
   }
   
   // Always use the correct production domain
-  // This prevents issues with typos in redirect URLs
-  return 'https://sales.sixtyseconds.video';
+  return 'https://app.use60.com';
 }
 
 /**

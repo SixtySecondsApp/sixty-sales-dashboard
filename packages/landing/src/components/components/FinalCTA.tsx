@@ -104,7 +104,7 @@ export function FinalCTA({ onOpenModal, email = '', setEmail, onEmailSubmit }: F
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.4 }}
-              className="text-lg sm:text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto"
+              className="font-body text-lg sm:text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto"
             >
               Join sales teams already using 60 to automate intelligent meeting actions, coach their reps, increase proposal rates and close deals faster.
             </motion.p>

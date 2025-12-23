@@ -173,3 +173,4 @@ COMMENT ON COLUMN subscription_plans.stripe_seat_price_id IS 'Stripe price ID fo
 
 
 
+

@@ -98,6 +98,18 @@ export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepPro
     };
   }, []);
 
+  // Handle back button with polling cleanup
+  const handleBack = useCallback(() => {
+    // Clean up any active polling before navigating
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    setIsPolling(false);
+    setIsConnecting(false);
+    onBack();
+  }, [onBack]);
+
   const handleConnect = async () => {
     try {
       setIsConnecting(true);
@@ -246,7 +258,7 @@ export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepPro
 
       <div className="flex gap-4 justify-center">
         <Button
-          onClick={onBack}
+          onClick={handleBack}
           variant="ghost"
           className="text-gray-400 hover:text-white"
         >

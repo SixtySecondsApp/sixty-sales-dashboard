@@ -144,7 +144,7 @@ export function HowItWorksV4() {
               After the call, 60 takes over.
             </span>
           </h2>
-          <p className="text-gray-600 dark:text-gray-400 text-lg max-w-2xl mx-auto">
+          <p className="font-body text-gray-600 dark:text-gray-400 text-lg max-w-2xl mx-auto">
             Stop spending hours on admin. Click the button below to see how 60 instantly turns your conversation notes into finished work.
           </p>
         </motion.div>
@@ -161,9 +161,9 @@ export function HowItWorksV4() {
               <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20">
                 <Database className="w-5 h-5 text-orange-600 dark:text-orange-400" />
               </div>
-              <h4 className="font-medium text-gray-800 dark:text-gray-200">CRM Sync</h4>
+              <h4 className="font-heading font-medium text-gray-800 dark:text-gray-200">CRM Sync</h4>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Automatically updates deal stages and contact info in your CRM.</p>
+            <p className="font-body text-sm text-gray-600 dark:text-gray-400">Automatically updates deal stages and contact info in your CRM.</p>
           </motion.div>
 
           <motion.div
@@ -177,9 +177,9 @@ export function HowItWorksV4() {
               <div className="p-2 rounded-lg bg-brand-violet/10 border border-brand-violet/20">
                 <FileText className="w-5 h-5 text-brand-violet" />
               </div>
-              <h4 className="font-medium text-gray-800 dark:text-gray-200">Draft Proposals</h4>
+              <h4 className="font-heading font-medium text-gray-800 dark:text-gray-200">Draft Proposals</h4>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">AI generates proposals based on your call discussions.</p>
+            <p className="font-body text-sm text-gray-600 dark:text-gray-400">AI generates proposals based on your call discussions.</p>
           </motion.div>
 
           <motion.div
@@ -193,9 +193,9 @@ export function HowItWorksV4() {
               <div className="p-2 rounded-lg bg-brand-teal/10 border border-brand-teal/20">
                 <CheckSquare className="w-5 h-5 text-brand-teal" />
               </div>
-              <h4 className="font-medium text-gray-800 dark:text-gray-200">Follow-up Tasks</h4>
+              <h4 className="font-heading font-medium text-gray-800 dark:text-gray-200">Follow-up Tasks</h4>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Creates actionable tasks from your meeting commitments.</p>
+            <p className="font-body text-sm text-gray-600 dark:text-gray-400">Creates actionable tasks from your meeting commitments.</p>
           </motion.div>
         </div>
 
@@ -276,8 +276,8 @@ export function HowItWorksV4() {
                   <User className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Discovery Call</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Acme Corp • 45 mins</p>
+                  <h3 className="font-heading font-semibold text-gray-900 dark:text-white">Discovery Call</h3>
+                  <p className="font-body text-xs text-gray-500 dark:text-gray-400">Acme Corp • 45 mins</p>
                 </div>
               </div>
               <span className="px-2 py-1 rounded-full bg-brand-teal/10 text-brand-teal text-xs border border-brand-teal/20 font-medium">
@@ -345,11 +345,11 @@ export function HowItWorksV4() {
               <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20">
                 <Database className="w-5 h-5 text-orange-600 dark:text-orange-400" />
               </div>
-              <h4 className="font-medium text-gray-800 dark:text-gray-200">CRM Sync</h4>
+              <h4 className="font-heading font-medium text-gray-800 dark:text-gray-200">CRM Sync</h4>
             </div>
             <div className="space-y-2">
               {!crmActive ? (
-                <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-500">
+                <div className="flex items-center justify-between text-sm font-body text-gray-500 dark:text-gray-500">
                   <span>Status</span>
                   <span>Waiting...</span>
                 </div>
@@ -385,7 +385,7 @@ export function HowItWorksV4() {
               <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20">
                 <FileText className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               </div>
-              <h4 className="font-medium text-gray-800 dark:text-gray-200">Draft Proposal</h4>
+              <h4 className="font-heading font-medium text-gray-800 dark:text-gray-200">Draft Proposal</h4>
             </div>
             <div className="space-y-2">
               {!proposalActive ? (
@@ -425,11 +425,11 @@ export function HowItWorksV4() {
               <div className="p-2 rounded-lg bg-brand-teal/10 border border-brand-teal/20">
                 <CheckSquare className="w-5 h-5 text-brand-teal" />
               </div>
-              <h4 className="font-medium text-gray-800 dark:text-gray-200">Follow-up Tasks</h4>
+              <h4 className="font-heading font-medium text-gray-800 dark:text-gray-200">Follow-up Tasks</h4>
             </div>
             <div className="space-y-2">
               {!tasksActive ? (
-                <div className="flex items-center gap-2 opacity-50">
+                <div className="flex items-center gap-2 opacity-50 font-body">
                   <div className="w-4 h-4 rounded border border-gray-400 dark:border-gray-600" />
                   <div className="h-2 w-20 bg-gray-300 dark:bg-gray-700 rounded" />
                 </div>
