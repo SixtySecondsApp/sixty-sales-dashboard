@@ -103,7 +103,7 @@ export function LearnMore() {
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-8">
-              <a href="#problem" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">Problem</a>
+              <a href="#problem" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">The Problem</a>
               <a href="#how-it-works" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">How It Works</a>
               <a href="#integrations" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">Integrations</a>
               <a href="#faq" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">FAQ</a>
@@ -156,7 +156,7 @@ export function LearnMore() {
                   onClick={handleNavClick}
                   className="block py-2 px-3 rounded-lg text-base font-medium text-gray-300 hover:bg-gray-800 transition-colors"
                 >
-                  Problem
+                  The Problem
                 </a>
                 <a
                   href="#how-it-works"
