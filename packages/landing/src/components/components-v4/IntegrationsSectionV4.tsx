@@ -89,7 +89,7 @@ export function IntegrationsSectionV4() {
               turbocharge your sales.
             </span>
           </h2>
-          <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 leading-relaxed max-w-2xl mx-auto">
+          <p className="font-body text-lg md:text-xl text-gray-600 dark:text-gray-400 leading-relaxed max-w-2xl mx-auto">
             60 brings together tools you're already using and wraps them in market-leading AI for analysis and automation.
           </p>
         </div>
@@ -121,7 +121,7 @@ export function IntegrationsSectionV4() {
             </div>
 
             <h3 className="relative z-10 text-xl font-heading font-bold text-gray-900 dark:text-white mb-4">Connect Recorder</h3>
-            <p className="relative z-10 text-sm text-gray-600 dark:text-gray-400 mb-10 leading-relaxed min-h-[60px]">
+            <p className="relative z-10 font-body text-sm text-gray-600 dark:text-gray-400 mb-10 leading-relaxed min-h-[60px]">
               60's AI analyses each call and gives your team feedback. Ask questions about your entire call history.
             </p>
 
@@ -196,7 +196,7 @@ export function IntegrationsSectionV4() {
             </div>
 
             <h3 className="relative z-10 text-xl font-heading font-bold text-gray-900 dark:text-white mb-4">Sync Your CRM</h3>
-            <p className="relative z-10 text-sm text-gray-600 dark:text-gray-400 mb-10 leading-relaxed min-h-[60px]">
+            <p className="relative z-10 font-body text-sm text-gray-600 dark:text-gray-400 mb-10 leading-relaxed min-h-[60px]">
               Don't waste time manually updating fields. Lead stages, deal stages and notes always up to date.
             </p>
 
@@ -256,7 +256,7 @@ export function IntegrationsSectionV4() {
             </div>
 
             <h3 className="relative z-10 text-xl font-heading font-bold text-gray-900 dark:text-white mb-4">Automate Admin</h3>
-            <p className="relative z-10 text-sm text-gray-600 dark:text-gray-400 mb-10 leading-relaxed min-h-[60px]">
+            <p className="relative z-10 font-body text-sm text-gray-600 dark:text-gray-400 mb-10 leading-relaxed min-h-[60px]">
               Tasks and objectives are auto-generated from each call and sync'd directly into your task manager.
             </p>
 
@@ -309,7 +309,7 @@ export function IntegrationsSectionV4() {
 
         {/* Bottom CTA */}
         <div className="mt-16 lg:mt-20 pt-12 lg:pt-16 pb-8 lg:pb-12 text-center border-t border-gray-200 dark:border-gray-700/50">
-          <p className="text-gray-600 dark:text-gray-400 mb-12 font-medium text-lg">
+          <p className="font-body text-gray-600 dark:text-gray-400 mb-12 font-medium text-lg">
             Combining and automating these tools saves sales teams <span className="text-gray-900 dark:text-gray-100 font-bold">15+ hours every week.</span>
           </p>
 

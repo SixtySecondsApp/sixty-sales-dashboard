@@ -53,6 +53,11 @@ serve(async (req) => {
       .not('transcript_text', 'is', null)
       .order('meeting_start', { ascending: false })
 
+    // Only filter by coach_rating if NOT forcing reprocessing
+    if (!force) {
+      query = query.is('coach_rating', null) // Only process meetings that haven't been AI analyzed yet
+    }
+
     // Apply filters
     if (user_id) {
       query = query.eq('owner_user_id', user_id)
@@ -95,33 +100,33 @@ serve(async (req) => {
     // Process each meeting
     for (const meeting of meetings) {
       try {
-        // Check if action items already exist (unless force=true)
-        if (!force) {
-          const { data: existingActionItems, error: checkError } = await supabase
-            .from('meeting_action_items')
-            .select('id')
-            .eq('meeting_id', meeting.id)
-            .limit(1)
+        // Check if action items already exist
+        const { data: existingActionItems, error: checkError } = await supabase
+          .from('meeting_action_items')
+          .select('id')
+          .eq('meeting_id', meeting.id)
+          .limit(1)
 
-          if (checkError) {
-          }
+        if (checkError) {
+          console.warn(`Could not check action items for meeting ${meeting.id}:`, checkError.message)
+        }
 
-          if (existingActionItems && existingActionItems.length > 0) {
-            skippedCount++
-            continue
-          }
-        } else {
-          // Force mode: delete existing action items first
+        const hasExistingActionItems = existingActionItems && existingActionItems.length > 0
+
+        // Force mode: delete existing action items first
+        if (force && hasExistingActionItems) {
           const { error: deleteError } = await supabase
             .from('meeting_action_items')
             .delete()
             .eq('meeting_id', meeting.id)
 
           if (deleteError) {
+            console.warn(`Failed to delete action items for meeting ${meeting.id}:`, deleteError.message)
           }
         }
 
         // Analyze transcript with Claude (with extraction rules - Phase 6.3)
+        // ALWAYS run AI analysis to update meeting metrics (coach_rating, sentiment, etc.)
         const analysis: TranscriptAnalysis = await analyzeTranscriptWithClaude(
           meeting.transcript_text,
           {
@@ -168,8 +173,10 @@ serve(async (req) => {
         }
 
         // Store action items WITHOUT automatic task creation
-        // IMPORTANT: synced_to_task = false, task_id = null by default
-        if (analysis.actionItems.length > 0) {
+        // Only create action items if they don't already exist (or if force mode deleted them)
+        const shouldCreateActionItems = !hasExistingActionItems || force
+
+        if (shouldCreateActionItems && analysis.actionItems.length > 0) {
           for (const item of analysis.actionItems) {
             const { error: insertError } = await supabase
               .from('meeting_action_items')
@@ -186,8 +193,6 @@ serve(async (req) => {
                 ai_confidence: item.confidence,
                 needs_review: item.confidence < 0.8,
                 completed: false,
-                // CRITICAL: Do NOT set synced_to_task or task_id
-                // This ensures manual task creation via UI
                 synced_to_task: false,
                 task_id: null,
                 timestamp_seconds: null,
@@ -195,11 +200,14 @@ serve(async (req) => {
               })
 
             if (insertError) {
+              console.warn(`Failed to insert action item for meeting ${meeting.id}:`, insertError.message)
             } else {
               totalActionItems++
             }
           }
-        } else {
+        } else if (hasExistingActionItems && !force) {
+          // Meeting had existing action items, just increment skip count for reporting
+          skippedCount++
         }
 
         processedCount++

@@ -16,34 +16,17 @@ export interface OptimizedCloudinaryVideoRef {
 }
 
 /**
- * Transforms a Cloudinary video URL to add optimization parameters
- * Adds: q_auto (quality), f_auto (format), and streaming profile
- */
-function getOptimizedVideoUrl(rawUrl: string): string {
-  // Match Cloudinary URL pattern and insert transformations
-  const cloudinaryPattern = /^(https:\/\/res\.cloudinary\.com\/[^/]+\/video\/upload\/)(v\d+\/.+)$/;
-  const match = rawUrl.match(cloudinaryPattern);
-
-  if (match) {
-    // Add optimizations: auto quality, auto format, streaming profile for adaptive bitrate
-    return `${match[1]}q_auto,f_auto,sp_auto/${match[2]}`;
-  }
-
-  return rawUrl;
-}
-
-/**
  * Generates a poster/thumbnail URL from a Cloudinary video
  * Uses the first frame of the video as the poster image
  */
 function getPosterUrl(rawUrl: string): string {
-  // Match Cloudinary URL pattern
+  // Match Cloudinary URL pattern - handles URL-encoded paths
   const cloudinaryPattern = /^(https:\/\/res\.cloudinary\.com\/[^/]+\/video\/upload\/)(v\d+\/)(.+)\.(mp4|webm|mov)$/;
   const match = rawUrl.match(cloudinaryPattern);
 
   if (match) {
-    // Convert to image URL with first frame (so_0), auto quality/format, and appropriate size
-    return `${match[1]}so_0,q_auto,f_auto,w_1280/${match[2]}${match[3]}.jpg`;
+    // Convert to image URL with first frame (so_0) and appropriate size
+    return `${match[1]}so_0,w_1280/${match[2]}${match[3]}.jpg`;
   }
 
   return '';
@@ -56,7 +39,7 @@ export const OptimizedCloudinaryVideo = forwardRef<OptimizedCloudinaryVideoRef, 
     const [showControls, setShowControls] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
 
-    const optimizedSrc = getOptimizedVideoUrl(src);
+    // Use raw URL - Cloudinary handles optimization at delivery
     const posterUrl = getPosterUrl(src);
 
     useImperativeHandle(ref, () => ({
@@ -105,10 +88,10 @@ export const OptimizedCloudinaryVideo = forwardRef<OptimizedCloudinaryVideoRef, 
           </div>
         )}
 
-        {/* Video Element with optimizations */}
+        {/* Video Element */}
         <video
           ref={videoRef}
-          src={optimizedSrc}
+          src={src}
           poster={posterUrl}
           controls={showControls}
           playsInline

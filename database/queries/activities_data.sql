@@ -1,2 +1,0 @@
-COPY public.activities (id, user_id, type, status, priority, client_name, sales_rep, details, amount, date, created_at, updated_at, quantity, contact_identifier, contact_identifier_type) FROM stdin;
-ca2e54a1-74e1-45b1-80dc-5f15f8aa799f	ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459	meeting	completed	medium	Clarion	Andrew Bryce	follow-up	\N	2025-01-27 14:59:44.851+00	2025-01-27 16:19:02.87242+00	2025-01-27 16:19:02.87242+00	1	\N	\N

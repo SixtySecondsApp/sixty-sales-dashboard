@@ -52,7 +52,7 @@ export function FAQSectionV3() {
               We've Got Answers
             </span>
           </h2>
-          <p className="text-xl text-gray-600 dark:text-gray-400">
+          <p className="font-body text-xl text-gray-600 dark:text-gray-400">
             Everything you need to know about 60 and how it works.
           </p>
         </motion.div>
@@ -93,7 +93,7 @@ export function FAQSectionV3() {
               >
                 <div className="px-6 pb-5 pt-2 space-y-3">
                   {faq.answer.split('\n\n').map((paragraph, pIndex) => (
-                    <p key={pIndex} className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                    <p key={pIndex} className="font-body text-gray-600 dark:text-gray-400 leading-relaxed">
                       {paragraph}
                     </p>
                   ))}
@@ -111,7 +111,7 @@ export function FAQSectionV3() {
           transition={{ duration: 0.6, delay: 0.3 }}
           className="mt-16 text-center"
         >
-          <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">
+          <p className="font-body text-lg text-gray-600 dark:text-gray-400 mb-4">
             Still have questions?
           </p>
           <a
@@ -120,7 +120,7 @@ export function FAQSectionV3() {
           >
             Email us directly →
           </a>
-          <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
+          <p className="font-body text-sm text-gray-500 dark:text-gray-500 mt-2">
             We typically respond within 24 hours (usually much faster)
           </p>
         </motion.div>

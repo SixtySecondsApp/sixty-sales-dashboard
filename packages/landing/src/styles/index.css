@@ -31,6 +31,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Font utility classes - ensure Tailwind generates these */
+@layer utilities {
+  .font-heading {
+    font-family: 'Urbanist', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .font-body {
+    font-family: 'Questrial', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+}
+
 @layer utilities {
 
   /* Scroll offset for fixed navigation on product landing pages */

@@ -1,180 +1,200 @@
-# Sixty Sales Dashboard
+# Sixty Sales Dashboard Documentation
 
-A modern, enterprise-grade sales CRM and analytics platform built with React, TypeScript, Vite, and Supabase.
+Welcome to the Sixty Sales Dashboard documentation. This guide will help you understand, develop, and deploy the application.
 
-## 🚀 Key Features
+## Quick Navigation
 
-### 🔐 Admin Security & Controls
-- **Role-Based Access Control**: Multi-level permission system with admin privileges
-- **Revenue Split Management**: Admin-only controls for deal revenue splitting
-- **Pipeline Protection**: Prevents unauthorized deletion/modification of split deals
-- **Comprehensive Audit Logging**: Complete trail of all administrative actions
-
-### 💰 Advanced Financial Management
-- **Revenue Split Tracking**: Separate one-off and monthly recurring revenue (MRR)
-- **Automated LTV Calculations**: Business rule: `(MRR × 3) + One-off Revenue`
-- **Financial Validation**: Real-time deal value calculations and validation
-- **Payment Reconciliation**: Automated tracking and payment processing
-
-### 📊 Enhanced CRM Features
-- **QuickAdd Interface**: Streamlined creation of tasks, deals, activities, and meetings
-- **Deal Wizard**: Multi-step guided deal creation with intelligent validation
-- **Pipeline Management**: Drag-and-drop kanban boards with stage tracking
-- **Activity Tracking**: Comprehensive logging of outbound activities, meetings, proposals
-- **Contact Management**: Integrated contact system with email/phone/LinkedIn tracking
-- **Task Management**: Full lifecycle management with priorities and due dates
-
-### 🎨 User Experience
-- **Responsive Design**: Mobile-first approach optimized for all devices
-- **Modern Dark Theme**: Glassmorphism effects and smooth animations
-- **Real-time Updates**: Live data synchronization across all components
-- **Smart Date Selection**: Intelligent quick-date options and calendar integration
-- **Performance Optimized**: 64% memory reduction, 80% fewer re-renders
-
-## 🏗️ Tech Stack
-
-### Frontend
-- **React 18** with TypeScript for type-safe development
-- **Vite** for lightning-fast development and optimized builds
-- **Tailwind CSS** for utility-first styling and responsive design
-- **Framer Motion** for smooth animations and micro-interactions
-- **React Query** for intelligent data fetching and caching
-- **React Router** for client-side routing
-- **Recharts** for data visualization and analytics
-- **Lucide Icons** for consistent iconography
-
-### Backend & Infrastructure
-- **Supabase** as backend-as-a-service platform
-- **PostgreSQL** for robust relational data storage
-- **Row Level Security (RLS)** for fine-grained access control
-- **Edge Functions** for serverless API endpoints
-- **Real-time subscriptions** for live data updates
-
-### Development & Testing
-- **Vitest** for unit and integration testing
-- **Playwright** for end-to-end testing
-- **React Testing Library** for component testing
-- **TypeScript** for static type checking
-- **ESLint & Prettier** for code quality
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js 18+ 
-- Access to a Supabase project
-- Basic knowledge of React and TypeScript
-
-### Quick Setup
-```bash
-# 1. Clone the repository
-git clone [repository-url]
-cd sixty-sales-dashboard
-
-# 2. Install dependencies
-npm install
-
-# 3. Configure environment variables
-cp .env.example .env
-# Edit .env with your Supabase credentials
-
-# 4. Start development server
-npm run dev
-```
-
-### Environment Configuration
-Create a `.env` file in the root directory:
-```env
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
-
-### Available Scripts
-- `npm run dev` - Start development server
-- `npm run build` - Production build with optimizations
-- `npm run test` - Run test suite
-- `npm run playwright` - End-to-end tests
-- `npm run test:memory` - Performance memory tests
-
-## 🚀 Deployment & Production
-
-### Recent Major Updates
-
-**🔐 Admin Security Features (Latest)**
-- **Revenue Split Controls**: Admin-only access to deal revenue splitting functionality
-- **Pipeline Protection**: Non-admins cannot delete or modify split deals
-- **Enhanced Permissions**: Granular control over deal editing and deletion
-- **Audit Logging**: Complete audit trail for all administrative actions
-
-**⚡ Performance Optimizations**
-- **Memory Usage**: Reduced by 64.1% (from 89% to 25% stable usage)
-- **Component Re-renders**: Reduced by 80% through React.memo optimization
-- **Financial Calculations**: 99% performance improvement (100ms → 1ms)
-- **Console Cleanup**: Eliminated 2,827 debug statements causing memory retention
-
-**🛠️ Infrastructure Improvements**
-- **Database Connection Handling**: Optimized for Vercel serverless environment
-- **Connection Pooling**: Automatic cleanup preventing memory leaks
-- **API Timeout**: Increased from 10s to 30s for complex operations
-- **Singleton Pattern**: Prevents multiple Supabase client instances
-
-### Key Administrative Features
-
-**Admin Dashboard Access:**
-- Revenue split creation and management
-- Advanced pipeline stage controls
-- User permission management
-- Comprehensive audit log viewing
-
-**Security Model:**
-- `is_admin` flag in user profiles
-- Protected API endpoints for admin functions
-- Row Level Security (RLS) policies enforcing permissions
-- Automatic audit logging for sensitive operations
-
-### Health Monitoring
-
-**API Health Check:** `/api/health`
-**Performance Metrics:** Real-time memory and performance monitoring
-**Error Tracking:** Comprehensive error logging and alerting
-
-### Common Issues & Solutions
-
-1. **Admin Access**: Ensure `is_admin` flag is properly set in user profile
-2. **Revenue Split Access**: Only admins can create/modify split deals
-3. **Performance Issues**: Memory monitoring shows significant improvements
-4. **API Timeouts**: Extended timeout handling for complex operations
+| Section | Description |
+|---------|-------------|
+| [Getting Started](./getting-started/) | Installation, setup, and first steps |
+| [Architecture](./architecture/) | System design and technical decisions |
+| [Features](./features/) | Feature-specific documentation |
+| [Integrations](./integrations/) | Third-party service integrations |
+| [Deployment](./deployment/) | Production deployment guides |
+| [Troubleshooting](./troubleshooting/) | Common issues and solutions |
+| [API Reference](./api/) | API documentation |
 
 ---
 
-## 📚 Complete Documentation
+## System Overview
 
-For comprehensive information about the platform's features and administration:
+```mermaid
+graph TB
+    subgraph Client["Frontend (React 18)"]
+        A[React App]
+        B[React Query]
+        C[Zustand Store]
+        D[Tailwind CSS]
+    end
 
-- **[CLAUDE.md](./CLAUDE.md)** - Complete project documentation and architecture overview
-- **[API_DOCUMENTATION.md](./API_DOCUMENTATION.md)** - Comprehensive API reference with admin endpoints
-- **[ADMIN_GUIDE.md](./ADMIN_GUIDE.md)** - Administrative guide for revenue split and security features
-- **[test-admin-permissions.html](./test-admin-permissions.html)** - Interactive admin permission testing
+    subgraph Backend["Backend (Supabase)"]
+        E[PostgreSQL Database]
+        F[170+ Edge Functions]
+        G[Real-time Subscriptions]
+        H[Row Level Security]
+    end
 
-### Key Features Documentation
+    subgraph Integrations["External Services"]
+        I[Fathom - Meetings]
+        J[Google Calendar]
+        K[Slack]
+        L[JustCall]
+    end
 
-**Admin Controls:**
+    A --> B
+    B --> C
+    A --> D
+    B --> F
+    F --> E
+    F --> G
+    E --> H
+    I --> F
+    J --> F
+    K --> F
+    L --> F
+```
+
+---
+
+## 4-Stage Sales Pipeline
+
+```mermaid
+stateDiagram-v2
+    [*] --> SQL: New Lead
+    SQL --> Opportunity: Qualified
+    Opportunity --> Verbal: Proposal Sent
+    Verbal --> Signed: Contract Agreed
+    Signed --> [*]: Deal Closed
+
+    note right of SQL: Sales Qualified Lead
+    note right of Opportunity: Proposal with confirmation modal
+    note right of Verbal: Terms agreed verbally
+    note right of Signed: Contract executed
+```
+
+---
+
+## Data Flow Architecture
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant R as React App
+    participant RQ as React Query
+    participant S as Supabase
+    participant DB as PostgreSQL
+
+    U->>R: User Action
+    R->>RQ: Query/Mutation
+    RQ->>S: API Request
+    S->>DB: SQL Query
+    DB-->>S: Data Response
+    S-->>RQ: JSON Response
+    RQ-->>R: Cached Data
+    R-->>U: UI Update
+
+    Note over RQ,S: Real-time subscriptions for live updates
+```
+
+---
+
+## Key Features
+
+### Meeting Intelligence
+AI-powered meeting analysis with automatic indexing and semantic search across transcripts.
+
+### Smart Tasks
+Automated task generation based on sales activities with configurable templates.
+
+### Admin Security
+- Role-based access control with `is_admin` flag
 - Revenue split management (admin-only)
-- Pipeline protection and permissions
+- Pipeline protection for split deals
 - Comprehensive audit logging
-- User management and impersonation
 
-**Performance:**
-- 64% memory usage reduction
-- 80% fewer component re-renders
-- 99% faster financial calculations
-- Real-time monitoring and alerts
+---
 
-**Security:**
-- Role-based access control
-- Protected financial operations
-- Audit trail for all admin actions
-- Row Level Security (RLS) enforcement
+## Tech Stack
 
-## License
+| Layer | Technology | Purpose |
+|-------|------------|---------|
+| Frontend | React 18 + TypeScript | UI Components |
+| Build | Vite | Fast development & builds |
+| Styling | Tailwind CSS | Utility-first CSS |
+| Animation | Framer Motion | Smooth transitions |
+| State | React Query + Zustand | Data & UI state |
+| Backend | Supabase | BaaS platform |
+| Database | PostgreSQL | Data storage |
+| Functions | Deno Edge Functions | Serverless APIs |
+| Hosting | Vercel | Deployment |
 
-MIT
+---
+
+## Project Structure
+
+```
+sixty-sales-dashboard/
+├── src/                    # Frontend React application
+│   ├── components/         # 138+ React components
+│   ├── pages/              # Page components
+│   ├── lib/                # Business logic & services
+│   └── hooks/              # Custom React hooks
+├── supabase/               # Backend infrastructure
+│   ├── migrations/         # 411 database migrations
+│   └── functions/          # 170+ Edge Functions
+├── api/                    # Vercel API routes
+├── packages/               # Monorepo packages
+│   └── landing/            # Marketing landing pages
+├── tests/                  # Test suites
+└── docs/                   # This documentation
+```
+
+---
+
+## Quick Start
+
+```bash
+# Clone and install
+git clone [repository-url]
+cd sixty-sales-dashboard
+npm install
+
+# Configure environment
+cp .env.example .env
+# Edit .env with Supabase credentials
+
+# Start development
+npm run dev
+```
+
+See [Getting Started](./getting-started/) for detailed setup instructions.
+
+---
+
+## Performance Metrics
+
+| Metric | Improvement |
+|--------|-------------|
+| Memory Usage | 64% reduction |
+| Component Re-renders | 80% fewer |
+| Financial Calculations | 99% faster |
+| Cache Hit Rate | 85% |
+
+---
+
+## Documentation Index
+
+- **[Getting Started](./getting-started/)** - Installation and setup
+- **[Architecture Overview](./architecture/)** - System design
+- **[Feature Guides](./features/)** - Feature documentation
+- **[Integration Setup](./integrations/)** - External services
+- **[Deployment Guide](./deployment/)** - Production deployment
+- **[API Reference](./api/)** - Endpoint documentation
+- **[Troubleshooting](./troubleshooting/)** - Common issues
+- **[Archive](./archive/)** - Historical documentation
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for development guidelines and PR process.
