@@ -12,7 +12,7 @@ import {
 } from '../components/components-v4';
 import { getLoginUrl } from '../lib/utils/siteUrl';
 
-const VIDEO_URL = 'https://res.cloudinary.com/sixty-seconds/video/upload/v1765991844/60%20VSL%20-%20Waitlist/VSL1-descript-720p_fh7eoi.mp4';
+const VIDEO_URL = 'https://res.cloudinary.com/sixty-seconds/video/upload/v1766490880/60%20VSL%20-%20Waitlist/Videos%20for%20waitlist%20launch/VSL_Founder_Version_gopdl9.mp4';
 
 export function IntroducingPage() {
   const [email, setEmail] = useState('');
