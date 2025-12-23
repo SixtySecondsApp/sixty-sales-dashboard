@@ -1,5 +1,4 @@
 {
-  "ignoreCommand": "git diff HEAD^ HEAD --quiet -- . ':!packages/landing'",
   "buildCommand": "npm run build",
   "framework": "vite",
   "headers": [
