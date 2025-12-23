@@ -33,7 +33,7 @@ export function FAQSectionV3() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section id="faq" className="relative py-24 bg-white dark:bg-gray-950 scroll-mt-24 transition-colors duration-300">
+    <section id="faq" className="relative py-24 bg-white dark:bg-gray-950 scroll-mt-40 transition-colors duration-300">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <motion.div
@@ -76,9 +76,8 @@ export function FAQSectionV3() {
                   {faq.question}
                 </span>
                 <ChevronDown
-                  className={`w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0 transition-transform duration-300 ${
-                    openIndex === index ? 'rotate-180' : ''
-                  }`}
+                  className={`w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0 transition-transform duration-300 ${openIndex === index ? 'rotate-180' : ''
+                    }`}
                 />
               </button>
 

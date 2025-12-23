@@ -107,7 +107,7 @@ export function HowItWorksV4() {
   return (
     <section
       id="how-it-works"
-      className="relative py-24 lg:py-32 bg-gradient-to-b from-gray-100 via-gray-50 to-white dark:from-gray-950 dark:via-gray-950 dark:to-gray-950 overflow-hidden transition-colors duration-300"
+      className="relative py-24 lg:py-32 bg-gradient-to-b from-gray-100 via-gray-50 to-white dark:from-gray-950 dark:via-gray-950 dark:to-gray-950 overflow-hidden transition-colors duration-300 scroll-mt-40"
     >
       {/* Background Ambient Glows */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -297,11 +297,10 @@ export function HowItWorksV4() {
             <button
               onClick={simulationState === 'complete' ? resetSimulation : runSimulation}
               disabled={simulationState === 'scanning'}
-              className={`w-full group relative overflow-hidden rounded-lg p-3 text-sm font-semibold text-white transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-900 disabled:cursor-not-allowed ${
-                simulationState === 'complete'
+              className={`w-full group relative overflow-hidden rounded-lg p-3 text-sm font-semibold text-white transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-900 disabled:cursor-not-allowed ${simulationState === 'complete'
                   ? 'bg-brand-teal hover:opacity-90 focus:ring-brand-teal'
                   : 'bg-gradient-to-r from-brand-blue to-brand-violet hover:from-[#2351C4] hover:to-[#7024C0] focus:ring-brand-blue'
-              }`}
+                }`}
             >
               <span className="relative z-10 flex items-center justify-center gap-2">
                 {simulationState === 'idle' && (
@@ -335,11 +334,10 @@ export function HowItWorksV4() {
             whileInView={{ opacity: 0.5, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className={`absolute top-0 left-2 md:left-16 lg:left-20 md:top-8 w-56 md:w-64 rounded-xl p-4 md:p-5 transition-all duration-700 transform ${
-              crmActive
+            className={`absolute top-0 left-2 md:left-16 lg:left-20 md:top-8 w-56 md:w-64 rounded-xl p-4 md:p-5 transition-all duration-700 transform ${crmActive
                 ? `${glassPanelActive} opacity-100 scale-100`
                 : `${glassPanel} opacity-50 scale-95 translate-y-1`
-            }`}
+              }`}
           >
             <div className="flex items-center gap-3 mb-3">
               <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20">
@@ -375,11 +373,10 @@ export function HowItWorksV4() {
             whileInView={{ opacity: 0.5, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className={`absolute right-2 md:right-8 lg:right-10 top-1/2 -translate-y-1/2 w-56 md:w-64 rounded-xl p-4 md:p-5 transition-all duration-700 transform ${
-              proposalActive
+            className={`absolute right-2 md:right-8 lg:right-10 top-1/2 -translate-y-1/2 w-56 md:w-64 rounded-xl p-4 md:p-5 transition-all duration-700 transform ${proposalActive
                 ? `${glassPanelActive} opacity-100 scale-100`
                 : `${glassPanel} opacity-50 scale-95 translate-x-1`
-            }`}
+              }`}
           >
             <div className="flex items-center gap-3 mb-3">
               <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20">
@@ -415,11 +412,10 @@ export function HowItWorksV4() {
             whileInView={{ opacity: 0.5, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className={`absolute bottom-0 left-2 md:left-16 lg:left-20 md:bottom-8 w-56 md:w-64 rounded-xl p-4 md:p-5 transition-all duration-700 transform ${
-              tasksActive
+            className={`absolute bottom-0 left-2 md:left-16 lg:left-20 md:bottom-8 w-56 md:w-64 rounded-xl p-4 md:p-5 transition-all duration-700 transform ${tasksActive
                 ? `${glassPanelActive} opacity-100 scale-100`
                 : `${glassPanel} opacity-50 scale-95 -translate-y-1`
-            }`}
+              }`}
           >
             <div className="flex items-center gap-3 mb-3">
               <div className="p-2 rounded-lg bg-brand-teal/10 border border-brand-teal/20">

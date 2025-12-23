@@ -80,11 +80,11 @@ export const OptimizedCloudinaryVideo = forwardRef<OptimizedCloudinaryVideoRef, 
     };
 
     return (
-      <div className={`relative rounded-2xl overflow-hidden backdrop-blur-2xl bg-white/5 border border-white/10 shadow-2xl shadow-brand-violet/10 ${className}`}>
+      <div className={`relative rounded-2xl overflow-hidden backdrop-blur-2xl bg-gray-950 border border-white/10 shadow-2xl shadow-brand-violet/10 aspect-video ${className}`}>
         {/* Loading skeleton - shows until video metadata loads */}
         {!isLoaded && (
-          <div className="absolute inset-0 bg-gray-900 animate-pulse flex items-center justify-center z-10">
-            <div className="w-16 h-16 border-4 border-brand-violet/30 border-t-brand-violet rounded-full animate-spin" />
+          <div className="absolute inset-0 bg-gray-950 flex items-center justify-center z-10">
+            <div className="w-12 h-12 border-4 border-brand-violet/20 border-t-brand-violet rounded-full animate-spin" />
           </div>
         )}
 
@@ -95,10 +95,11 @@ export const OptimizedCloudinaryVideo = forwardRef<OptimizedCloudinaryVideoRef, 
           poster={posterUrl}
           controls={showControls}
           playsInline
+          webkit-playsinline="true"
           preload="metadata"
-          className="w-full aspect-video bg-gray-900"
+          className="w-full h-full object-contain bg-gray-950"
           onEnded={handleVideoEnded}
-          onLoadedData={handleLoadedData}
+          onLoadedMetadata={handleLoadedData}
           onPlay={() => {
             setIsPlaying(true);
             setShowControls(true);

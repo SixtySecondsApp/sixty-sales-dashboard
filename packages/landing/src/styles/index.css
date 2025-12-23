@@ -36,6 +36,7 @@
   .font-heading {
     font-family: 'Urbanist', -apple-system, BlinkMacSystemFont, sans-serif;
   }
+
   .font-body {
     font-family: 'Questrial', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   }
@@ -44,9 +45,9 @@
 @layer utilities {
 
   /* Scroll offset for fixed navigation on product landing pages */
-  section[id] {
-    scroll-margin-top: 5rem;
-    /* 80px - accounts for 64px nav + 16px buffer */
+  section[id],
+  [id] {
+    scroll-margin-top: 9rem;
   }
 }
 

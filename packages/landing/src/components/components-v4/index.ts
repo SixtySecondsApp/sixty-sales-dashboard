@@ -6,6 +6,8 @@ export { PricingSectionV4 } from './PricingSectionV4';
 export { FAQSectionV4 } from './FAQSectionV4';
 export { HowItWorksV4 } from './HowItWorksV4';
 
+export { ProblemSectionV4 } from './ProblemSectionV4';
+
 // Re-export unchanged V3 components
 export {
   FeatureShowcaseV3,

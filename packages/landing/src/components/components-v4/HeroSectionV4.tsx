@@ -265,17 +265,17 @@ export function HeroSectionV4({ onCTAClick }: HeroSectionV4Props = {}) {
               {onCTAClick ? (
                 <button
                   onClick={onCTAClick}
-                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-brand-blue to-brand-violet text-white px-8 py-4 rounded-xl font-heading font-bold hover:opacity-90 transition shadow-lg shadow-brand-blue/25 cursor-pointer"
+                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-brand-blue to-brand-violet !text-white px-8 py-4 rounded-xl font-heading font-bold hover:opacity-90 transition shadow-lg shadow-brand-blue/25 cursor-pointer"
                 >
-                  Start for free
+                  Get Early Access
                   <ArrowRight className="w-4 h-4" />
                 </button>
               ) : (
                 <a
                   href="/waitlist"
-                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-brand-blue to-brand-violet text-white px-8 py-4 rounded-xl font-heading font-bold hover:opacity-90 transition shadow-lg shadow-brand-blue/25"
+                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-brand-blue to-brand-violet !text-white px-8 py-4 rounded-xl font-heading font-bold hover:opacity-90 transition shadow-lg shadow-brand-blue/25"
                 >
-                  Start for free
+                  Get Early Access
                   <ArrowRight className="w-4 h-4" />
                 </a>
               )}
@@ -288,11 +288,10 @@ export function HeroSectionV4({ onCTAClick }: HeroSectionV4Props = {}) {
 
             {/* Dashboard View */}
             <div
-              className={`absolute inset-0 flex items-center justify-center transition-all duration-400 ${
-                activeView === 'dashboard' && !isTransitioning
-                  ? 'opacity-100 translate-y-0'
-                  : 'opacity-0 translate-y-[-8px] pointer-events-none'
-              }`}
+              className={`absolute inset-0 flex items-center justify-center transition-all duration-400 ${activeView === 'dashboard' && !isTransitioning
+                ? 'opacity-100 translate-y-0'
+                : 'opacity-0 translate-y-[-8px] pointer-events-none'
+                }`}
             >
               <DashboardVisual />
             </div>
@@ -300,11 +299,10 @@ export function HeroSectionV4({ onCTAClick }: HeroSectionV4Props = {}) {
             {/* Workflow View */}
             <div
               key={workflowKey}
-              className={`absolute inset-0 flex items-center justify-center transition-all duration-400 ${
-                activeView === 'workflow' && !isTransitioning
-                  ? 'opacity-100 translate-y-0'
-                  : 'opacity-0 translate-y-[8px] pointer-events-none'
-              }`}
+              className={`absolute inset-0 flex items-center justify-center transition-all duration-400 ${activeView === 'workflow' && !isTransitioning
+                ? 'opacity-100 translate-y-0'
+                : 'opacity-0 translate-y-[8px] pointer-events-none'
+                }`}
             >
               <WorkflowVisual />
             </div>
@@ -508,7 +506,7 @@ function WorkflowVisual() {
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-lg dark:shadow-none relative overflow-hidden group">
               {/* Teams Badge */}
               <div className="absolute top-0 right-0 bg-[#5B5FC7] text-white text-[10px] px-2 py-1 rounded-bl-lg font-medium flex items-center gap-1">
-                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M20.625 8.073c.574 0 1.125.224 1.531.623.407.4.637.943.637 1.51v5.139c0 .566-.23 1.11-.637 1.51a2.175 2.175 0 01-1.531.623h-.417v2.084c0 .567-.23 1.11-.637 1.51a2.175 2.175 0 01-1.531.623H5.958a2.175 2.175 0 01-1.531-.623 2.12 2.12 0 01-.637-1.51v-2.084h-.415c-.574 0-1.125-.224-1.531-.623A2.12 2.12 0 011.207 15.344V10.206c0-.567.23-1.11.637-1.51a2.175 2.175 0 011.531-.623h.415V6.422c0-.283.057-.564.168-.826a2.13 2.13 0 01.469-.701 2.18 2.18 0 01.71-.463c.265-.11.55-.165.836-.165h5.569c.287 0 .571.056.836.165.266.11.507.267.71.463.204.197.365.44.469.701.111.262.168.543.168.826v1.65h5.484zM8.542 6.422v1.65h2.916v-1.65H8.542zm9.375 7.29V10.205H6.083v6.773h-.29v2.584h12.332v-2.584h-.208v-3.266zm-7.709 0v2.083h2.084v-2.083h-2.084z"/></svg>
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M20.625 8.073c.574 0 1.125.224 1.531.623.407.4.637.943.637 1.51v5.139c0 .566-.23 1.11-.637 1.51a2.175 2.175 0 01-1.531.623h-.417v2.084c0 .567-.23 1.11-.637 1.51a2.175 2.175 0 01-1.531.623H5.958a2.175 2.175 0 01-1.531-.623 2.12 2.12 0 01-.637-1.51v-2.084h-.415c-.574 0-1.125-.224-1.531-.623A2.12 2.12 0 011.207 15.344V10.206c0-.567.23-1.11.637-1.51a2.175 2.175 0 011.531-.623h.415V6.422c0-.283.057-.564.168-.826a2.13 2.13 0 01.469-.701 2.18 2.18 0 01.71-.463c.265-.11.55-.165.836-.165h5.569c.287 0 .571.056.836.165.266.11.507.267.71.463.204.197.365.44.469.701.111.262.168.543.168.826v1.65h5.484zM8.542 6.422v1.65h2.916v-1.65H8.542zm9.375 7.29V10.205H6.083v6.773h-.29v2.584h12.332v-2.584h-.208v-3.266zm-7.709 0v2.083h2.084v-2.083h-2.084z" /></svg>
                 Sent to Teams
               </div>
 

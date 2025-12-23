@@ -28,10 +28,10 @@ export function WaitlistHero() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const refCode = params.get('ref');
-    
+
     // Capture the full registration URL (pathname + search params) and normalize it
     const registrationUrl = captureRegistrationUrl();
-    
+
     setFormData(prev => ({
       ...prev,
       referred_by_code: refCode || prev.referred_by_code,

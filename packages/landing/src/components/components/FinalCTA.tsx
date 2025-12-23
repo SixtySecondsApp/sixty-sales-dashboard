@@ -130,7 +130,8 @@ export function FinalCTA({ onOpenModal, email = '', setEmail, onEmailSubmit }: F
                   />
                   <Button
                     type="submit"
-                    className="h-12 px-6 bg-gradient-to-r from-brand-blue to-brand-violet hover:from-[#2351C4] hover:to-[#7024C0] text-white font-semibold rounded-xl whitespace-nowrap"
+                    className="h-12 px-6 bg-gradient-to-r from-brand-blue to-brand-violet hover:from-[#2351C4] hover:to-[#7024C0] !text-white font-semibold rounded-xl whitespace-nowrap"
+                    style={{ color: 'white' }}
                   >
                     Get Early Access
                     <ArrowRight className="w-4 h-4 ml-2" />
@@ -148,17 +149,17 @@ export function FinalCTA({ onOpenModal, email = '', setEmail, onEmailSubmit }: F
                 {onOpenModal ? (
                   <button
                     onClick={onOpenModal}
-                    className="group px-8 py-4 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet text-white font-semibold text-lg hover:from-[#2351C4] hover:to-[#7024C0] transition-all duration-300 shadow-lg shadow-brand-blue/30 hover:shadow-xl hover:shadow-brand-blue/40 cursor-pointer"
+                    className="group px-8 py-4 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet !text-white font-semibold text-lg hover:from-[#2351C4] hover:to-[#7024C0] transition-all duration-300 shadow-lg shadow-brand-blue/30 hover:shadow-xl hover:shadow-brand-blue/40 cursor-pointer"
                   >
                     <span className="flex items-center justify-center gap-2">
-                      Sign Up Now
+                      Get Early Access
                       <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </span>
                   </button>
                 ) : (
-                  <a href="/waitlist" className="group px-8 py-4 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet text-white font-semibold text-lg hover:from-[#2351C4] hover:to-[#7024C0] transition-all duration-300 shadow-lg shadow-brand-blue/30 hover:shadow-xl hover:shadow-brand-blue/40">
+                  <a href="/waitlist" className="group px-8 py-4 rounded-xl bg-gradient-to-r from-brand-blue to-brand-violet !text-white font-semibold text-lg hover:from-[#2351C4] hover:to-[#7024C0] transition-all duration-300 shadow-lg shadow-brand-blue/30 hover:shadow-xl hover:shadow-brand-blue/40">
                     <span className="flex items-center justify-center gap-2">
-                      Sign Up Now
+                      Get Early Access
                       <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </span>
                   </a>

@@ -48,9 +48,14 @@ export function IntroPage() {
           const targetElement = document.getElementById(targetId);
 
           if (targetElement) {
-            targetElement.scrollIntoView({
-              behavior: 'smooth',
-              block: 'start',
+            const navHeight = 64; // Navbar height
+            const extraPadding = 40; // Extra buffer for title clearance
+            const elementPosition = targetElement.getBoundingClientRect().top;
+            const offsetPosition = elementPosition + window.pageYOffset - navHeight - extraPadding;
+
+            window.scrollTo({
+              top: offsetPosition,
+              behavior: 'smooth'
             });
           }
         }
@@ -68,7 +73,7 @@ export function IntroPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <motion.a
-              href="/"
+              href="#hero"
               className="flex items-center gap-3"
               whileHover={{ scale: 1.02 }}
             >

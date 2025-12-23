@@ -9,6 +9,7 @@ import {
   IntegrationsSectionV4,
   HowItWorksV4,
   FAQSectionV4,
+  ProblemSectionV4,
   FinalCTA,
   LandingFooter
 } from '../components/components-v4';
@@ -60,9 +61,14 @@ export function LearnMore() {
           const targetElement = document.getElementById(targetId);
 
           if (targetElement) {
-            targetElement.scrollIntoView({
-              behavior: 'smooth',
-              block: 'start',
+            const navHeight = 64; // Navbar height
+            const extraPadding = 40; // Extra buffer for title clearance
+            const elementPosition = targetElement.getBoundingClientRect().top;
+            const offsetPosition = elementPosition + window.pageYOffset - navHeight - extraPadding;
+
+            window.scrollTo({
+              top: offsetPosition,
+              behavior: 'smooth'
             });
           }
         }
@@ -80,7 +86,7 @@ export function LearnMore() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <motion.a
-              href="/"
+              href="#hero"
               className="flex items-center gap-3"
               whileHover={{ scale: 1.02 }}
             >
@@ -97,8 +103,8 @@ export function LearnMore() {
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-8">
+              <a href="#problem" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">Problem</a>
               <a href="#how-it-works" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">How It Works</a>
-              <a href="#features" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">Features</a>
               <a href="#integrations" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">Integrations</a>
               <a href="#faq" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">FAQ</a>
             </div>
@@ -146,18 +152,18 @@ export function LearnMore() {
             >
               <div className="px-4 py-4 space-y-3">
                 <a
+                  href="#problem"
+                  onClick={handleNavClick}
+                  className="block py-2 px-3 rounded-lg text-base font-medium text-gray-300 hover:bg-gray-800 transition-colors"
+                >
+                  Problem
+                </a>
+                <a
                   href="#how-it-works"
                   onClick={handleNavClick}
                   className="block py-2 px-3 rounded-lg text-base font-medium text-gray-300 hover:bg-gray-800 transition-colors"
                 >
                   How It Works
-                </a>
-                <a
-                  href="#features"
-                  onClick={handleNavClick}
-                  className="block py-2 px-3 rounded-lg text-base font-medium text-gray-300 hover:bg-gray-800 transition-colors"
-                >
-                  Features
                 </a>
                 <a
                   href="#integrations"
@@ -199,14 +205,15 @@ export function LearnMore() {
 
       {/* Main Content */}
       <main className="relative overflow-x-hidden">
-        <div id="hero">
+        <div id="hero" className="scroll-mt-48">
           <HeroSectionV4 onCTAClick={() => setShowModal(true)} />
         </div>
+        <ProblemSectionV4 />
         <div id="how-it-works">
           <HowItWorksV4 />
         </div>
-        <div id="integrations">
-          <IntegrationsSectionV4 />
+        <div>
+          <IntegrationsSectionV4 onCTAClick={() => setShowModal(true)} />
         </div>
         <div id="faq">
           <FAQSectionV4 />

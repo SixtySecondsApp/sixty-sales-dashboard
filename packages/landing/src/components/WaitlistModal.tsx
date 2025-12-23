@@ -95,8 +95,8 @@ export function WaitlistModal({ isOpen, onClose, initialEmail = '', signupSource
     // Capture the full registration URL (pathname + search params) at submit time
     const registrationUrl = captureRegistrationUrl();
 
-    await signup({ 
-      ...formData, 
+    await signup({
+      ...formData,
       signup_source: signupSource,
       registration_url: registrationUrl
     });
@@ -364,27 +364,6 @@ export function WaitlistModal({ isOpen, onClose, initialEmail = '', signupSource
                   What integrations are important to you?
                 </p>
 
-                {/* Task Manager */}
-                <Select value={formData.task_manager_tool} onValueChange={(value) => handleChange('task_manager_tool', value)} required>
-                  <SelectTrigger className="bg-gray-50 dark:bg-white/5 border-gray-300 dark:border-white/10 text-gray-900 dark:text-white h-11">
-                    <SelectValue placeholder="Which task manager? *" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TASK_MANAGER_OPTIONS.map(option => (
-                      <SelectItem key={option} value={option}>{option}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {formData.task_manager_tool === 'Other' && (
-                  <Input
-                    type="text"
-                    placeholder="Which task manager?"
-                    value={formData.task_manager_other}
-                    onChange={(e) => handleChange('task_manager_other', e.target.value)}
-                    className="bg-gray-50 dark:bg-white/5 border-gray-300 dark:border-white/10 text-gray-900 dark:text-white placeholder:text-gray-500 h-11"
-                  />
-                )}
-
                 {/* Meeting Recorder */}
                 <Select value={formData.meeting_recorder_tool} onValueChange={(value) => handleChange('meeting_recorder_tool', value)} required>
                   <SelectTrigger className="bg-gray-50 dark:bg-white/5 border-gray-300 dark:border-white/10 text-gray-900 dark:text-white h-11">
@@ -423,6 +402,27 @@ export function WaitlistModal({ isOpen, onClose, initialEmail = '', signupSource
                     placeholder="Which CRM?"
                     value={formData.crm_other}
                     onChange={(e) => handleChange('crm_other', e.target.value)}
+                    className="bg-gray-50 dark:bg-white/5 border-gray-300 dark:border-white/10 text-gray-900 dark:text-white placeholder:text-gray-500 h-11"
+                  />
+                )}
+
+                {/* Task Manager */}
+                <Select value={formData.task_manager_tool} onValueChange={(value) => handleChange('task_manager_tool', value)} required>
+                  <SelectTrigger className="bg-gray-50 dark:bg-white/5 border-gray-300 dark:border-white/10 text-gray-900 dark:text-white h-11">
+                    <SelectValue placeholder="Which task manager? *" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TASK_MANAGER_OPTIONS.map(option => (
+                      <SelectItem key={option} value={option}>{option}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {formData.task_manager_tool === 'Other' && (
+                  <Input
+                    type="text"
+                    placeholder="Which task manager?"
+                    value={formData.task_manager_other}
+                    onChange={(e) => handleChange('task_manager_other', e.target.value)}
                     className="bg-gray-50 dark:bg-white/5 border-gray-300 dark:border-white/10 text-gray-900 dark:text-white placeholder:text-gray-500 h-11"
                   />
                 )}

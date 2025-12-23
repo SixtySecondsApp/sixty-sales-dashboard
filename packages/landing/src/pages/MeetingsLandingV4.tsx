@@ -95,7 +95,7 @@ export function MeetingsLandingV4() {
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-8">
               <a href="#how-it-works" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">How It Works</a>
-              <a href="#features" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">Features</a>
+              <a href="#integrations" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">Integrations</a>
               <a href="#faq" className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200">FAQ</a>
             </div>
 
@@ -149,11 +149,11 @@ export function MeetingsLandingV4() {
                   How It Works
                 </a>
                 <a
-                  href="#features"
+                  href="#integrations"
                   onClick={handleNavClick}
                   className="block py-2 px-3 rounded-lg text-base font-medium text-gray-300 hover:bg-gray-800 transition-colors"
                 >
-                  Features
+                  Integrations
                 </a>
                 <a
                   href="#faq"
