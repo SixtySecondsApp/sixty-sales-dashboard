@@ -1,5 +1,5 @@
 {
-  "ignoreBuildStep": "bash ../../scripts/vercel-ignore-landing.sh",
+  "ignoreBuildStep": "bash scripts/vercel-ignore-landing.sh",
   "installCommand": "cd ../.. && npm install",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
