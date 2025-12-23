@@ -79,3 +79,4 @@ If the magic link still doesn't work:
 3. Check if session is being created (look for session in localStorage or Network tab)
 4. Verify waitlist_entry_id is in user metadata after magic link verification
 
+

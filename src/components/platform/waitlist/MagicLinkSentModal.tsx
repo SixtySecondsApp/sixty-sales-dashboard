@@ -129,3 +129,4 @@ export function MagicLinkSentModal({ isOpen, onClose, recipientEmail }: MagicLin
     </>
   );
 }
+

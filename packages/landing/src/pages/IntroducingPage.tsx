@@ -278,7 +278,7 @@ export function IntroducingPage() {
                 />
                 <Button
                   type="submit"
-                  className="h-12 px-6 bg-gradient-to-r from-brand-blue to-brand-violet hover:from-[#2351C4] hover:to-[#7024C0] text-white font-semibold rounded-xl whitespace-nowrap"
+                  className="h-12 px-6 bg-gradient-to-r from-brand-blue to-brand-violet hover:from-[#2351C4] hover:to-[#7024C0] text-white dark:text-white font-semibold rounded-xl whitespace-nowrap"
                 >
                   Get Early Access
                   <ArrowRight className="w-4 h-4 ml-2" />

@@ -6,13 +6,26 @@ import {
   X, Send, FileText, ClipboardList, Zap
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/clientV2';
-import { usePublicBrandingSettings } from '@/lib/hooks/useBrandingSettings';
-import { captureRegistrationUrl } from '@/lib/utils/registrationUrl';
-import { useForceDarkMode } from '@/lib/hooks/useForceDarkMode';
+import { usePublicBrandingSettings } from '../lib/hooks/useBrandingSettings';
+import { captureRegistrationUrl } from '../lib/utils/registrationUrl';
+import { useForceDarkMode } from '../lib/hooks/useForceDarkMode';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  MEETING_RECORDER_OPTIONS,
+  CRM_OPTIONS,
+  TASK_MANAGER_OPTIONS
+} from '../lib/types/waitlist';
 import { WaitlistModal } from '../components/WaitlistModal';
 
 // Types
-interface FormData {
+interface WaitlistFormData {
   full_name: string;
   email: string;
   company_name: string;
@@ -21,9 +34,6 @@ interface FormData {
   task_manager_tool: string;
   task_manager_other: string;
 }
-const MEETING_RECORDER_OPTIONS = ['Fathom', 'Gong', 'Chorus', 'Fireflies', 'Otter.ai', 'None', 'Other'];
-const CRM_OPTIONS = ['Salesforce', 'HubSpot', 'Pipedrive', 'Close', 'Zoho', 'None', 'Other'];
-const TASK_MANAGER_OPTIONS = ['Monday', 'Jira', 'Coda', 'Asana', 'Teams', 'Trello'];
 
 // Validation helpers
 const isValidEmail = (email: string): boolean => {
@@ -46,7 +56,7 @@ export default function EarlyAccessLanding() {
   const { logoDark } = usePublicBrandingSettings();
 
   const [waitlistCount, setWaitlistCount] = useState<number | null>(null);
-  const [formData, setFormData] = useState<FormData>({
+  const [formData, setFormData] = useState<WaitlistFormData>({
     full_name: '',
     email: '',
     company_name: '',
@@ -158,15 +168,15 @@ export default function EarlyAccessLanding() {
       // Capture the full registration URL (pathname + search params)
       // Always capture at submit time to ensure we have the current URL
       // Normalize to remove trailing slashes (e.g., "/waitlist/" -> "/waitlist")
-      const registrationUrl = typeof window !== 'undefined' 
-        ? captureRegistrationUrl() 
+      const registrationUrl = typeof window !== 'undefined'
+        ? captureRegistrationUrl()
         : '/waitlist';
-      
+
       console.log('[Waitlist] Capturing registration URL:', {
         registrationUrl,
         windowLocation: typeof window !== 'undefined' ? window.location.href : 'N/A'
       }); // Debug log
-      
+
       const cleanData = {
         email: formData.email.trim().toLowerCase(),
         full_name: sanitizeName(formData.full_name.trim()) || null,
@@ -178,7 +188,7 @@ export default function EarlyAccessLanding() {
         task_manager_other: formData.task_manager_other?.trim() || null,
         registration_url: registrationUrl || '/waitlist' // Fallback to /waitlist if somehow empty
       };
-      
+
       console.log('[Waitlist] Submitting with registration_url:', cleanData.registration_url); // Debug log
       console.log('[Waitlist] Full cleanData object:', cleanData); // Debug log
       console.log('[Waitlist] registration_url in cleanData:', cleanData.registration_url); // Debug log
@@ -199,17 +209,20 @@ export default function EarlyAccessLanding() {
         if (error.code === '23505' || error.message?.includes('duplicate')) {
           throw new Error('This email is already on the waitlist!');
         }
+        if (error.message?.includes('null value in column "full_name"')) {
+          throw new Error('Please enter your Full Name and Company Name');
+        }
         throw error;
       }
-      
-      console.log('[Waitlist] Insert result:', { 
-        entry, 
+
+      console.log('[Waitlist] Insert result:', {
+        entry,
         error,
         entryRegistrationUrl: entry?.registration_url,
         cleanDataRegistrationUrl: cleanData.registration_url,
         allEntryFields: entry ? Object.keys(entry) : []
       }); // Debug log
-      
+
       // Verify the registration_url was saved
       if (entry) {
         if (entry.registration_url !== cleanData.registration_url) {
@@ -218,7 +231,7 @@ export default function EarlyAccessLanding() {
             received: entry.registration_url,
             entryHasField: 'registration_url' in entry
           });
-          
+
           // If registration_url wasn't saved, try to update it directly
           if (!entry.registration_url && cleanData.registration_url) {
             console.log('[Waitlist] Attempting to update registration_url after insert...');
@@ -226,7 +239,7 @@ export default function EarlyAccessLanding() {
               .from('meetings_waitlist')
               .update({ registration_url: cleanData.registration_url })
               .eq('id', entry.id);
-            
+
             if (updateError) {
               console.error('[Waitlist] Failed to update registration_url:', updateError);
             } else {
@@ -378,9 +391,9 @@ export default function EarlyAccessLanding() {
 
       <main className="relative z-10">
         {/* Hero Section */}
-        <section className="min-h-screen flex items-center pt-24 pb-16">
-          <div className="max-w-7xl mx-auto px-6 w-full">
-            <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+        <section className="lg:min-h-screen flex items-center pt-24 pb-12 lg:pt-24 lg:pb-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 w-full">
+            <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 lg:items-center">
               {/* Left Column - Hero Text (shows second on mobile) */}
               <motion.div
                 className="text-center lg:text-left order-2 lg:order-1"
@@ -490,14 +503,14 @@ export default function EarlyAccessLanding() {
                   <motion.div
                     className="absolute inset-0 rounded-2xl pointer-events-none"
                     animate={{
-                      boxShadow: shouldGlow 
+                      boxShadow: shouldGlow
                         ? [
-                            '0 0 0px rgba(59, 130, 246, 0), 0 0 0px rgba(168, 85, 247, 0)',
-                            '0 0 30px rgba(59, 130, 246, 0.6), 0 0 50px rgba(168, 85, 247, 0.4)',
-                            '0 0 0px rgba(59, 130, 246, 0), 0 0 0px rgba(168, 85, 247, 0)',
-                            '0 0 30px rgba(59, 130, 246, 0.6), 0 0 50px rgba(168, 85, 247, 0.4)',
-                            '0 0 0px rgba(59, 130, 246, 0), 0 0 0px rgba(168, 85, 247, 0)'
-                          ]
+                          '0 0 0px rgba(59, 130, 246, 0), 0 0 0px rgba(168, 85, 247, 0)',
+                          '0 0 30px rgba(59, 130, 246, 0.6), 0 0 50px rgba(168, 85, 247, 0.4)',
+                          '0 0 0px rgba(59, 130, 246, 0), 0 0 0px rgba(168, 85, 247, 0)',
+                          '0 0 30px rgba(59, 130, 246, 0.6), 0 0 50px rgba(168, 85, 247, 0.4)',
+                          '0 0 0px rgba(59, 130, 246, 0), 0 0 0px rgba(168, 85, 247, 0)'
+                        ]
                         : '0 0 0px rgba(59, 130, 246, 0), 0 0 0px rgba(168, 85, 247, 0)',
                     }}
                     transition={{
@@ -506,12 +519,12 @@ export default function EarlyAccessLanding() {
                       ease: "easeInOut",
                     }}
                   />
-                  <div className="relative backdrop-blur-xl bg-white/[0.03] border border-gray-700/50 rounded-2xl p-6 sm:p-8 shadow-2xl transition-colors duration-300">
+                  <div className="relative backdrop-blur-xl bg-white/[0.03] border border-gray-700/50 rounded-2xl p-5 sm:p-8 shadow-2xl transition-colors duration-300">
                     <h2 className="font-heading text-2xl font-bold mb-1 text-white">Get Early Access</h2>
                     <p className="text-gray-400 mb-6">Join the waitlist and save 10+ hours per week</p>
 
                     <form onSubmit={handleSubmit} className="space-y-4" onReset={(e) => e.preventDefault()} noValidate>
-                      <input
+                      <Input
                         key="full_name"
                         type="text"
                         required
@@ -529,9 +542,9 @@ export default function EarlyAccessLanding() {
                           }
                         }}
                         disabled={isSubmitting}
-                        className="w-full px-4 py-3.5 bg-white/5 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all disabled:opacity-50"
+                        className="w-full px-4 py-3.5 bg-white/5 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus-visible:border-brand-blue focus-visible:ring-2 focus-visible:ring-brand-blue/20 outline-none transition-all disabled:opacity-50 h-auto min-h-[46px]"
                       />
-                      <input
+                      <Input
                         key="email"
                         type="email"
                         required
@@ -540,9 +553,9 @@ export default function EarlyAccessLanding() {
                         onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
                         onBlur={handleEmailBlur}
                         disabled={isSubmitting}
-                        className="w-full px-4 py-3.5 bg-white/5 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all disabled:opacity-50"
+                        className="w-full px-4 py-3.5 bg-white/5 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus-visible:border-brand-blue focus-visible:ring-2 focus-visible:ring-brand-blue/20 outline-none transition-all disabled:opacity-50 h-auto min-h-[46px]"
                       />
-                      <input
+                      <Input
                         key="company_name"
                         type="text"
                         required
@@ -560,59 +573,75 @@ export default function EarlyAccessLanding() {
                           }
                         }}
                         disabled={isSubmitting}
-                        className="w-full px-4 py-3.5 bg-white/5 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all disabled:opacity-50"
+                        className="w-full px-4 py-3.5 bg-white/5 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus-visible:border-brand-blue focus-visible:ring-2 focus-visible:ring-brand-blue/20 outline-none transition-all disabled:opacity-50 h-auto min-h-[46px]"
                       />
 
                       <p className="text-xs text-gray-400 pt-2">What integrations are important to you?</p>
 
-                      <select
-                        key="meeting_recorder_tool"
-                        required
+                      <Select
                         value={formData.meeting_recorder_tool}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, meeting_recorder_tool: e.target.value }))}
-                        disabled={isSubmitting}
-                        className="w-full px-4 py-3.5 bg-white/5 border border-gray-700 rounded-xl text-white focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all appearance-none cursor-pointer disabled:opacity-50"
-                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '18px' }}
-                      >
-                        <option value="" disabled className="bg-gray-900">Which meeting recorder? *</option>
-                        {MEETING_RECORDER_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-gray-900">{opt}</option>)}
-                      </select>
-
-                      <select
-                        key="crm_tool"
+                        onValueChange={(value) => setFormData((prev) => ({ ...prev, meeting_recorder_tool: value }))}
                         required
+                      >
+                        <SelectTrigger className="w-full px-4 py-3.5 bg-white/5 border border-gray-700 rounded-xl text-white h-auto min-h-[46px] focus:ring-brand-blue/20">
+                          <SelectValue placeholder="Which meeting recorder? *" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MEETING_RECORDER_OPTIONS.map((opt) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Select
                         value={formData.crm_tool}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, crm_tool: e.target.value }))}
-                        disabled={isSubmitting}
-                        className="w-full px-4 py-3.5 bg-white/5 border border-gray-700 rounded-xl text-white focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all appearance-none cursor-pointer disabled:opacity-50"
-                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '18px' }}
-                      >
-                        <option value="" disabled className="bg-gray-900">Which CRM? *</option>
-                        {CRM_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-gray-900">{opt}</option>)}
-                      </select>
-
-                      <select
-                        key="task_manager_tool"
+                        onValueChange={(value) => setFormData((prev) => ({ ...prev, crm_tool: value }))}
                         required
-                        value={formData.task_manager_tool}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, task_manager_tool: e.target.value, task_manager_other: e.target.value === 'Other' ? prev.task_manager_other : '' }))}
-                        disabled={isSubmitting}
-                        className="w-full px-4 py-3.5 bg-white/5 border border-gray-700 rounded-xl text-white focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all appearance-none cursor-pointer disabled:opacity-50"
-                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '18px' }}
                       >
-                        <option value="" disabled className="bg-gray-900">Which Task Manager? *</option>
-                        {TASK_MANAGER_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-gray-900">{opt}</option>)}
-                      </select>
+                        <SelectTrigger className="w-full px-4 py-3.5 bg-white/5 border border-gray-700 rounded-xl text-white h-auto min-h-[46px] focus:ring-brand-blue/20">
+                          <SelectValue placeholder="Which CRM? *" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CRM_OPTIONS.map((opt) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Select
+                        value={formData.task_manager_tool}
+                        onValueChange={(value) => setFormData((prev) => ({
+                          ...prev,
+                          task_manager_tool: value,
+                          task_manager_other: value === 'Other' ? prev.task_manager_other : ''
+                        }))}
+                        required
+                      >
+                        <SelectTrigger className="w-full px-4 py-3.5 bg-white/5 border border-gray-700 rounded-xl text-white h-auto min-h-[46px] focus:ring-brand-blue/20">
+                          <SelectValue placeholder="Which Task Manager? *" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TASK_MANAGER_OPTIONS.map((opt) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
 
                       {formData.task_manager_tool === 'Other' && (
-                        <input
+                        <Input
                           type="text"
                           required
                           placeholder="Which task manager?"
                           value={formData.task_manager_other}
                           onChange={(e) => setFormData((prev) => ({ ...prev, task_manager_other: e.target.value }))}
                           disabled={isSubmitting}
-                          className="w-full px-4 py-3.5 bg-white/5 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all disabled:opacity-50"
+                          className="w-full px-4 py-3.5 bg-white/5 border border-gray-700 rounded-xl text-white placeholder:text-gray-500 focus-visible:border-brand-blue focus-visible:ring-2 focus-visible:ring-brand-blue/20 outline-none transition-all disabled:opacity-50 h-auto min-h-[46px]"
                         />
                       )}
 

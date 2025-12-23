@@ -45,3 +45,4 @@ If a magic link redirects to the wrong place:
 2. Look for `redirect_to=` parameter in the URL
 3. That's where it will redirect (can't be changed)
 4. Generate a new magic link from the correct environment
+

@@ -22,7 +22,7 @@ export function WaitlistThankYou({ email, fullName, onClose }: WaitlistThankYouP
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
-          className="relative backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-800 rounded-2xl p-8 sm:p-10 shadow-xl text-center"
+          className="relative backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 sm:p-10 shadow-xl text-center"
         >
           {/* Close Button */}
           {onClose && (

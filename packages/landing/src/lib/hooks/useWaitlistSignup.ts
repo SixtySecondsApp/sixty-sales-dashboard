@@ -119,6 +119,10 @@ export function useWaitlistSignup(): UseWaitlistSignupReturn {
       // Check for duplicate email error
       if (errorMessage.includes('duplicate key') || errorMessage.includes('email_key') || errorMessage.includes('already exists')) {
         errorMessage = 'This email is already on the waitlist! Check your inbox for your confirmation.';
+      } else if (errorMessage.includes('null value in column "full_name"')) {
+        errorMessage = 'Please enter your Full Name';
+      } else if (errorMessage.includes('null value in column "company_name"')) {
+        errorMessage = 'Please enter your Company Name';
       }
 
       toast.error(errorMessage, {
