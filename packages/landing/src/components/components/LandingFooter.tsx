@@ -55,7 +55,7 @@ export function Footer() {
           />
 
           {/* Copyright */}
-          <p className="text-gray-500 dark:text-gray-400 text-sm text-center">
+          <p className="font-body text-gray-500 dark:text-gray-400 text-sm text-center">
             © 2025 Sixty Seconds Ltd. All rights reserved. All systems operational.
           </p>
         </div>

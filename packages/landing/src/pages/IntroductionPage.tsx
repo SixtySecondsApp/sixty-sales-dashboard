@@ -215,7 +215,7 @@ export function IntroductionPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.5 }}
-              className="text-gray-400 text-center text-base md:text-lg max-w-2xl mb-8"
+              className="font-body text-gray-400 text-center text-base md:text-lg max-w-2xl mb-8"
             >
               60 is your AI sales assistant looking after the admin you hate.
             </motion.p>
@@ -291,7 +291,7 @@ export function IntroductionPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 1 }}
-              className="text-gray-500 text-sm text-center mt-4"
+              className="font-body text-gray-500 text-sm text-center mt-4"
             >
               No credit card required &bull; 500+ sales leaders on the waitlist
             </motion.p>
