@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Authentication Flow Test</title>
+    <style>
+        body {
+            background: #111;
+            color: #fff;
+            font-family: system-ui;
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #222;
+            border-radius: 8px;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.pass { background: #22c55e; color: #fff; }
+        .status.fail { background: #ef4444; color: #fff; }
+        .status.running { background: #3b82f6; color: #fff; }
+        .status.pending { background: #666; color: #fff; }
+        button {
+            background: #37bd7e;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+        }
+        button:hover {
+            background: #2da76c;
+        }
+        .log {
+            margin-top: 20px;
+            padding: 20px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            background: #2a2a2a;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #333;
+        }
+        th {
+            background: #1a1a1a;
+            font-weight: bold;
+        }
+        .error { color: #ff5555; }
+        .success { color: #37bd7e; }
+        .warning { color: #ffb86c; }
+        .info { color: #8be9fd; }
+    </style>
+</head>
+<body>
+    <h1>🔐 Authentication Flow Test Suite</h1>
+    
+    <div class="test-section">
+        <h2>Test Controls</h2>
+        <button onclick="runAllTests()">🚀 Run All Tests</button>
+        <button onclick="clearResults()">🗑️ Clear Results</button>
+        <button onclick="window.location.reload()">🔄 Reload Page</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <table id="test-results">
+            <thead>
+                <tr>
+                    <th>Test</th>
+                    <th>Status</th>
+                    <th>Details</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody id="results-body">
+            </tbody>
+        </table>
+    </div>
+
+    <div class="test-section">
+        <h2>Session & Profile Data</h2>
+        <div id="session-data"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Log</h2>
+        <div class="log" id="log"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+        
+        const supabaseUrl = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+        
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+        
+        // Test results storage
+        const testResults = [];
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
+            logDiv.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function updateTestResult(testName, status, details) {
+            const resultsBody = document.getElementById('results-body');
+            const existingRow = Array.from(resultsBody.children).find(row => 
+                row.children[0].textContent === testName
+            );
+            
+            const statusHtml = `<span class="status ${status}">${status.toUpperCase()}</span>`;
+            const time = new Date().toLocaleTimeString();
+            
+            if (existingRow) {
+                existingRow.children[1].innerHTML = statusHtml;
+                existingRow.children[2].textContent = details;
+                existingRow.children[3].textContent = time;
+            } else {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${testName}</td>
+                    <td>${statusHtml}</td>
+                    <td>${details}</td>
+                    <td>${time}</td>
+                `;
+                resultsBody.appendChild(row);
+            }
+        }
+        
+        async function testAuthSession() {
+            const testName = '1. Auth Session Check';
+            updateTestResult(testName, 'running', 'Checking session...');
+            log(`Starting test: ${testName}`);
+            
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                
+                if (error) {
+                    updateTestResult(testName, 'fail', `Error: ${error.message}`);
+                    log(`❌ ${testName} failed: ${error.message}`, 'error');
+                    return false;
+                }
+                
+                if (session) {
+                    updateTestResult(testName, 'pass', `Session found for ${session.user.email}`);
+                    log(`✅ ${testName} passed: Session active`, 'success');
+                    
+                    // Display session data
+                    document.getElementById('session-data').innerHTML = `
+                        <h3>Session Details</h3>
+                        <table>
+                            <tr><td><strong>User ID:</strong></td><td>${session.user.id}</td></tr>
+                            <tr><td><strong>Email:</strong></td><td>${session.user.email}</td></tr>
+                            <tr><td><strong>Role:</strong></td><td>${session.user.role}</td></tr>
+                            <tr><td><strong>Last Sign In:</strong></td><td>${new Date(session.user.last_sign_in_at).toLocaleString()}</td></tr>
+                        </table>
+                    `;
+                    return true;
+                } else {
+                    updateTestResult(testName, 'fail', 'No session found');
+                    log(`❌ ${testName} failed: No active session`, 'error');
+                    return false;
+                }
+            } catch (err) {
+                updateTestResult(testName, 'fail', `Exception: ${err.message}`);
+                log(`❌ ${testName} exception: ${err.message}`, 'error');
+                return false;
+            }
+        }
+        
+        async function testProfileByEmail() {
+            const testName = '2. Profile Fetch by Email';
+            updateTestResult(testName, 'running', 'Fetching profile...');
+            log(`Starting test: ${testName}`);
+            
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                
+                if (!session) {
+                    updateTestResult(testName, 'fail', 'No session - cannot test');
+                    log(`⚠️ ${testName} skipped: No session`, 'warning');
+                    return false;
+                }
+                
+                const { data: profile, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('email', session.user.email)
+                    .maybeSingle();
+                
+                if (error) {
+                    updateTestResult(testName, 'fail', `Error: ${error.message}`);
+                    log(`❌ ${testName} failed: ${error.message}`, 'error');
+                    return false;
+                }
+                
+                if (profile) {
+                    updateTestResult(testName, 'pass', `Found: ${profile.first_name} ${profile.last_name}`);
+                    log(`✅ ${testName} passed: Profile found`, 'success');
+                    
+                    // Add profile data to display
+                    document.getElementById('session-data').innerHTML += `
+                        <h3>Profile Details (Email Lookup)</h3>
+                        <table>
+                            <tr><td><strong>Name:</strong></td><td>${profile.first_name} ${profile.last_name}</td></tr>
+                            <tr><td><strong>Email:</strong></td><td>${profile.email}</td></tr>
+                            <tr><td><strong>Stage:</strong></td><td>${profile.stage || 'Not set'}</td></tr>
+                            <tr><td><strong>Admin:</strong></td><td>${profile.is_admin ? 'Yes ✅' : 'No ❌'}</td></tr>
+                            <tr><td><strong>Profile ID:</strong></td><td>${profile.id}</td></tr>
+                        </table>
+                    `;
+                    return true;
+                } else {
+                    updateTestResult(testName, 'fail', 'No profile found');
+                    log(`❌ ${testName} failed: Profile not found`, 'error');
+                    return false;
+                }
+            } catch (err) {
+                updateTestResult(testName, 'fail', `Exception: ${err.message}`);
+                log(`❌ ${testName} exception: ${err.message}`, 'error');
+                return false;
+            }
+        }
+        
+        async function testProfileById() {
+            const testName = '3. Profile Fetch by ID';
+            updateTestResult(testName, 'running', 'Fetching profile...');
+            log(`Starting test: ${testName}`);
+            
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                
+                if (!session) {
+                    updateTestResult(testName, 'fail', 'No session - cannot test');
+                    log(`⚠️ ${testName} skipped: No session`, 'warning');
+                    return false;
+                }
+                
+                const { data: profile, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', session.user.id)
+                    .maybeSingle();
+                
+                if (error) {
+                    updateTestResult(testName, 'fail', `Error: ${error.message}`);
+                    log(`❌ ${testName} failed: ${error.message}`, 'error');
+                    return false;
+                }
+                
+                if (profile) {
+                    updateTestResult(testName, 'pass', `Found: ${profile.first_name} ${profile.last_name}`);
+                    log(`✅ ${testName} passed: Profile found by ID`, 'success');
+                    
+                    // Check if IDs match
+                    if (profile.id !== session.user.id) {
+                        log(`⚠️ Warning: Profile ID (${profile.id}) doesn't match Auth ID (${session.user.id})`, 'warning');
+                    }
+                    
+                    return true;
+                } else {
+                    updateTestResult(testName, 'warning', 'No profile with matching ID');
+                    log(`⚠️ ${testName} warning: No profile with auth user ID`, 'warning');
+                    return false;
+                }
+            } catch (err) {
+                updateTestResult(testName, 'fail', `Exception: ${err.message}`);
+                log(`❌ ${testName} exception: ${err.message}`, 'error');
+                return false;
+            }
+        }
+        
+        async function testRequiredFields() {
+            const testName = '4. Required Fields Check';
+            updateTestResult(testName, 'running', 'Checking fields...');
+            log(`Starting test: ${testName}`);
+            
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                
+                if (!session) {
+                    updateTestResult(testName, 'fail', 'No session - cannot test');
+                    return false;
+                }
+                
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('email', session.user.email)
+                    .maybeSingle();
+                
+                if (!profile) {
+                    updateTestResult(testName, 'fail', 'No profile found');
+                    return false;
+                }
+                
+                const requiredFields = ['id', 'email', 'first_name', 'last_name', 'stage', 'is_admin'];
+                const missingFields = [];
+                
+                for (const field of requiredFields) {
+                    if (profile[field] === null || profile[field] === undefined) {
+                        missingFields.push(field);
+                    }
+                }
+                
+                if (missingFields.length > 0) {
+                    updateTestResult(testName, 'warning', `Missing: ${missingFields.join(', ')}`);
+                    log(`⚠️ ${testName} warning: Missing fields: ${missingFields.join(', ')}`, 'warning');
+                    return false;
+                } else {
+                    updateTestResult(testName, 'pass', 'All required fields present');
+                    log(`✅ ${testName} passed: All fields present`, 'success');
+                    return true;
+                }
+            } catch (err) {
+                updateTestResult(testName, 'fail', `Exception: ${err.message}`);
+                log(`❌ ${testName} exception: ${err.message}`, 'error');
+                return false;
+            }
+        }
+        
+        async function testAdminPrivileges() {
+            const testName = '5. Admin Privileges Check';
+            updateTestResult(testName, 'running', 'Checking admin status...');
+            log(`Starting test: ${testName}`);
+            
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                
+                if (!session) {
+                    updateTestResult(testName, 'fail', 'No session - cannot test');
+                    return false;
+                }
+                
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('email', session.user.email)
+                    .maybeSingle();
+                
+                if (!profile) {
+                    updateTestResult(testName, 'fail', 'No profile found');
+                    return false;
+                }
+                
+                // Special check for known admin users
+                const adminEmails = [
+                    'andrew.bryce@sixtyseconds.video',
+                    'phil@sixtyseconds.video',
+                    'steve.gibson@sixtyseconds.video',
+                    'aandrianantenaina@nextaura.com'
+                ];
+                
+                if (adminEmails.includes(profile.email)) {
+                    if (profile.is_admin) {
+                        updateTestResult(testName, 'pass', 'Admin privileges correct');
+                        log(`✅ ${testName} passed: Admin user has admin privileges`, 'success');
+                        return true;
+                    } else {
+                        updateTestResult(testName, 'fail', 'Admin user missing privileges!');
+                        log(`❌ ${testName} failed: Known admin doesn't have is_admin=true`, 'error');
+                        return false;
+                    }
+                } else {
+                    updateTestResult(testName, 'pass', `Non-admin user (is_admin=${profile.is_admin})`);
+                    log(`✅ ${testName} passed: User admin status checked`, 'success');
+                    return true;
+                }
+            } catch (err) {
+                updateTestResult(testName, 'fail', `Exception: ${err.message}`);
+                log(`❌ ${testName} exception: ${err.message}`, 'error');
+                return false;
+            }
+        }
+        
+        window.runAllTests = async function() {
+            log('🚀 Starting authentication test suite...', 'info');
+            
+            const tests = [
+                testAuthSession,
+                testProfileByEmail,
+                testProfileById,
+                testRequiredFields,
+                testAdminPrivileges
+            ];
+            
+            let passed = 0;
+            let failed = 0;
+            
+            for (const test of tests) {
+                const result = await test();
+                if (result) passed++;
+                else failed++;
+                
+                // Small delay between tests
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            log(`\n📊 Test Summary: ${passed} passed, ${failed} failed`, passed > 0 && failed === 0 ? 'success' : 'warning');
+        }
+        
+        window.clearResults = function() {
+            document.getElementById('results-body').innerHTML = '';
+            document.getElementById('log').innerHTML = '';
+            document.getElementById('session-data').innerHTML = '';
+            log('Results cleared', 'info');
+        }
+        
+        // Auto-run tests on load
+        window.addEventListener('load', () => {
+            log('Test suite loaded. Click "Run All Tests" to begin.', 'info');
+            // Optionally auto-run: runAllTests();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickAdd Direct Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #0f0f23;
+            color: #e2e8f0;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            border-radius: 10px;
+            border: 1px solid #333;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid;
+        }
+        .success { background: #064e3b; border-color: #10b981; }
+        .error { background: #7f1d1d; border-color: #ef4444; }
+        .info { background: #1e3a8a; border-color: #3b82f6; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #2563eb; }
+        iframe {
+            width: 100%;
+            height: 500px;
+            border: 2px solid #374151;
+            border-radius: 8px;
+            background: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 QuickAdd Direct Component Test</h1>
+        <p>This test attempts to directly access and test the QuickAdd component functionality</p>
+        
+        <div>
+            <button onclick="testInIframe()">📱 Test in Frame</button>
+            <button onclick="openInNewTab()">🚀 Open in New Tab</button>
+            <button onclick="testAuthBypass()">🔓 Test Auth Bypass</button>
+        </div>
+
+        <div id="testResults"></div>
+
+        <!-- Attempt to embed the app -->
+        <h2>App Frame Test</h2>
+        <iframe id="appFrame" src="http://localhost:5179"></iframe>
+    </div>
+
+    <script>
+        function addResult(type, message) {
+            const results = document.getElementById('testResults');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}:</strong> ${message}`;
+            results.appendChild(div);
+        }
+
+        function testInIframe() {
+            addResult('info', 'Testing QuickAdd in iframe...');
+            const iframe = document.getElementById('appFrame');
+            iframe.src = 'http://localhost:5179/?dev=true&test=quickadd';
+            
+            iframe.onload = function() {
+                addResult('success', 'Iframe loaded successfully');
+                
+                // Try to access the iframe content
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (iframeDoc) {
+                        addResult('success', 'Can access iframe content');
+                        
+                        // Look for QuickAdd elements
+                        setTimeout(() => {
+                            const quickAddElements = iframeDoc.querySelectorAll('[data-testid*="quick"], [class*="quick"], button[title*="Add"], button[aria-label*="Add"]');
+                            addResult('info', `Found ${quickAddElements.length} potential QuickAdd elements`);
+                            
+                            // Look for specific QuickAdd trigger
+                            const addButtons = Array.from(iframeDoc.querySelectorAll('button')).filter(btn => 
+                                btn.textContent.toLowerCase().includes('add') ||
+                                btn.getAttribute('title')?.toLowerCase().includes('add')
+                            );
+                            addResult('info', `Found ${addButtons.length} add buttons`);
+                            
+                            if (addButtons.length > 0) {
+                                addResult('success', 'QuickAdd elements detected in the page');
+                            }
+                        }, 2000);
+                    }
+                } catch (e) {
+                    addResult('error', 'Cannot access iframe content due to CORS: ' + e.message);
+                }
+            };
+            
+            iframe.onerror = function() {
+                addResult('error', 'Failed to load iframe');
+            };
+        }
+
+        function openInNewTab() {
+            addResult('info', 'Opening app in new tab for manual testing...');
+            const newTab = window.open('http://localhost:5179', '_blank');
+            if (newTab) {
+                addResult('success', 'New tab opened successfully');
+            } else {
+                addResult('error', 'Failed to open new tab - popup blocked?');
+            }
+        }
+
+        function testAuthBypass() {
+            addResult('info', 'Attempting to test authentication bypass...');
+            
+            // Try different bypass parameters
+            const bypassUrls = [
+                'http://localhost:5179/?dev=true',
+                'http://localhost:5179/?bypass=auth',
+                'http://localhost:5179/dashboard?dev=true',
+                'http://localhost:5179/?mock=user',
+                'http://localhost:5179/test',
+                'http://localhost:5179/roadmap' // This has dev bypass according to code
+            ];
+            
+            bypassUrls.forEach((url, index) => {
+                setTimeout(() => {
+                    addResult('info', `Testing URL ${index + 1}: ${url}`);
+                    const testFrame = document.createElement('iframe');
+                    testFrame.src = url;
+                    testFrame.style.display = 'none';
+                    document.body.appendChild(testFrame);
+                    
+                    setTimeout(() => {
+                        try {
+                            const finalUrl = testFrame.contentWindow.location.href;
+                            if (finalUrl.includes('/auth/login')) {
+                                addResult('error', `URL ${index + 1} redirected to login`);
+                            } else if (finalUrl !== url) {
+                                addResult('info', `URL ${index + 1} redirected to: ${finalUrl}`);
+                            } else {
+                                addResult('success', `URL ${index + 1} loaded without redirect`);
+                            }
+                        } catch (e) {
+                            addResult('info', `URL ${index + 1} - Cannot check due to CORS`);
+                        }
+                        document.body.removeChild(testFrame);
+                    }, 3000);
+                }, index * 1000);
+            });
+        }
+
+        // Auto-test on load
+        window.onload = function() {
+            addResult('info', '🚀 Test initialized. The app should load in the iframe below.');
+            setTimeout(() => {
+                testInIframe();
+            }, 1000);
+        };
+    </script>
+</body>
+</html>

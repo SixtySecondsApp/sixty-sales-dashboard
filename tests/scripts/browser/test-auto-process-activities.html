@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Automatic Activity Processing</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        h1, h2 {
+            color: #10B981;
+        }
+        .test-section {
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #10B981;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #059669;
+        }
+        button:disabled {
+            background: #4a4a4a;
+            cursor: not-allowed;
+        }
+        .result {
+            background: #1f2937;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Courier New', monospace;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success {
+            border-left: 4px solid #10B981;
+        }
+        .error {
+            border-left: 4px solid #EF4444;
+        }
+        .warning {
+            border-left: 4px solid #F59E0B;
+        }
+        .info {
+            border-left: 4px solid #3B82F6;
+        }
+        input, select {
+            background: #374151;
+            color: #e0e0e0;
+            border: 1px solid #4B5563;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 5px;
+            min-width: 200px;
+        }
+        label {
+            display: inline-block;
+            width: 150px;
+            margin-right: 10px;
+        }
+        .form-group {
+            margin: 10px 0;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #374151;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #10B981;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #9CA3AF;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Automatic Activity Processing</h1>
+    
+    <div class="test-section">
+        <h2>📋 System Status</h2>
+        <button onclick="checkMigrationStatus()">Check Migration Status</button>
+        <button onclick="checkTriggerStatus()">Check Triggers</button>
+        <button onclick="getProcessingStats()">Get Processing Stats</button>
+        <div id="statusResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>➕ Create Test Activity</h2>
+        <div class="form-group">
+            <label>Activity Type:</label>
+            <select id="activityType">
+                <option value="meeting">Meeting</option>
+                <option value="proposal">Proposal</option>
+                <option value="sale">Sale</option>
+                <option value="demo">Demo</option>
+                <option value="outbound">Outbound (Should NOT process)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Contact Email:</label>
+            <input type="email" id="contactEmail" value="test@example.com" />
+        </div>
+        <div class="form-group">
+            <label>Client Name:</label>
+            <input type="text" id="clientName" value="Test Company" />
+        </div>
+        <div class="form-group">
+            <label>Amount (for sales):</label>
+            <input type="number" id="amount" value="5000" />
+        </div>
+        <button onclick="createTestActivity()">Create Activity & Watch Processing</button>
+        <div id="createResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Monitor Activity Processing</h2>
+        <button onclick="getUnprocessedActivities()">Get Unprocessed Activities</button>
+        <button onclick="getRecentlyProcessed()">Get Recently Processed</button>
+        <button onclick="getLinkedDeals()">Get Activities with Deals</button>
+        <div id="monitorResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Processing Statistics</h2>
+        <div id="stats" class="stats"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔧 Manual Testing</h2>
+        <button onclick="triggerProcessing()">Manually Trigger Processing</button>
+        <button onclick="resetTestData()">Reset Test Data</button>
+        <div id="manualResult" class="result"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+        
+        // Initialize Supabase - you'll need to update these
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // Make functions available globally
+        window.supabase = supabase;
+        
+        window.checkMigrationStatus = async function() {
+            const result = document.getElementById('statusResult');
+            result.innerHTML = 'Checking migration status...';
+            
+            try {
+                // Check if the auto_process_activity function exists
+                const { data: functions, error } = await supabase.rpc('pg_get_functiondef', {
+                    funcname: 'auto_process_activity'
+                }).maybeSingle();
+                
+                if (functions) {
+                    result.className = 'result success';
+                    result.innerHTML = '✅ Migration Applied: auto_process_activity function exists\n\n' +
+                                       'Function is ready to process activities automatically.';
+                } else {
+                    result.className = 'result warning';
+                    result.innerHTML = '⚠️ Migration not yet applied.\n\n' +
+                                       'Please run the migration SQL in Supabase dashboard:\n' +
+                                       'supabase/migrations/20250901_auto_process_activities.sql';
+                }
+            } catch (err) {
+                // Function doesn't exist - check using a different method
+                try {
+                    const { data, error } = await supabase
+                        .from('activities')
+                        .select('is_processed')
+                        .limit(1);
+                    
+                    if (!error) {
+                        result.className = 'result info';
+                        result.innerHTML = 'ℹ️ Cannot directly check function existence.\n' +
+                                          'is_processed column exists, partial migration may be applied.\n' +
+                                          'Check Supabase dashboard for full status.';
+                    } else {
+                        result.className = 'result error';
+                        result.innerHTML = '❌ Error checking status: ' + error.message;
+                    }
+                } catch (e) {
+                    result.className = 'result error';
+                    result.innerHTML = '❌ Error: ' + e.message;
+                }
+            }
+        };
+        
+        window.checkTriggerStatus = async function() {
+            const result = document.getElementById('statusResult');
+            result.innerHTML = 'Checking triggers...';
+            
+            try {
+                // Try to query pg_trigger (may not have permission)
+                const { data, error } = await supabase.rpc('get_triggers_info');
+                
+                if (error) {
+                    // Fallback: create a test activity and see if it gets processed
+                    result.className = 'result info';
+                    result.innerHTML = 'ℹ️ Cannot directly query triggers (permission restricted).\n\n' +
+                                      'Create a test activity to verify automatic processing is working.';
+                } else {
+                    result.className = 'result success';
+                    result.innerHTML = '✅ Triggers found:\n' + JSON.stringify(data, null, 2);
+                }
+            } catch (e) {
+                result.className = 'result info';
+                result.innerHTML = 'ℹ️ Trigger status check not available.\nTest with actual activities.';
+            }
+        };
+        
+        window.createTestActivity = async function() {
+            const result = document.getElementById('createResult');
+            const type = document.getElementById('activityType').value;
+            const email = document.getElementById('contactEmail').value;
+            const clientName = document.getElementById('clientName').value;
+            const amount = document.getElementById('amount').value;
+            
+            result.innerHTML = '🔄 Creating activity and monitoring processing...';
+            result.className = 'result info';
+            
+            try {
+                // Get current user
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                    throw new Error('Not authenticated. Please log in first.');
+                }
+                
+                // Create activity
+                const { data: activity, error } = await supabase
+                    .from('activities')
+                    .insert({
+                        type: type,
+                        contact_identifier: email,
+                        client_name: clientName,
+                        amount: type === 'sale' ? parseFloat(amount) : null,
+                        details: 'Test activity for automatic processing',
+                        date: new Date().toISOString(),
+                        user_id: user.id
+                    })
+                    .select()
+                    .single();
+                
+                if (error) throw error;
+                
+                result.innerHTML = `✅ Activity created with ID: ${activity.id}\n\n`;
+                
+                // Wait a moment for trigger to process
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // Check if it was processed
+                const { data: processed, error: checkError } = await supabase
+                    .from('activities')
+                    .select('*, deals(*)')
+                    .eq('id', activity.id)
+                    .single();
+                
+                if (checkError) throw checkError;
+                
+                if (processed.is_processed) {
+                    result.className = 'result success';
+                    result.innerHTML += '🎉 ACTIVITY AUTOMATICALLY PROCESSED!\n\n' +
+                                       `✅ Processed: ${processed.is_processed}\n` +
+                                       `✅ Deal ID: ${processed.deal_id || 'None'}\n` +
+                                       `✅ Contact ID: ${processed.contact_id || 'None'}\n` +
+                                       `✅ Auto-matched: ${processed.auto_matched}\n`;
+                    
+                    if (processed.deals) {
+                        result.innerHTML += `\n📊 Deal Details:\n` +
+                                          `  Name: ${processed.deals.name}\n` +
+                                          `  Stage: ${processed.deals.stage_id}\n` +
+                                          `  Value: $${processed.deals.value}`;
+                    }
+                } else if (type === 'outbound') {
+                    result.className = 'result success';
+                    result.innerHTML += '✅ Outbound activity correctly NOT processed (as expected)';
+                } else {
+                    result.className = 'result warning';
+                    result.innerHTML += '⚠️ Activity not automatically processed.\n' +
+                                       'Trigger may not be active. Check migration status.';
+                }
+                
+            } catch (e) {
+                result.className = 'result error';
+                result.innerHTML = '❌ Error: ' + e.message;
+            }
+        };
+        
+        window.getUnprocessedActivities = async function() {
+            const result = document.getElementById('monitorResult');
+            result.innerHTML = 'Loading unprocessed activities...';
+            
+            try {
+                const { data, error } = await supabase
+                    .from('activities')
+                    .select('*')
+                    .not('contact_identifier', 'is', null)
+                    .eq('is_processed', false)
+                    .order('created_at', { ascending: false })
+                    .limit(10);
+                
+                if (error) throw error;
+                
+                result.className = 'result info';
+                result.innerHTML = `📋 Unprocessed Activities (${data.length}):\n\n`;
+                
+                data.forEach(a => {
+                    result.innerHTML += `ID: ${a.id}\n` +
+                                       `Type: ${a.type} | Email: ${a.contact_identifier}\n` +
+                                       `Client: ${a.client_name || 'N/A'}\n` +
+                                       `Created: ${new Date(a.created_at).toLocaleString()}\n` +
+                                       `---\n`;
+                });
+                
+                if (data.length === 0) {
+                    result.innerHTML += 'No unprocessed activities found! 🎉';
+                }
+            } catch (e) {
+                result.className = 'result error';
+                result.innerHTML = '❌ Error: ' + e.message;
+            }
+        };
+        
+        window.getRecentlyProcessed = async function() {
+            const result = document.getElementById('monitorResult');
+            result.innerHTML = 'Loading recently processed activities...';
+            
+            try {
+                const { data, error } = await supabase
+                    .from('activities')
+                    .select('*, deals(*)')
+                    .eq('is_processed', true)
+                    .order('updated_at', { ascending: false })
+                    .limit(10);
+                
+                if (error) throw error;
+                
+                result.className = 'result success';
+                result.innerHTML = `✅ Recently Processed Activities (${data.length}):\n\n`;
+                
+                data.forEach(a => {
+                    result.innerHTML += `ID: ${a.id} | Type: ${a.type}\n` +
+                                       `Email: ${a.contact_identifier}\n` +
+                                       `Deal: ${a.deal_id ? '✓ ' + (a.deals?.name || a.deal_id) : '✗'}\n` +
+                                       `Auto-matched: ${a.auto_matched ? '✓' : '✗'}\n` +
+                                       `Processed: ${new Date(a.updated_at).toLocaleString()}\n` +
+                                       `---\n`;
+                });
+            } catch (e) {
+                result.className = 'result error';
+                result.innerHTML = '❌ Error: ' + e.message;
+            }
+        };
+        
+        window.getLinkedDeals = async function() {
+            const result = document.getElementById('monitorResult');
+            result.innerHTML = 'Loading activities with linked deals...';
+            
+            try {
+                const { data, error } = await supabase
+                    .from('deal_activities')
+                    .select('*, activities(*), deals(*)')
+                    .order('created_at', { ascending: false })
+                    .limit(10);
+                
+                if (error) throw error;
+                
+                result.className = 'result success';
+                result.innerHTML = `🔗 Linked Deal-Activities (${data.length}):\n\n`;
+                
+                data.forEach(da => {
+                    result.innerHTML += `Activity: ${da.activities?.type} - ${da.activities?.client_name}\n` +
+                                       `Deal: ${da.deals?.name} (Stage: ${da.deals?.stage_id})\n` +
+                                       `Linked: ${new Date(da.created_at).toLocaleString()}\n` +
+                                       `---\n`;
+                });
+            } catch (e) {
+                result.className = 'result error';
+                result.innerHTML = '❌ Error: ' + e.message;
+            }
+        };
+        
+        window.getProcessingStats = async function() {
+            const statsDiv = document.getElementById('stats');
+            const resultDiv = document.getElementById('statusResult');
+            
+            try {
+                // Get total activities
+                const { count: totalActivities } = await supabase
+                    .from('activities')
+                    .select('*', { count: 'exact', head: true });
+                
+                // Get processed activities
+                const { count: processedActivities } = await supabase
+                    .from('activities')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('is_processed', true);
+                
+                // Get activities with deals
+                const { count: withDeals } = await supabase
+                    .from('activities')
+                    .select('*', { count: 'exact', head: true })
+                    .not('deal_id', 'is', null);
+                
+                // Get activities with emails
+                const { count: withEmails } = await supabase
+                    .from('activities')
+                    .select('*', { count: 'exact', head: true })
+                    .not('contact_identifier', 'is', null);
+                
+                const processedPercent = totalActivities ? 
+                    ((processedActivities / totalActivities) * 100).toFixed(1) : 0;
+                
+                statsDiv.innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-value">${totalActivities || 0}</div>
+                        <div class="stat-label">Total Activities</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${processedActivities || 0}</div>
+                        <div class="stat-label">Processed (${processedPercent}%)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${withDeals || 0}</div>
+                        <div class="stat-label">With Deals</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${withEmails || 0}</div>
+                        <div class="stat-label">With Emails</div>
+                    </div>
+                `;
+                
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = '✅ Stats loaded successfully';
+                
+            } catch (e) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '❌ Error loading stats: ' + e.message;
+            }
+        };
+        
+        window.triggerProcessing = async function() {
+            const result = document.getElementById('manualResult');
+            result.innerHTML = 'Triggering manual processing...';
+            
+            try {
+                // Get unprocessed activities
+                const { data: activities, error } = await supabase
+                    .from('activities')
+                    .select('id')
+                    .not('contact_identifier', 'is', null)
+                    .eq('is_processed', false)
+                    .limit(5);
+                
+                if (error) throw error;
+                
+                if (activities.length === 0) {
+                    result.className = 'result info';
+                    result.innerHTML = 'No activities to process';
+                    return;
+                }
+                
+                // Trigger processing by updating them
+                const ids = activities.map(a => a.id);
+                const { error: updateError } = await supabase
+                    .from('activities')
+                    .update({ updated_at: new Date().toISOString() })
+                    .in('id', ids);
+                
+                if (updateError) throw updateError;
+                
+                result.className = 'result success';
+                result.innerHTML = `✅ Triggered processing for ${activities.length} activities.\n` +
+                                  'Check "Recently Processed" to see results.';
+                
+            } catch (e) {
+                result.className = 'result error';
+                result.innerHTML = '❌ Error: ' + e.message;
+            }
+        };
+        
+        window.resetTestData = async function() {
+            const result = document.getElementById('manualResult');
+            if (!confirm('This will delete test activities. Continue?')) return;
+            
+            try {
+                const { error } = await supabase
+                    .from('activities')
+                    .delete()
+                    .like('details', '%Test activity%');
+                
+                if (error) throw error;
+                
+                result.className = 'result success';
+                result.innerHTML = '✅ Test data cleaned up';
+                
+            } catch (e) {
+                result.className = 'result error';
+                result.innerHTML = '❌ Error: ' + e.message;
+            }
+        };
+        
+        // Load stats on page load
+        window.addEventListener('load', () => {
+            getProcessingStats();
+            checkMigrationStatus();
+        });
+    </script>
+    
+    <div style="margin-top: 40px; padding: 20px; background: #374151; border-radius: 8px;">
+        <h3>📝 Instructions</h3>
+        <ol>
+            <li><strong>First Time Setup:</strong>
+                <ul>
+                    <li>Update SUPABASE_URL and SUPABASE_ANON_KEY in the script</li>
+                    <li>Run the migration SQL in Supabase dashboard</li>
+                    <li>Check "Migration Status" to confirm it's applied</li>
+                </ul>
+            </li>
+            <li><strong>Testing Automatic Processing:</strong>
+                <ul>
+                    <li>Create a test activity with an email</li>
+                    <li>Activity should be automatically processed and linked to a deal</li>
+                    <li>Check stats to see processing rates</li>
+                </ul>
+            </li>
+            <li><strong>Expected Behavior:</strong>
+                <ul>
+                    <li>Meeting activities → Create deal in SQL stage</li>
+                    <li>Proposal activities → Create/move deal to Opportunity stage</li>
+                    <li>Sale activities → Create/move deal to Signed stage</li>
+                    <li>Outbound activities → NOT processed (intentional)</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+</body>
+</html>

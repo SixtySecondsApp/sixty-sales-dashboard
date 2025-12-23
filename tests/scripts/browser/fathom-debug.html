@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fathom Embed Debug Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-zinc-950 text-zinc-100 p-8">
+    <div class="max-w-4xl mx-auto space-y-6">
+      <div>
+        <h1 class="text-3xl font-bold mb-2">🔍 Fathom Embed Debug Tool</h1>
+        <p class="text-zinc-400">Diagnose why Fathom videos aren't loading</p>
+      </div>
+
+      <!-- Test Configuration -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-4">
+        <h2 class="text-xl font-semibold">Test Configuration</h2>
+
+        <div>
+          <label class="block text-sm text-zinc-400 mb-2">Fathom Share URL or ID:</label>
+          <input
+            id="shareUrl"
+            type="text"
+            value="https://fathom.video/share/hQzHeu38iRs4z9jLKXReEYaLrUqqGwxg"
+            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 text-sm font-mono"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm text-zinc-400 mb-2">Timeout (ms):</label>
+          <input
+            id="timeout"
+            type="number"
+            value="6000"
+            class="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 text-sm"
+          />
+        </div>
+
+        <button
+          onclick="runTest()"
+          class="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors"
+        >
+          Run Test
+        </button>
+      </div>
+
+      <!-- Debug Output -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-4">
+        <h2 class="text-xl font-semibold">Debug Output</h2>
+        <div id="debugOutput" class="space-y-2 text-sm font-mono"></div>
+      </div>
+
+      <!-- Iframe Test -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+        <h2 class="text-xl font-semibold mb-4">Iframe Test</h2>
+        <div id="iframeContainer" class="aspect-video bg-black rounded-xl"></div>
+      </div>
+
+      <!-- Browser Checks -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-4">
+        <h2 class="text-xl font-semibold">Browser Environment</h2>
+        <div id="browserInfo" class="space-y-2 text-sm"></div>
+      </div>
+
+      <!-- Recommendations -->
+      <div id="recommendations" class="bg-blue-900/20 border border-blue-800 rounded-2xl p-6 space-y-3" style="display: none;">
+        <h2 class="text-xl font-semibold text-blue-300">💡 Recommendations</h2>
+        <div id="recommendationsList" class="space-y-2 text-sm"></div>
+      </div>
+    </div>
+
+    <script>
+      let testStartTime;
+      let loadSuccess = false;
+
+      function log(message, type = 'info') {
+        const output = document.getElementById('debugOutput');
+        const timestamp = new Date().toLocaleTimeString();
+        const colors = {
+          info: 'text-zinc-300',
+          success: 'text-green-400',
+          error: 'text-red-400',
+          warning: 'text-yellow-400'
+        };
+        const icons = {
+          info: 'ℹ️',
+          success: '✅',
+          error: '❌',
+          warning: '⚠️'
+        };
+
+        const div = document.createElement('div');
+        div.className = colors[type];
+        div.innerHTML = `[${timestamp}] ${icons[type]} ${message}`;
+        output.appendChild(div);
+        output.scrollTop = output.scrollHeight;
+
+        console.log(`[FathomDebug] ${message}`);
+      }
+
+      function extractId(input) {
+        if (!input) return null;
+        try {
+          if (/^https?:\/\//i.test(input)) {
+            const u = new URL(input);
+            const parts = u.pathname.split('/').filter(Boolean);
+            return parts.pop() || null;
+          }
+          return input.trim();
+        } catch {
+          return null;
+        }
+      }
+
+      function checkBrowserEnvironment() {
+        const info = document.getElementById('browserInfo');
+        const checks = [];
+
+        // User Agent
+        checks.push(`User Agent: ${navigator.userAgent}`);
+
+        // Cookies enabled
+        checks.push(`Cookies: ${navigator.cookieEnabled ? '✅ Enabled' : '❌ Disabled'}`);
+
+        // Online status
+        checks.push(`Online: ${navigator.onLine ? '✅ Yes' : '❌ No'}`);
+
+        // Protocol
+        checks.push(`Protocol: ${window.location.protocol}`);
+
+        // File protocol warning
+        if (window.location.protocol === 'file:') {
+          checks.push(`⚠️ WARNING: Using file:// protocol - this may cause CORS issues`);
+        }
+
+        // Check for extensions that might block
+        checks.push(`AdBlocker: Unable to detect (check manually)`);
+
+        info.innerHTML = checks.map(check => `<div>${check}</div>`).join('');
+      }
+
+      async function testDirectFetch(shareId) {
+        log('Testing direct fetch to Fathom embed URL...', 'info');
+        const embedUrl = `https://fathom.video/embed/${shareId}`;
+
+        try {
+          const response = await fetch(embedUrl, { method: 'HEAD' });
+          log(`Direct fetch: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+          return response.ok;
+        } catch (error) {
+          log(`Direct fetch failed: ${error.message}`, 'error');
+          return false;
+        }
+      }
+
+      async function testSharePageFetch(shareId) {
+        log('Testing Fathom share page accessibility...', 'info');
+        const shareUrl = `https://fathom.video/share/${shareId}`;
+
+        try {
+          const response = await fetch(shareUrl, { method: 'HEAD' });
+          log(`Share page: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+          return response.ok;
+        } catch (error) {
+          log(`Share page fetch failed: ${error.message}`, 'error');
+          return false;
+        }
+      }
+
+      function createIframe(shareId, timeoutMs) {
+        const container = document.getElementById('iframeContainer');
+        container.innerHTML = ''; // Clear previous
+
+        const embedUrl = `https://fathom.video/embed/${shareId}`;
+        log(`Creating iframe with URL: ${embedUrl}`, 'info');
+
+        const iframe = document.createElement('iframe');
+        iframe.src = embedUrl;
+        iframe.className = 'w-full h-full rounded-xl';
+        iframe.allow = 'autoplay; clipboard-write; encrypted-media; picture-in-picture; fullscreen';
+        iframe.allowFullscreen = true;
+
+        // Load event
+        iframe.onload = function() {
+          const loadTime = Date.now() - testStartTime;
+          log(`Iframe loaded successfully in ${loadTime}ms`, 'success');
+          loadSuccess = true;
+        };
+
+        // Error event
+        iframe.onerror = function(e) {
+          log(`Iframe error event fired: ${e}`, 'error');
+        };
+
+        container.appendChild(iframe);
+
+        // Timeout check
+        setTimeout(() => {
+          if (!loadSuccess) {
+            log(`Iframe failed to load within ${timeoutMs}ms`, 'error');
+            showRecommendations(shareId);
+          }
+        }, timeoutMs);
+      }
+
+      function showRecommendations(shareId) {
+        const container = document.getElementById('recommendations');
+        const list = document.getElementById('recommendationsList');
+
+        const recommendations = [
+          {
+            title: 'Try opening directly in Fathom',
+            description: 'Click below to test if the video works outside of iframe',
+            action: `<a href="https://fathom.video/share/${shareId}" target="_blank" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg inline-block">Open in Fathom →</a>`
+          },
+          {
+            title: 'Check browser extensions',
+            description: 'Disable ad blockers, privacy extensions, or script blockers temporarily'
+          },
+          {
+            title: 'Try incognito/private mode',
+            description: 'This will disable most extensions and provide a clean environment'
+          },
+          {
+            title: 'Check Content Security Policy',
+            description: 'If running in an app, check your CSP headers allow frame-src from fathom.video'
+          },
+          {
+            title: 'Verify network access',
+            description: 'Check if your network/firewall blocks fathom.video domain'
+          },
+          {
+            title: 'Test with different timeout',
+            description: 'Try increasing the timeout to 10-15 seconds for slow connections'
+          }
+        ];
+
+        list.innerHTML = recommendations.map(rec => `
+          <div class="p-3 bg-zinc-900 rounded-lg">
+            <div class="font-semibold text-blue-300">${rec.title}</div>
+            <div class="text-xs text-zinc-400 mt-1">${rec.description}</div>
+            ${rec.action ? `<div class="mt-2">${rec.action}</div>` : ''}
+          </div>
+        `).join('');
+
+        container.style.display = 'block';
+      }
+
+      async function runTest() {
+        // Reset
+        document.getElementById('debugOutput').innerHTML = '';
+        document.getElementById('recommendations').style.display = 'none';
+        loadSuccess = false;
+        testStartTime = Date.now();
+
+        const shareUrl = document.getElementById('shareUrl').value;
+        const timeoutMs = parseInt(document.getElementById('timeout').value);
+
+        log('Starting Fathom embed diagnostic...', 'info');
+        log(`Share URL: ${shareUrl}`, 'info');
+        log(`Timeout: ${timeoutMs}ms`, 'info');
+
+        // Extract ID
+        const shareId = extractId(shareUrl);
+        if (!shareId) {
+          log('Failed to extract share ID from URL', 'error');
+          return;
+        }
+        log(`Extracted ID: ${shareId}`, 'success');
+
+        // Check browser environment
+        checkBrowserEnvironment();
+
+        // Test direct fetch
+        await testDirectFetch(shareId);
+
+        // Test share page
+        await testSharePageFetch(shareId);
+
+        // Create iframe
+        log('Creating iframe embed...', 'info');
+        createIframe(shareId, timeoutMs);
+      }
+
+      // Run initial browser checks
+      checkBrowserEnvironment();
+
+      // Auto-run test on load
+      setTimeout(() => runTest(), 1000);
+    </script>
+  </body>
+</html>

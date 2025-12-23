@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tool Calling Visualization - Live Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        @keyframes pulse-scale {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(200%); }
+        }
+        
+        @keyframes expand-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
+            70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .animate-spin {
+            animation: spin 2s linear infinite;
+        }
+        
+        .animate-pulse-scale {
+            animation: pulse-scale 1.5s ease-in-out infinite;
+        }
+        
+        .animate-shimmer {
+            animation: shimmer 2s linear infinite;
+        }
+        
+        .animate-expand-pulse {
+            animation: expand-pulse 1.5s ease-in-out infinite;
+        }
+        
+        .animate-slide-up {
+            animation: slideUp 0.3s ease-out forwards;
+        }
+        
+        .animate-slide-in-left {
+            animation: slideInLeft 0.4s ease-out forwards;
+        }
+        
+        .progress-bar-fill {
+            transition: width 0.5s ease-out;
+        }
+    </style>
+</head>
+<body class="p-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="mb-12 text-center">
+            <h1 class="text-5xl font-bold text-white mb-3 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                Tool Calling Visualization
+            </h1>
+            <p class="text-gray-400 text-lg">Watch the beautiful animated progress in real-time</p>
+            <button onclick="startDemoAnimation()" class="mt-6 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl text-white font-semibold shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all hover:scale-105">
+                ▶️ Start Animation Demo
+            </button>
+        </div>
+
+        <!-- Tool Call Container -->
+        <div id="toolCallContainer" class="mb-8" style="display: none;"></div>
+
+        <!-- Chat Messages -->
+        <div class="space-y-6" id="chatMessages">
+            <!-- User Message -->
+            <div class="flex gap-3 justify-end">
+                <div class="bg-blue-500/10 backdrop-blur-sm border border-blue-500/20 rounded-xl px-4 py-3 inline-block max-w-md">
+                    <p class="text-sm text-gray-100">Show me deals that need attention</p>
+                </div>
+                <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                    U
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 0;
+        const totalSteps = 4;
+
+        function startDemoAnimation() {
+            currentStep = 0;
+            const container = document.getElementById('toolCallContainer');
+            container.style.display = 'block';
+            container.innerHTML = createToolCallHTML();
+            
+            // Trigger slide-up animation
+            setTimeout(() => {
+                container.classList.add('animate-slide-up');
+            }, 10);
+
+            // Start step progression
+            setTimeout(() => progressSteps(), 1000);
+        }
+
+        function createToolCallHTML() {
+            return `
+                <div class="bg-gray-900/70 backdrop-blur-xl border border-gray-800/50 rounded-2xl p-5 shadow-xl shadow-black/20 relative overflow-hidden">
+                    <!-- Animated background -->
+                    <div class="absolute inset-0 bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 opacity-5 animate-shimmer"></div>
+                    
+                    <!-- Header -->
+                    <div class="flex items-center gap-4 mb-5 relative z-10">
+                        <div class="w-12 h-12 bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 relative overflow-hidden animate-pulse-scale">
+                            <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer"></div>
+                            <svg class="w-6 h-6 text-white relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                        </div>
+                        
+                        <div class="flex-1">
+                            <div class="text-base font-semibold text-gray-100">Pipeline Analysis</div>
+                            <div id="statusText" class="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
+                                <svg class="w-3.5 h-3.5 text-blue-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>Starting...</span>
+                            </div>
+                        </div>
+
+                        <div id="completeCheckmark" style="display: none;">
+                            <div class="w-10 h-10 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                                <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Steps -->
+                    <div class="space-y-1 mb-4 relative z-10" id="stepsContainer">
+                        ${createStepHTML(0, 'Fetching deals from database', 'database')}
+                        ${createStepHTML(1, 'Calculating health scores', 'activity')}
+                        ${createStepHTML(2, 'Analyzing priorities', 'activity')}
+                        ${createStepHTML(3, 'Generating recommendations', 'activity')}
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="relative z-10" id="progressContainer">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs text-gray-500 font-medium">Progress</span>
+                            <span id="progressPercent" class="text-xs text-gray-400 font-semibold">0%</span>
+                        </div>
+                        <div class="h-1.5 bg-gray-800/80 rounded-full overflow-hidden backdrop-blur-sm">
+                            <div id="progressBar" class="h-full bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 shadow-lg shadow-blue-500/20 relative progress-bar-fill" style="width: 0%">
+                                <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function createStepHTML(index, label, iconType) {
+            const icons = {
+                database: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />',
+                activity: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />'
+            };
+            
+            return `
+                <div class="flex items-start gap-3 relative step-item" data-step="${index}">
+                    ${index < 3 ? '<div class="absolute left-[11px] top-6 w-0.5 h-full bg-gradient-to-b from-gray-700/50 to-transparent"></div>' : ''}
+                    <div class="relative z-10">
+                        <div class="step-icon w-6 h-6 rounded-full flex items-center justify-center bg-gray-700/50 border border-gray-600/50">
+                            <svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                ${icons[iconType]}
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="flex-1 pt-0.5 pb-2">
+                        <div class="step-label text-sm text-gray-500">${label}</div>
+                        <div class="step-metadata" style="display: none;"></div>
+                        <div class="step-duration text-xs text-gray-600 mt-0.5" style="display: none;"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function progressSteps() {
+            for (let i = 0; i < totalSteps; i++) {
+                updateStatus(i);
+                await new Promise(resolve => setTimeout(resolve, 2500)); // 2.5 seconds per step
+                completeStep(i);
+                await new Promise(resolve => setTimeout(resolve, 500)); // 0.5s transition
+            }
+            
+            // Mark complete
+            document.getElementById('statusText').innerHTML = `
+                <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <span class="text-emerald-400">Complete</span>
+            `;
+            document.getElementById('completeCheckmark').style.display = 'block';
+            document.getElementById('progressContainer').style.display = 'none';
+            
+            // Show AI response
+            setTimeout(() => {
+                showAIResponse();
+            }, 1000);
+        }
+
+        function updateStatus(stepIndex) {
+            const statusLabels = ['Starting...', 'Retrieving data...', 'Analyzing...', 'Finalizing...'];
+            document.getElementById('statusText').innerHTML = `
+                <svg class="w-3.5 h-3.5 text-blue-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>${statusLabels[stepIndex]}</span>
+            `;
+
+            // Activate step
+            const stepElement = document.querySelector(`[data-step="${stepIndex}"]`);
+            const iconDiv = stepElement.querySelector('.step-icon');
+            const label = stepElement.querySelector('.step-label');
+            
+            iconDiv.className = 'step-icon w-6 h-6 rounded-full flex items-center justify-center bg-blue-500 shadow-lg shadow-blue-500/30 animate-expand-pulse';
+            iconDiv.innerHTML = `
+                <svg class="w-3.5 h-3.5 text-white animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+            `;
+            label.className = 'step-label text-sm text-gray-100 font-medium';
+
+            // Update progress bar
+            const progress = ((stepIndex + 1) / totalSteps) * 100;
+            document.getElementById('progressBar').style.width = progress + '%';
+            document.getElementById('progressPercent').textContent = Math.round(progress) + '%';
+        }
+
+        function completeStep(stepIndex) {
+            const stepElement = document.querySelector(`[data-step="${stepIndex}"]`);
+            const iconDiv = stepElement.querySelector('.step-icon');
+            const label = stepElement.querySelector('.step-label');
+            const metadata = stepElement.querySelector('.step-metadata');
+            const duration = stepElement.querySelector('.step-duration');
+            
+            iconDiv.className = 'step-icon w-6 h-6 rounded-full flex items-center justify-center bg-emerald-500 shadow-lg shadow-emerald-500/30';
+            iconDiv.innerHTML = `
+                <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+            `;
+            label.className = 'step-label text-sm text-gray-300';
+
+            // Show metadata for first step
+            if (stepIndex === 0) {
+                metadata.style.display = 'block';
+                metadata.className = 'step-metadata text-xs text-emerald-400/80 mt-1 flex items-center gap-1 animate-slide-in-left';
+                metadata.innerHTML = `
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>count: 47 deals</span>
+                `;
+            }
+
+            // Show duration
+            duration.style.display = 'block';
+            const randomDuration = Math.floor(200 + Math.random() * 800);
+            duration.textContent = randomDuration + 'ms';
+        }
+
+        function showAIResponse() {
+            const chatMessages = document.getElementById('chatMessages');
+            const responseHTML = `
+                <div class="flex gap-3 justify-start animate-slide-up">
+                    <div class="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                        </svg>
+                    </div>
+                    <div class="bg-gray-900/60 backdrop-blur-xl border border-gray-800/40 rounded-xl px-5 py-4 shadow-lg max-w-3xl">
+                        <p class="text-sm text-gray-100 leading-relaxed">I've analyzed your pipeline and identified <span class="text-blue-400 font-semibold">5 deals</span> that need immediate attention:</p>
+                        
+                        <div class="mt-4 space-y-3">
+                            <div class="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+                                <div class="flex items-start justify-between mb-2">
+                                    <div>
+                                        <div class="font-semibold text-gray-100">Viiision</div>
+                                        <div class="text-xs text-gray-400">£8,097 • Opportunity Stage</div>
+                                    </div>
+                                    <div class="text-2xl font-bold text-red-400">45</div>
+                                </div>
+                                <div class="text-sm text-red-300">⚠️ Close date passed - follow up immediately!</div>
+                            </div>
+                            
+                            <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
+                                <div class="flex items-start justify-between mb-2">
+                                    <div>
+                                        <div class="font-semibold text-gray-100">Gamebench</div>
+                                        <div class="text-xs text-gray-400">£8,097 • Opportunity Stage</div>
+                                    </div>
+                                    <div class="text-2xl font-bold text-amber-400">72</div>
+                                </div>
+                                <div class="text-sm text-amber-300">📅 Missing expected close date</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 flex gap-2">
+                            <button class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium transition-all hover:shadow-lg hover:shadow-blue-500/30">
+                                Schedule Follow-ups
+                            </button>
+                            <button class="px-4 py-2 bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 text-gray-300 text-sm rounded-lg transition-all">
+                                View All Deals
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            chatMessages.insertAdjacentHTML('beforeend', responseHTML);
+            
+            // Hide tool call container
+            setTimeout(() => {
+                document.getElementById('toolCallContainer').style.display = 'none';
+            }, 500);
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+

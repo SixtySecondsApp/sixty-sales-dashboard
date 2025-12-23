@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fathom Workflow Engine Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8">Fathom Workflow Engine Test</h1>
+        
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Test Payload (Mark Ingram Meeting)</h2>
+            <pre id="payload" class="bg-gray-50 p-4 rounded text-sm overflow-auto max-h-96"></pre>
+        </div>
+
+        <div class="mb-6">
+            <button id="testBtn" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
+                Run Workflow Test
+            </button>
+        </div>
+
+        <div id="results" class="bg-white rounded-lg shadow p-6 hidden">
+            <h2 class="text-xl font-semibold mb-4">Workflow Execution Results</h2>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import the test engine and template
+        import { WorkflowTestEngine } from './src/lib/utils/workflowTestEngine.ts';
+        import { fathomWorkflowTemplate } from './src/lib/workflows/templates/fathomWorkflowTemplate.ts';
+
+        // Real Fathom meeting payload
+        const testPayload = {
+            "meeting_title": "Mark Ingram - Smart4Energy Talent Discussion",
+            "meeting_has_external_invitees": true,
+            "meeting_external_domains": [
+                {
+                    "domain_name": "smart4energytalent.com"
+                }
+            ],
+            "meeting_invitees": [
+                {
+                    "name": "Mark Ingram",
+                    "email": "m.ingram@smart4energytalent.com",
+                    "is_external": true
+                }
+            ],
+            "fathom_user": {
+                "name": "Phil O'Brien",
+                "email": "phil@sixtyseconds.video",
+                "team": "Customer Success"
+            },
+            "transcript": {
+                "plaintext": "00:00:00 - Phil O'Brien (Sixty Seconds)\nHi Mark. Hi Phil, how are you doing?\n00:00:03 - Mark Ingram (smart4energytalent.com)\nYeah, good, you? Yeah, fine thanks, my apologies, I've just had one of those afternoons...\n00:01:25 - Mark Ingram (smart4energytalent.com)\nOh God, right, I've got, so, I've, right, 30 years I've done agency and search firms, I had my own firms, et cetera, I went and got, I've worked for three sort of major, sort of big, massive Shrek energy sector recruitment firms. Yeah, so, spent 25 years doing that, and it'll be seven or eight years on my own doing a couple of search firms. So, I've went and got. I went and got investors. I'm trying to think how I'm going to put this. I went and got the money I needed, and I now want to take on the big guys that I've worked for for decades, right?\n\n[Full conversation about recruitment, AI automation, domain management, and business development - 25+ minutes of detailed discussion about Smart4Energy's technical needs, outreach strategies, and partnership opportunities with Sixty Seconds for scaling their recruitment operations globally]"
+            },
+            "summary": "Mark Ingram discussed his 30-year recruitment experience and new venture Smart4Energy backed by Engage to compete with major energy sector recruitment firms. Key topics: AI automation, mass scale outreach challenges, domain management, CRM integration (Bullhorn vs Loxo), technical stack implementation, and partnership opportunities with Sixty Seconds for protected domain setup and AI-driven candidate matching.",
+            "action_items": [
+                {
+                    "id": "action_001",
+                    "text": "Provide detailed comparison between Cold IQ and AutoMinds for Mark's board meeting",
+                    "assignee": "phil@sixtyseconds.video",
+                    "due_date": new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+                    "priority": "high"
+                },
+                {
+                    "id": "action_002",
+                    "text": "Schedule follow-up meeting to discuss £2,699 tech stack proposal in detail",
+                    "assignee": "phil@sixtyseconds.video", 
+                    "due_date": new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+                    "priority": "medium"
+                },
+                {
+                    "id": "action_003",
+                    "text": "Prepare bespoke AI workflow proposal for candidate-to-job matching automation",
+                    "assignee": "phil@sixtyseconds.video",
+                    "due_date": new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+                    "priority": "medium"
+                }
+            ],
+            "key_topics": ["recruitment automation", "domain management", "AI candidate matching", "CRM integration", "scale outreach", "technical infrastructure"],
+            "next_steps": ["Board meeting Friday with CTO/CMO/COO", "Tech stack decision needed urgently", "Client contracts signing rapidly"],
+            "commercial_details": {
+                "proposed_budget": "£2,699 tech stack + £500 LinkedIn testing",
+                "competitor_analysis": ["Cold IQ", "AutoMinds", "Instantly AI"],
+                "current_systems": ["Bullhorn CRM", "Loxo preference", "Cape Town resourcing centre"]
+            }
+        };
+
+        // Display the payload
+        document.getElementById('payload').textContent = JSON.stringify(testPayload, null, 2);
+
+        // Test button handler
+        document.getElementById('testBtn').addEventListener('click', async () => {
+            const resultsDiv = document.getElementById('results');
+            const resultContent = document.getElementById('resultContent');
+            
+            resultsDiv.classList.remove('hidden');
+            resultContent.innerHTML = '<p class="text-gray-600">Testing workflow...</p>';
+            
+            try {
+                // Store the final state
+                let finalState = null;
+                
+                // Create test engine instance with proper parameters
+                const onStateChange = (state) => {
+                    console.log('State changed:', state);
+                    finalState = state;
+                };
+                
+                const engine = new WorkflowTestEngine(
+                    fathomWorkflowTemplate.nodes,
+                    fathomWorkflowTemplate.edges,
+                    onStateChange
+                );
+                
+                // Start test with custom payload (no need to set separately)
+                await engine.startTestWithCustomPayload(testPayload);
+                
+                // Use the state from the callback
+                const state = finalState;
+                
+                // Display results
+                let html = '<div class="space-y-4">';
+                
+                // Execution summary
+                html += '<div class="border-l-4 border-green-500 pl-4">';
+                html += `<h3 class="font-semibold">Execution Complete</h3>`;
+                html += `<p>Nodes executed: ${state.executionPath.length}</p>`;
+                html += `<p>Status: ${state.status}</p>`;
+                html += '</div>';
+                
+                // Node results
+                html += '<h3 class="font-semibold mt-6 mb-2">Node Execution Details:</h3>';
+                
+                state.nodeStates.forEach((nodeState, nodeId) => {
+                    const node = fathomWorkflowTemplate.nodes.find(n => n.id === nodeId);
+                    html += '<div class="border rounded p-3 mb-2">';
+                    html += `<h4 class="font-medium">${node?.data?.label || nodeId}</h4>`;
+                    html += `<p class="text-sm text-gray-600">Status: ${nodeState.status}</p>`;
+                    if (nodeState.executionTime) {
+                        html += `<p class="text-sm text-gray-600">Execution time: ${nodeState.executionTime}ms</p>`;
+                    }
+                    if (nodeState.outputData) {
+                        html += '<details class="mt-2"><summary class="cursor-pointer text-sm text-blue-600">Output Data</summary>';
+                        html += `<pre class="text-xs bg-gray-50 p-2 rounded mt-1">${JSON.stringify(nodeState.outputData, null, 2)}</pre>`;
+                        html += '</details>';
+                    }
+                    html += '</div>';
+                });
+                
+                // Logs
+                html += '<h3 class="font-semibold mt-6 mb-2">Execution Logs:</h3>';
+                html += '<div class="bg-gray-50 p-3 rounded text-xs space-y-1 max-h-64 overflow-auto">';
+                state.logs.forEach(log => {
+                    const color = log.type === 'error' ? 'text-red-600' : 
+                                  log.type === 'warning' ? 'text-yellow-600' : 
+                                  log.success ? 'text-green-600' : 'text-gray-700';
+                    html += `<div class="${color}">[${log.timestamp}] ${log.nodeLabel}: ${log.message}</div>`;
+                });
+                html += '</div>';
+                
+                html += '</div>';
+                resultContent.innerHTML = html;
+                
+            } catch (error) {
+                resultContent.innerHTML = `<div class="text-red-600">Error: ${error.message}</div>`;
+                console.error('Test error:', error);
+            }
+        });
+    </script>
+</body>
+</html>

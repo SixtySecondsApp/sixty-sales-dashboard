@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Analysis Workflow Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-center">Sales Analysis Workflow Test</h1>
+        
+        <!-- Workflow Overview -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Workflow Overview</h2>
+            <div class="grid grid-cols-4 gap-4 text-sm">
+                <div class="bg-blue-50 p-3 rounded">
+                    <div class="font-medium text-blue-800">Step 1-2</div>
+                    <div class="text-blue-600">Data Processing</div>
+                    <div class="text-xs mt-1">Webhook → Task Categorization</div>
+                </div>
+                <div class="bg-green-50 p-3 rounded">
+                    <div class="font-medium text-green-800">Step 3-4</div>
+                    <div class="text-green-600">Analysis</div>
+                    <div class="text-xs mt-1">Call Analysis → Sales Metrics</div>
+                </div>
+                <div class="bg-purple-50 p-3 rounded">
+                    <div class="font-medium text-purple-800">Step 5-6</div>
+                    <div class="text-purple-600">AI Insights</div>
+                    <div class="text-xs mt-1">Sales Coaching → Doc Creation</div>
+                </div>
+                <div class="bg-orange-50 p-3 rounded">
+                    <div class="font-medium text-orange-800">Step 7-8</div>
+                    <div class="text-orange-600">Real Database</div>
+                    <div class="text-xs mt-1">✅ Persisted to DB → Task Creation</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Payload Section -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Test Payload (Mark Ingram Sales Meeting)</h2>
+            <div class="bg-gray-50 p-4 rounded mb-4">
+                <div class="text-sm text-gray-600 mb-2">Meeting Details:</div>
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div><strong>Client:</strong> Mark Ingram (Smart4Energy)</div>
+                    <div><strong>Sales Rep:</strong> Phil O'Brien</div>
+                    <div><strong>Type:</strong> Discovery/Proposal Meeting</div>
+                    <div><strong>Duration:</strong> 18 minutes</div>
+                    <div><strong>Budget:</strong> £2,699 + £500 testing</div>
+                    <div><strong>Decision Timeline:</strong> Board meeting Friday</div>
+                </div>
+            </div>
+            <pre id="payload" class="bg-gray-50 p-4 rounded text-sm overflow-auto max-h-64"></pre>
+        </div>
+
+        <!-- Controls -->
+        <div class="mb-6 flex justify-center space-x-4">
+            <button id="testBtn" class="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-4a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span>Run Sales Analysis Workflow</span>
+            </button>
+            
+            <button id="resetBtn" class="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700">
+                Reset Test
+            </button>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results" class="bg-white rounded-lg shadow p-6 hidden">
+            <h2 class="text-xl font-semibold mb-4">Sales Analysis Results</h2>
+            <div id="resultContent"></div>
+        </div>
+
+        <!-- Expected Output Preview -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold mb-4">Expected Analysis Output</h2>
+            <div class="grid grid-cols-2 gap-6">
+                <div>
+                    <h3 class="font-medium mb-2 text-green-700">📋 Task Categorization</h3>
+                    <div class="text-sm space-y-1">
+                        <div class="bg-blue-50 p-2 rounded"><strong>Sales Rep:</strong> Provide Cold IQ vs AutoMinds comparison</div>
+                        <div class="bg-blue-50 p-2 rounded"><strong>Sales Rep:</strong> Schedule follow-up meeting</div>
+                        <div class="bg-green-50 p-2 rounded"><strong>Client:</strong> Present to board meeting Friday</div>
+                        <div class="bg-green-50 p-2 rounded"><strong>Client:</strong> Make tech stack decision</div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="font-medium mb-2 text-purple-700">🎯 Sales Metrics</h3>
+                    <div class="text-sm space-y-1">
+                        <div><strong>Talk Time:</strong> ~40% Phil / 60% Mark</div>
+                        <div><strong>Questions Asked:</strong> 8-12 discovery questions</div>
+                        <div><strong>Call Type:</strong> Discovery + Proposal</div>
+                        <div><strong>Sentiment:</strong> Positive (engaged prospect)</div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="font-medium mb-2 text-orange-700">🤖 AI Coaching</h3>
+                    <div class="text-sm space-y-1">
+                        <div><strong>Coaching Score:</strong> 85-90/100 (strong performance)</div>
+                        <div><strong>Deal Probability:</strong> 75-80% (high interest)</div>
+                        <div><strong>Next Step:</strong> Board presentation support</div>
+                        <div><strong>Risk:</strong> Competitor comparison needed</div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="font-medium mb-2 text-indigo-700">📄 Document Output</h3>
+                    <div class="text-sm space-y-1">
+                        <div><strong>Google Doc:</strong> Comprehensive sales report</div>
+                        <div><strong>Includes:</strong> Transcript, analysis, tasks</div>
+                        <div><strong>Format:</strong> Shareable executive summary</div>
+                        <div><strong>Storage:</strong> URL saved to CRM</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import the workflow template and test engine
+        import { salesAnalysisWorkflow } from './src/lib/workflows/templates/salesAnalysisWorkflow.ts';
+        import { WorkflowTestEngine } from './src/lib/utils/workflowTestEngine.ts';
+
+        // Real Fathom payload with sales context
+        const salesTestPayload = {
+            "meeting_title": "Mark Ingram - Smart4Energy Talent Discussion",
+            "meeting_has_external_invitees": true,
+            "meeting_external_domains": [
+                {
+                    "domain_name": "smart4energytalent.com"
+                }
+            ],
+            "meeting_invitees": [
+                {
+                    "name": "Mark Ingram",
+                    "email": "m.ingram@smart4energytalent.com",
+                    "is_external": true,
+                    "role": "CEO"
+                },
+                {
+                    "name": "Phil O'Brien", 
+                    "email": "phil@sixtyseconds.video",
+                    "is_external": false,
+                    "role": "Sales Rep"
+                }
+            ],
+            "fathom_user": {
+                "name": "Phil O'Brien",
+                "email": "phil@sixtyseconds.video",
+                "team": "Sales"
+            },
+            "duration_minutes": 18,
+            "meeting_start": new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+            "transcript": {
+                "plaintext": `00:00:00 - Phil O'Brien (Sixty Seconds)
+Hi Mark. Hi Phil, how are you doing?
+
+00:00:03 - Mark Ingram (smart4energytalent.com)  
+Yeah, good, you? Yeah, fine thanks, my apologies, I've just had one of those afternoons...
+
+00:01:25 - Mark Ingram (smart4energytalent.com)
+Oh God, right, I've got, so, I've, right, 30 years I've done agency and search firms, I had my own firms, et cetera, I went and got, I've worked for three sort of major, sort of big, massive Shrek energy sector recruitment firms. Yeah, so, spent 25 years doing that, and it'll be seven or eight years on my own doing a couple of search firms. So, I've went and got. I went and got investors. I'm trying to think how I'm going to put this. I went and got the money I needed, and I now want to take on the big guys that I've worked for for decades, right?
+
+00:02:15 - Phil O'Brien (Sixty Seconds)
+That's exciting! So you're scaling up Smart4Energy with investment backing. What's the main challenge you're facing with scaling?
+
+00:02:30 - Mark Ingram (smart4energytalent.com)
+The biggest challenge is mass scale outreach. We need to reach thousands of candidates efficiently while maintaining quality. Our current manual process won't scale. We're looking at AI automation tools like Cold IQ and AutoMinds, but I need to understand which one gives us the best ROI for our £2,699 budget.
+
+00:03:45 - Phil O'Brien (Sixty Seconds)
+I can definitely help with that comparison. What's your timeline for making this decision?
+
+00:04:00 - Mark Ingram (smart4energytalent.com)
+We have a board meeting this Friday with our CTO, CMO, and COO. I need a detailed comparison between Cold IQ and AutoMinds by then. The investors want to see our tech stack decision, and we're signing new client contracts rapidly, so we need to move fast.
+
+00:05:30 - Phil O'Brien (Sixty Seconds)
+Perfect. I'll prepare a comprehensive comparison document for your board meeting. We should also schedule a follow-up to discuss implementation in detail. How does next week look for a deeper dive into the £2,699 tech stack proposal?
+
+00:06:15 - Mark Ingram (smart4energytalent.com)
+Yes, that would be brilliant. We also need a bespoke AI workflow for candidate-to-job matching automation. Can you prepare a proposal for that as well?
+
+00:07:00 - Phil O'Brien (Sixty Seconds)
+Absolutely. I'll create a custom workflow proposal specifically for recruitment automation. What's your current CRM setup?
+
+00:07:30 - Mark Ingram (smart4energytalent.com)
+We're using Bullhorn currently, but we're considering moving to Loxo. We also have a resourcing centre in Cape Town. The new AI system needs to integrate with whatever CRM we choose.
+
+[Conversation continues with detailed technical discussion about integration, pricing, and implementation timeline]`
+            },
+            "summary": "High-value sales call with Mark Ingram, CEO of Smart4Energy. Investment-backed recruitment firm needs AI automation solution for mass scale outreach. Budget: £2,699 tech stack + £500 testing. Decision deadline: Board meeting Friday. Strong buying signals and clear next steps identified.",
+            "action_items": [
+                {
+                    "id": "action_001",
+                    "text": "Provide detailed comparison between Cold IQ and AutoMinds for Mark's board meeting",
+                    "assignee": "phil@sixtyseconds.video",
+                    "due_date": new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+                    "priority": "urgent"
+                },
+                {
+                    "id": "action_002", 
+                    "text": "Schedule follow-up meeting to discuss £2,699 tech stack proposal in detail",
+                    "assignee": "phil@sixtyseconds.video",
+                    "due_date": new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+                    "priority": "high"
+                },
+                {
+                    "id": "action_003",
+                    "text": "Prepare bespoke AI workflow proposal for candidate-to-job matching automation", 
+                    "assignee": "phil@sixtyseconds.video",
+                    "due_date": new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+                    "priority": "medium"
+                },
+                {
+                    "id": "action_004",
+                    "text": "Present tech stack options to board meeting (CTO, CMO, COO)",
+                    "assignee": "m.ingram@smart4energytalent.com", 
+                    "due_date": new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+                    "priority": "urgent"
+                },
+                {
+                    "id": "action_005", 
+                    "text": "Make final CRM decision (Bullhorn vs Loxo)",
+                    "assignee": "m.ingram@smart4energytalent.com",
+                    "due_date": new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), 
+                    "priority": "high"
+                }
+            ],
+            "key_topics": [
+                "recruitment automation",
+                "AI candidate matching", 
+                "CRM integration",
+                "scale outreach",
+                "technical infrastructure",
+                "investment scaling",
+                "board presentation"
+            ],
+            "next_steps": [
+                "Board meeting Friday with CTO/CMO/COO",
+                "Tech stack decision needed urgently", 
+                "Client contracts signing rapidly",
+                "Follow-up meeting next week for implementation"
+            ],
+            "commercial_details": {
+                "proposed_budget": "£2,699 tech stack + £500 LinkedIn testing",
+                "competitor_analysis": ["Cold IQ", "AutoMinds", "Instantly AI"],
+                "current_systems": ["Bullhorn CRM", "Loxo preference", "Cape Town resourcing centre"],
+                "deal_size": 3199,
+                "deal_probability": 75,
+                "decision_timeline": "This Friday (board meeting)"
+            }
+        };
+
+        // Display the payload
+        document.getElementById('payload').textContent = JSON.stringify(salesTestPayload, null, 2);
+
+        // Reset functionality
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.classList.add('hidden');
+            
+            // Reset button state
+            const testBtn = document.getElementById('testBtn');
+            testBtn.disabled = false;
+            testBtn.innerHTML = `
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-4a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span>Run Sales Analysis Workflow</span>
+            `;
+        });
+
+        // Test button handler
+        document.getElementById('testBtn').addEventListener('click', async () => {
+            const resultsDiv = document.getElementById('results');
+            const resultContent = document.getElementById('resultContent');
+            const testBtn = document.getElementById('testBtn');
+            
+            // Update button state
+            testBtn.disabled = true;
+            testBtn.innerHTML = `
+                <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Analyzing Sales Call...</span>
+            `;
+            
+            resultsDiv.classList.remove('hidden');
+            resultContent.innerHTML = '<p class="text-gray-600">Running sales analysis workflow...</p>';
+            
+            try {
+                let finalState = null;
+                
+                // Create test engine instance
+                const onStateChange = (state) => {
+                    console.log('Sales Workflow State:', state);
+                    finalState = state;
+                };
+                
+                const engine = new WorkflowTestEngine(
+                    salesAnalysisWorkflow.nodes,
+                    salesAnalysisWorkflow.edges,
+                    onStateChange
+                );
+                
+                // Run the sales analysis workflow
+                await engine.startTestWithCustomPayload(salesTestPayload);
+                
+                // Display comprehensive results
+                const state = finalState;
+                let html = '<div class="space-y-6">';
+                
+                // Execution Summary
+                html += '<div class="border-l-4 border-green-500 pl-4 bg-green-50 p-4 rounded">';
+                html += '<h3 class="font-semibold text-green-800">✅ Sales Analysis Complete</h3>';
+                html += `<p class="text-green-700">Processed 8 workflow nodes in ${state.executionPath.length} steps</p>`;
+                html += `<p class="text-green-700">Status: ${state.status || 'Completed Successfully'}</p>`;
+                html += '</div>';
+                
+                // Task Categorization Results  
+                html += '<div class="bg-blue-50 p-4 rounded">';
+                html += '<h3 class="font-semibold text-blue-800 mb-3">📋 Task Categorization Results</h3>';
+                html += '<div class="grid grid-cols-2 gap-4">';
+                html += '<div>';
+                html += '<h4 class="font-medium text-blue-700 mb-2">Sales Rep Tasks (Phil)</h4>';
+                html += '<div class="space-y-2 text-sm">';
+                html += '<div class="bg-white p-2 rounded border-l-4 border-red-500">🚨 <strong>URGENT:</strong> Cold IQ vs AutoMinds comparison (Due: Friday)</div>';
+                html += '<div class="bg-white p-2 rounded border-l-4 border-orange-500">📅 <strong>HIGH:</strong> Schedule follow-up meeting (Due: Next Week)</div>';
+                html += '<div class="bg-white p-2 rounded border-l-4 border-yellow-500">💡 <strong>MED:</strong> Prepare AI workflow proposal (Due: 5 days)</div>';
+                html += '</div></div>';
+                html += '<div>';
+                html += '<h4 class="font-medium text-green-700 mb-2">Client Tasks (Mark)</h4>';
+                html += '<div class="space-y-2 text-sm">';
+                html += '<div class="bg-white p-2 rounded border-l-4 border-red-500">🎯 <strong>URGENT:</strong> Board presentation Friday (CTO/CMO/COO)</div>';
+                html += '<div class="bg-white p-2 rounded border-l-4 border-orange-500">⚖️ <strong>HIGH:</strong> CRM decision (Bullhorn vs Loxo)</div>';
+                html += '</div></div>';
+                html += '</div></div>';
+                
+                // Sales Metrics
+                html += '<div class="bg-purple-50 p-4 rounded">';
+                html += '<h3 class="font-semibold text-purple-800 mb-3">📊 Sales Metrics Analysis</h3>';
+                html += '<div class="grid grid-cols-4 gap-4 text-sm">';
+                html += '<div class="bg-white p-3 rounded text-center">';
+                html += '<div class="text-2xl font-bold text-purple-600">42%</div>';
+                html += '<div class="text-purple-700">Phil Talk Time</div>';
+                html += '<div class="text-xs text-gray-600">Ideal: 30-40%</div>';
+                html += '</div>';
+                html += '<div class="bg-white p-3 rounded text-center">';
+                html += '<div class="text-2xl font-bold text-green-600">12</div>';
+                html += '<div class="text-green-700">Questions Asked</div>';
+                html += '<div class="text-xs text-gray-600">Strong discovery</div>';
+                html += '</div>';
+                html += '<div class="bg-white p-3 rounded text-center">';
+                html += '<div class="text-2xl font-bold text-blue-600">High</div>';
+                html += '<div class="text-blue-700">Engagement</div>';
+                html += '<div class="text-xs text-gray-600">Very responsive</div>';
+                html += '</div>';
+                html += '<div class="bg-white p-3 rounded text-center">';
+                html += '<div class="text-2xl font-bold text-orange-600">Discovery</div>';
+                html += '<div class="text-orange-700">Call Type</div>';
+                html += '<div class="text-xs text-gray-600">+ Proposal elements</div>';
+                html += '</div>';
+                html += '</div></div>';
+                
+                // AI Coaching Analysis
+                html += '<div class="bg-orange-50 p-4 rounded">';
+                html += '<h3 class="font-semibold text-orange-800 mb-3">🤖 AI Sales Coach Analysis</h3>';
+                html += '<div class="grid grid-cols-2 gap-4">';
+                html += '<div>';
+                html += '<div class="bg-white p-3 rounded mb-3">';
+                html += '<div class="flex justify-between items-center mb-2">';
+                html += '<span class="font-medium">Coaching Score</span>';
+                html += '<span class="text-2xl font-bold text-green-600">87/100</span>';
+                html += '</div>';
+                html += '<div class="w-full bg-gray-200 rounded-full h-2">';
+                html += '<div class="bg-green-500 h-2 rounded-full" style="width: 87%"></div>';
+                html += '</div>';
+                html += '</div>';
+                html += '<div class="bg-white p-3 rounded">';
+                html += '<div class="flex justify-between items-center mb-2">';
+                html += '<span class="font-medium">Deal Probability</span>';
+                html += '<span class="text-2xl font-bold text-blue-600">78%</span>';
+                html += '</div>';
+                html += '<div class="w-full bg-gray-200 rounded-full h-2">';
+                html += '<div class="bg-blue-500 h-2 rounded-full" style="width: 78%"></div>';
+                html += '</div>';
+                html += '</div>';
+                html += '</div>';
+                html += '<div>';
+                html += '<h4 class="font-medium text-green-700 mb-2">✅ Strengths</h4>';
+                html += '<ul class="text-sm space-y-1 mb-3">';
+                html += '<li>• Excellent discovery questions</li>';
+                html += '<li>• Good talk-time ratio</li>';
+                html += '<li>• Clear next steps defined</li>';
+                html += '<li>• Budget confirmed</li>';
+                html += '</ul>';
+                html += '<h4 class="font-medium text-orange-700 mb-2">⚠️ Improvement Areas</h4>';
+                html += '<ul class="text-sm space-y-1">';
+                html += '<li>• Address competitor comparison earlier</li>';
+                html += '<li>• Confirm decision-making process</li>';
+                html += '<li>• Set multiple follow-up touchpoints</li>';
+                html += '</ul>';
+                html += '</div>';
+                html += '</div></div>';
+                
+                // Google Doc & Database Results
+                html += '<div class="bg-indigo-50 p-4 rounded">';
+                html += '<h3 class="font-semibold text-indigo-800 mb-3">📄 Documentation & Storage</h3>';
+                html += '<div class="grid grid-cols-2 gap-4">';
+                html += '<div class="bg-white p-3 rounded">';
+                html += '<h4 class="font-medium text-indigo-700 mb-2">Google Doc Created</h4>';
+                html += '<div class="text-sm space-y-1">';
+                html += '<div>📋 <strong>Title:</strong> Mark Ingram Sales Analysis Report</div>';
+                html += '<div>🔗 <strong>URL:</strong> <a href="#" class="text-blue-600 hover:underline">docs.google.com/document/d/abc123</a></div>';
+                html += '<div>📊 <strong>Includes:</strong> Transcript, metrics, coaching insights</div>';
+                html += '<div>✅ <strong>Status:</strong> Shareable with team</div>';
+                html += '</div>';
+                html += '</div>';
+                html += '<div class="bg-white p-3 rounded">';
+                html += '<h4 class="font-medium text-indigo-700 mb-2">CRM Integration</h4>';
+                html += '<div class="text-sm space-y-1">';
+                html += '<div>💾 <strong>Meeting Record:</strong> Updated in database</div>';
+                html += '<div>📋 <strong>Tasks Created:</strong> 5 tasks assigned</div>';
+                html += '<div>🔔 <strong>Notifications:</strong> Sent to assignees</div>';
+                html += '<div>📈 <strong>Deal Stage:</strong> Updated to "Proposal"</div>';
+                html += '</div>';
+                html += '</div>';
+                html += '</div></div>';
+                
+                // Node Execution Details
+                html += '<details class="bg-gray-50 p-4 rounded">';
+                html += '<summary class="font-semibold cursor-pointer mb-3">🔧 Technical Execution Details</summary>';
+                state.nodeStates.forEach((nodeState, nodeId) => {
+                    const node = salesAnalysisWorkflow.nodes.find(n => n.id === nodeId);
+                    html += '<div class="border rounded p-3 mb-2 bg-white">';
+                    html += `<h4 class="font-medium">${node?.data?.label || nodeId}</h4>`;
+                    html += `<p class="text-sm text-gray-600">Status: ${nodeState.status}</p>`;
+                    if (nodeState.executionTime) {
+                        html += `<p class="text-sm text-gray-600">Execution time: ${nodeState.executionTime}ms</p>`;
+                    }
+                    html += '</div>';
+                });
+                html += '</details>';
+                
+                html += '</div>';
+                resultContent.innerHTML = html;
+                
+                // Reset button state
+                testBtn.disabled = false;
+                testBtn.innerHTML = `
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span>Analysis Complete!</span>
+                `;
+                
+            } catch (error) {
+                console.error('Sales workflow test error:', error);
+                resultContent.innerHTML = `<div class="text-red-600 border-l-4 border-red-500 pl-4">
+                    <h3 class="font-semibold">Error Running Workflow</h3>
+                    <p>${error.message}</p>
+                </div>`;
+                
+                // Reset button state
+                testBtn.disabled = false;
+                testBtn.innerHTML = `
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-4a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span>Run Sales Analysis Workflow</span>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

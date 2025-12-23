@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Token Debug Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8">Google Token Debug Test</h1>
+        
+        <div id="authStatus" class="bg-yellow-100 border border-yellow-400 rounded-lg p-4 mb-6">
+            <p class="text-yellow-800">Checking authentication...</p>
+        </div>
+        
+        <div id="testSection" class="bg-white rounded-lg shadow p-6 mb-6 hidden">
+            <h2 class="text-xl font-semibold mb-4">Check Google Integration</h2>
+            
+            <button id="checkTokenBtn" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 mr-4">
+                Check Google Token
+            </button>
+            
+            <button id="listIntegrationsBtn" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700">
+                List Integrations
+            </button>
+        </div>
+        
+        <div id="loginSection" class="bg-white rounded-lg shadow p-6 mb-6 hidden">
+            <h2 class="text-xl font-semibold mb-4">Please Sign In</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Email</label>
+                    <input type="email" id="loginEmail" value="andrew.bryce@sixtyseconds.video" 
+                           class="w-full border rounded px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Password</label>
+                    <input type="password" id="loginPassword" 
+                           class="w-full border rounded px-3 py-2">
+                </div>
+                <button id="loginBtn" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700">
+                    Sign In
+                </button>
+            </div>
+        </div>
+
+        <div id="results" class="bg-white rounded-lg shadow p-6 hidden">
+            <h2 class="text-xl font-semibold mb-4">Results</h2>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Initialize Supabase client
+        const supabaseUrl = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+        
+        const { createClient } = supabase;
+        const supabaseClient = createClient(supabaseUrl, supabaseKey);
+
+        // Check authentication on load
+        async function checkAuth() {
+            const { data: { user }, error } = await supabaseClient.auth.getUser();
+            
+            const authStatus = document.getElementById('authStatus');
+            const testSection = document.getElementById('testSection');
+            const loginSection = document.getElementById('loginSection');
+            
+            if (user) {
+                authStatus.innerHTML = `<p class="text-green-800">✅ Authenticated as: ${user.email}</p>`;
+                authStatus.className = 'bg-green-100 border border-green-400 rounded-lg p-4 mb-6';
+                testSection.classList.remove('hidden');
+                loginSection.classList.add('hidden');
+            } else {
+                authStatus.innerHTML = `<p class="text-red-800">❌ Not authenticated</p>`;
+                authStatus.className = 'bg-red-100 border border-red-400 rounded-lg p-4 mb-6';
+                testSection.classList.add('hidden');
+                loginSection.classList.remove('hidden');
+            }
+        }
+
+        // Call checkAuth on load
+        checkAuth();
+
+        // Login functionality
+        document.getElementById('loginBtn').addEventListener('click', async () => {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            if (!email || !password) {
+                alert('Please enter both email and password');
+                return;
+            }
+            
+            try {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+                
+                if (error) {
+                    alert(`Login failed: ${error.message}`);
+                } else {
+                    await checkAuth(); // Refresh auth status
+                }
+            } catch (error) {
+                alert(`Login error: ${error.message}`);
+            }
+        });
+
+        function showResults(html) {
+            const resultsDiv = document.getElementById('results');
+            const resultContent = document.getElementById('resultContent');
+            resultsDiv.classList.remove('hidden');
+            resultContent.innerHTML = html;
+        }
+
+        document.getElementById('checkTokenBtn').addEventListener('click', async () => {
+            showResults('<p class="text-gray-600">Checking Google token...</p>');
+            
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+                
+                if (userError || !user) {
+                    throw new Error('Not authenticated');
+                }
+
+                console.log('Current user:', user.id);
+
+                // Try to get token using the RPC function
+                const { data: tokenData, error: tokenError } = await supabaseClient
+                    .rpc('get_google_access_token', { p_user_id: user.id });
+
+                console.log('Token RPC result:', { tokenData, tokenError });
+
+                let html = '<div class="space-y-4">';
+                html += `<p><strong>User ID:</strong> ${user.id}</p>`;
+                
+                if (tokenError) {
+                    html += `<div class="text-red-600"><strong>Token Error:</strong> ${JSON.stringify(tokenError, null, 2)}</div>`;
+                } else if (tokenData) {
+                    html += `<div class="text-green-600"><strong>Token Found:</strong> ${tokenData.substring(0, 20)}...</div>`;
+                    html += `<div><strong>Token Length:</strong> ${tokenData.length}</div>`;
+                } else {
+                    html += '<div class="text-yellow-600"><strong>No Token Found</strong></div>';
+                }
+                
+                html += '</div>';
+                showResults(html);
+                
+            } catch (error) {
+                console.error('Token check error:', error);
+                showResults(`<div class="text-red-600">Error: ${error.message}</div>`);
+            }
+        });
+
+        document.getElementById('listIntegrationsBtn').addEventListener('click', async () => {
+            showResults('<p class="text-gray-600">Listing Google integrations...</p>');
+            
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+                
+                if (userError || !user) {
+                    throw new Error('Not authenticated');
+                }
+
+                // Query google_integrations table directly
+                const { data: integrations, error: integrationsError } = await supabaseClient
+                    .from('google_integrations')
+                    .select('*')
+                    .eq('user_id', user.id);
+
+                console.log('Integrations result:', { integrations, integrationsError });
+
+                let html = '<div class="space-y-4">';
+                html += `<p><strong>User ID:</strong> ${user.id}</p>`;
+                
+                if (integrationsError) {
+                    html += `<div class="text-red-600"><strong>Query Error:</strong> ${JSON.stringify(integrationsError, null, 2)}</div>`;
+                } else if (integrations && integrations.length > 0) {
+                    html += '<div class="text-green-600"><strong>Integrations Found:</strong></div>';
+                    integrations.forEach((integration, index) => {
+                        html += `<div class="border p-3 rounded">`;
+                        html += `<p><strong>Integration ${index + 1}:</strong></p>`;
+                        html += `<p>Active: ${integration.is_active}</p>`;
+                        html += `<p>Access Token: ${integration.access_token ? integration.access_token.substring(0, 20) + '...' : 'None'}</p>`;
+                        html += `<p>Created: ${integration.created_at}</p>`;
+                        html += '</div>';
+                    });
+                } else {
+                    html += '<div class="text-yellow-600"><strong>No Integrations Found</strong></div>';
+                }
+                
+                html += '</div>';
+                showResults(html);
+                
+            } catch (error) {
+                console.error('Integrations check error:', error);
+                showResults(`<div class="text-red-600">Error: ${error.message}</div>`);
+            }
+        });
+    </script>
+</body>
+</html>
