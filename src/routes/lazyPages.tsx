@@ -15,6 +15,7 @@ export const LaunchChecklist = lazyWithRetry(() => import('@/pages/platform/Laun
 export const ActivationDashboard = lazyWithRetry(() => import('@/pages/platform/ActivationDashboard'));
 export const PlatformDashboard = lazyWithRetry(() => import('@/pages/platform/PlatformDashboard'));
 export const IntegrationRoadmap = lazyWithRetry(() => import('@/pages/platform/IntegrationRoadmap'));
+export const VSLAnalytics = lazyWithRetry(() => import('@/pages/platform/VSLAnalytics'));
 
 // Admin Configuration
 export const Users = lazyWithRetry(() => import('@/pages/admin/Users'));
