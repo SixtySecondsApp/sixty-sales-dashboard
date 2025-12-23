@@ -4,13 +4,33 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { matchOrCreateCompany } from '../_shared/companyMatching.ts'
 import { selectPrimaryContact, determineMeetingCompany } from '../_shared/primaryContactSelection.ts'
-import { analyzeTranscriptWithClaude, deduplicateActionItems, type TranscriptAnalysis } from './aiAnalysis.ts'
-import { fetchTranscriptFromFathom, fetchSummaryFromFathom } from '../_shared/fathomTranscript.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+// Import refactored services
+import {
+  // Owner Resolution
+  resolveMeetingOwner,
+  // Participants
+  processParticipants,
+  extractAndTruncateSummary,
+  // Action Items
+  processActionItems,
+  // Helpers
+  buildEmbedUrl,
+  normalizeInviteesType,
+  calculateTranscriptFetchCooldownMinutes,
+  generatePlaceholderThumbnail,
+  retryWithBackoff,
+  corsHeaders,
+  getDefaultDateRange,
+  // Meeting Upsert
+  getExistingThumbnail,
+  upsertMeeting,
+  seedOrgCallTypesIfNeeded,
+  enqueueTranscriptRetry,
+  // Transcript Processing
+  condenseMeetingSummary,
+  autoFetchTranscriptAndAnalyze,
+} from './services/index.ts'
 
 // Helper for logging sync operations to integration_sync_logs table
 async function logSyncOperation(
@@ -273,37 +293,7 @@ function enforceFreeTierDateLimit(
   return { startDate: requestedStartDate, upgradeRequired: false }
 }
 
-/**
- * Helper: Extract share token and build a stable embed URL
- */
-function buildEmbedUrl(shareUrl?: string, recordingId?: string | number): string | null {
-  try {
-    if (recordingId) {
-      return `https://app.fathom.video/recording/${recordingId}`
-    }
-    if (!shareUrl) return null
-    const u = new URL(shareUrl)
-    const parts = u.pathname.split('/').filter(Boolean)
-    const token = parts.pop()
-    if (!token) return null
-    return `https://fathom.video/embed/${token}`
-  } catch {
-    return null
-  }
-}
-
-/**
- * Normalize calendar_invitees_type to allowed values for DB check constraint.
- * Only 'all_internal' or 'one_or_more_external' are permitted; everything else becomes null.
- */
-function normalizeInviteesType(rawType: unknown): 'all_internal' | 'one_or_more_external' | null {
-  if (!rawType || typeof rawType !== 'string') return null
-  const value = rawType.toLowerCase().replace('-', '_').trim()
-  if (value === 'all_internal') return 'all_internal'
-  if (value === 'one_or_more_external') return 'one_or_more_external'
-  return null
-}
-
+// buildEmbedUrl and normalizeInviteesType are now imported from ./services/helpers.ts
 
 /**
  * Helper: Generate video thumbnail by calling the thumbnail generation service
@@ -1237,40 +1227,7 @@ serve(async (req) => {
   }
 })
 
-/**
- * Retry helper with exponential backoff
- */
-async function retryWithBackoff<T>(
-  fn: () => Promise<T>,
-  maxRetries: number = 3,
-  initialDelayMs: number = 1000
-): Promise<T> {
-  let lastError: Error | undefined
-
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      return await fn()
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error))
-
-      // Don't retry on authentication errors (401, 403)
-      if (lastError.message.includes('401') || lastError.message.includes('403')) {
-        throw lastError
-      }
-
-      // If this is the last attempt, throw the error
-      if (attempt === maxRetries - 1) {
-        throw lastError
-      }
-
-      // Calculate backoff delay with jitter
-      const delay = initialDelayMs * Math.pow(2, attempt) + Math.random() * 1000
-      await new Promise(resolve => setTimeout(resolve, delay))
-    }
-  }
-
-  throw lastError
-}
+// retryWithBackoff is now imported from ./services/helpers.ts
 
 /**
  * Response type for paginated Fathom API calls
@@ -1401,356 +1358,12 @@ async function fetchFathomCalls(
   })
 }
 
-/**
- * Condense meeting summary into one-liners using Claude Haiku 4.5
- */
-async function condenseMeetingSummary(
-  supabase: any,
-  meetingId: string,
-  summary: string,
-  title: string
-): Promise<void> {
-  try {
-    const functionUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/condense-meeting-summary`
+// condenseMeetingSummary is now imported from ./services/transcriptService.ts
+// calculateTranscriptFetchCooldownMinutes is now imported from ./services/helpers.ts
+// autoFetchTranscriptAndAnalyze is now imported from ./services/transcriptService.ts
 
-    const response = await fetch(functionUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        summary,
-        meetingTitle: title,
-      }),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      return // Non-fatal error - continue without condensed summaries
-    }
-
-    const data = await response.json()
-
-    if (data.success && data.meeting_about && data.next_steps) {
-      // Update meeting with condensed summaries
-      await supabase
-        .from('meetings')
-        .update({
-          summary_oneliner: data.meeting_about,
-          next_steps_oneliner: data.next_steps,
-        })
-        .eq('id', meetingId)
-    } else {
-    }
-  } catch (error) {
-    // Non-fatal - don't throw, allow meeting sync to continue
-  }
-}
-
-/**
- * Helper: dynamic cooldown for transcript fetch attempts
- * Gradually increases the wait between attempts to avoid hammering Fathom API
- */
-function calculateTranscriptFetchCooldownMinutes(attempts: number | null | undefined): number {
-  const count = attempts ?? 0
-
-  if (count >= 24) return 720 // 12 hours after many attempts
-  if (count >= 12) return 180 // 3 hours after a dozen attempts
-  if (count >= 6) return 60 // 1 hour after repeated attempts
-  if (count >= 3) return 15 // 15 minutes after a few retries
-
-  return 5 // default: retry after 5 minutes
-}
-
-/**
- * Auto-fetch transcript and summary, then analyze with Claude AI
- * Includes smart retry logic for Fathom's async processing
- */
-async function autoFetchTranscriptAndAnalyze(
-  supabase: any,
-  userId: string,
-  integration: any,
-  meeting: any,
-  call: any
-): Promise<void> {
-  try {
-    // Get recording ID from multiple possible sources
-    const recordingId = call.recording_id || call.id || meeting.fathom_recording_id
-    
-    // If no recording ID available, cannot fetch transcript
-    if (!recordingId) {
-      console.log(`⚠️  No recording ID available for meeting ${meeting.id} - skipping transcript fetch`)
-      return
-    }
-
-    // Track retry attempts with adaptive backoff to avoid hammering the API
-    const fetchAttempts = meeting.transcript_fetch_attempts || 0
-    const cooldownMinutes = calculateTranscriptFetchCooldownMinutes(fetchAttempts)
-
-    // Check if we already have transcript AND AI analysis completed
-    // This prevents cooldown from blocking AI analysis on existing transcripts
-    if (meeting.transcript_text) {
-      // Check if AI analysis has already been completed (has sentiment_score or talk_time data)
-      const hasAIAnalysis = meeting.sentiment_score !== null || meeting.talk_time_rep_pct !== null
-      
-      // Check if action items exist for this meeting
-      const { data: existingActionItems, error: aiCheckError } = await supabase
-        .from('meeting_action_items')
-        .select('id')
-        .eq('meeting_id', meeting.id)
-        .limit(1)
-
-      if (aiCheckError) {
-        console.warn(`⚠️  Error checking action items for meeting ${meeting.id}:`, aiCheckError.message)
-      }
-
-      // If we have both AI analysis AND action items, skip processing
-      if (hasAIAnalysis && existingActionItems && existingActionItems.length > 0) {
-        console.log(`✅ Meeting ${meeting.id} already has AI analysis and action items - skipping`)
-        return
-      }
-      
-      // If we have transcript but missing AI analysis, continue to run analysis
-      if (!hasAIAnalysis) {
-        console.log(`🤖 Meeting ${meeting.id} has transcript but missing AI analysis - will run analysis`)
-        // Continue to AI analysis using existing transcript
-        // NOTE: Cooldown does NOT apply here - we're just running AI on existing transcript
-      }
-    }
-
-    // Check last attempt time - wait at least 5 minutes between attempts
-    // IMPORTANT: Only applies when we need to FETCH a new transcript
-    // BUT: Always attempt fetch if transcript is missing, even if cooldown hasn't passed
-    // This ensures transcripts are eventually fetched
-    if (!meeting.transcript_text && meeting.last_transcript_fetch_at) {
-      const lastAttempt = new Date(meeting.last_transcript_fetch_at)
-      const now = new Date()
-      const minutesSinceLastAttempt = (now.getTime() - lastAttempt.getTime()) / (1000 * 60)
-
-      if (!isFinite(minutesSinceLastAttempt) || minutesSinceLastAttempt < 0) {
-        // Invalid date, proceed with fetch
-      } else if (minutesSinceLastAttempt < cooldownMinutes) {
-        // Still in cooldown, but log for debugging
-        const waitMinutes = Math.ceil(cooldownMinutes - minutesSinceLastAttempt)
-        console.log(`⏳ Transcript fetch cooldown active for meeting ${meeting.id} - waiting ${waitMinutes} more minutes`)
-        // Continue anyway - we'll attempt fetch but respect API rate limits
-      }
-    }
-
-    // Determine if we need to fetch transcript or use existing
-    let transcript: string | null = meeting.transcript_text
-
-    if (!transcript) {
-      console.log(`📄 Attempting to fetch transcript for meeting ${meeting.id} (recording ID: ${recordingId}, attempt ${fetchAttempts + 1})`)
-      
-      // Update fetch tracking BEFORE attempting fetch
-      await supabase
-        .from('meetings')
-        .update({
-          transcript_fetch_attempts: fetchAttempts + 1,
-          last_transcript_fetch_at: new Date().toISOString(),
-        })
-        .eq('id', meeting.id)
-
-      // Fetch transcript - ensure we use the refreshed token
-      const accessToken = integration.access_token
-      transcript = await fetchTranscriptFromFathom(accessToken, String(recordingId))
-
-      if (!transcript) {
-        console.log(`ℹ️  Transcript not yet available for meeting ${meeting.id} (recording ID: ${recordingId}) - will retry later`)
-        return
-      }
-      
-      console.log(`✅ Successfully fetched transcript for meeting ${meeting.id} (${transcript.length} characters)`)
-      // Fetch enhanced summary
-      let summaryData: any = null
-      try {
-        summaryData = await fetchSummaryFromFathom(accessToken, String(recordingId))
-        if (summaryData) {
-          console.log(`✅ Successfully fetched enhanced summary for meeting ${meeting.id}`)
-        }
-      } catch (error) {
-        console.error(`⚠️  Failed to fetch enhanced summary for meeting ${meeting.id}:`, error instanceof Error ? error.message : String(error))
-      }
-
-      // Store transcript immediately
-      await supabase
-        .from('meetings')
-        .update({
-          transcript_text: transcript,
-          summary: summaryData?.summary || meeting.summary, // Keep existing summary if new one not available
-        })
-        .eq('id', meeting.id)
-
-      // AUTO-INDEX: Queue meeting for AI search indexing after transcript is saved
-      // This ensures all meetings with transcripts are automatically searchable
-      console.log(`🔍 Queueing meeting ${meeting.id} for AI search indexing`)
-      try {
-        await supabase
-          .from('meeting_index_queue')
-          .upsert({
-            meeting_id: meeting.id,
-            user_id: meeting.owner_user_id || userId,
-            priority: 0, // Normal priority for auto-indexed meetings
-          }, { onConflict: 'meeting_id' })
-        console.log(`✅ Meeting ${meeting.id} queued for indexing`)
-      } catch (indexQueueError) {
-        // Non-fatal - log but don't fail the sync
-        console.error(`⚠️  Failed to queue meeting for indexing:`, indexQueueError instanceof Error ? indexQueueError.message : String(indexQueueError))
-      }
-
-      // Condense summary if we have a new one (non-blocking)
-      const finalSummary = summaryData?.summary || meeting.summary
-      if (finalSummary && finalSummary.length > 0) {
-        // Fire-and-forget - don't block sync on AI summarization
-        condenseMeetingSummary(supabase, meeting.id, finalSummary, meeting.title || 'Meeting')
-          .catch(err => undefined)
-      }
-    } else {
-      // Meeting already has transcript - ensure it's queued for indexing
-      // This handles cases where transcript exists but wasn't indexed yet
-      console.log(`🔍 Queueing existing transcript meeting ${meeting.id} for AI search indexing`)
-      try {
-        await supabase
-          .from('meeting_index_queue')
-          .upsert({
-            meeting_id: meeting.id,
-            user_id: meeting.owner_user_id || userId,
-            priority: 0,
-          }, { onConflict: 'meeting_id' })
-      } catch (indexQueueError) {
-        // Non-fatal - continue with sync
-        console.warn(`⚠️  Failed to queue existing meeting for indexing:`, indexQueueError instanceof Error ? indexQueueError.message : String(indexQueueError))
-      }
-
-      // Condense existing summary if not already done (non-blocking)
-      if (meeting.summary && !meeting.summary_oneliner) {
-        // Fire-and-forget - don't block sync on AI summarization
-        condenseMeetingSummary(supabase, meeting.id, meeting.summary, meeting.title || 'Meeting')
-          .catch(err => undefined)
-      }
-    }
-
-    // Run AI analysis on transcript (with extraction rules integration - Phase 6.3)
-    // Only run if transcript exists and has content
-    if (!transcript || transcript.trim().length === 0) {
-      console.log(`⚠️  Skipping AI analysis for meeting ${meeting.id} - no transcript available`)
-      return
-    }
-
-    console.log(`🤖 Starting AI analysis for meeting ${meeting.id} (transcript length: ${transcript.length} chars)`)
-    
-    // Get org_id from meeting for call type classification
-    const meetingOrgId = meeting.org_id || null
-    
-    const analysis: TranscriptAnalysis = await analyzeTranscriptWithClaude(
-      transcript,
-      {
-        id: meeting.id,
-        title: meeting.title,
-        meeting_start: meeting.meeting_start,
-        owner_email: meeting.owner_email,
-      },
-      supabase,
-      meeting.owner_user_id || userId,
-      meetingOrgId // Pass orgId for call type classification
-    )
-    console.log(`✅ AI analysis completed for meeting ${meeting.id}`)
-
-    // Build update object with AI metrics including coaching insights
-    const updateData: Record<string, any> = {
-      talk_time_rep_pct: analysis.talkTime.repPct,
-      talk_time_customer_pct: analysis.talkTime.customerPct,
-      talk_time_judgement: analysis.talkTime.assessment,
-      sentiment_score: analysis.sentiment.score,
-      sentiment_reasoning: analysis.sentiment.reasoning,
-      coach_rating: analysis.coaching.rating,
-      coach_summary: JSON.stringify({
-        summary: analysis.coaching.summary,
-        strengths: analysis.coaching.strengths,
-        improvements: analysis.coaching.improvements,
-        evaluationBreakdown: analysis.coaching.evaluationBreakdown,
-      }),
-    }
-
-    // Add call type classification if available
-    if (analysis.callType) {
-      updateData.call_type_id = analysis.callType.callTypeId
-      updateData.call_type_confidence = analysis.callType.confidence
-      updateData.call_type_reasoning = analysis.callType.reasoning
-      console.log(`📋 Call type classified: ${analysis.callType.callTypeName} (confidence: ${(analysis.callType.confidence * 100).toFixed(1)}%)`)
-    }
-
-    // Update meeting with AI metrics including coaching insights and call type
-    const { data: updateResult, error: updateError } = await supabase
-      .from('meetings')
-      .update(updateData)
-      .eq('id', meeting.id)
-      .select() // CRITICAL: Add .select() to get confirmation of what was updated
-
-    if (updateError) {
-      throw new Error(`Failed to store AI metrics: ${updateError.message}`)
-    }
-
-    if (!updateResult || updateResult.length === 0) {
-      throw new Error(`Failed to update meeting ${meeting.id} - no rows affected`)
-    }
-    // Get existing Fathom action items
-    const existingActionItems = call.action_items || []
-
-    // Deduplicate AI action items against Fathom's
-    const uniqueAIActionItems = deduplicateActionItems(analysis.actionItems, existingActionItems)
-
-    // Store AI-generated action items
-    if (uniqueAIActionItems.length > 0) {
-      for (const item of uniqueAIActionItems) {
-        // Align column names with UI and triggers (auto task creation expects assignee_email, deadline_at)
-        // CRITICAL: Explicitly set synced_to_task=false to prevent automatic task creation
-        await supabase
-          .from('meeting_action_items')
-          .insert({
-            meeting_id: meeting.id,
-            title: item.title,
-            description: item.title,
-            priority: item.priority,
-            category: item.category,
-            assignee_name: item.assignedTo || null,
-            assignee_email: item.assignedToEmail || null,
-            deadline_at: item.deadline ? new Date(item.deadline).toISOString() : null,
-            ai_generated: true,
-            ai_confidence: item.confidence,
-            needs_review: item.confidence < 0.8, // Low confidence items need review
-            completed: false,
-            synced_to_task: false, // Explicitly prevent automatic task creation
-            task_id: null, // No task created yet - manual creation only
-            timestamp_seconds: null,
-            playback_url: null,
-          })
-      }
-    } else {
-    }
-
-  } catch (error) {
-    // Don't throw - allow meeting sync to continue even if AI analysis fails
-    // But log the error for debugging with more context
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    const isMissingApiKey = errorMessage.includes('ANTHROPIC_API_KEY')
-    
-    console.error(`❌ Error in autoFetchTranscriptAndAnalyze for meeting ${meeting?.id || 'unknown'}:`, errorMessage)
-    
-    if (isMissingApiKey) {
-      console.error(`🚨 CRITICAL: ANTHROPIC_API_KEY is not configured in edge function environment variables`)
-      console.error(`   Please set ANTHROPIC_API_KEY in Supabase Dashboard → Edge Functions → fathom-sync → Settings → Secrets`)
-    }
-    
-    if (error instanceof Error && error.stack) {
-      console.error(`Stack trace:`, error.stack.substring(0, 500))
-    }
-  }
-}
-
-// Transcript fetching functions are now imported from _shared/fathomTranscript.ts
+// autoFetchTranscriptAndAnalyze extracted to ./services/transcriptService.ts
+// Transcript fetching functions are imported from _shared/fathomTranscript.ts
 
 /**
  * Sync a single call from Fathom to database
@@ -1771,227 +1384,18 @@ async function syncSingleCall(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Call object already contains all necessary data from bulk API
-    
-    // Helper: resolve owner from fathom_user_mappings table first (new mapping system)
-    async function resolveOwnerFromFathomMapping(email: string | null | undefined): Promise<string | null> {
-      if (!email || !orgId) return null
-      try {
-        const normalizedEmail = email.toLowerCase().trim()
-        const { data: mapping, error } = await supabase
-          .from('fathom_user_mappings')
-          .select('sixty_user_id')
-          .eq('org_id', orgId)
-          .eq('fathom_user_email', normalizedEmail)
-          .maybeSingle()
-        
-        if (!error && mapping?.sixty_user_id) {
-          console.log(`[fathom-sync] Resolved owner via fathom_user_mappings: ${email} -> ${mapping.sixty_user_id}`)
-          return mapping.sixty_user_id
-        }
-      } catch (e) {
-        console.warn(`[fathom-sync] Error checking fathom_user_mappings:`, e)
-      }
-      return null
-    }
 
-    // Helper: resolve the meeting owner user by email via profiles (legacy fallback)
-    async function resolveOwnerUserIdFromEmail(email: string | null | undefined): Promise<string | null> {
-      if (!email) return null
-      const normalizedEmail = email.toLowerCase().trim()
-      try {
-        // Query profiles table (auth.users is not directly accessible in edge functions)
-        // Use maybeSingle() instead of single() to avoid throwing when no row exists
-        const { data: prof, error: profError } = await supabase
-          .from('profiles')
-          .select('id, email, first_name, last_name')
-          .eq('email', normalizedEmail)
-          .maybeSingle()
-
-        if (profError) {
-          console.warn(`[fathom-sync] Error looking up profile for ${normalizedEmail}:`, profError.message)
-          return null
-        }
-
-        if (prof?.id) {
-          const fullName = [prof.first_name, prof.last_name].filter(Boolean).join(' ') || prof.email
-          console.log(`[fathom-sync] Found profile for ${normalizedEmail}: ${fullName} (${prof.id})`)
-          return prof.id
-        }
-
-        console.log(`[fathom-sync] No profile found for email: ${normalizedEmail}`)
-      } catch (e) {
-        console.error(`[fathom-sync] Exception looking up profile for ${normalizedEmail}:`, e)
-      }
-      return null
-    }
-
-    // Helper: upsert fathom_user_mappings row for discovered owner emails
-    // This populates the mapping table for the admin UI even if not yet mapped
-    async function upsertFathomUserMapping(
-      email: string,
-      name: string | null,
-      sixtyUserId: string | null,
-      isAutoMatched: boolean
-    ): Promise<void> {
-      if (!orgId) return
-      try {
-        const normalizedEmail = email.toLowerCase().trim()
-        
-        // First check if a mapping already exists
-        const { data: existingMapping, error: lookupError } = await supabase
-          .from('fathom_user_mappings')
-          .select('id, sixty_user_id')
-          .eq('org_id', orgId)
-          .eq('fathom_user_email', normalizedEmail)
-          .maybeSingle()
-        
-        if (lookupError) {
-          console.warn(`[fathom-sync] Error looking up fathom_user_mappings for ${normalizedEmail}:`, lookupError.message)
-        }
-        
-        if (existingMapping) {
-          // Mapping exists - only update last_seen_at (and name if provided)
-          // IMPORTANT: Don't overwrite sixty_user_id if it's already set (manual or auto-mapped)
-          const updateData: Record<string, any> = {
-            last_seen_at: new Date().toISOString(),
-          }
-          if (name) {
-            updateData.fathom_user_name = name
-          }
-          // Only update sixty_user_id if it's currently null AND we have a new value
-          if (!existingMapping.sixty_user_id && sixtyUserId) {
-            updateData.sixty_user_id = sixtyUserId
-            updateData.is_auto_matched = isAutoMatched
-            console.log(`[fathom-sync] Auto-mapping ${normalizedEmail} -> ${sixtyUserId}`)
-          }
-          
-          const { error: updateError } = await supabase
-            .from('fathom_user_mappings')
-            .update(updateData)
-            .eq('id', existingMapping.id)
-          
-          if (updateError) {
-            console.warn(`[fathom-sync] Error updating fathom_user_mappings for ${normalizedEmail}:`, updateError.message)
-          } else {
-            console.log(`[fathom-sync] Updated fathom_user_mappings: ${normalizedEmail}`)
-          }
-        } else {
-          // No existing mapping - insert new row
-          const { error: insertError } = await supabase
-            .from('fathom_user_mappings')
-            .insert({
-              org_id: orgId,
-              fathom_user_email: normalizedEmail,
-              fathom_user_name: name,
-              sixty_user_id: sixtyUserId,
-              is_auto_matched: isAutoMatched,
-              last_seen_at: new Date().toISOString(),
-            })
-          
-          if (insertError) {
-            console.warn(`[fathom-sync] Error inserting fathom_user_mappings for ${normalizedEmail}:`, insertError.message)
-          } else {
-            console.log(`[fathom-sync] Inserted fathom_user_mappings: ${normalizedEmail} (mapped=${!!sixtyUserId}, auto=${isAutoMatched})`)
-          }
-        }
-      } catch (e) {
-        console.warn(`[fathom-sync] Error upserting fathom_user_mappings:`, e)
-      }
-    }
-
-    // Resolve meeting owner from multiple possible fields
-    let ownerUserId = userId
-    let ownerResolved = false
-    const possibleOwnerEmails: Array<string | null | undefined> = [
-      call?.recorded_by?.email,
-      call?.host_email,
-      (call?.host && typeof call.host === 'object' ? call.host.email : undefined),
-      // From participants/invitees: pick the first host
-      (Array.isArray(call?.participants) ? (call.participants.find((p: any) => p?.is_host)?.email) : undefined),
-      (Array.isArray(call?.calendar_invitees) ? (call.calendar_invitees.find((p: any) => p?.is_host)?.email) : undefined),
-    ]
-    let ownerEmailCandidate: string | null = null
-    const fathomUserName = call?.recorded_by?.name || call?.host_name || null
-    
-    // DEBUG: Log all possible owner emails for this meeting
-    const validEmails = possibleOwnerEmails.filter(Boolean)
-    console.log(`[fathom-sync] Meeting "${call?.title || 'Untitled'}" - possible owner emails:`, validEmails.length > 0 ? validEmails : 'NONE FOUND')
-    if (call?.recorded_by) {
-      console.log(`[fathom-sync] recorded_by:`, JSON.stringify(call.recorded_by))
-    }
-
-    // STEP 1: Try to resolve via fathom_user_mappings first (explicit mappings)
-    for (const em of possibleOwnerEmails) {
-      if (!em) continue
-      const mappedUserId = await resolveOwnerFromFathomMapping(em)
-      if (mappedUserId) {
-        ownerUserId = mappedUserId
-        ownerResolved = true
-        ownerEmailCandidate = em
-        break
-      }
-      if (!ownerEmailCandidate) ownerEmailCandidate = em
-    }
-
-    // STEP 2: If no explicit mapping, fall back to profile email matching
-    if (!ownerResolved) {
-      for (const em of possibleOwnerEmails) {
-        if (!em) continue
-        const uid = await resolveOwnerUserIdFromEmail(em)
-        if (uid) {
-          ownerUserId = uid
-          ownerResolved = true
-          ownerEmailCandidate = em
-          
-          // AUTO-MATCH: If we found a profile match, auto-upsert the mapping
-          // This creates the mapping so future syncs use the mapping table
-          await upsertFathomUserMapping(em, fathomUserName, uid, true /* isAutoMatched */)
-          console.log(`[fathom-sync] Auto-matched and created mapping: ${em} -> ${uid}`)
-          break
-        }
-        if (!ownerEmailCandidate) ownerEmailCandidate = em
-      }
-    }
-
-    // STEP 3: Always upsert a mapping row for the discovered email (even if unmapped)
-    // This populates the admin UI with all Fathom users
-    if (ownerEmailCandidate && orgId) {
-      // If not already resolved (meaning no mapping created), create an unmapped entry
-      if (!ownerResolved) {
-        await upsertFathomUserMapping(ownerEmailCandidate, fathomUserName, null, false)
-      }
-    }
-
-    if (!ownerResolved) {
-      console.log(`[fathom-sync] Could not resolve owner for ${ownerEmailCandidate || 'unknown email'}, using fallback user ${userId}`)
-    }
-
-    // Org safety: only assign owner_user_id if that user is actually a member of this org.
-    // Otherwise fall back to the integration connector (or the invoking user).
-    if (orgId && ownerUserId) {
-      try {
-        const { data: member } = await supabase
-          .from('organization_memberships')
-          .select('user_id')
-          .eq('org_id', orgId)
-          .eq('user_id', ownerUserId)
-          .limit(1)
-          .maybeSingle()
-
-        if (!member) {
-          const fallbackOwner = integration?.connected_by_user_id || userId
-          if (fallbackOwner && fallbackOwner !== ownerUserId) {
-            console.warn(
-              `[fathom-sync] Owner ${ownerUserId} is not a member of org ${orgId}; falling back to ${fallbackOwner}`
-            )
-            ownerUserId = fallbackOwner
-            ownerResolved = false
-          }
-        }
-      } catch {
-        // If the membership check fails, keep existing ownerUserId.
-      }
-    }
+    // Use the owner resolution service to resolve meeting owner
+    const ownerResult = await resolveMeetingOwner(
+      supabase,
+      call,
+      orgId,
+      userId,
+      integration?.connected_by_user_id || null
+    )
+    const ownerUserId = ownerResult.ownerUserId
+    const ownerResolved = ownerResult.ownerResolved
+    const ownerEmailCandidate = ownerResult.ownerEmail
 
     // Calculate duration in minutes from recording start/end times
     const startTime = new Date(call.recording_start_time || call.scheduled_start_time)
@@ -2001,13 +1405,37 @@ async function syncSingleCall(
     // Compute derived fields prior to DB write
     const embedUrl = buildEmbedUrl(call.share_url, call.recording_id)
 
-    // Generate thumbnail using thumbnail service
-    let thumbnailUrl: string | null = null
+    // Check for existing meeting with valid thumbnail (to preserve it during re-sync)
+    const recordingIdForLookup = call?.recording_id ?? call?.id ?? call?.recordingId ?? null
+    let existingThumbnailUrl: string | null = null
+    let existingThumbnailStatus: string | null = null
 
-    // Always attempt thumbnail generation if embed URL is available (unless explicitly skipped)
+    if (recordingIdForLookup) {
+      try {
+        const lookupQuery = orgId
+          ? supabase.from('meetings').select('thumbnail_url, thumbnail_status').eq('org_id', orgId).eq('fathom_recording_id', String(recordingIdForLookup)).maybeSingle()
+          : supabase.from('meetings').select('thumbnail_url, thumbnail_status').eq('fathom_recording_id', String(recordingIdForLookup)).maybeSingle()
+
+        const { data: existingMeeting } = await lookupQuery
+
+        if (existingMeeting?.thumbnail_url && !existingMeeting.thumbnail_url.includes('dummyimage.com')) {
+          existingThumbnailUrl = existingMeeting.thumbnail_url
+          existingThumbnailStatus = existingMeeting.thumbnail_status
+          console.log(`🖼️  Preserving existing thumbnail for recording ${recordingIdForLookup}: ${existingThumbnailUrl.substring(0, 60)}...`)
+        }
+      } catch (lookupErr) {
+        // Non-fatal - continue with normal thumbnail generation
+        console.warn(`⚠️  Could not check for existing thumbnail: ${lookupErr instanceof Error ? lookupErr.message : String(lookupErr)}`)
+      }
+    }
+
+    // Generate thumbnail using thumbnail service
+    let thumbnailUrl: string | null = existingThumbnailUrl // Start with existing thumbnail if available
+
+    // Only attempt thumbnail generation if we don't have a valid existing thumbnail
     // The generateVideoThumbnail function will handle fallbacks internally
     // Note: We'll call it again after meeting is created to pass meeting_id for DB persistence
-    if (!skipThumbnails && embedUrl) {
+    if (!thumbnailUrl && !skipThumbnails && embedUrl) {
       try {
         console.log(`🖼️  Generating thumbnail for recording ${call.recording_id}`)
         thumbnailUrl = await generateVideoThumbnail(call.recording_id, call.share_url, embedUrl)
@@ -2039,9 +1467,12 @@ async function syncSingleCall(
     // - 'complete': Already has data or successfully processed
     // - 'pending': Queued for background processing
     // - 'processing': Currently being processed (set during actual processing)
-    const initialThumbnailStatus = skipThumbnails
-      ? 'pending'  // Queued for background thumbnail generation
-      : (thumbnailUrl && !thumbnailUrl.includes('dummyimage.com') ? 'complete' : 'pending')
+    // Preserve existing thumbnail status if we have a valid existing thumbnail
+    const initialThumbnailStatus = existingThumbnailStatus === 'complete'
+      ? 'complete'  // Preserve existing complete status
+      : skipThumbnails
+        ? 'pending'  // Queued for background thumbnail generation
+        : (thumbnailUrl && !thumbnailUrl.includes('dummyimage.com') ? 'complete' : 'pending')
 
     const initialTranscriptStatus = skipTranscriptFetch
       ? 'pending'  // Queued for background transcript fetch
@@ -2609,38 +2040,7 @@ async function syncSingleCall(
                 } else {
                 }
 
-                // Extract and truncate summary for activity details to prevent UI overflow
-                const extractAndTruncateSummary = (summary: string | null | undefined, maxLength: number = 200): string => {
-                  if (!summary) {
-                    return `Meeting with ${externalContactIds.length} participant${externalContactIds.length > 1 ? 's' : ''}`
-                  }
-
-                  let textContent = summary
-
-                  // If summary is a JSON string, parse and extract markdown_formatted or text field
-                  if (summary.trim().startsWith('{')) {
-                    try {
-                      const parsed = JSON.parse(summary)
-                      textContent = parsed.markdown_formatted || parsed.text || summary
-                    } catch (e) {
-                      // If parsing fails, use the raw summary
-                    }
-                  }
-
-                  // Remove markdown formatting and clean up
-                  textContent = textContent
-                    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove markdown links [text](url) -> text
-                    .replace(/##\s+/g, '') // Remove heading markers
-                    .replace(/\*\*/g, '') // Remove bold markers
-                    .replace(/\n+/g, ' ') // Replace newlines with spaces
-                    .replace(/\s+/g, ' ') // Collapse multiple spaces
-                    .trim()
-
-                  // Truncate to max length
-                  if (textContent.length <= maxLength) return textContent
-                  return textContent.substring(0, maxLength).trim() + '...'
-                }
-
+                // Use the imported extractAndTruncateSummary from services
                 const { error: activityError } = await supabase.from('activities').insert({
                   user_id: ownerUserId,
                   sales_rep: salesRepEmail,  // Use email instead of UUID
@@ -2668,69 +2068,9 @@ async function syncSingleCall(
       }
     }
 
-    // Process action items - they're included in the bulk meetings API response
+    // Process action items using the action items service
     // Note: action_items will be null until Fathom processes the recording (can take several minutes)
-    let actionItems = call.action_items
-
-    if (actionItems && Array.isArray(actionItems) && actionItems.length > 0) {
-    } else if (actionItems === null) {
-    } else if (Array.isArray(actionItems) && actionItems.length === 0) {
-    } else {
-    }
-
-    if (actionItems && Array.isArray(actionItems) && actionItems.length > 0) {
-      for (const actionItem of actionItems) {
-        // Parse the new Fathom API format
-        // recording_timestamp is in format "HH:MM:SS", we need to convert to seconds
-        let timestampSeconds: number | null = null
-        if (actionItem.recording_timestamp) {
-          const parts = actionItem.recording_timestamp.split(':')
-          if (parts.length === 3) {
-            timestampSeconds = (parseInt(parts[0]) * 3600) + (parseInt(parts[1]) * 60) + parseInt(parts[2])
-          }
-        }
-
-        const playbackUrl = actionItem.recording_playback_url || actionItem.playback_url || null
-        const title = actionItem.description || actionItem.title || (typeof actionItem === 'string' ? actionItem : 'Untitled Action Item')
-        const completed = actionItem.completed || false
-        const userGenerated = actionItem.user_generated || false
-
-        // First, check if this action item already exists (by title and timestamp to avoid duplicates)
-        const { data: existingItem } = await supabase
-          .from('meeting_action_items')
-          .select('id')
-          .eq('meeting_id', meeting.id)
-          .eq('title', title)
-          .eq('timestamp_seconds', timestampSeconds)
-          .single()
-
-        if (existingItem) {
-          continue
-        }
-
-        // Insert new action item
-        // CRITICAL: Explicitly set synced_to_task=false to prevent automatic task creation
-        const { error: actionItemError } = await supabase
-          .from('meeting_action_items')
-          .insert({
-            meeting_id: meeting.id,
-            title: title,
-            timestamp_seconds: timestampSeconds,
-            category: actionItem.type || actionItem.category || 'action_item',
-            priority: actionItem.priority || 'medium',
-            ai_generated: !userGenerated, // Inverted: user_generated=false means AI generated
-            completed: completed,
-            synced_to_task: false, // Explicitly prevent automatic task creation
-            task_id: null, // No task created yet - manual creation only
-            playback_url: playbackUrl,
-          })
-
-        if (actionItemError) {
-        } else {
-        }
-      }
-    } else {
-    }
+    await processActionItems(supabase, meeting.id, call.action_items)
 
     // Log successful meeting sync
     const meetingTitle = call.title || call.meeting_title || 'Meeting'

@@ -15,6 +15,8 @@ export * from './writingStyle';
 export * from './proposalGeneration';
 export * from './workflowEngine';
 export * from './slackNotifications';
+export * from './meetingPrompts';
+export * from './searchPrompts';
 
 // ============================================================================
 // Model Configuration
@@ -130,6 +132,30 @@ export const FEATURE_MODEL_DEFAULTS: Record<string, ModelConfig> = {
     model: DEFAULT_MODELS.HAIKU,
     temperature: 0.3,
     maxTokens: 1024,
+  },
+
+  // Meeting Intelligence
+  condense_summary: {
+    model: DEFAULT_MODELS.HAIKU,
+    temperature: 0.3,
+    maxTokens: 256,
+  },
+  meeting_qa: {
+    model: DEFAULT_MODELS.HAIKU,
+    temperature: 0.7,
+    maxTokens: 2048,
+  },
+  content_topics: {
+    model: DEFAULT_MODELS.HAIKU,
+    temperature: 0.3,
+    maxTokens: 4096,
+  },
+
+  // Search & Intelligence
+  search_query_parse: {
+    model: DEFAULT_MODELS.SONNET,
+    temperature: 0.3,
+    maxTokens: 500,
   },
 };
 

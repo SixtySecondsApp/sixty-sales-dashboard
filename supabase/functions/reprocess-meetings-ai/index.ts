@@ -133,19 +133,38 @@ serve(async (req) => {
           supabase,
           meeting.owner_user_id
         )
+        // Build update object with ALL AI metrics including coaching insights
+        const updateData: Record<string, any> = {
+          talk_time_rep_pct: analysis.talkTime.repPct,
+          talk_time_customer_pct: analysis.talkTime.customerPct,
+          talk_time_judgement: analysis.talkTime.assessment,
+          sentiment_score: analysis.sentiment.score,
+          sentiment_reasoning: analysis.sentiment.reasoning,
+          // Add coaching fields that were missing!
+          coach_rating: analysis.coaching.rating,
+          coach_summary: JSON.stringify({
+            summary: analysis.coaching.summary,
+            strengths: analysis.coaching.strengths,
+            improvements: analysis.coaching.improvements,
+            evaluationBreakdown: analysis.coaching.evaluationBreakdown,
+          }),
+        }
+
+        // Add call type classification if available
+        if (analysis.callType) {
+          updateData.call_type_id = analysis.callType.callTypeId
+          updateData.call_type_confidence = analysis.callType.confidence
+          updateData.call_type_reasoning = analysis.callType.reasoning
+        }
+
         // Update meeting with AI metrics
         const { error: updateError } = await supabase
           .from('meetings')
-          .update({
-            talk_time_rep_pct: analysis.talkTime.repPct,
-            talk_time_customer_pct: analysis.talkTime.customerPct,
-            talk_time_judgement: analysis.talkTime.assessment,
-            sentiment_score: analysis.sentiment.score,
-            sentiment_reasoning: analysis.sentiment.reasoning,
-          })
+          .update(updateData)
           .eq('id', meeting.id)
 
         if (updateError) {
+          console.error(`❌ Failed to update meeting ${meeting.id}:`, updateError.message)
         }
 
         // Store action items WITHOUT automatic task creation

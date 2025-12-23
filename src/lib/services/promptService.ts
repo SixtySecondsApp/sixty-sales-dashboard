@@ -36,6 +36,12 @@ import {
   workflowMCPTemplate,
   workflowJsonTemplate,
   workflowFewShotTemplate,
+  // Meeting Intelligence
+  condenseSummaryTemplate,
+  meetingQATemplate,
+  contentTopicsTemplate,
+  // Search & Intelligence
+  searchQueryParseTemplate,
 } from '@/lib/prompts';
 
 // ============================================================================
@@ -117,6 +123,14 @@ const DEFAULT_TEMPLATES: Record<string, PromptTemplate> = {
   workflow_mcp: workflowMCPTemplate,
   workflow_json: workflowJsonTemplate,
   workflow_few_shot: workflowFewShotTemplate,
+
+  // Meeting Intelligence
+  condense_summary: condenseSummaryTemplate,
+  meeting_qa: meetingQATemplate,
+  content_topics: contentTopicsTemplate,
+
+  // Search & Intelligence
+  search_query_parse: searchQueryParseTemplate,
 };
 
 // ============================================================================
