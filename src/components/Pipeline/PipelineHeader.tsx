@@ -6,7 +6,7 @@ import { OwnerFilterV3 } from '@/components/OwnerFilterV3';
 import { OwnerFilterV2 } from '@/components/OwnerFilterV2';
 import { DateFilter } from '@/components/ui/date-filter';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';

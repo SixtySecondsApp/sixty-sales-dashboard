@@ -22,7 +22,7 @@ import { isUserAdmin } from '@/lib/utils/adminUtils';
 import { useUser } from '@/lib/hooks/useUser';
 import { usePipeline } from '@/lib/contexts/PipelineContext';
 import { useForm, FormProvider } from 'react-hook-form';
-import { useToast } from '../../../hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Deal } from '@/lib/database/models';
 import logger from '@/lib/utils/logger';

@@ -2,7 +2,6 @@ import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'path';
-import { workflowWebhookPlugin } from './vite.workflow-webhook';
 
 // Plugin to exclude landing package from production builds
 // Landing pages are deployed separately and should not be bundled in the main app
@@ -45,8 +44,6 @@ export default defineConfig({
       brotliSize: true,
       template: 'treemap', // Better visualization
     }),
-    // Add workflow webhook handler
-    workflowWebhookPlugin(),
   ],
   resolve: {
     alias: {
