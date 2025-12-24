@@ -387,7 +387,7 @@ CREATE POLICY "Platform admins can manage sentry_bridge_config"
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-      AND profiles.is_platform_admin = true
+      AND profiles.is_admin = true
     )
   );
 
@@ -397,7 +397,7 @@ CREATE POLICY "Platform admins can manage sentry_routing_rules"
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-      AND profiles.is_platform_admin = true
+      AND profiles.is_admin = true
     )
   );
 
@@ -407,7 +407,7 @@ CREATE POLICY "Platform admins can view sentry_issue_mappings"
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-      AND profiles.is_platform_admin = true
+      AND profiles.is_admin = true
     )
   );
 
@@ -417,7 +417,7 @@ CREATE POLICY "Platform admins can view sentry_webhook_events"
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-      AND profiles.is_platform_admin = true
+      AND profiles.is_admin = true
     )
   );
 
@@ -427,7 +427,7 @@ CREATE POLICY "Platform admins can manage sentry_bridge_queue"
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-      AND profiles.is_platform_admin = true
+      AND profiles.is_admin = true
     )
   );
 
@@ -437,7 +437,7 @@ CREATE POLICY "Platform admins can manage sentry_triage_queue"
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-      AND profiles.is_platform_admin = true
+      AND profiles.is_admin = true
     )
   );
 
@@ -447,7 +447,7 @@ CREATE POLICY "Platform admins can manage sentry_dead_letter_queue"
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-      AND profiles.is_platform_admin = true
+      AND profiles.is_admin = true
     )
   );
 
@@ -457,7 +457,7 @@ CREATE POLICY "Platform admins can view sentry_bridge_metrics"
     EXISTS (
       SELECT 1 FROM profiles
       WHERE profiles.id = auth.uid()
-      AND profiles.is_platform_admin = true
+      AND profiles.is_admin = true
     )
   );
 
