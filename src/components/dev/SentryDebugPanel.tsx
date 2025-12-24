@@ -147,7 +147,7 @@ export function SentryDebugPanel() {
   // Keyboard shortcut handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+      if (e.ctrlKey && e.shiftKey && e.key.toUpperCase() === 'S') {
         e.preventDefault();
         setIsOpen(prev => !prev);
       }
