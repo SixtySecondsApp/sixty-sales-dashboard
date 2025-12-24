@@ -217,7 +217,7 @@ export function SentryDebugPanel() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 right-4 z-50 bg-purple-600 text-white p-2 rounded-full shadow-lg hover:bg-purple-700 transition-colors"
+        className="fixed bottom-4 left-4 z-50 bg-purple-600 text-white p-2 rounded-full shadow-lg hover:bg-purple-700 transition-colors"
         title="Open Sentry Debug Panel (Ctrl+Shift+S)"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -228,7 +228,7 @@ export function SentryDebugPanel() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-96 max-h-[600px] bg-gray-900 text-gray-100 rounded-lg shadow-2xl border border-gray-700 overflow-hidden flex flex-col">
+    <div className="fixed bottom-4 left-4 z-50 w-96 max-h-[600px] bg-gray-900 text-gray-100 rounded-lg shadow-2xl border border-gray-700 overflow-hidden flex flex-col">
       {/* Header */}
       <div className="bg-gray-800 px-4 py-2 flex items-center justify-between border-b border-gray-700">
         <div className="flex items-center gap-2">
