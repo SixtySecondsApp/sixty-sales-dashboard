@@ -8,7 +8,7 @@
  * - Memory usage
  * - Sentry connection status
  *
- * Toggle with Ctrl+Shift+D (or Cmd+Shift+D on Mac)
+ * Toggle with Ctrl+Shift+S (works on Mac and Windows)
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -145,7 +145,7 @@ export function SentryDebugPanel() {
   // Keyboard shortcut handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'D') {
+      if (e.ctrlKey && e.shiftKey && e.key === 'S') {
         e.preventDefault();
         setIsOpen(prev => !prev);
       }
@@ -216,7 +216,7 @@ export function SentryDebugPanel() {
       <button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-4 right-4 z-50 bg-purple-600 text-white p-2 rounded-full shadow-lg hover:bg-purple-700 transition-colors"
-        title="Open Sentry Debug Panel (Ctrl+Shift+D)"
+        title="Open Sentry Debug Panel (Ctrl+Shift+S)"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
