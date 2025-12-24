@@ -53,26 +53,30 @@ const MAX_API_CALLS = 20;
 // Web vitals storage
 const webVitals: WebVitals = {};
 
-// Register error listener
+// Register error listener using Sentry's event processor (ES module safe)
 if (isDev) {
-  const originalCaptureException = Sentry.captureException;
-  Sentry.captureException = (error, captureContext) => {
-    const eventId = originalCaptureException(error, captureContext);
+  // Use addEventProcessor to intercept events without monkey-patching
+  Sentry.addEventProcessor((event) => {
+    if (event.exception?.values?.length) {
+      const errorMessage = event.exception.values[0]?.value || 'Unknown error';
+      const errorType = event.exception.values[0]?.type || 'Error';
 
-    errorBuffer.unshift({
-      id: eventId || crypto.randomUUID(),
-      message: error instanceof Error ? error.message : String(error),
-      category: captureContext?.tags?.['error.category'] as string,
-      timestamp: new Date(),
-      eventId,
-    });
+      errorBuffer.unshift({
+        id: event.event_id || crypto.randomUUID(),
+        message: `${errorType}: ${errorMessage}`,
+        category: event.tags?.['error.category'] as string,
+        timestamp: new Date(),
+        eventId: event.event_id,
+      });
 
-    if (errorBuffer.length > MAX_ERRORS) {
-      errorBuffer.pop();
+      if (errorBuffer.length > MAX_ERRORS) {
+        errorBuffer.pop();
+      }
     }
 
-    return eventId;
-  };
+    // Return the event unchanged to continue processing
+    return event;
+  });
 }
 
 // Track API calls via fetch interception
