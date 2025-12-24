@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { addBreadcrumb, captureException } from '../_shared/sentryEdge.ts';
 
 /**
  * Google OAuth Callback Endpoint
@@ -203,9 +204,18 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('[google-oauth-callback] Error:', error);
-    return redirectToFrontend('/integrations', { 
-      error: 'callback_failed', 
-      error_description: error.message || 'Unknown error' 
+
+    // Capture error to Sentry
+    await captureException(error, {
+      tags: {
+        function: 'google-oauth-callback',
+        integration: 'google',
+      },
+    });
+
+    return redirectToFrontend('/integrations', {
+      error: 'callback_failed',
+      error_description: error.message || 'Unknown error'
     });
   }
 });

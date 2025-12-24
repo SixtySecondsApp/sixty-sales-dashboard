@@ -18,6 +18,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders, handleCorsPreflightRequest, errorResponse, jsonResponse } from '../_shared/corsHelper.ts';
 import { authenticateRequest, getUserOrgId } from '../_shared/edgeAuth.ts';
 import { getGoogleIntegration } from '../_shared/googleOAuth.ts';
+import { captureException } from '../_shared/sentryEdge.ts';
 
 // Helper for logging sync operations to integration_sync_logs table
 async function logSyncOperation(
@@ -516,6 +517,12 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('[CALENDAR-SYNC] Error:', error);
+    await captureException(error, {
+      tags: {
+        function: 'google-calendar-sync',
+        integration: 'google',
+      },
+    });
     return errorResponse(error.message || 'Calendar sync failed', req, 500);
   }
 });

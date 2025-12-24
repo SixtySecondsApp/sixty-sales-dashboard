@@ -4,6 +4,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getStripeClient } from "../_shared/stripe.ts";
+import { captureException } from "../_shared/sentryEdge.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -209,6 +210,12 @@ serve(async (req: Request) => {
     );
   } catch (error) {
     console.error("Error updating Stripe product:", error);
+    await captureException(error, {
+      tags: {
+        function: 'stripe-update-product',
+        integration: 'stripe',
+      },
+    });
     const message = error instanceof Error ? error.message : "Unknown error";
 
     return new Response(

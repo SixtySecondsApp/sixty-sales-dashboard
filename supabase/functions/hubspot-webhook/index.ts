@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.190.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { hmacSha256Hex, timingSafeEqual } from '../_shared/use60Signing.ts'
 import { legacyCorsHeaders as corsHeaders } from '../_shared/corsHelper.ts'
+import { captureException } from '../_shared/sentryEdge.ts'
 
 type HubSpotWebhookEvent = {
   eventId?: number | string
@@ -118,7 +119,8 @@ async function verifyHubSpotSignature(args: {
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  try {
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   const authHeader = req.headers.get('Authorization') || ''
 
   const proxySecret = Deno.env.get('HUBSPOT_WEBHOOK_PROXY_SECRET') ?? ''
@@ -325,6 +327,18 @@ serve(async (req) => {
     }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
+  } catch (error) {
+    await captureException(error, {
+      tags: {
+        function: 'hubspot-webhook',
+        integration: 'hubspot',
+      },
+    });
+    return new Response(
+      JSON.stringify({ success: false, error: error?.message || 'Webhook processing failed' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 })
 
 

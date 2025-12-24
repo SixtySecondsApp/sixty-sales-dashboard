@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { hmacSha256Hex, timingSafeEqual } from '../_shared/use60Signing.ts'
+import { addBreadcrumb, captureException, withSentry } from '../_shared/sentryEdge.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -272,6 +273,19 @@ serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const errorStack = error instanceof Error ? error.stack : undefined
+
+    // Capture error to Sentry with context
+    await captureException(error, {
+      tags: {
+        function: 'fathom-webhook',
+        request_id: requestId,
+      },
+      extra: {
+        request_id: requestId,
+        timestamp: timestamp,
+      },
+    })
+
     return new Response(
       JSON.stringify({
         success: false,

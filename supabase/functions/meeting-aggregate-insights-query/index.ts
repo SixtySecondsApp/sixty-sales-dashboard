@@ -15,6 +15,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
+import { captureException } from '../_shared/sentryEdge.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -681,6 +682,12 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in meeting-aggregate-insights-query:', error);
+    await captureException(error, {
+      tags: {
+        function: 'meeting-aggregate-insights-query',
+        integration: 'anthropic',
+      },
+    });
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

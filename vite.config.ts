@@ -1,6 +1,7 @@
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
+import { sentryVitePlugin } from '@sentry/vite-plugin';
 import path from 'path';
 
 // Plugin to exclude landing package from production builds
@@ -44,7 +45,34 @@ export default defineConfig({
       brotliSize: true,
       template: 'treemap', // Better visualization
     }),
-  ],
+    // Sentry plugin for source map uploads (production only)
+    process.env.SENTRY_AUTH_TOKEN && process.env.NODE_ENV === 'production'
+      ? sentryVitePlugin({
+          org: process.env.SENTRY_ORG || 'sixty-seconds',
+          project: process.env.SENTRY_PROJECT || 'sixty-sales-dashboard',
+          authToken: process.env.SENTRY_AUTH_TOKEN,
+
+          // Upload source maps to Sentry
+          sourcemaps: {
+            assets: './dist/**',
+            // Delete source maps after upload (security)
+            filesToDeleteAfterUpload: './dist/**/*.map',
+          },
+
+          // Release tracking
+          release: {
+            name: `sixty-sales-dashboard@${process.env.npm_package_version || '2.1.5'}`,
+            // Create release on build
+            create: true,
+            // Finalize release (enable for production deploys)
+            finalize: true,
+          },
+
+          // Telemetry (disable to reduce noise)
+          telemetry: false,
+        })
+      : null,
+  ].filter(Boolean),
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -177,7 +205,8 @@ export default defineConfig({
     
     // Optimize bundle size
     chunkSizeWarningLimit: 500, // Reduced from 1000KB to encourage smaller chunks
-    sourcemap: process.env.NODE_ENV === 'development', // Only in dev
+    // Enable source maps for Sentry (deleted after upload in production)
+    sourcemap: true,
     minify: 'esbuild', // Faster than terser
     target: 'es2020',
     

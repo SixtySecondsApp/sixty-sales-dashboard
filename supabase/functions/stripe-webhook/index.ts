@@ -5,6 +5,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@14.14.0?target=deno";
 import { corsHeaders } from "../_shared/cors.ts";
+import { captureException } from "../_shared/sentryEdge.ts";
 import {
   verifyWebhookSignature,
   mapStripeStatus,
@@ -130,6 +131,18 @@ async function processStripeEvent(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error(`Error processing ${eventType}:`, error);
+    await captureException(error, {
+      tags: {
+        function: 'stripe-webhook',
+        event_type: eventType,
+        event_id: eventId,
+        integration: 'stripe',
+      },
+      extra: {
+        eventType,
+        eventId,
+      },
+    });
     return {
       success: false,
       event_id: eventId,

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { corsHeaders } from '../_shared/cors.ts'
+import { captureException } from '../_shared/sentryEdge.ts'
 import { 
   authenticateRequest, 
   parseQueryParams, 
@@ -96,6 +97,12 @@ serve(async (req) => {
 
   } catch (error) {
     statusCode = 500
+    await captureException(error, {
+      tags: {
+        function: 'api-v1-tasks',
+        integration: 'supabase',
+      },
+    });
     return createErrorResponse(error.message || 'Internal server error', statusCode)
   }
 })

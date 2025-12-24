@@ -10,6 +10,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
+import { captureException } from '../_shared/sentryEdge.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -559,6 +560,15 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('[slack-waitlist-notification] Error:', error);
+
+    // Capture error to Sentry
+    await captureException(error, {
+      tags: {
+        function: 'slack-waitlist-notification',
+        integration: 'slack',
+      },
+    });
+
     return new Response(
       JSON.stringify({ success: false, error: (error as Error).message }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

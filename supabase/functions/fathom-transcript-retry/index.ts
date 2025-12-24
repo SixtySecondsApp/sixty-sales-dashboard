@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { captureException } from '../_shared/sentryEdge.ts'
 import { fetchTranscriptFromFathom, fetchSummaryFromFathom } from '../_shared/fathomTranscript.ts'
 
 const corsHeaders = {
@@ -384,6 +385,12 @@ serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     console.error('❌ Transcript retry processor error:', errorMessage)
+    await captureException(error, {
+      tags: {
+        function: 'fathom-transcript-retry',
+        integration: 'fathom',
+      },
+    });
 
     return new Response(
       JSON.stringify({

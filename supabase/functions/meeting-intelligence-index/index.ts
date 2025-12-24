@@ -8,6 +8,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { crypto } from 'https://deno.land/std@0.168.0/crypto/mod.ts'
+import { captureException } from '../_shared/sentryEdge.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -591,6 +592,12 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in meeting-intelligence-index:', error)
+    await captureException(error, {
+      tags: {
+        function: 'meeting-intelligence-index',
+        integration: 'gemini',
+      },
+    });
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

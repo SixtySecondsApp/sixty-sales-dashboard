@@ -17,6 +17,8 @@ export const ActivationDashboard = lazyWithRetry(() => import('@/pages/platform/
 export const PlatformDashboard = lazyWithRetry(() => import('@/pages/platform/PlatformDashboard'));
 export const IntegrationRoadmap = lazyWithRetry(() => import('@/pages/platform/IntegrationRoadmap'));
 export const VSLAnalytics = lazyWithRetry(() => import('@/pages/platform/VSLAnalytics'));
+export const ErrorMonitoring = lazyWithRetry(() => import('@/pages/platform/ErrorMonitoring'));
+export const SentryBridge = lazyWithRetry(() => import('@/pages/platform/SentryBridge'));
 
 // Admin Configuration
 export const Users = lazyWithRetry(() => import('@/pages/admin/Users'));

@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.190.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { captureException } from '../_shared/sentryEdge.ts'
 
 /**
  * HubSpot OAuth Callback (org-scoped)
@@ -212,6 +213,12 @@ serve(async (req) => {
       hubspot_hub_id: hubId || '',
     })
   } catch (error) {
+    await captureException(error, {
+      tags: {
+        function: 'hubspot-oauth-callback',
+        integration: 'hubspot',
+      },
+    });
     return redirectToFrontend(frontendUrl, '/integrations', {
       hubspot_error: 'callback_failed',
       hubspot_error_description: error instanceof Error ? error.message : 'Unknown error',

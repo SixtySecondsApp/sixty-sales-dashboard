@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { addBreadcrumb, captureException } from '../_shared/sentryEdge.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -489,6 +490,14 @@ serve(async (req) => {
 
   } catch (error) {
     console.error(`[create-task-unified] Fatal error:`, error)
+
+    // Capture error to Sentry
+    await captureException(error, {
+      tags: {
+        function: 'create-task-unified',
+      },
+    })
+
     return new Response(
       JSON.stringify({
         success: false,

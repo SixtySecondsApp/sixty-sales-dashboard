@@ -1,16 +1,71 @@
 /**
  * Sentry Error Monitoring Configuration
- * 
+ *
  * Provides centralized error monitoring and performance tracking.
  * Only initializes in production or when explicitly enabled.
+ *
+ * Features:
+ * - Silent error reporting (no user-facing dialogs)
+ * - Performance monitoring with session replay
+ * - Distributed tracing support
+ * - Rate limiting to prevent flooding
+ * - Enhanced error categorization
  */
 
 import * as Sentry from '@sentry/react';
+import {
+  httpClientIntegration,
+  extraErrorDataIntegration,
+  feedbackIntegration,
+} from '@sentry/react';
 
 // Get Sentry DSN from environment
 const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN;
 const IS_PRODUCTION = import.meta.env.PROD;
 const APP_VERSION = import.meta.env.VITE_APP_VERSION || '2.1.5';
+
+// Rate limiting to prevent error flooding
+const ERROR_RATE_LIMIT = {
+  maxErrors: 100,
+  windowMs: 60000, // 1 minute
+};
+let errorCount = 0;
+let windowStart = Date.now();
+
+function isRateLimited(): boolean {
+  const now = Date.now();
+  if (now - windowStart > ERROR_RATE_LIMIT.windowMs) {
+    // Reset window
+    errorCount = 0;
+    windowStart = now;
+  }
+  errorCount++;
+  return errorCount > ERROR_RATE_LIMIT.maxErrors;
+}
+
+// Patterns for errors to ignore
+const IGNORED_ERROR_PATTERNS = [
+  // Chunk loading (handled by main.tsx)
+  /failed to fetch dynamically imported module/i,
+  /loading chunk/i,
+  /loading css chunk/i,
+  // ResizeObserver noise (browser implementation detail)
+  /resizeobserver loop/i,
+  /resizeobserver loop completed with undelivered notifications/i,
+  // Empty promise rejections
+  /^undefined$/,
+  /^null$/,
+  /^$/,
+  // Cancelled/aborted requests
+  /aborted/i,
+  /cancelled/i,
+  /the user aborted a request/i,
+  // Expected 404s for optional resources
+  /404.*favicon/i,
+  /404.*robots\.txt/i,
+  // Validation errors (handled by forms)
+  /validation failed/i,
+];
 
 // Only initialize Sentry if DSN is provided
 export function initSentry() {
@@ -23,72 +78,123 @@ export function initSentry() {
 
   Sentry.init({
     dsn: SENTRY_DSN,
-    
+
     // Release tracking for error grouping
     release: `sixty-sales-dashboard@${APP_VERSION}`,
-    
+
     // Environment tagging
     environment: IS_PRODUCTION ? 'production' : 'development',
-    
+
     // Performance monitoring - sample 10% in production, 100% in dev
     tracesSampleRate: IS_PRODUCTION ? 0.1 : 1.0,
-    
+
     // Session replay - capture 1% of sessions, 100% with errors
     replaysSessionSampleRate: IS_PRODUCTION ? 0.01 : 0.1,
     replaysOnErrorSampleRate: 1.0,
-    
+
+    // Enable trace propagation for distributed tracing
+    tracePropagationTargets: [
+      'localhost',
+      /^https:\/\/.*\.supabase\.co/,
+      /^https:\/\/.*\.sixty\.io/,
+    ],
+
     // Integrations
     integrations: [
       // Browser tracing for performance
       Sentry.browserTracingIntegration(),
+
       // Session replay for debugging
       Sentry.replayIntegration({
         // Mask all text and block all media for privacy
         maskAllText: true,
         blockAllMedia: true,
       }),
+
+      // HTTP client integration - capture failed requests selectively
+      httpClientIntegration({
+        failedRequestStatusCodes: [
+          401, // Unauthorized
+          403, // Forbidden
+          429, // Rate limited
+          [500, 599], // All 5xx server errors
+        ],
+      }),
+
+      // Extra error data for better debugging
+      extraErrorDataIntegration({
+        depth: 6, // Deep object inspection
+      }),
+
+      // Feedback integration (disabled by default, available for admin use)
+      feedbackIntegration({
+        autoInject: false, // No automatic UI injection
+      }),
     ],
-    
+
     // Filter out noisy errors
     beforeSend(event, hint) {
+      // Rate limiting check
+      if (isRateLimited()) {
+        console.warn('[Sentry] Rate limited - skipping error');
+        return null;
+      }
+
       const error = hint.originalException;
-      
-      // Ignore chunk loading errors (handled by main.tsx)
-      if (error instanceof Error) {
-        const message = error.message.toLowerCase();
-        if (
-          message.includes('failed to fetch dynamically imported module') ||
-          message.includes('loading chunk') ||
-          message.includes('loading css chunk')
-        ) {
-          return null; // Don't send to Sentry
+
+      // Handle string errors
+      if (typeof error === 'string') {
+        if (IGNORED_ERROR_PATTERNS.some(pattern => pattern.test(error))) {
+          return null;
         }
-        
+      }
+
+      // Handle Error objects
+      if (error instanceof Error) {
+        const message = error.message;
+
+        // Check against ignored patterns
+        if (IGNORED_ERROR_PATTERNS.some(pattern => pattern.test(message))) {
+          return null;
+        }
+
         // Ignore network errors during offline scenarios
-        if (message.includes('network error') || message.includes('fetch failed')) {
-          // Only ignore if user is offline
+        if (/network error|fetch failed/i.test(message)) {
           if (!navigator.onLine) {
             return null;
           }
         }
-        
-        // Ignore cancelled requests
-        if (message.includes('aborted') || message.includes('cancelled')) {
-          return null;
-        }
       }
-      
+
+      // Handle empty/null promise rejections
+      if (error === undefined || error === null || error === '') {
+        return null;
+      }
+
       return event;
     },
-    
+
+    // Filter transactions (performance events)
+    beforeSendTransaction(event) {
+      // Filter out noisy health check transactions
+      if (event.transaction?.includes('/health') ||
+          event.transaction?.includes('/api/health')) {
+        return null;
+      }
+      return event;
+    },
+
     // Don't send in development unless explicitly enabled
     enabled: IS_PRODUCTION || import.meta.env.VITE_SENTRY_ENABLED === 'true',
-    
-    // Attach user context when available
-    beforeSendTransaction(event) {
-      // Performance transactions get the same treatment
-      return event;
-    },
+
+    // Max breadcrumbs to keep
+    maxBreadcrumbs: 50,
+
+    // Attach stack traces to messages
+    attachStacktrace: true,
+
+    // Normalize depth for large objects
+    normalizeDepth: 6,
   });
 
   console.log('[Sentry] Initialized successfully', {
