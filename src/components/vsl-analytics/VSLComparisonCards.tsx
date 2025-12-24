@@ -65,7 +65,7 @@ function MetricCard({ variant, isBestPerformer, index }: MetricCardProps) {
             Total Views
           </div>
           <p className="text-2xl font-bold text-white">
-            {variant.totalViews.toLocaleString()}
+            {(variant.totalViews ?? 0).toLocaleString()}
           </p>
         </div>
 
@@ -76,7 +76,7 @@ function MetricCard({ variant, isBestPerformer, index }: MetricCardProps) {
             Unique Viewers
           </div>
           <p className="text-2xl font-bold text-white">
-            {variant.uniqueViewers.toLocaleString()}
+            {(variant.uniqueViews ?? 0).toLocaleString()}
           </p>
         </div>
 
@@ -87,7 +87,7 @@ function MetricCard({ variant, isBestPerformer, index }: MetricCardProps) {
             Avg Watch Time
           </div>
           <p className="text-2xl font-bold text-white">
-            {formatWatchTime(variant.avgWatchTime)}
+            {formatWatchTime(variant.avgWatchTime ?? 0)}
           </p>
         </div>
 
@@ -98,7 +98,7 @@ function MetricCard({ variant, isBestPerformer, index }: MetricCardProps) {
             Completion Rate
           </div>
           <p className="text-2xl font-bold text-white">
-            {formatPercentage(variant.completionRate)}
+            {formatPercentage(variant.completionRate ?? 0)}
           </p>
         </div>
       </div>
@@ -107,12 +107,12 @@ function MetricCard({ variant, isBestPerformer, index }: MetricCardProps) {
       <div className="mt-4 pt-4 border-t border-gray-700/50">
         <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
           <span>Completion Progress</span>
-          <span>{formatPercentage(variant.completionRate)}</span>
+          <span>{formatPercentage(variant.completionRate ?? 0)}</span>
         </div>
         <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
-            animate={{ width: `${variant.completionRate}%` }}
+            animate={{ width: `${variant.completionRate ?? 0}%` }}
             transition={{ duration: 0.8, delay: index * 0.1 + 0.3 }}
             className={`h-full rounded-full ${
               isBestPerformer

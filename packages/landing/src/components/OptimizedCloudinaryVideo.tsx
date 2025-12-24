@@ -1,6 +1,6 @@
 import { useState, useRef, forwardRef, useImperativeHandle, useEffect } from 'react';
 import { Play } from 'lucide-react';
-import { initializeVideoTracking } from '../lib/cloudinaryAnalytics';
+import { initializeVideoTracking } from '../lib/vslAnalytics';
 
 interface OptimizedCloudinaryVideoProps {
   src: string;
@@ -48,38 +48,39 @@ export const OptimizedCloudinaryVideo = forwardRef<OptimizedCloudinaryVideoRef, 
     // Use raw URL - Cloudinary handles optimization at delivery
     const posterUrl = getPosterUrl(src);
 
-    // Initialize Cloudinary analytics tracking when video element is ready
-    // Note: We initialize immediately when the video element has a src, not waiting for metadata
-    // This ensures tracking works even if metadata loading is slow or blocked
+    // Track which src we've initialized tracking for
+    const trackedSrcRef = useRef<string | null>(null);
+
+    // Initialize custom VSL analytics tracking when video element is ready
     useEffect(() => {
       const video = videoRef.current;
       if (!analyticsEnabled || !video) return;
 
       // Wait for the video to have a source
       const videoSrc = video.src || video.currentSrc;
-      if (!videoSrc) {
-        console.log('[CloudinaryAnalytics] No video src yet, waiting...');
-        return;
+      if (!videoSrc) return;
+
+      // Skip if already tracking this src (prevents duplicate init from React Strict Mode)
+      if (trackedSrcRef.current === videoSrc) return;
+
+      // Clean up any previous tracking
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
       }
 
-      const initTracking = async () => {
-        try {
-          const cleanup = await initializeVideoTracking(video, {
-            signupSource: signupSource,
-          });
-          cleanupRef.current = cleanup;
-        } catch (error) {
-          console.error('[CloudinaryAnalytics] Failed to initialize:', error);
-        }
-      };
-
-      initTracking();
+      // Initialize tracking (synchronous)
+      trackedSrcRef.current = videoSrc;
+      cleanupRef.current = initializeVideoTracking(video, {
+        signupSource: signupSource,
+      });
 
       return () => {
         if (cleanupRef.current) {
           cleanupRef.current();
           cleanupRef.current = null;
         }
+        trackedSrcRef.current = null;
       };
     }, [analyticsEnabled, src, signupSource]);
 
