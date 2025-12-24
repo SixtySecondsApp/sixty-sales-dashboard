@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.190.0/http/server.ts';
 import { handleCorsPreflightRequest } from '../_shared/corsHelper.ts';
+import { captureException } from '../_shared/sentryEdge.ts';
 
 const publicUrl =
   Deno.env.get('PUBLIC_URL') ||
@@ -43,6 +44,12 @@ serve(async (req) => {
       { status: 410, headers: { 'Content-Type': 'text/html' } }
     );
   } catch (e) {
+    await captureException(e, {
+      tags: {
+        function: 'justcall-oauth-callback',
+        integration: 'justcall',
+      },
+    });
     return new Response(e?.message || 'JustCall OAuth callback failed', { status: 500 });
   }
 });

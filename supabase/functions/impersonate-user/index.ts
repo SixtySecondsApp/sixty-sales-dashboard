@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { captureException } from '../_shared/sentryEdge.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -143,6 +144,12 @@ serve(async (req) => {
       }
     )
   } catch (error) {
+    await captureException(error, {
+      tags: {
+        function: 'impersonate-user',
+        integration: 'supabase-auth',
+      },
+    });
     return new Response(
       JSON.stringify({ error: error.message }),
       {

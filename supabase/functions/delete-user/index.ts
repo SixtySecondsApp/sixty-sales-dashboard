@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 import { corsHeaders } from '../_shared/cors.ts'
+import { captureException } from '../_shared/sentryEdge.ts'
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -120,6 +121,12 @@ serve(async (req) => {
     )
   } catch (error: any) {
     console.error('Error in delete-user:', error)
+    await captureException(error, {
+      tags: {
+        function: 'delete-user',
+        integration: 'supabase-auth',
+      },
+    });
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

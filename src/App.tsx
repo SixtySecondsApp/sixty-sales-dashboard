@@ -27,6 +27,7 @@ import logger from '@/lib/utils/logger';
 import { StateProvider } from '@/lib/communication/StateManagement';
 import { serviceWorkerManager } from '@/lib/utils/serviceWorkerUtils';
 import { VersionManager } from '@/components/VersionManager';
+import { SentryDebugPanel } from '@/components/dev/SentryDebugPanel';
 
 // ============================================================
 // DIRECT IMPORTS (Critical path - must load immediately)
@@ -55,7 +56,7 @@ const FathomCallbackWrapper = () => <FathomCallback />;
 import {
   // Platform Admin
   MeetingsWaitlist, WaitlistSlackSettings, OnboardingSimulator, PricingControl, CostAnalysis, LaunchChecklist,
-  ActivationDashboard, PlatformDashboard, IntegrationRoadmap, VSLAnalytics, Users, PipelineSettings,
+  ActivationDashboard, PlatformDashboard, IntegrationRoadmap, VSLAnalytics, ErrorMonitoring, SentryBridge, Users, PipelineSettings,
   AuditLogs, SmartTasksAdmin, PipelineAutomationAdmin, EmailTemplates, FunctionTesting,
   AIProviderSettings, GoogleIntegrationTestsLegacy, GoogleIntegrationTests, SettingsSavvyCal,
   SettingsBookingSources, HealthRules, EmailCategorizationSettings, AdminModelSettings,
@@ -375,6 +376,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/launch-checklist" element={<PlatformAdminRouteGuard><AppLayout><LaunchChecklist /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/activation" element={<PlatformAdminRouteGuard><AppLayout><ActivationDashboard /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/vsl-analytics" element={<PlatformAdminRouteGuard><AppLayout><VSLAnalytics /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/error-monitoring" element={<PlatformAdminRouteGuard><AppLayout><ErrorMonitoring /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/sentry-bridge" element={<PlatformAdminRouteGuard><AppLayout><SentryBridge /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/slack-demo" element={<PlatformAdminRouteGuard><AppLayout><SlackDemo /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Cron Jobs Admin - Monitor and manage scheduled jobs */}
                 <Route path="/platform/cron-jobs" element={<PlatformAdminRouteGuard><AppLayout><CronJobsAdmin /></AppLayout></PlatformAdminRouteGuard>} />
@@ -493,6 +496,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         } />
       </Routes>
       <Toaster />
+      <SentryDebugPanel />
       <VersionManager />
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.15),transparent)] pointer-events-none" />
     </>

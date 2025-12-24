@@ -37,6 +37,7 @@ import {
   ListChecks,
   Share2,
   Play,
+  Bug,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -342,6 +343,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: Play,
       href: '/platform/vsl-analytics-tests',
       color: 'text-rose-600 bg-rose-100 dark:bg-rose-900/30',
+      badge: 'New',
+    },
+    {
+      id: 'sentry-bridge',
+      title: 'Sentry Bridge',
+      description: 'Auto-create AI Dev Hub tickets from Sentry errors with triage and routing',
+      icon: Bug,
+      href: '/platform/sentry-bridge',
+      color: 'text-red-600 bg-red-100 dark:bg-red-900/30',
       badge: 'New',
     },
   ],

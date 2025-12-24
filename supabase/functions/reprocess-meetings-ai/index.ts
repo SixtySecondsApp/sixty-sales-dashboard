@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { analyzeTranscriptWithClaude, deduplicateActionItems, type TranscriptAnalysis } from '../fathom-sync/aiAnalysis.ts'
+import { captureException } from '../_shared/sentryEdge.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -240,7 +241,12 @@ serve(async (req) => {
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    const errorStack = error instanceof Error ? error.stack : undefined
+    await captureException(error, {
+      tags: {
+        function: 'reprocess-meetings-ai',
+        integration: 'anthropic',
+      },
+    });
     return new Response(
       JSON.stringify({
         success: false,

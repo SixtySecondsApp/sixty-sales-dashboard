@@ -10,6 +10,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { loadPrompt, interpolateVariables } from '../_shared/promptLoader.ts';
+import { captureException } from '../_shared/sentryEdge.ts';
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -179,6 +180,12 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error('Email analysis error:', error);
+    await captureException(error, {
+      tags: {
+        function: 'analyze-email',
+        integration: 'anthropic',
+      },
+    });
 
     // Return fallback analysis on error
     return new Response(

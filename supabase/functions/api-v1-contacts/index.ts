@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { corsHeaders } from '../_shared/cors.ts'
+import { captureException } from '../_shared/sentryEdge.ts'
 import { 
   authenticateRequest, 
   parseQueryParams, 
@@ -96,6 +97,12 @@ serve(async (req) => {
 
   } catch (error) {
     statusCode = 500
+    await captureException(error, {
+      tags: {
+        function: 'api-v1-contacts',
+        integration: 'supabase',
+      },
+    });
     // Log failed request
     const apiKey = req.headers.get('X-API-Key')
     if (apiKey) {
@@ -112,7 +119,7 @@ serve(async (req) => {
         ).catch(console.error)
       } catch {}
     }
-    
+
     return createErrorResponse(error.message || 'Internal server error', statusCode)
   }
 })

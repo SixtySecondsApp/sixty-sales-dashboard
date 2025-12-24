@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.190.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { hmacSha256Hex, timingSafeEqual } from '../_shared/use60Signing.ts';
 import { legacyCorsHeaders as corsHeaders } from '../_shared/corsHelper.ts';
+import { captureException } from '../_shared/sentryEdge.ts';
 
 async function ensureCommunicationEvent(
   supabase: ReturnType<typeof createClient>,
@@ -499,6 +500,12 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {
+    await captureException(e, {
+      tags: {
+        function: 'justcall-webhook',
+        integration: 'justcall',
+      },
+    });
     return new Response(JSON.stringify({ success: false, error: e?.message || 'Webhook processing failed' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

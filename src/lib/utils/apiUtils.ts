@@ -1,5 +1,6 @@
 import { toast } from 'sonner';
 import logger from '@/lib/utils/logger';
+import { getTraceHeaders } from '@/lib/sentry/tracing';
 
 interface RetryOptions {
   maxRetries?: number;
@@ -152,17 +153,22 @@ export async function fetchWithRetry(
 
 /**
  * Enhanced API call wrapper with JSON handling and error management
+ * Includes distributed tracing headers for Sentry correlation
  */
 export async function apiCall<T>(
-  url: string, 
-  options: RequestInit = {}, 
+  url: string,
+  options: RequestInit = {},
   retryOptions: RetryOptions = {}
 ): Promise<T> {
   const supabaseHeaders = await getSupabaseHeaders();
-  
+
+  // Get trace headers for distributed tracing (sentry-trace, baggage)
+  const traceHeaders = getTraceHeaders();
+
   const response = await fetchWithRetry(url, {
     headers: {
       ...supabaseHeaders,
+      ...traceHeaders,
       ...options.headers,
     },
     ...options,

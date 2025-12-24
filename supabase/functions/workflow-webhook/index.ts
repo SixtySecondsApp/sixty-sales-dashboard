@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { captureException } from "../_shared/sentryEdge.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -199,9 +200,15 @@ serve(async (req) => {
       }
     )
   } catch (error) {
+    await captureException(error, {
+      tags: {
+        function: 'workflow-webhook',
+        integration: 'fathom',
+      },
+    });
     return new Response(
       JSON.stringify({ error: error.message }),
-      { 
+      {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }

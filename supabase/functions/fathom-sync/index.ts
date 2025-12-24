@@ -2,6 +2,7 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { captureException } from '../_shared/sentryEdge.ts'
 import { matchOrCreateCompany } from '../_shared/companyMatching.ts'
 import { selectPrimaryContact, determineMeetingCompany } from '../_shared/primaryContactSelection.ts'
 
@@ -2092,6 +2093,12 @@ async function syncSingleCall(
 
     return { success: true }
   } catch (error) {
+    await captureException(error, {
+      tags: {
+        function: 'fathom-sync',
+        integration: 'fathom',
+      },
+    });
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

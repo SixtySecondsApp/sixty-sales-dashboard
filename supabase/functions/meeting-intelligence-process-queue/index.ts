@@ -12,6 +12,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { captureException } from '../_shared/sentryEdge.ts'
 import { corsHeaders } from '../_shared/cors.ts'
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
@@ -1031,6 +1032,12 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in meeting-intelligence-process-queue:', error)
+    await captureException(error, {
+      tags: {
+        function: 'meeting-intelligence-process-queue',
+        integration: 'gemini',
+      },
+    });
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

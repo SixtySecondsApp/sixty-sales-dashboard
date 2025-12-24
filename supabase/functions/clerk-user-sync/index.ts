@@ -13,6 +13,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { captureException } from '../_shared/sentryEdge.ts';
 
 // CORS headers
 const corsHeaders = {
@@ -105,6 +106,12 @@ serve(async (req: Request) => {
     }
   } catch (error) {
     console.error('Error in clerk-user-sync:', error);
+    await captureException(error, {
+      tags: {
+        function: 'clerk-user-sync',
+        integration: 'clerk',
+      },
+    });
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
