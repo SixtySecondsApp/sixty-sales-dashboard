@@ -14,8 +14,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as Sentry from '@sentry/react';
 
-// Only render in development
-const isDev = import.meta.env.DEV;
+// Only render in development or preview environments
+const isDev = import.meta.env.DEV ||
+  import.meta.env.VITE_VERCEL_ENV === 'preview' ||
+  import.meta.env.VITE_SENTRY_DEBUG === 'true';
 
 interface ErrorEntry {
   id: string;
