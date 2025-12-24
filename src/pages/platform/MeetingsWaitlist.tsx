@@ -14,7 +14,8 @@ import { WaitlistStatsComponent } from '@/components/admin/waitlist/WaitlistStat
 import { SeededUserManager } from '@/components/platform/waitlist/SeededUserManager';
 import { resendMagicLink } from '@/lib/services/waitlistAdminService';
 import { MagicLinkSentModal } from '@/components/platform/waitlist/MagicLinkSentModal';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Bell } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function MeetingsWaitlist() {
   const { user } = useAuth();
@@ -163,6 +164,17 @@ export default function MeetingsWaitlist() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Slack Notification Settings Button */}
+      <div className="flex items-center gap-3">
+        <Link
+          to="/platform/waitlist-slack-settings"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          <Bell className="w-4 h-4" />
+          Configure Slack Notifications
+        </Link>
       </div>
 
       {/* Stats */}

@@ -131,6 +131,7 @@ function getSupabaseClient(): TypedSupabaseClient {
       }
     }
 
+    // Type assertion needed due to complex Supabase generic inference
     supabaseInstance = createClient<Database>(supabaseUrl, supabasePublishableKey, {
       auth: {
         persistSession: true,
@@ -170,7 +171,7 @@ function getSupabaseClient(): TypedSupabaseClient {
           'X-Client-Info': 'sales-dashboard-v2'
         }
       }
-    });
+    }) as TypedSupabaseClient;
   }
   return supabaseInstance;
 }

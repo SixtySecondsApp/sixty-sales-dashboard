@@ -51,6 +51,8 @@ export interface SubscriptionPlan {
   cta_text: string;
   cta_url: string | null;
   highlight_features: string[];
+  stripe_synced_at: string | null;
+  stripe_sync_error: string | null;
   created_at: string;
   updated_at: string;
 }

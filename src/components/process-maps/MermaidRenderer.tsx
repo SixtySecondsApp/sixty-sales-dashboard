@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
+import React, { useEffect, useRef, useState, useCallback, memo, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Copy,
   Check,
@@ -13,9 +14,169 @@ import {
   Minimize2,
   Code2,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Image,
+  FileCode2,
+  ListOrdered,
+  GitBranch,
 } from 'lucide-react';
 import { toast } from 'sonner';
+
+interface WorkflowStep {
+  section: string;
+  steps: Array<{
+    id: string;
+    label: string;
+    type: 'start' | 'end' | 'process' | 'decision' | 'data' | 'default';
+  }>;
+}
+
+interface ParsedDescription {
+  summary: string;
+  sections: Array<{
+    title: string;
+    items: string[];
+  }>;
+}
+
+/**
+ * Parse a process description into a concise summary (under 60 words)
+ * Extracts key section titles and creates a readable overview
+ */
+function parseDescription(description: string): ParsedDescription {
+  const sections: ParsedDescription['sections'] = [];
+  let summary = '';
+
+  // Extract the main title (text before first numbered item)
+  const titleMatch = description.match(/^([^:]+):/);
+  const mainTitle = titleMatch ? titleMatch[1].trim() : '';
+
+  // Split by numbered items (1. 2. 3. etc) to find section titles
+  const parts = description.split(/(?=\d+\.\s)/);
+  const sectionTitles: string[] = [];
+
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+
+    // Extract just the section title (e.g., "OAuth Connection" from "1. OAuth Connection: ...")
+    const match = trimmed.match(/^(\d+)\.\s*([^:]+):/);
+    if (match) {
+      sectionTitles.push(match[2].trim());
+    }
+  }
+
+  // Create a concise summary from section titles
+  if (sectionTitles.length > 0) {
+    // Group similar concepts
+    const keySteps = sectionTitles.slice(0, 5); // Take first 5 key steps
+    summary = `Key steps: ${keySteps.join(', ')}${sectionTitles.length > 5 ? `, and ${sectionTitles.length - 5} more` : ''}.`;
+  } else if (description) {
+    // Fallback: truncate to ~60 words
+    const words = description.split(/\s+/);
+    if (words.length > 60) {
+      summary = words.slice(0, 55).join(' ') + '...';
+    } else {
+      summary = description;
+    }
+  }
+
+  return { summary, sections };
+}
+
+/**
+ * Parse mermaid code to extract human-readable workflow steps
+ */
+function parseMermaidToSteps(code: string): WorkflowStep[] {
+  const sections: WorkflowStep[] = [];
+  let currentSection: WorkflowStep | null = null;
+
+  const lines = code.split('\n');
+
+  // Node patterns
+  const nodePatterns = [
+    { regex: /(\w+)\(\(([^)]+)\)\)/, type: 'start' as const },  // ((Start))
+    { regex: /(\w+)\[\[([^\]]+)\]\]/, type: 'end' as const },    // [[End]]
+    { regex: /(\w+)\{([^}]+)\}/, type: 'decision' as const },    // {Decision}
+    { regex: /(\w+)\[\(([^)]+)\)\]/, type: 'data' as const },    // [(Database)]
+    { regex: /(\w+)\[([^\]]+)\]/, type: 'process' as const },    // [Process]
+  ];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Check for subgraph (section)
+    const subgraphMatch = trimmed.match(/subgraph\s+(\w+)\s*\["?([^"\]]+)"?\]/);
+    if (subgraphMatch) {
+      if (currentSection && currentSection.steps.length > 0) {
+        sections.push(currentSection);
+      }
+      currentSection = {
+        section: subgraphMatch[2].replace(/^[^\w]*/, '').trim(), // Remove leading emoji/symbols
+        steps: [],
+      };
+      continue;
+    }
+
+    // Check for end of subgraph
+    if (trimmed === 'end' && currentSection) {
+      if (currentSection.steps.length > 0) {
+        sections.push(currentSection);
+      }
+      currentSection = null;
+      continue;
+    }
+
+    // Skip non-node lines
+    if (trimmed.startsWith('flowchart') || trimmed.startsWith('direction') ||
+        trimmed.startsWith('%%') || trimmed.includes('-->') ||
+        trimmed.startsWith('classDef') || trimmed.startsWith('class ') ||
+        !trimmed) {
+      continue;
+    }
+
+    // Try to match node definitions
+    for (const { regex, type } of nodePatterns) {
+      const match = trimmed.match(regex);
+      if (match) {
+        const id = match[1];
+        let label = match[2].replace(/"/g, '').trim();
+
+        // Clean up label
+        label = label.replace(/<br\s*\/?>/gi, ' ').replace(/\s+/g, ' ').trim();
+
+        // Skip if no meaningful label or duplicate
+        if (!label || label === id) continue;
+
+        const step = { id, label, type };
+
+        if (currentSection) {
+          // Avoid duplicates
+          if (!currentSection.steps.some(s => s.id === id)) {
+            currentSection.steps.push(step);
+          }
+        } else {
+          // Create default section if none exists
+          if (sections.length === 0 || sections[sections.length - 1].section !== 'Main Flow') {
+            sections.push({ section: 'Main Flow', steps: [] });
+          }
+          const lastSection = sections[sections.length - 1];
+          if (!lastSection.steps.some(s => s.id === id)) {
+            lastSection.steps.push(step);
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  // Add any remaining section
+  if (currentSection && currentSection.steps.length > 0) {
+    sections.push(currentSection);
+  }
+
+  return sections;
+}
 
 interface MermaidRendererProps {
   code: string;
@@ -136,6 +297,16 @@ export const MermaidRenderer = memo(function MermaidRenderer({
   const [zoom, setZoom] = useState(1);
   const [showCodePanel, setShowCodePanel] = useState(showCode);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'diagram' | 'code' | 'steps'>('diagram');
+
+  // Parse workflow steps from mermaid code
+  const workflowSteps = useMemo(() => parseMermaidToSteps(code), [code]);
+
+  // Parse description into structured format
+  const parsedDescription = useMemo(() => {
+    if (!description) return null;
+    return parseDescription(description);
+  }, [description]);
 
   // Initialize and render mermaid diagram
   const renderDiagram = useCallback(async () => {
@@ -151,24 +322,105 @@ export const MermaidRenderer = memo(function MermaidRenderer({
       // Dynamic import of mermaid
       const mermaid = await import('mermaid');
 
-      // Initialize mermaid with dark mode support
+      // Check if dark mode is active
+      const isDark = document.documentElement.classList.contains('dark');
+
+      // Initialize mermaid with neutral base theme
+      // ClassDef styles in the diagram will override these defaults
       mermaid.default.initialize({
         startOnLoad: false,
-        theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+        theme: 'base', // Use base theme to allow classDef overrides
         securityLevel: 'strict',
-        fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+        fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
         flowchart: {
           htmlLabels: true,
           curve: 'basis',
           padding: 20,
+          nodeSpacing: 50,
+          rankSpacing: 60,
+          diagramPadding: 8,
+          useMaxWidth: true,
         },
-        themeVariables: {
-          primaryColor: '#10b981',
-          primaryTextColor: '#fff',
-          primaryBorderColor: '#059669',
-          lineColor: '#6b7280',
-          secondaryColor: '#3b82f6',
-          tertiaryColor: '#f3f4f6',
+        themeVariables: isDark ? {
+          // === DARK MODE BASE THEME ===
+          // These are fallbacks - classDef in diagrams will override
+          background: 'transparent',
+
+          // Default colors (used when no classDef is applied)
+          primaryColor: '#1e293b',
+          primaryTextColor: '#f8fafc',
+          primaryBorderColor: '#475569',
+
+          secondaryColor: '#334155',
+          secondaryTextColor: '#f1f5f9',
+          secondaryBorderColor: '#64748b',
+
+          tertiaryColor: '#475569',
+          tertiaryTextColor: '#e2e8f0',
+          tertiaryBorderColor: '#94a3b8',
+
+          // Lines and arrows
+          lineColor: '#94a3b8',
+
+          // Text colors
+          textColor: '#f8fafc',
+          mainBkg: 'transparent',
+
+          // Node defaults
+          nodeBkg: '#1e293b',
+          nodeBorder: '#475569',
+          nodeTextColor: '#f8fafc',
+
+          // Cluster/subgraph styling
+          clusterBkg: 'rgba(30, 41, 59, 0.8)',
+          clusterBorder: 'rgba(71, 85, 105, 0.6)',
+          titleColor: '#f8fafc',
+
+          // Edge labels
+          edgeLabelBackground: 'rgba(15, 23, 42, 0.95)',
+
+          // Fonts
+          fontSize: '14px',
+        } : {
+          // === LIGHT MODE BASE THEME ===
+          // These are fallbacks - classDef in diagrams will override
+          background: 'transparent',
+
+          // Default colors
+          primaryColor: '#e0e7ff',
+          primaryTextColor: '#312e81',
+          primaryBorderColor: '#4f46e5',
+
+          secondaryColor: '#f1f5f9',
+          secondaryTextColor: '#334155',
+          secondaryBorderColor: '#64748b',
+
+          tertiaryColor: '#ecfdf5',
+          tertiaryTextColor: '#064e3b',
+          tertiaryBorderColor: '#059669',
+
+          // Lines and arrows
+          lineColor: '#94a3b8',
+
+          // Text colors
+          textColor: '#1e293b',
+          mainBkg: 'transparent',
+
+          // Node defaults
+          nodeBkg: '#ffffff',
+          nodeBorder: '#cbd5e1',
+          nodeTextColor: '#1e293b',
+
+          // Cluster/subgraph styling
+          clusterBkg: '#f8fafc',
+          clusterBorder: '#cbd5e1',
+          titleColor: '#475569',
+
+          // Edge labels
+          edgeLabelBackground: '#ffffff',
+
+          // Fonts
+          fontSize: '14px',
         },
       });
 
@@ -245,43 +497,94 @@ export const MermaidRenderer = memo(function MermaidRenderer({
     try {
       // Create canvas from SVG
       const svgElement = containerRef.current.querySelector('svg');
-      if (!svgElement) return;
+      if (!svgElement) {
+        toast.error('No SVG element found');
+        return;
+      }
 
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      if (!ctx) {
+        toast.error('Canvas not supported');
+        return;
+      }
 
-      // Get SVG dimensions
+      // Clone SVG and inline all styles for proper rendering
+      const clonedSvg = svgElement.cloneNode(true) as SVGElement;
+
+      // Get computed styles and inline them
+      const allElements = clonedSvg.querySelectorAll('*');
+      allElements.forEach((el) => {
+        const computedStyle = window.getComputedStyle(el as Element);
+        const styleString = Array.from(computedStyle)
+          .filter(prop => ['fill', 'stroke', 'stroke-width', 'font-family', 'font-size', 'font-weight', 'color', 'opacity'].includes(prop))
+          .map(prop => `${prop}:${computedStyle.getPropertyValue(prop)}`)
+          .join(';');
+        if (styleString) {
+          (el as HTMLElement).setAttribute('style', styleString);
+        }
+      });
+
+      // Ensure SVG has explicit dimensions
       const svgRect = svgElement.getBoundingClientRect();
-      const scale = 2; // For higher resolution
-      canvas.width = svgRect.width * scale;
-      canvas.height = svgRect.height * scale;
+      const width = svgRect.width || 800;
+      const height = svgRect.height || 600;
 
-      // Create image from SVG
-      const img = new Image();
-      const svgBlob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
-      const url = URL.createObjectURL(svgBlob);
+      clonedSvg.setAttribute('width', String(width));
+      clonedSvg.setAttribute('height', String(height));
+
+      // Add xmlns if missing
+      if (!clonedSvg.getAttribute('xmlns')) {
+        clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      }
+
+      const scale = 4; // High resolution for readable text when zoomed
+      canvas.width = width * scale;
+      canvas.height = height * scale;
+
+      // Serialize SVG with proper encoding
+      const serializer = new XMLSerializer();
+      const svgString = serializer.serializeToString(clonedSvg);
+      const encodedSvg = encodeURIComponent(svgString)
+        .replace(/'/g, '%27')
+        .replace(/"/g, '%22');
+
+      const dataUrl = `data:image/svg+xml;charset=utf-8,${encodedSvg}`;
+
+      // Create image from SVG (use window.Image to avoid conflict with lucide-react Image icon)
+      const img = new window.Image();
 
       img.onload = () => {
+        // Fill background
         ctx.fillStyle = document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.scale(scale, scale);
-        ctx.drawImage(img, 0, 0);
-        URL.revokeObjectURL(url);
+        ctx.drawImage(img, 0, 0, width, height);
 
         // Download
-        const pngUrl = canvas.toDataURL('image/png');
-        const a = document.createElement('a');
-        a.href = pngUrl;
-        a.download = `${title?.replace(/\s+/g, '-').toLowerCase() || 'process-map'}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        toast.success('PNG downloaded');
+        try {
+          const pngUrl = canvas.toDataURL('image/png');
+          const a = document.createElement('a');
+          a.href = pngUrl;
+          a.download = `${title?.replace(/\s+/g, '-').toLowerCase() || 'process-map'}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          toast.success('PNG downloaded');
+        } catch (canvasErr) {
+          console.error('Canvas export error:', canvasErr);
+          toast.error('Failed to export PNG - try downloading SVG instead');
+        }
       };
 
-      img.src = url;
+      img.onerror = (err) => {
+        console.error('Image load error:', err);
+        toast.error('Failed to load SVG for PNG conversion - try downloading SVG instead');
+      };
+
+      img.src = dataUrl;
     } catch (err) {
+      console.error('PNG download error:', err);
       toast.error('Failed to download PNG');
     }
   }, [svgContent, title]);
@@ -337,8 +640,8 @@ export const MermaidRenderer = memo(function MermaidRenderer({
       {(title || description) && (
         <CardHeader className="pb-3">
           {title && <CardTitle className="text-lg">{title}</CardTitle>}
-          {description && (
-            <CardDescription className="line-clamp-2">{description}</CardDescription>
+          {parsedDescription?.summary && (
+            <CardDescription className="text-sm">{parsedDescription.summary}</CardDescription>
           )}
         </CardHeader>
       )}
@@ -416,9 +719,20 @@ export const MermaidRenderer = memo(function MermaidRenderer({
                 size="sm"
                 onClick={handleDownloadSvg}
                 disabled={!svgContent}
-                title="Download SVG"
+                title="Download as SVG (vector)"
               >
-                <Download className="h-4 w-4" />
+                <FileCode2 className="h-4 w-4" />
+                <span className="ml-1 text-xs hidden sm:inline">SVG</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDownloadPng}
+                disabled={!svgContent}
+                title="Download as PNG (image)"
+              >
+                <Image className="h-4 w-4" />
+                <span className="ml-1 text-xs hidden sm:inline">PNG</span>
               </Button>
             </div>
           </div>
@@ -443,11 +757,48 @@ export const MermaidRenderer = memo(function MermaidRenderer({
           {!loading && !error && svgContent && (
             <div
               ref={containerRef}
-              className="overflow-auto p-4"
+              className="overflow-auto p-4 mermaid-dark-text-override"
               style={{
                 maxHeight: isFullscreen ? 'calc(100vh - 120px)' : '600px',
               }}
             >
+              {/* CSS enhancements for Mermaid diagrams - let classDef handle node colors */}
+              <style>{`
+                /* Edge labels in dark mode need better contrast */
+                .dark .mermaid-dark-text-override .edgeLabel,
+                .dark .mermaid-dark-text-override .edgeLabel text,
+                .dark .mermaid-dark-text-override .edgeLabel span {
+                  color: #F3F4F6 !important;
+                  fill: #F3F4F6 !important;
+                  background-color: rgba(17, 24, 39, 0.95) !important;
+                }
+
+                /* Subgraph/cluster styling for dark mode */
+                .dark .mermaid-dark-text-override .cluster rect {
+                  fill: rgba(30, 41, 59, 0.8) !important;
+                  stroke: rgba(71, 85, 105, 0.6) !important;
+                }
+                .dark .mermaid-dark-text-override .cluster .nodeLabel,
+                .dark .mermaid-dark-text-override .cluster-label,
+                .dark .mermaid-dark-text-override .cluster text {
+                  fill: #F3F4F6 !important;
+                  color: #F3F4F6 !important;
+                }
+
+                /* Arrow/link styling for dark mode */
+                .dark .mermaid-dark-text-override .flowchart-link {
+                  stroke: #94a3b8 !important;
+                }
+                .dark .mermaid-dark-text-override marker path {
+                  fill: #94a3b8 !important;
+                  stroke: #94a3b8 !important;
+                }
+
+                /* Ensure diagram background is transparent */
+                .mermaid-dark-text-override svg {
+                  background: transparent !important;
+                }
+              `}</style>
               <div
                 className="transition-transform duration-200 origin-top-left"
                 style={{
@@ -459,26 +810,98 @@ export const MermaidRenderer = memo(function MermaidRenderer({
           )}
         </div>
 
-        {/* Code panel */}
+        {/* Tabbed panel for Code and Steps */}
         {showCodePanel && (
           <div className="border-t border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-800/50">
-              <span className="text-xs font-medium text-muted-foreground">Mermaid Code</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCopy}
-              >
-                {copied ? (
-                  <Check className="h-3 w-3 text-green-500" />
-                ) : (
-                  <Copy className="h-3 w-3" />
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'diagram' | 'code' | 'steps')}>
+              <div className="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-800/50">
+                <TabsList className="h-8">
+                  <TabsTrigger value="diagram" className="text-xs px-3 py-1 h-6">
+                    <GitBranch className="h-3 w-3 mr-1" />
+                    Diagram
+                  </TabsTrigger>
+                  <TabsTrigger value="code" className="text-xs px-3 py-1 h-6">
+                    <Code2 className="h-3 w-3 mr-1" />
+                    Code
+                  </TabsTrigger>
+                  <TabsTrigger value="steps" className="text-xs px-3 py-1 h-6">
+                    <ListOrdered className="h-3 w-3 mr-1" />
+                    Steps
+                  </TabsTrigger>
+                </TabsList>
+                {activeTab === 'code' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCopy}
+                    className="h-6"
+                  >
+                    {copied ? (
+                      <Check className="h-3 w-3 text-green-500" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </Button>
                 )}
-              </Button>
-            </div>
-            <pre className="p-4 text-xs overflow-auto max-h-48 bg-gray-900 text-gray-100">
-              <code>{code}</code>
-            </pre>
+              </div>
+
+              <TabsContent value="diagram" className="mt-0">
+                {/* Diagram is shown above, this tab just hides the code/steps panels */}
+              </TabsContent>
+
+              <TabsContent value="code" className="mt-0">
+                <pre className="p-4 text-xs overflow-auto max-h-64 bg-gray-900 text-gray-100">
+                  <code>{code}</code>
+                </pre>
+              </TabsContent>
+
+              <TabsContent value="steps" className="mt-0">
+                <div className="p-4 overflow-auto max-h-64 bg-gray-50 dark:bg-gray-900/50">
+                  {workflowSteps.length > 0 ? (
+                    <div className="space-y-4">
+                      {workflowSteps.map((section, sectionIndex) => (
+                        <div key={sectionIndex}>
+                          <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold">
+                              {sectionIndex + 1}
+                            </span>
+                            {section.section}
+                          </h4>
+                          <ol className="space-y-1.5 ml-7">
+                            {section.steps.map((step, stepIndex) => (
+                              <li key={step.id} className="flex items-start gap-2 text-sm">
+                                <span className="text-muted-foreground text-xs min-w-[1.5rem]">
+                                  {sectionIndex + 1}.{stepIndex + 1}
+                                </span>
+                                <span className={cn(
+                                  'flex-1',
+                                  step.type === 'start' && 'text-green-600 dark:text-green-400 font-medium',
+                                  step.type === 'end' && 'text-red-600 dark:text-red-400 font-medium',
+                                  step.type === 'decision' && 'text-amber-600 dark:text-amber-400',
+                                  step.type === 'data' && 'text-blue-600 dark:text-blue-400',
+                                )}>
+                                  {step.label}
+                                  {step.type === 'decision' && (
+                                    <span className="ml-1 text-xs text-muted-foreground">(decision)</span>
+                                  )}
+                                  {step.type === 'data' && (
+                                    <span className="ml-1 text-xs text-muted-foreground">(data store)</span>
+                                  )}
+                                </span>
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No workflow steps detected in this diagram.
+                    </p>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
         )}
       </CardContent>

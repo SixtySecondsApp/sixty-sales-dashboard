@@ -224,7 +224,7 @@ export function IntroductionPage() {
               transition={{ duration: 0.6, delay: 0.6 }}
               className="relative w-full max-w-3xl mb-8"
             >
-              <OptimizedCloudinaryVideo src={VIDEO_URL} />
+              <OptimizedCloudinaryVideo src={VIDEO_URL} signupSource="introduction-vsl" />
             </motion.div>
 
             {/* Email Capture Form */}

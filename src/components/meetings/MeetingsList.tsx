@@ -38,7 +38,8 @@ import {
   ChevronRight,
   Loader2,
   FileText,
-  Sparkles
+  Sparkles,
+  RefreshCw
 } from 'lucide-react'
 import { MeetingUsageBar } from '@/components/MeetingUsageIndicator'
 
@@ -275,6 +276,7 @@ const MeetingsList: React.FC = () => {
   const { syncState, isConnected, isSyncing, triggerSync } = useFathomIntegration()
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [scope, setScope] = useState<'me' | 'team'>('me')
   const [view, setView] = useState<'list' | 'grid'>('grid')
   const [currentPage, setCurrentPage] = useState(1)
@@ -456,6 +458,7 @@ const MeetingsList: React.FC = () => {
     if (!user) return
 
     setLoading(true)
+    setFetchError(null)
     try {
       // First get total count for pagination
       // Use explicit any to avoid deep type instantiation issues with Supabase query chaining
@@ -525,8 +528,18 @@ const MeetingsList: React.FC = () => {
       if (currentPage === 1) {
         calculateStats(meetingsData)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching meetings:', error)
+      // Set user-friendly error message
+      const errorMessage = error?.message || error?.code || 'Failed to load meetings'
+      const statusCode = error?.status || error?.statusCode
+      if (statusCode === 503) {
+        setFetchError('Database temporarily unavailable. Please try again in a moment.')
+      } else if (statusCode === 406) {
+        setFetchError('Unable to load meetings. Please refresh the page.')
+      } else {
+        setFetchError(errorMessage)
+      }
     } finally {
       setLoading(false)
     }
@@ -587,6 +600,51 @@ const MeetingsList: React.FC = () => {
     <div className="p-6 space-y-6">
       {/* Meeting Usage Bar - Shows for free tier users */}
       <MeetingUsageBar />
+
+      {/* Sync Progress Banner - Shows during active sync, doesn't block content */}
+      {isSyncing && syncState && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-emerald-500/10 via-emerald-600/10 to-teal-500/10 dark:from-emerald-500/20 dark:via-emerald-600/20 dark:to-teal-500/20 backdrop-blur-xl rounded-2xl p-4 border border-emerald-500/30 dark:border-emerald-500/40"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Loader2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 animate-spin" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                  Syncing meetings from Fathom...
+                </p>
+                <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80">
+                  {syncState.meetings_synced > 0
+                    ? `${syncState.meetings_synced.toLocaleString()} of ${syncState.total_meetings_found.toLocaleString()} synced`
+                    : 'Fetching meeting list...'}
+                </p>
+              </div>
+            </div>
+            {syncState.total_meetings_found > 0 && (
+              <div className="flex items-center gap-3">
+                {/* Progress bar */}
+                <div className="w-32 h-2 bg-emerald-200/50 dark:bg-emerald-900/50 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{
+                      width: `${Math.round((syncState.meetings_synced / syncState.total_meetings_found) * 100)}%`
+                    }}
+                    transition={{ duration: 0.5 }}
+                    className="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full"
+                  />
+                </div>
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium min-w-[40px]">
+                  {Math.round((syncState.meetings_synced / syncState.total_meetings_found) * 100)}%
+                </span>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       {/* Header */}
       <motion.div
@@ -1034,11 +1092,42 @@ const MeetingsList: React.FC = () => {
         </motion.div>
       )}
 
-      {/* Empty State */}
-      {meetings.length === 0 && !loading && (
+      {/* Error State - show when fetch failed but we know meetings exist */}
+      {fetchError && meetings.length === 0 && totalCount > 0 && !loading && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center justify-center py-16 px-4"
+        >
+          <div className="w-24 h-24 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center mb-6">
+            <Video className="w-12 h-12 text-red-500 dark:text-red-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 text-center">
+            Unable to Load Meetings
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-4 text-center max-w-md">
+            {fetchError}
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-500 mb-6 text-center">
+            You have {totalCount.toLocaleString()} meetings in your account.
+          </p>
+          <Button
+            onClick={() => fetchMeetings()}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            <RefreshCw className="mr-2 w-4 h-4" />
+            Try Again
+          </Button>
+        </motion.div>
+      )}
+
+      {/* Empty State - only show when no meetings exist at all */}
+      {/* IMPORTANT: Don't pass isSyncing when totalCount > 0 - we want to show available meetings */}
+      {/* The sync progress banner at top handles sync indication without blocking content */}
+      {meetings.length === 0 && totalCount === 0 && !loading && !fetchError && (
         <MeetingsEmptyState
           meetingCount={meetings.length}
-          isSyncing={syncState?.sync_status === 'syncing'}
+          isSyncing={syncState?.sync_status === 'syncing' && totalCount === 0}
         />
       )}
     </div>

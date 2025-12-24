@@ -94,6 +94,29 @@ export function CustomerDetailModal({
   );
   const [adminNotes, setAdminNotes] = useState(customer.subscription?.admin_notes || '');
 
+  // Debug: Log subscription data
+  console.log('[CustomerDetailModal] Customer subscription data:', {
+    customerId: customer.id,
+    customerName: customer.name,
+    subscription: customer.subscription,
+    plan_id: customer.subscription?.plan_id,
+    plan: customer.subscription?.plan,
+    topLevelPlan: customer.plan,
+  });
+
+  // Sync form state when customer prop changes
+  useEffect(() => {
+    if (customer.subscription) {
+      setSelectedPlanId(customer.subscription.plan_id || '');
+      setStatus(customer.subscription.status || 'active');
+      setBillingCycle(customer.subscription.billing_cycle || 'monthly');
+      setCustomMaxUsers(customer.subscription.custom_max_users?.toString() || '');
+      setCustomMaxMeetings(customer.subscription.custom_max_meetings?.toString() || '');
+      setCustomMaxTokens(customer.subscription.custom_max_ai_tokens?.toString() || '');
+      setAdminNotes(customer.subscription.admin_notes || '');
+    }
+  }, [customer.subscription]);
+
   // Load members when tab changes
   useEffect(() => {
     if (activeTab === 'members' && members.length === 0) {

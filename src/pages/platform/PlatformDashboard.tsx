@@ -36,6 +36,7 @@ import {
   Clock,
   ListChecks,
   Share2,
+  Play,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -84,6 +85,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: Users,
       href: '/platform/meetings-waitlist',
       color: 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900/30',
+      badge: 'New',
+    },
+    {
+      id: 'vsl-analytics',
+      title: 'VSL Analytics',
+      description: 'Split test analytics for landing page videos',
+      icon: Play,
+      href: '/platform/vsl-analytics',
+      color: 'text-rose-600 bg-rose-100 dark:bg-rose-900/30',
       badge: 'New',
     },
     {
@@ -324,6 +334,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: Calendar,
       href: '/platform/onboarding-simulator',
       color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30',
+    },
+    {
+      id: 'vsl-analytics-tests',
+      title: 'VSL Analytics Tests',
+      description: 'Test video analytics tracking, database storage, and dashboard queries',
+      icon: Play,
+      href: '/platform/vsl-analytics-tests',
+      color: 'text-rose-600 bg-rose-100 dark:bg-rose-900/30',
+      badge: 'New',
     },
   ],
 };

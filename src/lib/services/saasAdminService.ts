@@ -117,22 +117,54 @@ export async function deletePlan(planId: string): Promise<void> {
 // ============================================================================
 
 export async function getCustomers(): Promise<CustomerWithDetails[]> {
-  // Get organizations with their subscriptions and plans
+  // Fetch organizations (without nested subscriptions - RLS issues with nested queries)
   const { data: orgs, error: orgsError } = await supabase
     .from('organizations')
-    .select(`
-      *,
-      organization_subscriptions (
-        *,
-        plan:subscription_plans (*)
-      )
-    `)
+    .select('*')
     .order('created_at', { ascending: false });
 
   if (orgsError) {
     logger.error('[SaaS Admin] Error fetching customers:', orgsError);
     throw orgsError;
   }
+
+  // Fetch subscriptions separately (direct query works better with RLS)
+  const { data: subscriptions, error: subsError } = await supabase
+    .from('organization_subscriptions')
+    .select('*');
+
+  if (subsError) {
+    logger.error('[SaaS Admin] Error fetching subscriptions:', subsError);
+  }
+
+  // Fetch subscription plans
+  const { data: plans, error: plansError } = await supabase
+    .from('subscription_plans')
+    .select('*');
+
+  if (plansError) {
+    logger.error('[SaaS Admin] Error fetching plans:', plansError);
+  }
+
+  // Build subscription map with plan data
+  const plansMap = (plans || []).reduce(
+    (acc, p) => {
+      acc[p.id] = p;
+      return acc;
+    },
+    {} as Record<string, SubscriptionPlan>
+  );
+
+  const subscriptionMap = (subscriptions || []).reduce(
+    (acc, s) => {
+      acc[s.org_id] = {
+        ...s,
+        plan: s.plan_id ? plansMap[s.plan_id] : null,
+      };
+      return acc;
+    },
+    {} as Record<string, OrganizationSubscription & { plan: SubscriptionPlan | null }>
+  );
 
   // Get member counts for each org
   const { data: memberCounts, error: membersError } = await supabase
@@ -196,7 +228,8 @@ export async function getCustomers(): Promise<CustomerWithDetails[]> {
 
   // Combine all data
   return (orgs || []).map((org) => {
-    const subscription = org.organization_subscriptions?.[0] || null;
+    const subscription = subscriptionMap[org.id] || null;
+
     return {
       ...org,
       subscription,
@@ -209,15 +242,10 @@ export async function getCustomers(): Promise<CustomerWithDetails[]> {
 }
 
 export async function getCustomerById(orgId: string): Promise<CustomerWithDetails | null> {
+  // Fetch organization (without nested subscriptions - RLS issues with nested queries)
   const { data: org, error: orgError } = await supabase
     .from('organizations')
-    .select(`
-      *,
-      organization_subscriptions (
-        *,
-        plan:subscription_plans (*)
-      )
-    `)
+    .select('*')
     .eq('id', orgId)
     .single();
 
@@ -226,6 +254,28 @@ export async function getCustomerById(orgId: string): Promise<CustomerWithDetail
     logger.error('[SaaS Admin] Error fetching customer:', orgError);
     throw orgError;
   }
+
+  // Fetch subscription separately (direct query works better with RLS)
+  const { data: subscriptionData } = await supabase
+    .from('organization_subscriptions')
+    .select('*')
+    .eq('org_id', orgId)
+    .maybeSingle();
+
+  // Fetch plan if subscription exists
+  let plan: SubscriptionPlan | null = null;
+  if (subscriptionData?.plan_id) {
+    const { data: planData } = await supabase
+      .from('subscription_plans')
+      .select('*')
+      .eq('id', subscriptionData.plan_id)
+      .single();
+    plan = planData;
+  }
+
+  const subscription = subscriptionData
+    ? { ...subscriptionData, plan }
+    : null;
 
   // Get member count
   const { count: memberCount } = await supabase
@@ -251,8 +301,6 @@ export async function getCustomerById(orgId: string): Promise<CustomerWithDetail
     .from('organization_feature_flags')
     .select('*')
     .eq('org_id', orgId);
-
-  const subscription = org.organization_subscriptions?.[0] || null;
 
   return {
     ...org,

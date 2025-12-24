@@ -8,7 +8,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { GitBranch, Loader2, ExternalLink, RefreshCw } from 'lucide-react';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { GitBranch, Loader2, ExternalLink, RefreshCw, ArrowRight, ArrowDown, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { MermaidRenderer } from './MermaidRenderer';
@@ -22,7 +27,10 @@ export type ProcessName =
   | 'justcall'
   | 'savvycal'
   | 'meeting_intelligence'
-  | 'task_extraction';
+  | 'task_extraction'
+  | 'vsl_analytics';
+
+export type FlowDirection = 'horizontal' | 'vertical';
 
 interface ProcessMapButtonProps {
   processType: ProcessType;
@@ -32,6 +40,7 @@ interface ProcessMapButtonProps {
   className?: string;
   showLabel?: boolean;
   label?: string;
+  direction?: FlowDirection;
   onGenerated?: () => void;
 }
 
@@ -56,13 +65,22 @@ export function ProcessMapButton({
   className,
   showLabel = true,
   label = 'Process Map',
+  direction = 'horizontal',
   onGenerated,
 }: ProcessMapButtonProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [processMap, setProcessMap] = useState<ProcessMap | null>(null);
+  const [directionPickerOpen, setDirectionPickerOpen] = useState(false);
+  // Store both horizontal and vertical versions
+  const [horizontalMap, setHorizontalMap] = useState<ProcessMap | null>(null);
+  const [verticalMap, setVerticalMap] = useState<ProcessMap | null>(null);
   const [regenerating, setRegenerating] = useState(false);
+  const [generatingDirection, setGeneratingDirection] = useState<FlowDirection | null>(null);
+  const [activeDirection, setActiveDirection] = useState<FlowDirection>(direction);
+
+  // Get the currently active process map based on selected direction
+  const activeMap = activeDirection === 'horizontal' ? horizontalMap : verticalMap;
 
   const formatProcessTitle = useCallback(() => {
     const formattedName = processName
@@ -73,13 +91,20 @@ export function ProcessMapButton({
   }, [processName]);
 
   const generateProcessMap = useCallback(
-    async (regenerate = false) => {
-      const isRegenerate = regenerate;
-      if (isRegenerate) {
+    async (targetDirection: FlowDirection, regenerate = false) => {
+      // Check if we already have this direction (and not forcing regenerate)
+      const existingMap = targetDirection === 'horizontal' ? horizontalMap : verticalMap;
+      if (existingMap && !regenerate) {
+        setActiveDirection(targetDirection);
+        return;
+      }
+
+      if (regenerate) {
         setRegenerating(true);
-      } else {
+      } else if (!dialogOpen) {
         setLoading(true);
       }
+      setGeneratingDirection(targetDirection);
 
       try {
         const { data: sessionData } = await supabase.auth.getSession();
@@ -92,7 +117,8 @@ export function ProcessMapButton({
           body: {
             processType,
             processName,
-            regenerate: isRegenerate,
+            regenerate,
+            direction: targetDirection,
           },
         });
 
@@ -102,15 +128,19 @@ export function ProcessMapButton({
 
         const data = response.data;
         if (data?.processMap) {
-          setProcessMap(data.processMap);
+          // Store in the appropriate state based on direction
+          if (targetDirection === 'horizontal') {
+            setHorizontalMap(data.processMap);
+          } else {
+            setVerticalMap(data.processMap);
+          }
+          setActiveDirection(targetDirection);
           setDialogOpen(true);
 
           if (data.generated) {
-            toast.success('Process map generated successfully');
-            onGenerated?.();
-          } else if (data.cached) {
-            // Cached version, no toast needed
+            toast.success(`${targetDirection === 'horizontal' ? 'Horizontal' : 'Vertical'} process map generated`);
           }
+          onGenerated?.();
         } else {
           throw new Error('No process map returned');
         }
@@ -122,18 +152,41 @@ export function ProcessMapButton({
       } finally {
         setLoading(false);
         setRegenerating(false);
+        setGeneratingDirection(null);
       }
     },
-    [processType, processName, onGenerated]
+    [processType, processName, horizontalMap, verticalMap, dialogOpen, onGenerated]
   );
 
   const handleClick = useCallback(() => {
-    generateProcessMap(false);
+    // If we already have maps, open the dialog directly
+    if (horizontalMap || verticalMap) {
+      setDialogOpen(true);
+    } else {
+      // Show direction picker for first generation
+      setDirectionPickerOpen(true);
+    }
+  }, [horizontalMap, verticalMap]);
+
+  const handleDirectionSelect = useCallback((selectedDirection: FlowDirection) => {
+    setDirectionPickerOpen(false);
+    generateProcessMap(selectedDirection, false);
   }, [generateProcessMap]);
 
+  const handleDirectionChange = useCallback((newDirection: FlowDirection) => {
+    // If we have this version, just switch to it
+    const existingMap = newDirection === 'horizontal' ? horizontalMap : verticalMap;
+    if (existingMap) {
+      setActiveDirection(newDirection);
+    } else {
+      // Generate the new direction
+      generateProcessMap(newDirection, false);
+    }
+  }, [horizontalMap, verticalMap, generateProcessMap]);
+
   const handleRegenerate = useCallback(() => {
-    generateProcessMap(true);
-  }, [generateProcessMap]);
+    generateProcessMap(activeDirection, true);
+  }, [generateProcessMap, activeDirection]);
 
   const handleViewAll = useCallback(() => {
     setDialogOpen(false);
@@ -142,20 +195,58 @@ export function ProcessMapButton({
 
   return (
     <>
-      <Button
-        variant={variant}
-        size={size}
-        className={className}
-        onClick={handleClick}
-        disabled={loading}
-      >
-        {loading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <GitBranch className="h-4 w-4" />
-        )}
-        {showLabel && <span className="ml-1.5">{label}</span>}
-      </Button>
+      <Popover open={directionPickerOpen} onOpenChange={setDirectionPickerOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant={variant}
+            size={size}
+            className={className}
+            onClick={handleClick}
+            disabled={loading}
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <GitBranch className="h-4 w-4" />
+            )}
+            {showLabel && <span className="ml-1.5">{label}</span>}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-4" align="start">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Generate Process Map
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Choose a flow direction to start:
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDirectionSelect('horizontal')}
+                className="flex flex-col items-center gap-1 h-auto py-3"
+              >
+                <ArrowRight className="h-5 w-5" />
+                <span className="text-xs">Horizontal</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDirectionSelect('vertical')}
+                className="flex flex-col items-center gap-1 h-auto py-3"
+              >
+                <ArrowDown className="h-5 w-5" />
+                <span className="text-xs">Vertical</span>
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              You can generate the other view later
+            </p>
+          </div>
+        </PopoverContent>
+      </Popover>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -170,12 +261,23 @@ export function ProcessMapButton({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-auto">
-            {processMap && (
+          <div className="flex-1 overflow-auto relative">
+            {/* Loading overlay when switching directions */}
+            {generatingDirection && (
+              <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10">
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <span className="text-sm text-muted-foreground">
+                    Generating {generatingDirection} view...
+                  </span>
+                </div>
+              </div>
+            )}
+            {activeMap && (
               <MermaidRenderer
-                code={processMap.mermaid_code}
-                title={processMap.title}
-                description={processMap.description || undefined}
+                code={activeMap.mermaid_code}
+                title={activeMap.title}
+                description={activeMap.description || undefined}
                 showControls={true}
                 showCode={false}
               />
@@ -184,19 +286,58 @@ export function ProcessMapButton({
 
           <div className="flex items-center justify-between pt-4 border-t">
             <div className="text-xs text-muted-foreground">
-              {processMap && (
+              {activeMap && (
                 <>
-                  Version {processMap.version} &middot; Last updated{' '}
-                  {new Date(processMap.updated_at).toLocaleDateString()}
+                  Version {activeMap.version} &middot; Last updated{' '}
+                  {new Date(activeMap.updated_at).toLocaleDateString()}
+                  {' '}&middot; {activeDirection === 'horizontal' ? 'Horizontal' : 'Vertical'} flow
                 </>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              {/* Direction Toggle - switches between cached versions or generates new */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">View:</span>
+                <div className="flex items-center border rounded-md">
+                  <Button
+                    variant={activeDirection === 'horizontal' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => handleDirectionChange('horizontal')}
+                    disabled={generatingDirection === 'horizontal'}
+                    className="rounded-r-none gap-1 px-2 h-7"
+                    title={horizontalMap ? 'View horizontal flow' : 'Generate horizontal flow'}
+                  >
+                    {generatingDirection === 'horizontal' ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <ArrowRight className="h-3 w-3" />
+                    )}
+                    <span className="text-xs">H</span>
+                    {horizontalMap && <span className="w-1.5 h-1.5 rounded-full bg-green-500 ml-0.5" />}
+                  </Button>
+                  <Button
+                    variant={activeDirection === 'vertical' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => handleDirectionChange('vertical')}
+                    disabled={generatingDirection === 'vertical'}
+                    className="rounded-l-none gap-1 px-2 h-7"
+                    title={verticalMap ? 'View vertical flow' : 'Generate vertical flow'}
+                  >
+                    {generatingDirection === 'vertical' ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <ArrowDown className="h-3 w-3" />
+                    )}
+                    <span className="text-xs">V</span>
+                    {verticalMap && <span className="w-1.5 h-1.5 rounded-full bg-green-500 ml-0.5" />}
+                  </Button>
+                </div>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleRegenerate}
-                disabled={regenerating}
+                disabled={regenerating || !!generatingDirection}
               >
                 {regenerating ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-1.5" />

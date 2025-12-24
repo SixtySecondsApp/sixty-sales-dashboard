@@ -8,7 +8,7 @@
  *
  * Supported process types:
  * - integration: HubSpot, Google, Fathom, Slack, JustCall, SavvyCal
- * - workflow: Meeting Intelligence, Task Extraction
+ * - workflow: Meeting Intelligence, Task Extraction, VSL Analytics
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -20,9 +20,11 @@ const corsHeaders = {
 }
 
 interface RequestBody {
-  processType: 'integration' | 'workflow'
-  processName: string
+  action?: 'generate' | 'list'  // default: 'generate'
+  processType?: 'integration' | 'workflow'
+  processName?: string
   regenerate?: boolean
+  direction?: 'horizontal' | 'vertical'  // default: 'horizontal'
 }
 
 // Process descriptions for AI context
@@ -67,26 +69,43 @@ Google Workspace Integration Process:
     fathom: `
 Fathom Integration Process:
 1. OAuth Connection: User connects Fathom account via OAuth
-2. Credential Storage: Fathom access token stored in fathom_integrations table
-3. Recording Sync:
-   - Webhook notifications for new recordings
-   - Cron job for periodic sync (fathom-sync)
-4. Meeting Creation:
-   - New meetings created in meetings table
-   - Participants extracted and linked
-5. Transcript Sync:
+2. Credential Storage: Fathom access token stored in fathom_org_integrations table (org-level)
+3. Sync State Management:
+   - Sync status tracked in fathom_org_sync_state table
+   - States: idle | syncing | error
+   - Progress tracking: meetings_synced / total_meetings_found
+   - Stuck sync auto-recovery: resets after 30 minutes via database trigger
+4. Progressive Recording Sync:
+   - Initial sync: First 9 meetings get FULL processing (thumbnails + transcripts)
+   - Background queue: Remaining meetings processed asynchronously
+   - Real-time UI: Sync progress banner shows "X of Y synced" with progress bar
+   - Meetings display during sync (not blocked by syncing state)
+5. Meeting Creation:
+   - New meetings created in meetings table sorted by newest first
+   - Participants extracted and linked to CRM contacts
+   - Processing status columns: thumbnail_status, transcript_status, summary_status
+6. Thumbnail Generation:
+   - Thumbnails generated via generate-video-thumbnail-v2 Edge Function
+   - Status: pending → processing → complete/failed
+   - Real-time UI updates via Supabase subscriptions
+7. Transcript Sync:
    - Transcripts fetched via Fathom API
    - Stored in transcript_text column
    - Triggers AI analysis pipeline
-6. Summary Generation:
+8. Summary Generation:
    - AI-generated meeting summaries
-   - Action items extraction
-7. Company/Contact Linking:
+   - Action items extraction to meeting_action_items table
+   - Sentiment analysis and coach ratings
+9. Company/Contact Linking:
    - Attendee emails matched to contacts
    - Company association via domain matching
-8. AI Processing Triggers:
-   - Database triggers auto-queue meetings for AI analysis
-   - Next action suggestions generated
+10. Meeting Intelligence Indexing:
+    - Meetings queued for Google File Search indexing
+    - Org-level stores for RAG queries via ask-meeting-ai
+    - Real-time indexing status: "295/334 indexed"
+11. Cron Job Sync:
+    - fathom-sync Edge Function for periodic sync
+    - Webhook notifications for new recordings
 `,
     slack: `
 Slack Integration Process:
@@ -212,6 +231,52 @@ Task Extraction Workflow:
    - Cron job checks overdue tasks
    - Notifications sent with guardrails
 `,
+    vsl_analytics: `
+VSL Video Analytics Workflow:
+1. Landing Page Setup:
+   - Three VSL variants: /intro, /introducing, /introduction
+   - Each page has unique signupSource identifier
+   - Cloudinary-hosted videos with public IDs
+2. Video Component Integration:
+   - OptimizedCloudinaryVideo component renders video player
+   - HTML5 video element with custom event handlers
+   - Video events captured: view, play, pause, progress, seek, ended
+3. Anonymous Event Tracking:
+   - Session ID generated per visitor (anonymous)
+   - No authentication required for event submission
+   - Events sent to Supabase vsl_video_analytics table
+4. Event Data Capture:
+   - signup_source: identifies which VSL variant
+   - video_public_id: Cloudinary video identifier
+   - event_type: view, play, pause, progress, seek, ended
+   - playback_time: current position in seconds
+   - duration: total video length
+   - progress_percent: percentage watched (0-100)
+   - watch_time: cumulative seconds watched
+   - session_id: anonymous visitor identifier
+   - Metadata: user_agent, referrer, screen dimensions
+5. Database Storage:
+   - vsl_video_analytics table stores all events
+   - RLS disabled for public write access
+   - Indexed by signup_source, event_type, created_at, session_id
+   - Composite index for efficient dashboard queries
+6. Analytics Summary View:
+   - vsl_analytics_summary aggregated view
+   - Calculates per-day metrics by variant
+   - Metrics: unique_views, total_views, unique_plays, completions
+   - Progress milestones: reached_25, reached_50, reached_75 percent
+   - Average watch time and completion percentage
+7. Dashboard Display:
+   - Platform admin page at /platform/vsl-analytics
+   - Comparison cards showing each variant performance
+   - Trend charts for views over time
+   - Retention graphs showing viewer drop-off points
+8. Split Test Analysis:
+   - Compare performance across three VSL variants
+   - Identify best-performing video for conversion
+   - Metrics: play rate, completion rate, engagement depth
+   - Date range filtering for time-based analysis
+`,
   },
 }
 
@@ -222,9 +287,10 @@ serve(async (req) => {
   }
 
   try {
-    const { processType, processName, regenerate }: RequestBody = await req.json()
+    const { action = 'generate', processType, processName, regenerate, direction = 'horizontal' }: RequestBody = await req.json()
 
-    if (!processType || !processName) {
+    // Validate required fields based on action
+    if (action === 'generate' && (!processType || !processName)) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields: processType, processName' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -323,11 +389,40 @@ serve(async (req) => {
 
     const orgId = membership.org_id
 
-    // Check if process map already exists (unless regenerate)
-    if (!regenerate) {
-      const { data: existingMap } = await supabaseClient
+    // Handle LIST action - fetch all process maps for the organization
+    if (action === 'list') {
+      console.log('Listing process maps for org:', orgId)
+
+      const { data: processMaps, error: listError } = await supabaseService
         .from('process_maps')
-        .select('id, title, mermaid_code, updated_at')
+        .select('*')
+        .eq('org_id', orgId)
+        .order('updated_at', { ascending: false })
+
+      if (listError) {
+        console.error('Error fetching process maps:', listError)
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch process maps', details: listError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      console.log(`Found ${processMaps?.length || 0} process maps`)
+      return new Response(
+        JSON.stringify({
+          processMaps: processMaps || [],
+          count: processMaps?.length || 0
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Check if process map already exists (unless regenerate)
+    // Use service role to avoid RLS issues (since INSERT uses service role too)
+    if (!regenerate) {
+      const { data: existingMap } = await supabaseService
+        .from('process_maps')
+        .select('*')  // Select all fields for complete response
         .eq('org_id', orgId)
         .eq('process_type', processType)
         .eq('process_name', processName)
@@ -357,7 +452,7 @@ serve(async (req) => {
     }
 
     // Generate Mermaid diagram using Claude
-    const mermaidCode = await generateMermaidWithClaude(processType, processName, processDescription)
+    const mermaidCode = await generateMermaidWithClaude(processType, processName, processDescription, direction)
 
     if (!mermaidCode) {
       return new Response(
@@ -430,41 +525,145 @@ serve(async (req) => {
 async function generateMermaidWithClaude(
   processType: string,
   processName: string,
-  description: string
+  description: string,
+  direction: 'horizontal' | 'vertical' = 'horizontal'
 ): Promise<string | null> {
   const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
   if (!anthropicApiKey) {
     throw new Error('AI service not configured')
   }
 
-  const systemPrompt = `You are an expert at creating clear, informative Mermaid flowchart diagrams for software processes.
+  const flowDirection = direction === 'horizontal' ? 'LR' : 'TB'
+  const flowDescription = direction === 'horizontal'
+    ? 'left-to-right (horizontal timeline)'
+    : 'top-to-bottom (vertical flow)'
 
-Your task is to create a Mermaid diagram that visualizes the given process flow.
+  const systemPrompt = `You are an expert at creating professional, visually stunning Mermaid flowchart diagrams for software processes.
 
-Guidelines:
-1. Use flowchart TD (top-down) or LR (left-right) based on complexity
-2. Use subgraphs to group related steps
-3. Use clear, descriptive node labels (replace spaces with underscores in IDs)
-4. Use appropriate arrow types:
-   - --> for normal flow
-   - -.-> for optional/async flow
-   - ==> for important/critical paths
-5. Add meaningful edge labels where helpful
-6. Keep nodes concise but informative
-7. Use shapes appropriately:
-   - [Text] for processes
-   - (Text) for rounded (start/end)
-   - {Text} for decisions
-   - [(Text)] for databases
-   - [[Text]] for subroutines
-8. Color-code by category if helpful using :::className
-9. IMPORTANT - Special characters in labels:
-   - Wrap labels containing special characters (/, #, &, etc.) in double quotes
-   - Example: NodeId["/command-name"] NOT NodeId[/command-name]
-   - This prevents Mermaid lexical parsing errors
+Your task is to create a Mermaid diagram that visualizes the given process flow using our standardized design system.
 
-Return ONLY the Mermaid code, no markdown code blocks, no explanation.
-The code must be valid Mermaid syntax that can be rendered directly.`
+## DESIGN SCHEMA (REQUIRED)
+
+### 1. FLOW DIRECTION
+- Use \`flowchart ${flowDirection}\` - This creates a ${flowDescription}
+- This is REQUIRED - do not change the direction
+
+### 2. SUBGRAPHS (Required for organization)
+Create 3-5 logical subgraphs with emoji headers. Examples:
+- \`subgraph Setup ["🛠️ CONFIGURATION & AUTH"]\`
+- \`subgraph Sync ["🔄 SYNC ENGINE"]\`
+- \`subgraph Processing ["⚙️ DATA PROCESSING"]\`
+- \`subgraph Automation ["⚡ AUTOMATION ENGINE"]\`
+- \`subgraph Runtime ["🔔 RUNTIME & NOTIFICATIONS"]\`
+- \`subgraph Intelligence ["🧠 AI & INTELLIGENCE"]\`
+- \`subgraph Storage ["💾 DATA STORAGE"]\`
+- \`subgraph Interaction ["💬 USER INTERACTION"]\`
+- \`subgraph Output ["📤 OUTPUT & DELIVERY"]\`
+
+Inside each subgraph, add: \`direction TB\`
+
+### 3. NODE SHAPES (Semantic meaning)
+Use these shapes consistently - NO QUOTES inside shapes:
+- \`((Text))\` - Start/End terminal nodes (circles)
+- \`[Text]\` - Standard process steps (rectangles)
+- \`[(Text)]\` - Database/Storage (cylinder) - NO quotes
+- \`{Text}\` - Decision/Gateway diamonds - NO quotes
+- \`[[Text]]\` - Subroutines/Edge Functions (double border) - NO quotes
+- \`>Text]\` - Async/Webhook events (flag shape) - NO quotes
+
+IMPORTANT: Do NOT put quotes inside shape brackets. Keep text simple with no special chars.
+
+### 4. NODE IDs
+- Use PascalCase for IDs: \`OAuthGrant\`, \`CredStore\`, \`WebhookSetup\`
+- Keep IDs short but descriptive
+- No spaces in IDs
+
+### 5. NODE LABELS - CRITICAL RULES
+- Keep labels SHORT: 2-4 words MAXIMUM, single line only
+- NEVER use \`<br/>\` inside special shapes (cylinders, diamonds, parallelograms, flags)
+- NEVER use \`&\` - always use "and" instead
+- NEVER use special characters: avoid # : ( ) < > in labels
+- For standard rectangles [Text], you MAY use \`<br/>\` for multi-line
+- ALWAYS wrap labels in quotes for special shapes
+
+### 6. CONNECTIONS
+- \`-->\` Normal flow
+- \`==>\` Important/Critical paths (use sparingly, 1-2 max)
+- \`-.->\` Optional/Async flow
+- Add edge labels: \`-- "Label" -->\` or \`-- Yes -->\`
+
+### 7. REQUIRED STYLING BLOCK (Add at end)
+Always include these exact classDef and class assignments.
+CRITICAL: All text must be DARK colored for readability. Never use white/light text.
+
+\`\`\`
+    %% --- STYLING ---
+    classDef primary fill:#e0e7ff,stroke:#4f46e5,stroke-width:2px,color:#1e1b4b
+    classDef storage fill:#dbeafe,stroke:#3b82f6,stroke-width:2px,color:#1e3a5f
+    classDef logic fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f
+    classDef io fill:#d1fae5,stroke:#059669,stroke-width:2px,color:#064e3b
+    classDef terminal fill:#e2e8f0,stroke:#475569,stroke-width:2px,color:#0f172a
+    classDef async fill:#fce7f3,stroke:#db2777,stroke-width:2px,color:#831843
+    classDef default fill:#f1f5f9,stroke:#64748b,stroke-width:2px,color:#1e293b
+
+    %% IMPORTANT: Apply classes to ALL nodes - no node should be unstyled
+    class [START_END_NODES] terminal
+    class [DATABASE_NODES] storage
+    class [DECISION_NODES] logic
+    class [WEBHOOK_ASYNC_NODES] async
+    class [ALL_OTHER_NODES] primary
+
+    linkStyle default stroke:#64748b,stroke-width:2px
+\`\`\`
+
+IMPORTANT: Every single node MUST have a class assigned. No exceptions.
+
+### 8. SPECIAL CHARACTER HANDLING - CRITICAL
+- NEVER use \`&\` anywhere - causes parse errors. Use "and" instead
+- NEVER use \`<br/>\` inside special shapes - causes parse errors
+- NEVER use quotes inside shape brackets - causes parse errors
+- Keep ALL labels simple: letters, numbers, spaces only
+- Example GOOD: \`DB[(Credentials)]\`
+- Example GOOD: \`Check{Valid Token}\`
+- Example BAD: \`DB[("Credentials")]\` - quotes break it
+- Example BAD: \`DB[(Token & Info)]\` - ampersand breaks it
+
+## EXAMPLE STRUCTURE:
+\`\`\`mermaid
+flowchart LR
+    subgraph Setup ["🛠️ CONFIGURATION"]
+        direction TB
+        Start((Start))
+        OAuth[OAuth Grant]
+        CredStore[(Credentials)]
+    end
+
+    subgraph Processing ["⚙️ PROCESSING"]
+        direction TB
+        Check{Validate}
+        Process[[Process Data]]
+    end
+
+    Start --> OAuth
+    OAuth --> CredStore
+    CredStore ==> Check
+    Check -- Yes --> Process
+
+    classDef primary fill:#e0e7ff,stroke:#4f46e5,stroke-width:2px,color:#1e1b4b
+    classDef storage fill:#dbeafe,stroke:#3b82f6,stroke-width:2px,color:#1e3a5f
+    classDef logic fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f
+    classDef terminal fill:#e2e8f0,stroke:#475569,stroke-width:2px,color:#0f172a
+
+    class Start,End terminal
+    class CredStore storage
+    class Check logic
+    class OAuth,Process primary
+
+    linkStyle default stroke:#94a3b8,stroke-width:2px
+\`\`\`
+
+CRITICAL: Return ONLY the Mermaid code, no markdown code blocks, no explanation.
+The code must be valid Mermaid syntax following this exact design schema.`
 
   const userPrompt = `Create a Mermaid flowchart diagram for the following ${processType} process:
 
@@ -519,7 +718,48 @@ Remember: Return ONLY valid Mermaid code, starting with 'flowchart' or 'graph'.`
     return null
   }
 
+  // Sanitize the generated code to fix common issues
+  mermaidCode = sanitizeMermaidCode(mermaidCode)
+
   return mermaidCode
+}
+
+/**
+ * Sanitize Mermaid code to fix common AI generation issues
+ */
+function sanitizeMermaidCode(code: string): string {
+  let sanitized = code
+
+  // Replace & with "and" (common parse error cause)
+  sanitized = sanitized.replace(/&(?!amp;|lt;|gt;|quot;)/g, 'and')
+
+  // Fix cylinders with quotes: [("Text")] -> [(Text)]
+  sanitized = sanitized.replace(/\[\("([^"]*)"\)\]/g, '[($1)]')
+
+  // Fix diamonds with quotes: {"Text"} -> {Text}
+  sanitized = sanitized.replace(/\{"([^"]*)"\}/g, '{$1}')
+
+  // Fix double brackets with quotes: [["Text"]] -> [[Text]]
+  sanitized = sanitized.replace(/\[\["([^"]*)"\]\]/g, '[[$1]]')
+
+  // Fix flags with quotes: >"Text"] -> >Text]
+  sanitized = sanitized.replace(/>"([^"]*)"\]/g, '>$1]')
+
+  // Fix parallelograms with quotes: [/"Text"/] -> [/Text/]
+  sanitized = sanitized.replace(/\[\/"([^"]*)"\/\]/g, '[/$1/]')
+
+  // Remove <br/> from inside any shape brackets and replace with space
+  sanitized = sanitized.replace(/<br\s*\/?>/gi, ' ')
+
+  // Clean up any double spaces
+  sanitized = sanitized.replace(/  +/g, ' ')
+
+  // Clean up spaces before closing brackets
+  sanitized = sanitized.replace(/ +\]/g, ']')
+  sanitized = sanitized.replace(/ +\)/g, ')')
+  sanitized = sanitized.replace(/ +\}/g, '}')
+
+  return sanitized
 }
 
 /**

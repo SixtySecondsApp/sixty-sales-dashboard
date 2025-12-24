@@ -160,49 +160,35 @@ class SlackOAuthService {
   }
 
   /**
-   * Refresh channels from Slack API
+   * Refresh channels from Slack API via edge function
    */
-  async refreshChannels(userId: string, teamId?: string): Promise<void> {
-    const { data: integration, error } = await supabase
-      .from('slack_integrations')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .eq('team_id', teamId || '')
-      .single();
-    
-    if (error || !integration) {
-      throw new Error('No active Slack integration found');
+  async refreshChannels(userId: string, teamId?: string): Promise<SlackChannel[]> {
+    // Get the user's session for authentication
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('No active session');
     }
-    
-    // Call Slack API to get fresh channel list
-    const response = await fetch('https://slack.com/api/conversations.list', {
-      headers: {
-        'Authorization': `Bearer ${integration.access_token}`,
-      },
-    });
-    
-    const data = await response.json();
-    
-    if (!data.ok) {
-      throw new Error(`Failed to fetch channels: ${data.error}`);
+
+    // Call edge function to refresh channels (handles Slack API call server-side)
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/slack-refresh-user-channels`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ teamId }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to refresh channels');
     }
-    
-    // Update channels in database
-    const channelsToUpsert = data.channels.map((channel: any) => ({
-      integration_id: integration.id,
-      channel_id: channel.id,
-      channel_name: channel.name,
-      is_private: channel.is_private || false,
-      is_member: channel.is_member || false,
-      is_archived: channel.is_archived || false,
-    }));
-    
-    await supabase
-      .from('slack_channels')
-      .upsert(channelsToUpsert, {
-        onConflict: 'integration_id,channel_id',
-      });
+
+    return result.channels || [];
   }
 
   /**

@@ -54,13 +54,13 @@ const FathomCallbackWrapper = () => <FathomCallback />;
 // ============================================================
 import {
   // Platform Admin
-  MeetingsWaitlist, OnboardingSimulator, PricingControl, CostAnalysis, LaunchChecklist,
+  MeetingsWaitlist, WaitlistSlackSettings, OnboardingSimulator, PricingControl, CostAnalysis, LaunchChecklist,
   ActivationDashboard, PlatformDashboard, IntegrationRoadmap, VSLAnalytics, Users, PipelineSettings,
   AuditLogs, SmartTasksAdmin, PipelineAutomationAdmin, EmailTemplates, FunctionTesting,
   AIProviderSettings, GoogleIntegrationTestsLegacy, GoogleIntegrationTests, SettingsSavvyCal,
   SettingsBookingSources, HealthRules, EmailCategorizationSettings, AdminModelSettings,
   AdminPromptSettings, InternalDomainsSettings, SlackDemo, MeetingIntelligenceDemo,
-  MeetingIntelligenceDemoSimple, TasksDemo, ProcessMaps, IntelligenceTestRunner,
+  MeetingIntelligenceDemoSimple, TasksDemo, ProcessMaps, IntelligenceTestRunner, VSLAnalyticsTests,
   CronJobsAdmin, SaasAdminDashboard, IntegrationsDashboard, FathomIntegrationTests,
   HubSpotIntegrationTests, SlackIntegrationTests, SavvyCalIntegrationTests,
   // Auth
@@ -347,6 +347,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/admin/email-categorization" element={<Navigate to="/platform/integrations/email-categorization" replace />} />
                 {/* Platform Admin - Meetings Waitlist */}
                 <Route path="/platform/meetings-waitlist" element={<PlatformAdminRouteGuard><AppLayout><MeetingsWaitlist /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/waitlist-slack-settings" element={<PlatformAdminRouteGuard><AppLayout><WaitlistSlackSettings /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Platform Admin - AI Configuration */}
                 <Route path="/platform/ai/settings" element={<PlatformAdminRouteGuard><AppLayout><AIProviderSettings /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/ai/prompts" element={<PlatformAdminRouteGuard><AppLayout><AdminPromptSettings /></AppLayout></PlatformAdminRouteGuard>} />
@@ -387,6 +388,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/process-maps" element={<InternalRouteGuard><AppLayout><ProcessMaps /></AppLayout></InternalRouteGuard>} />
                 {/* Intelligence Test Runner (internal-only): run and visualize unit tests */}
                 <Route path="/platform/intelligence-tests" element={<InternalRouteGuard><AppLayout><IntelligenceTestRunner /></AppLayout></InternalRouteGuard>} />
+                {/* VSL Analytics Tests (internal-only): test video analytics tracking */}
+                <Route path="/platform/vsl-analytics-tests" element={<InternalRouteGuard><AppLayout><VSLAnalyticsTests /></AppLayout></InternalRouteGuard>} />
                 {/* Platform Dashboard - MUST be last (catch-all for /platform) */}
                 <Route path="/platform" element={<PlatformAdminRouteGuard><AppLayout><PlatformDashboard /></AppLayout></PlatformAdminRouteGuard>} />
 

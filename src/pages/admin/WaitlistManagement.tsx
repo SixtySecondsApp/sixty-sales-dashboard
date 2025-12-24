@@ -5,6 +5,7 @@ import { WaitlistStats } from '@/components/admin/waitlist/WaitlistStats';
 import { WaitlistFilters } from '@/components/admin/waitlist/WaitlistFilters';
 import { WaitlistTable } from '@/components/admin/waitlist/WaitlistTable';
 import { InviteCodesManager } from '@/components/admin/waitlist/InviteCodesManager';
+import { SlackNotificationSettings } from '@/components/admin/waitlist/SlackNotificationSettings';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import type { WaitlistEntry, WaitlistFilters as Filters } from '@/lib/types/waitlist';
@@ -152,6 +153,9 @@ export default function WaitlistManagement() {
 
         {/* Invite Codes Manager */}
         <InviteCodesManager />
+
+        {/* Slack Notification Settings */}
+        <SlackNotificationSettings />
 
         {/* Filters */}
         <WaitlistFilters

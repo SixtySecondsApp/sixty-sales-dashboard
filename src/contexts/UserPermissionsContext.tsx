@@ -116,7 +116,7 @@ interface UserPermissionsProviderProps {
 
 export function UserPermissionsProvider({ children }: UserPermissionsProviderProps) {
   const { user } = useAuth();
-  const { userData } = useUser();
+  const { userData, isLoading: isUserLoading } = useUser();
   const { userRole } = useOrg();
 
   // Track when internal users whitelist is loaded
@@ -268,8 +268,10 @@ export function UserPermissionsProvider({ children }: UserPermissionsProviderPro
   // Build context value
   const value: UserPermissionsContextType = useMemo(
     () => ({
-      // Loading state - permissions are loading until whitelist is loaded
-      isLoading: !usersLoaded,
+      // Loading state - permissions are loading until BOTH:
+      // 1. Internal users whitelist is loaded
+      // 2. User profile data is loaded (needed for is_admin flag)
+      isLoading: !usersLoaded || isUserLoading,
 
       // User type
       userType: actualUserType,
@@ -309,6 +311,7 @@ export function UserPermissionsProvider({ children }: UserPermissionsProviderPro
     }),
     [
       usersLoaded,
+      isUserLoading,
       actualUserType,
       viewMode,
       effectiveUserType,

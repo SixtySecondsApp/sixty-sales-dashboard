@@ -33,3 +33,15 @@ jobs:
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             "${{ secrets.SUPABASE_URL }}/functions/v1/scheduled-email-sync"
 
+  waitlist-daily-digest:
+    name: Waitlist Daily Digest (Backup)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Waitlist Notification Function
+        run: |
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -d '{"type": "daily_digest", "triggeredBy": "github-actions"}' \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/slack-waitlist-notification"
+

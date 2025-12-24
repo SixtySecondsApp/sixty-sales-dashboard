@@ -39,7 +39,8 @@ export async function getPlans(): Promise<SubscriptionPlan[]> {
     throw new Error('Failed to fetch subscription plans');
   }
 
-  return data || [];
+  // Cast database rows to SubscriptionPlan type (features is Json in DB)
+  return (data || []) as unknown as SubscriptionPlan[];
 }
 
 /**
@@ -58,7 +59,8 @@ export async function getPlanById(planId: string): Promise<SubscriptionPlan | nu
     throw new Error('Failed to fetch plan');
   }
 
-  return data;
+  // Cast database row to SubscriptionPlan type (features is Json in DB)
+  return data as unknown as SubscriptionPlan;
 }
 
 /**
@@ -78,7 +80,8 @@ export async function getPlanBySlug(slug: string): Promise<SubscriptionPlan | nu
     throw new Error('Failed to fetch plan');
   }
 
-  return data;
+  // Cast database row to SubscriptionPlan type (features is Json in DB)
+  return data as unknown as SubscriptionPlan;
 }
 
 // ============================================================================
@@ -98,7 +101,8 @@ export async function getOrgSubscription(orgId: string): Promise<SubscriptionWit
 
   if (subError) {
     // 406 errors typically indicate RLS policy blocking access
-    if (subError.code === 'PGRST116' || subError.status === 406) {
+    // PostgrestError has 'code' as string, not numeric 'status'
+    if (subError.code === 'PGRST116' || subError.code === '406') {
       console.warn('Subscription not found or access denied:', subError.message);
       return null;
     }
@@ -125,9 +129,15 @@ export async function getOrgSubscription(orgId: string): Promise<SubscriptionWit
     return null;
   }
 
+  // Cast plan features from Json to PlanFeatures and combine with subscription
+  const typedPlan: SubscriptionPlan = {
+    ...plan,
+    features: (plan.features || {}) as unknown as import('../types/subscription').PlanFeatures,
+  };
+
   return {
     ...subscription,
-    plan: plan,
+    plan: typedPlan,
   } as SubscriptionWithPlan;
 }
 
@@ -332,8 +342,9 @@ export async function getBillingHistory(
     throw new Error('Failed to fetch billing history');
   }
 
+  // Cast database rows to BillingHistoryItem type (event_type and status are strings in DB)
   return {
-    items: data || [],
+    items: (data || []) as unknown as BillingHistoryItem[],
     total: count || 0,
   };
 }
@@ -362,7 +373,8 @@ export async function getUserNotifications(
     throw new Error('Failed to fetch notifications');
   }
 
-  return data || [];
+  // Cast database rows to UserNotification type (type is string in DB)
+  return (data || []) as unknown as UserNotification[];
 }
 
 /**

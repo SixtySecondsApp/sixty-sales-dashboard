@@ -17,12 +17,15 @@ import {
   Clock,
   LayoutGrid,
   List,
+  ArrowRight,
+  ArrowDown,
+  BarChart3,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useOrgId } from '@/lib/contexts/OrgContext';
 import { MermaidRenderer } from '@/components/process-maps/MermaidRenderer';
-import { ProcessMapButton, ProcessType, ProcessName } from '@/components/process-maps/ProcessMapButton';
+import { ProcessMapButton, ProcessType, ProcessName, FlowDirection } from '@/components/process-maps/ProcessMapButton';
 import {
   Dialog,
   DialogContent,
@@ -120,6 +123,13 @@ const AVAILABLE_PROCESSES: Array<{
     icon: <Workflow className="h-4 w-4 text-cyan-500" />,
     description: 'Automatic task creation from meetings and calls',
   },
+  {
+    type: 'workflow',
+    name: 'vsl_analytics',
+    label: 'VSL Analytics',
+    icon: <BarChart3 className="h-4 w-4 text-rose-500" />,
+    description: 'Video engagement tracking for landing page split testing',
+  },
 ];
 
 export default function ProcessMaps() {
@@ -132,8 +142,9 @@ export default function ProcessMaps() {
   const [selectedMap, setSelectedMap] = useState<ProcessMap | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [flowDirection, setFlowDirection] = useState<FlowDirection>('horizontal');
 
-  // Fetch process maps
+  // Fetch process maps via edge function (bypasses RLS)
   const fetchProcessMaps = useCallback(async () => {
     if (!orgId) {
       console.warn('ProcessMaps: No orgId available');
@@ -143,37 +154,39 @@ export default function ProcessMaps() {
 
     setLoading(true);
     try {
-      console.log('ProcessMaps: Fetching maps for org:', orgId);
-      const { data, error, count } = await supabase
-        .from('process_maps')
-        .select('*', { count: 'exact' })
-        .eq('org_id', orgId)
-        .order('updated_at', { ascending: false });
+      console.log('ProcessMaps: Fetching maps via edge function for org:', orgId);
 
-      if (error) {
-        // Check if it's an RLS error vs table doesn't exist
-        if (error.code === '42501' || error.message?.includes('permission denied')) {
-          console.error('ProcessMaps: RLS policy blocking access. User may not be a platform admin.');
+      // Use edge function with 'list' action to bypass RLS
+      const response = await supabase.functions.invoke('generate-process-map', {
+        body: { action: 'list' },
+      });
+
+      if (response.error) {
+        const errorMessage = response.error.message || 'Unknown error';
+
+        // Handle specific error cases
+        if (errorMessage.includes('Platform admin') || errorMessage.includes('Internal user')) {
+          console.error('ProcessMaps: Access denied - not a platform admin');
           toast.error('Access denied. Platform admin privileges required.', {
             description: 'Only internal users with admin status can view process maps.'
           });
-        } else if (error.code === '42P01' || error.message?.includes('does not exist')) {
-          console.error('ProcessMaps: Table does not exist. Run migrations.');
-          toast.error('Process maps feature not configured.', {
-            description: 'Database table missing. Contact support.'
-          });
         } else {
-          throw error;
+          console.error('ProcessMaps: Edge function error:', errorMessage);
+          toast.error('Failed to load process maps', {
+            description: errorMessage
+          });
         }
         setProcessMaps([]);
         return;
       }
 
-      console.log(`ProcessMaps: Loaded ${data?.length || 0} maps (total count: ${count})`);
-      setProcessMaps(data || []);
+      const data = response.data;
+      console.log(`ProcessMaps: Loaded ${data?.processMaps?.length || 0} maps (count: ${data?.count})`);
+      setProcessMaps(data?.processMaps || []);
     } catch (error) {
       console.error('Error fetching process maps:', error);
       toast.error('Failed to load process maps');
+      setProcessMaps([]);
     } finally {
       setLoading(false);
     }
@@ -271,7 +284,33 @@ export default function ProcessMaps() {
             Visualize integration and workflow processes with AI-generated diagrams
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {/* Direction Toggle */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground hidden sm:inline">Flow:</span>
+            <div className="flex items-center border rounded-md">
+              <Button
+                variant={flowDirection === 'horizontal' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setFlowDirection('horizontal')}
+                className="rounded-r-none gap-1 px-2"
+                title="Horizontal flow (left to right)"
+              >
+                <ArrowRight className="h-3.5 w-3.5" />
+                <span className="text-xs hidden sm:inline">Horizontal</span>
+              </Button>
+              <Button
+                variant={flowDirection === 'vertical' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setFlowDirection('vertical')}
+                className="rounded-l-none gap-1 px-2"
+                title="Vertical flow (top to bottom)"
+              >
+                <ArrowDown className="h-3.5 w-3.5" />
+                <span className="text-xs hidden sm:inline">Vertical</span>
+              </Button>
+            </div>
+          </div>
           <Button variant="outline" size="sm" onClick={fetchProcessMaps}>
             <RefreshCw className="h-4 w-4 mr-1.5" />
             Refresh
@@ -310,6 +349,7 @@ export default function ProcessMaps() {
                     variant="ghost"
                     size="sm"
                     showLabel={false}
+                    direction={flowDirection}
                     onGenerated={handleMapGenerated}
                   />
                 </div>
@@ -496,6 +536,7 @@ export default function ProcessMaps() {
                     variant="ghost"
                     size="sm"
                     label="Regenerate"
+                    direction={flowDirection}
                     onGenerated={handleMapGenerated}
                   />
                   <Button variant="outline" size="sm" onClick={() => handleViewMap(map)}>
@@ -566,16 +607,40 @@ export default function ProcessMaps() {
                 </>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              {/* Direction Toggle - regenerate in different direction */}
               {selectedMap && (
-                <ProcessMapButton
-                  processType={selectedMap.process_type}
-                  processName={selectedMap.process_name as ProcessName}
-                  variant="outline"
-                  size="sm"
-                  label="Regenerate"
-                  onGenerated={handleMapGenerated}
-                />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">Regenerate as:</span>
+                  <div className="flex items-center border rounded-md">
+                    <ProcessMapButton
+                      processType={selectedMap.process_type}
+                      processName={selectedMap.process_name as ProcessName}
+                      variant="ghost"
+                      size="sm"
+                      showLabel={false}
+                      direction="horizontal"
+                      onGenerated={() => {
+                        handleMapGenerated();
+                        setDialogOpen(false);
+                      }}
+                      className="rounded-r-none gap-1 px-2 h-7"
+                    />
+                    <ProcessMapButton
+                      processType={selectedMap.process_type}
+                      processName={selectedMap.process_name as ProcessName}
+                      variant="ghost"
+                      size="sm"
+                      showLabel={false}
+                      direction="vertical"
+                      onGenerated={() => {
+                        handleMapGenerated();
+                        setDialogOpen(false);
+                      }}
+                      className="rounded-l-none gap-1 px-2 h-7"
+                    />
+                  </div>
+                </div>
               )}
             </div>
           </div>
