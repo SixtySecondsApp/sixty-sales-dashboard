@@ -72,9 +72,10 @@ serve(async (req: Request) => {
       );
     }
 
-    // Get org_id from query params
+    // Get org_id from query params or use platform default
     const url = new URL(req.url);
-    const orgId = url.searchParams.get('org_id');
+    const PLATFORM_ORG_ID = Deno.env.get('PLATFORM_ORG_ID') || '1d1b4274-c9c4-4cb7-9efc-243c90c86f4c';
+    const orgId = url.searchParams.get('org_id') || PLATFORM_ORG_ID;
 
     if (!orgId) {
       return new Response(
