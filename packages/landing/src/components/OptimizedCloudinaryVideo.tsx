@@ -1,5 +1,6 @@
-import { useState, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useState, useRef, forwardRef, useImperativeHandle, useEffect } from 'react';
 import { Play } from 'lucide-react';
+import { initializeVideoTracking } from '../lib/cloudinaryAnalytics';
 
 interface OptimizedCloudinaryVideoProps {
   src: string;
@@ -7,6 +8,10 @@ interface OptimizedCloudinaryVideoProps {
   onPlay?: () => void;
   onEnded?: () => void;
   autoPlay?: boolean;
+  /** Enable Cloudinary video analytics tracking */
+  analyticsEnabled?: boolean;
+  /** Signup source identifier for split test tracking (e.g., 'intro-vsl') */
+  signupSource?: string;
 }
 
 export interface OptimizedCloudinaryVideoRef {
@@ -33,14 +38,50 @@ function getPosterUrl(rawUrl: string): string {
 }
 
 export const OptimizedCloudinaryVideo = forwardRef<OptimizedCloudinaryVideoRef, OptimizedCloudinaryVideoProps>(
-  ({ src, className = '', onPlay, onEnded, autoPlay = false }, ref) => {
+  ({ src, className = '', onPlay, onEnded, autoPlay = false, analyticsEnabled = true, signupSource }, ref) => {
     const [isPlaying, setIsPlaying] = useState(autoPlay);
     const [isLoaded, setIsLoaded] = useState(false);
     const [showControls, setShowControls] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
+    const cleanupRef = useRef<(() => void) | null>(null);
 
     // Use raw URL - Cloudinary handles optimization at delivery
     const posterUrl = getPosterUrl(src);
+
+    // Initialize Cloudinary analytics tracking when video element is ready
+    // Note: We initialize immediately when the video element has a src, not waiting for metadata
+    // This ensures tracking works even if metadata loading is slow or blocked
+    useEffect(() => {
+      const video = videoRef.current;
+      if (!analyticsEnabled || !video) return;
+
+      // Wait for the video to have a source
+      const videoSrc = video.src || video.currentSrc;
+      if (!videoSrc) {
+        console.log('[CloudinaryAnalytics] No video src yet, waiting...');
+        return;
+      }
+
+      const initTracking = async () => {
+        try {
+          const cleanup = await initializeVideoTracking(video, {
+            signupSource: signupSource,
+          });
+          cleanupRef.current = cleanup;
+        } catch (error) {
+          console.error('[CloudinaryAnalytics] Failed to initialize:', error);
+        }
+      };
+
+      initTracking();
+
+      return () => {
+        if (cleanupRef.current) {
+          cleanupRef.current();
+          cleanupRef.current = null;
+        }
+      };
+    }, [analyticsEnabled, src, signupSource]);
 
     useImperativeHandle(ref, () => ({
       play: () => {
@@ -77,7 +118,40 @@ export const OptimizedCloudinaryVideo = forwardRef<OptimizedCloudinaryVideoRef, 
 
     const handleLoadedData = () => {
       setIsLoaded(true);
+      // Disable all text tracks (subtitles/captions) since they're burned into the video
+      disableTextTracks();
     };
+
+    // Disable all text tracks (subtitles/captions) - they're burned into the videos
+    const disableTextTracks = () => {
+      const video = videoRef.current;
+      if (!video) return;
+
+      const tracks = video.textTracks;
+      for (let i = 0; i < tracks.length; i++) {
+        tracks[i].mode = 'disabled';
+      }
+    };
+
+    // Also listen for dynamically added tracks and disable them
+    useEffect(() => {
+      const video = videoRef.current;
+      if (!video) return;
+
+      const handleTrackAdded = () => {
+        disableTextTracks();
+      };
+
+      // Disable existing tracks
+      disableTextTracks();
+
+      // Listen for new tracks being added
+      video.textTracks.addEventListener('addtrack', handleTrackAdded);
+
+      return () => {
+        video.textTracks.removeEventListener('addtrack', handleTrackAdded);
+      };
+    }, []);
 
     return (
       <div className={`relative rounded-2xl overflow-hidden backdrop-blur-2xl bg-gray-950 border border-white/10 shadow-2xl shadow-brand-violet/10 aspect-video ${className}`}>
