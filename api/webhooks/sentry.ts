@@ -14,7 +14,11 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'crypto';
-import { hmacSha256Hex } from '../_shared/signing';
+
+// Inline signing function (Vercel doesn't bundle shared modules properly)
+function hmacSha256Hex(secret: string, payload: string): string {
+  return crypto.createHmac('sha256', secret).update(payload, 'utf8').digest('hex');
+}
 
 function getHeader(req: VercelRequest, name: string): string | null {
   const v = (req.headers as any)[name.toLowerCase()];
