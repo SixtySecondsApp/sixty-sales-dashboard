@@ -54,3 +54,7 @@ verify_jwt = false
 
 [functions.hubspot-webhook]
 verify_jwt = false
+
+# Health check endpoint - public access for monitoring services
+[functions.health]
+verify_jwt = false

@@ -306,3 +306,38 @@ export { Sentry };
 
 // Export error boundary component
 export const SentryErrorBoundary = Sentry.ErrorBoundary;
+
+/**
+ * Test function to send a high-priority fatal error
+ * Call from console: window.testSentryFatal()
+ */
+export function testSentryFatal(message?: string) {
+  const uniqueId = Date.now();
+  const errorMessage = message || `FATAL_WEBHOOK_TEST_${uniqueId}`;
+
+  Sentry.withScope(scope => {
+    // Set as FATAL level - highest priority
+    scope.setLevel('fatal');
+
+    // Add context that increases priority
+    scope.setUser({ id: 'test-user', email: 'test@test.com' });
+    scope.setTag('severity', 'critical');
+    scope.setTag('test_type', 'webhook_verification');
+    scope.setTag('priority', 'high');
+
+    // Force unique fingerprint for new issue
+    scope.setFingerprint(['fatal-webhook-test', String(uniqueId)]);
+
+    // Capture as fatal error
+    const eventId = Sentry.captureException(new Error(errorMessage));
+    console.log('[Sentry Test] Sent FATAL error:', { eventId, uniqueId, message: errorMessage });
+  });
+
+  return uniqueId;
+}
+
+// Expose test function globally for console access
+if (typeof window !== 'undefined') {
+  (window as any).testSentryFatal = testSentryFatal;
+  (window as any).Sentry = Sentry;
+}

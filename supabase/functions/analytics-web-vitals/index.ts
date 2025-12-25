@@ -11,13 +11,26 @@ serve(async (req) => {
   try {
     if (req.method === 'POST') {
       const body = await req.json()
-      
-      // Validate required fields
-      if (!body.name || !body.value || !body.rating) {
-        return new Response(JSON.stringify({ 
-          error: 'Missing required fields: name, value, rating' 
+
+      // Validate required fields - be lenient for partial Web Vitals data
+      // Some metrics may report before all values are available
+      if (!body.name) {
+        return new Response(JSON.stringify({
+          status: 'skipped',
+          message: 'Metric name is required'
         }), {
-          status: 400,
+          status: 200, // Return 200 to avoid console errors for partial data
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      // Skip metrics with no meaningful value
+      if (body.value === undefined || body.value === null) {
+        return new Response(JSON.stringify({
+          status: 'skipped',
+          message: 'Metric value not yet available'
+        }), {
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
@@ -26,11 +39,11 @@ serve(async (req) => {
       const webVitalData = {
         metric_name: body.name,
         metric_value: body.value,
-        rating: body.rating,
+        rating: body.rating || 'unknown', // Default for metrics without rating yet
         delta: body.delta || 0,
-        metric_id: body.id,
-        url: body.url,
-        user_agent: body.userAgent,
+        metric_id: body.id || null,
+        url: body.url || null,
+        user_agent: body.userAgent || null,
         timestamp: new Date(body.timestamp || Date.now()).toISOString(),
         entries: JSON.stringify(body.entries || [])
       }
