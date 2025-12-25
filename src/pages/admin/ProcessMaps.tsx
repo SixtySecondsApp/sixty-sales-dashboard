@@ -737,38 +737,39 @@ export default function ProcessMaps() {
 
       {/* Workflow Test Panel */}
       <Sheet open={testPanelOpen} onOpenChange={(open) => !open && handleTestPanelClose()}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-hidden flex flex-col p-0">
+        <SheetContent side="right" className="w-full sm:max-w-3xl overflow-hidden flex flex-col p-0">
           {testingMap && (
             <div className="flex flex-col h-full">
-              {/* Header with Mermaid preview */}
+              {/* Header */}
               <div className="border-b p-4 bg-gray-50 dark:bg-gray-900">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold flex items-center gap-2">
                       <FlaskConical className="h-4 w-4 text-purple-500" />
                       Test: {testingMap.title}
                     </h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Validate workflow execution with mock or production data
+                      Watch steps highlight as test runs
                     </p>
                   </div>
                   <Badge variant="outline">{testingMap.process_type}</Badge>
                 </div>
-                {/* Mini Mermaid preview with step highlighting */}
-                <div className="rounded-md border bg-white dark:bg-gray-800 overflow-hidden max-h-48">
-                  <MermaidRenderer
-                    code={testingMap.mermaid_code}
-                    showControls={false}
-                    showCode={false}
-                    highlightedStepId={currentStepId}
-                    stepStatuses={stepStatuses}
-                    testMode={true}
-                    className="border-0 shadow-none"
-                  />
-                </div>
               </div>
 
-              {/* Test Panel Content */}
+              {/* Mermaid Diagram with Step Highlighting - Takes ~40% of height */}
+              <div className="border-b bg-white dark:bg-gray-950 overflow-auto" style={{ height: '40%', minHeight: '280px' }}>
+                <MermaidRenderer
+                  code={testingMap.mermaid_code}
+                  showControls={false}
+                  showCode={false}
+                  highlightedStepId={currentStepId}
+                  stepStatuses={stepStatuses}
+                  testMode={true}
+                  className="border-0 shadow-none h-full"
+                />
+              </div>
+
+              {/* Test Panel Content - Takes remaining ~60% */}
               <div className="flex-1 overflow-auto">
                 <WorkflowTestPanel
                   isOpen={true}
