@@ -20,6 +20,7 @@ import {
   ArrowRight,
   ArrowDown,
   BarChart3,
+  Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
@@ -136,6 +137,13 @@ const AVAILABLE_PROCESSES: Array<{
     label: 'Sentry Bridge',
     icon: <Workflow className="h-4 w-4 text-red-500" />,
     description: 'Error monitoring to AI Dev Hub task automation via MCP',
+  },
+  {
+    type: 'workflow',
+    name: 'api_optimization',
+    label: 'API Call Optimization',
+    icon: <Zap className="h-4 w-4 text-amber-500" />,
+    description: 'Smart polling, batch endpoints, and working hours awareness',
   },
 ];
 

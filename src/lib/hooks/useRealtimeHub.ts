@@ -7,16 +7,22 @@
  * BEFORE: 35+ individual channels, each polling realtime.list_changes
  * AFTER: 3-5 consolidated channels with proper filters
  *
+ * WORKING HOURS AWARENESS (API Optimization):
+ * - During working hours: Full subscriptions (high + medium priority)
+ * - During off-hours/weekends: Notifications only (minimal mode)
+ * - Reduces realtime connections by ~67% during off-hours
+ *
  * Usage:
  * 1. Import useRealtimeHub in your component
  * 2. Subscribe to specific events using the returned subscribe function
  * 3. The hub automatically manages connection lifecycle
  */
 
-import { useEffect, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useWorkingHours } from './useWorkingHours';
 
 // Types for subscription management
 type EventType = 'INSERT' | 'UPDATE' | 'DELETE' | '*';
@@ -76,24 +82,54 @@ const TABLE_GROUPS = {
 let hubInstance: RealtimeHubState | null = null;
 let hubRefCount = 0;
 
+// Channel mode types for working hours awareness
+type ChannelMode = 'full' | 'minimal';
+
 /**
  * Main hook for centralized realtime subscriptions
+ *
+ * Working Hours Awareness:
+ * - During working hours (8 AM - 6 PM local, weekdays): Full subscriptions
+ * - During off-hours or weekends: Notifications only (minimal mode)
  */
 export function useRealtimeHub() {
   const { user } = useAuth();
+  const { isWorkingHours, isWeekend } = useWorkingHours();
   const subscriptionsRef = useRef<Map<string, Subscription>>(new Map());
   const channelsRef = useRef<Map<string, RealtimeChannel>>(new Map());
   const isSetupRef = useRef(false);
+  const currentModeRef = useRef<ChannelMode | null>(null);
+  const [channelMode, setChannelMode] = useState<ChannelMode>('minimal');
 
-  // Initialize channels on mount
+  // Determine the appropriate channel mode
+  const targetMode: ChannelMode = (isWorkingHours && !isWeekend) ? 'full' : 'minimal';
+
+  // Initialize and manage channels based on working hours
   useEffect(() => {
-    if (!user?.id || isSetupRef.current) return;
+    if (!user?.id) return;
 
     hubRefCount++;
-    isSetupRef.current = true;
 
-    // Set up consolidated channels
-    setupChannels(user.id);
+    // Set up channels for the first time or when mode changes
+    const needsSetup = !isSetupRef.current || currentModeRef.current !== targetMode;
+
+    if (needsSetup) {
+      // Clean up existing channels before setting up new ones
+      if (isSetupRef.current) {
+        cleanupChannels();
+      }
+
+      isSetupRef.current = true;
+      currentModeRef.current = targetMode;
+      setChannelMode(targetMode);
+
+      // Set up channels based on current mode
+      if (targetMode === 'full') {
+        setupFullChannels(user.id);
+      } else {
+        setupMinimalChannels(user.id);
+      }
+    }
 
     return () => {
       hubRefCount--;
@@ -101,12 +137,16 @@ export function useRealtimeHub() {
         // Last consumer - clean up all channels
         cleanupChannels();
         isSetupRef.current = false;
+        currentModeRef.current = null;
       }
     };
-  }, [user?.id]);
+  }, [user?.id, targetMode]);
 
-  const setupChannels = useCallback((userId: string) => {
-    // Channel 1: High priority user data
+  /**
+   * Set up full channels for working hours (high + medium priority)
+   */
+  const setupFullChannels = useCallback((userId: string) => {
+    // Channel 1: High priority user data (always needed during work)
     const highPriorityChannel = supabase
       .channel(`user-high-priority-${userId}`)
       .on('postgres_changes', {
@@ -178,6 +218,33 @@ export function useRealtimeHub() {
     // See usePollingFallback hook below
   }, []);
 
+  /**
+   * Set up minimal channels for off-hours (notifications only)
+   * This reduces realtime connections by ~67% during off-hours
+   */
+  const setupMinimalChannels = useCallback((userId: string) => {
+    // Only subscribe to notifications during off-hours
+    // This ensures users still get urgent alerts even when not actively working
+    const notificationsChannel = supabase
+      .channel(`user-notifications-only-${userId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'user_notifications',
+        filter: `user_id=eq.${userId}`,
+      }, (payload) => notifySubscribers('user_notifications', payload))
+      // Also listen for critical deal alerts that might need attention
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'deal_health_alerts',
+        filter: `user_id=eq.${userId}`,
+      }, (payload) => notifySubscribers('deal_health_alerts', payload))
+      .subscribe();
+
+    channelsRef.current.set('notifications-only', notificationsChannel);
+  }, []);
+
   const cleanupChannels = useCallback(() => {
     channelsRef.current.forEach((channel) => {
       supabase.removeChannel(channel);
@@ -226,6 +293,12 @@ export function useRealtimeHub() {
   return {
     subscribe,
     isConnected: channelsRef.current.size > 0,
+    /** Current channel mode: 'full' during working hours, 'minimal' during off-hours */
+    channelMode,
+    /** Whether full subscriptions are active */
+    isFullMode: channelMode === 'full',
+    /** Whether minimal subscriptions are active (notifications only) */
+    isMinimalMode: channelMode === 'minimal',
   };
 }
 

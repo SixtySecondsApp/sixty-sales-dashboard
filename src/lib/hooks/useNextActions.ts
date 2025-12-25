@@ -262,7 +262,8 @@ export function useNextActions(options: UseNextActionsOptions = {}): UseNextActi
 /**
  * usePendingSuggestionsCount Hook
  *
- * Lightweight hook to get pending suggestions count with real-time updates
+ * Lightweight hook to get pending suggestions count with real-time updates.
+ * Relies on realtime subscription for updates - no polling needed.
  */
 export function usePendingSuggestionsCount() {
   const { user } = useAuth()
@@ -272,7 +273,10 @@ export function usePendingSuggestionsCount() {
     queryKey: ['pendingSuggestionsCount', user?.id],
     queryFn: () => nextActionsService.getPendingSuggestionsCount(user?.id),
     enabled: !!user,
-    refetchInterval: 60000, // Refresh every minute
+    // No refetchInterval - realtime subscription handles updates
+    // This eliminates ~60 calls/hour per user
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    refetchOnWindowFocus: true, // Refresh when user returns to tab
   })
 
   useEffect(() => {

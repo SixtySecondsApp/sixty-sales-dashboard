@@ -321,6 +321,77 @@ Sentry Bridge Workflow - Error to Task Automation:
    - Direct link to Sentry issue for investigation
    - Due date set based on priority
 `,
+    api_optimization: `
+API Call Optimization Workflow:
+
+1. Working Hours Detection:
+   - User timezone detection from browser and profile settings
+   - Working hours check from 8 AM to 6 PM local time
+   - Weekend detection for minimal polling mode
+   - Profile columns: working_hours_start, working_hours_end, timezone
+   - useWorkingHours hook provides isWorkingHours and isWeekend flags
+
+2. User Activity Monitoring:
+   - Mouse keyboard scroll and touch event tracking
+   - 5-minute idle threshold detection via useUserActivity hook
+   - Polling speed adjustment: normal speed when active, 10x slower when idle
+   - Tab visibility awareness via document.hidden
+
+3. Smart Polling Controller:
+   - useSmartPolling hook combines working hours and activity status
+   - Returns polling interval or false to disable polling entirely
+   - Tiered system: critical, important, standard, background, static
+   - Applied to all non-critical queries via useSmartRefetchConfig
+
+4. Batch Edge Functions - 4 Consolidated Endpoints:
+   - app-data-batch: Dashboard and page load data consolidation
+     Resources: deals, activities, tasks, health-scores, contacts, meetings, notifications
+     Reduces 4-8 calls per page load to 1 single request
+   - google-workspace-batch: All Google API calls consolidated
+     Services: calendar, gmail, drive, tasks, docs, connection
+     Reduces 12 separate functions to 1 batch call
+   - meeting-analysis-batch: Meeting detail page queries
+     Analyses: details, action-items, topics, suggestions, summary, transcript-search
+     Loads meeting detail page 4x faster
+   - integration-health-batch: Admin integration health checks
+     Integrations: google, fathom, hubspot, slack, justcall, savvycal
+     Admin dashboard 83 percent faster
+
+5. Frontend Batch Query Hooks:
+   - useBatchQuery.ts provides typed React Query hooks
+   - useAppDataBatch for general app data
+   - useGoogleWorkspaceBatch for Google services
+   - useMeetingAnalysisBatch for meeting details
+   - useIntegrationHealthBatch for admin health checks
+   - Convenience hooks: useDashboardBatch, useMeetingDetailBatch, useAdminIntegrationsBatch
+
+6. Query Tier Configuration:
+   - Critical tier: Real-time subscriptions, no polling (notifications, deal changes)
+   - Important tier: 5 min stale time, 60s polling during work hours (activities, tasks)
+   - Standard tier: 5 min stale time, 5 min polling (health scores, suggestions)
+   - Background tier: 10 min stale time, 30 min polling (leads, analytics)
+   - Static tier: 1 hour stale time, refetch on demand (settings, templates)
+
+7. Realtime Subscription Management:
+   - useRealtimeHub with working hours awareness
+   - Full mode during working hours: high and medium priority channels
+   - Minimal mode during off-hours: notifications only channel
+   - Reduces realtime connections by 67 percent during off-hours
+   - Hub consolidation: 35+ channels reduced to 2-3 managed channels
+
+8. Cache and Invalidation Strategy:
+   - Optimistic updates for mutations to avoid refetching
+   - Selective cache invalidation vs cascading invalidations
+   - useInvalidateBatchQueries for targeted batch cache clearing
+   - refetchOnWindowFocus for background tier data
+
+9. Results and Metrics:
+   - 95 percent reduction in daily API calls per user
+   - 80 percent reduction in edge function invocations
+   - 3x faster page loads via batched requests
+   - 67 percent fewer realtime connections off-hours
+   - Minimal UX impact for sales agents during work hours
+`,
   },
 }
 

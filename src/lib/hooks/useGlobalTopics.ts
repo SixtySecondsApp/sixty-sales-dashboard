@@ -6,6 +6,7 @@ import {
   type GlobalTopicsSortBy,
   type AggregationMode,
 } from '@/lib/services/globalTopicsService';
+import { useSmartRefetchConfig } from './useSmartPolling';
 
 // ============================================================================
 // Query Keys
@@ -96,14 +97,20 @@ export function useGlobalTopicsStats() {
 }
 
 /**
- * Hook to fetch pending aggregation count
+ * Hook to fetch pending aggregation count with smart polling.
+ *
+ * This is background/admin data - polling is reduced outside working hours
+ * and when user is idle.
  */
 export function usePendingAggregationCount() {
+  // Use smart polling: 5 minute base for background data
+  const refetchConfig = useSmartRefetchConfig(300_000, 'background');
+
   return useQuery({
     queryKey: globalTopicsKeys.pendingCount(),
     queryFn: () => globalTopicsService.getPendingAggregationCount(),
-    staleTime: 30 * 1000, // 30 seconds
-    refetchInterval: 60 * 1000, // Refresh every minute
+    staleTime: 60 * 1000, // 1 minute stale time
+    ...refetchConfig,
   });
 }
 

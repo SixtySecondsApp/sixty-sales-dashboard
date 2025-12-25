@@ -29,7 +29,8 @@ export type ProcessName =
   | 'meeting_intelligence'
   | 'task_extraction'
   | 'vsl_analytics'
-  | 'sentry_bridge';
+  | 'sentry_bridge'
+  | 'api_optimization';
 
 export type FlowDirection = 'horizontal' | 'vertical';
 
