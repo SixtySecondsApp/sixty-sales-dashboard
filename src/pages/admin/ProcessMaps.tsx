@@ -735,13 +735,13 @@ export default function ProcessMaps() {
         </DialogContent>
       </Dialog>
 
-      {/* Workflow Test Panel */}
+      {/* Workflow Test Panel - Side by Side Layout */}
       <Sheet open={testPanelOpen} onOpenChange={(open) => !open && handleTestPanelClose()}>
-        <SheetContent side="right" className="w-full sm:max-w-3xl overflow-hidden flex flex-col p-0">
+        <SheetContent side="right" className="w-full sm:max-w-[90vw] lg:max-w-[1200px] overflow-hidden flex flex-col p-0">
           {testingMap && (
             <div className="flex flex-col h-full">
               {/* Header */}
-              <div className="border-b p-4 bg-gray-50 dark:bg-gray-900">
+              <div className="border-b p-4 bg-gray-50 dark:bg-gray-900 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold flex items-center gap-2">
@@ -756,30 +756,34 @@ export default function ProcessMaps() {
                 </div>
               </div>
 
-              {/* Mermaid Diagram with Step Highlighting - Takes ~40% of height */}
-              <div className="border-b bg-white dark:bg-gray-950 overflow-auto" style={{ height: '40%', minHeight: '280px' }}>
-                <MermaidRenderer
-                  code={testingMap.mermaid_code}
-                  showControls={false}
-                  showCode={false}
-                  highlightedStepId={currentStepId}
-                  stepStatuses={stepStatuses}
-                  testMode={true}
-                  className="border-0 shadow-none h-full"
-                />
-              </div>
+              {/* Side-by-Side Layout: Diagram (60%) | Controls (40%) */}
+              <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
+                {/* Left: Mermaid Diagram with Step Highlighting */}
+                <div className="lg:w-[60%] h-[40vh] lg:h-full border-b lg:border-b-0 lg:border-r bg-white dark:bg-gray-950 overflow-auto">
+                  <MermaidRenderer
+                    code={testingMap.mermaid_code}
+                    showControls={true}
+                    showCode={false}
+                    highlightedStepId={currentStepId}
+                    stepStatuses={stepStatuses}
+                    testMode={true}
+                    className="border-0 shadow-none h-full"
+                  />
+                </div>
 
-              {/* Test Panel Content - Takes remaining ~60% */}
-              <div className="flex-1 overflow-auto">
-                <WorkflowTestPanel
-                  isOpen={true}
-                  processMapTitle={testingMap.title}
-                  processMapId={testingMap.id}
-                  mermaidCode={testingMap.mermaid_code}
-                  onStepStatusChange={handleStepStatusChange}
-                  onCurrentStepChange={handleCurrentStepChange}
-                  onClose={handleTestPanelClose}
-                />
+                {/* Right: Test Panel Controls */}
+                <div className="lg:w-[40%] flex-1 lg:flex-initial overflow-hidden">
+                  <WorkflowTestPanel
+                    isOpen={true}
+                    processMapTitle={testingMap.title}
+                    processMapId={testingMap.id}
+                    mermaidCode={testingMap.mermaid_code}
+                    onStepStatusChange={handleStepStatusChange}
+                    onCurrentStepChange={handleCurrentStepChange}
+                    onClose={handleTestPanelClose}
+                    embedded={true}
+                  />
+                </div>
               </div>
             </div>
           )}

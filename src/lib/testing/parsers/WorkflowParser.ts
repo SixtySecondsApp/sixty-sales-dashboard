@@ -284,6 +284,65 @@ interface MermaidEdge {
 }
 
 /**
+ * Node patterns for parsing Mermaid syntax
+ * Each pattern captures: (nodeId) and (label text)
+ */
+const NODE_PATTERNS = [
+  // Stadium-shaped / rounded: ((label))
+  { regex: /(\w+)\(\(([^)]+)\)\)/, type: 'start' as const },
+  // Double-bracketed / subroutine: [[label]]
+  { regex: /(\w+)\[\[([^\]]+)\]\]/, type: 'end' as const },
+  // Rhombus / diamond: {label}
+  { regex: /(\w+)\{([^}]+)\}/, type: 'decision' as const },
+  // Cylindrical / database: [(label)]
+  { regex: /(\w+)\[\(([^)]+)\)\]/, type: 'data' as const },
+  // Hexagon: {{label}}
+  { regex: /(\w+)\{\{([^}]+)\}\}/, type: 'process' as const },
+  // Standard rectangle with quoted label: ["label"]
+  { regex: /(\w+)\["([^"]+)"\]/, type: 'process' as const },
+  // Standard rectangle: [label]
+  { regex: /(\w+)\[([^\]]+)\]/, type: 'process' as const },
+  // Asymmetric flag: >label]
+  { regex: /(\w+)>([^\]]+)\]/, type: 'process' as const },
+  // Circle: ((label))
+  { regex: /(\w+)\(\(([^)]+)\)\)/, type: 'start' as const },
+  // Parallelogram: [/label/]
+  { regex: /(\w+)\[\/([^\/]+)\/\]/, type: 'data' as const },
+  // Trapezoid: [/label\]
+  { regex: /(\w+)\[\/([^\\]+)\\\]/, type: 'data' as const },
+];
+
+/**
+ * Edge patterns for parsing Mermaid connections
+ */
+const EDGE_PATTERNS = [
+  // Labeled edges with various arrow styles
+  /(\w+)\s*-->\s*\|([^|]+)\|\s*(\w+)/,  // A --> |label| B
+  /(\w+)\s*==>\s*\|([^|]+)\|\s*(\w+)/,  // A ==> |label| B (thick arrow)
+  /(\w+)\s*-\.->?\s*\|([^|]+)\|\s*(\w+)/, // A -.-> |label| B (dotted)
+  /(\w+)\s*--\s*([^-][^>|]*[^-])\s*-->\s*(\w+)/, // A -- text --> B
+  /(\w+)\s*==\s*([^=][^>|]*[^=])\s*==>\s*(\w+)/, // A == text ==> B
+  // Unlabeled edges
+  /(\w+)\s*-->\s*(\w+)/,   // A --> B
+  /(\w+)\s*==>\s*(\w+)/,   // A ==> B
+  /(\w+)\s*-\.->?\s*(\w+)/, // A -.-> B
+  /(\w+)\s*--->\s*(\w+)/,  // A ---> B (longer arrow)
+  /(\w+)\s*===>\s*(\w+)/,  // A ===> B (longer thick arrow)
+];
+
+/**
+ * Clean and normalize a label extracted from Mermaid code
+ */
+function cleanLabel(label: string): string {
+  return label
+    .replace(/^["']|["']$/g, '') // Remove surrounding quotes
+    .replace(/<br\s*\/?>/gi, ' ') // Replace <br> with space
+    .replace(/\\n/g, ' ')         // Replace \n with space
+    .replace(/\s+/g, ' ')         // Normalize whitespace
+    .trim();
+}
+
+/**
  * Parse Mermaid diagram code to extract nodes and edges
  */
 export function parseMermaidCode(code: string): { nodes: MermaidNode[]; edges: MermaidEdge[] } {
@@ -294,66 +353,73 @@ export function parseMermaidCode(code: string): { nodes: MermaidNode[]; edges: M
 
   const lines = code.split('\n');
 
-  // Node patterns (same as MermaidRenderer)
-  const nodePatterns = [
-    { regex: /(\w+)\(\(([^)]+)\)\)/, type: 'start' as const },
-    { regex: /(\w+)\[\[([^\]]+)\]\]/, type: 'end' as const },
-    { regex: /(\w+)\{([^}]+)\}/, type: 'decision' as const },
-    { regex: /(\w+)\[\(([^)]+)\)\]/, type: 'data' as const },
-    { regex: /(\w+)\[([^\]]+)\]/, type: 'process' as const },
-    { regex: /(\w+)>([^\]]+)\]/, type: 'process' as const }, // Async flag
-  ];
-
-  // Edge patterns
-  const edgePatterns = [
-    /(\w+)\s*-->\s*\|([^|]+)\|\s*(\w+)/, // A --> |label| B
-    /(\w+)\s*==>\s*\|([^|]+)\|\s*(\w+)/, // A ==> |label| B
-    /(\w+)\s*-\.->?\s*\|([^|]+)\|\s*(\w+)/, // A -.-> |label| B
-    /(\w+)\s*-->\s*(\w+)/, // A --> B
-    /(\w+)\s*==>\s*(\w+)/, // A ==> B
-    /(\w+)\s*-\.->?\s*(\w+)/, // A -.-> B
-  ];
-
   for (const line of lines) {
     const trimmed = line.trim();
 
-    // Check for subgraph
-    const subgraphMatch = trimmed.match(/subgraph\s+(\w+)\s*\["?([^"\]]+)"?\]/);
+    // Skip comments
+    if (trimmed.startsWith('%%')) continue;
+
+    // Skip flowchart direction declarations
+    if (/^flowchart\s+(TB|TD|BT|RL|LR)$/i.test(trimmed)) continue;
+
+    // Check for subgraph start
+    const subgraphMatch = trimmed.match(/subgraph\s+(\w+)(?:\s*\["?([^"\]]+)"?\])?/);
     if (subgraphMatch) {
-      currentSection = subgraphMatch[2].replace(/^[^\w]*/, '').trim();
+      currentSection = subgraphMatch[2]
+        ? subgraphMatch[2].replace(/^[^\w]*/, '').trim()
+        : subgraphMatch[1];
       continue;
     }
 
+    // Check for subgraph end
     if (trimmed === 'end') {
       currentSection = undefined;
       continue;
     }
 
-    // Try to match edges first
-    let isEdge = false;
-    for (const pattern of edgePatterns) {
-      const match = trimmed.match(pattern);
-      if (match) {
-        isEdge = true;
-        const from = match[1];
-        const label = match.length === 4 ? match[2] : undefined;
-        const to = match.length === 4 ? match[3] : match[2];
+    // Skip style definitions
+    if (trimmed.startsWith('classDef') || trimmed.startsWith('class ') || trimmed.startsWith('style ')) {
+      continue;
+    }
 
-        edges.push({ from, to, label });
+    // Try to extract nodes from edge definitions first
+    // This handles cases like: A[Label A] --> B[Label B]
+    for (const pattern of EDGE_PATTERNS) {
+      const edgeMatch = trimmed.match(pattern);
+      if (edgeMatch) {
+        const fromId = edgeMatch[1];
+        const label = edgeMatch.length === 4 ? edgeMatch[2] : undefined;
+        const toId = edgeMatch.length === 4 ? edgeMatch[3] : edgeMatch[2];
+
+        edges.push({ from: fromId, to: toId, label: label?.trim() });
+
+        // Also try to extract node definitions from the edge line
+        // e.g., "A[OAuth] --> B[Sync]" defines both A and B
+        for (const { regex, type } of NODE_PATTERNS) {
+          const nodeMatches = trimmed.matchAll(new RegExp(regex.source, 'g'));
+          for (const nodeMatch of nodeMatches) {
+            const id = nodeMatch[1];
+            if (seenNodeIds.has(id)) continue;
+
+            const nodeLabel = cleanLabel(nodeMatch[2]);
+            if (!nodeLabel || nodeLabel === id) continue;
+
+            seenNodeIds.add(id);
+            nodes.push({ id, label: nodeLabel, type, section: currentSection });
+          }
+        }
         break;
       }
     }
 
-    if (isEdge) continue;
-
-    // Try to match node definitions
-    for (const { regex, type } of nodePatterns) {
+    // Try to match standalone node definitions
+    for (const { regex, type } of NODE_PATTERNS) {
       const match = trimmed.match(regex);
       if (match) {
         const id = match[1];
         if (seenNodeIds.has(id)) continue;
 
-        const label = match[2].replace(/"/g, '').replace(/<br\s*\/?>/gi, ' ').trim();
+        const label = cleanLabel(match[2]);
         if (!label || label === id) continue;
 
         seenNodeIds.add(id);
@@ -364,6 +430,146 @@ export function parseMermaidCode(code: string): { nodes: MermaidNode[]; edges: M
   }
 
   return { nodes, edges };
+}
+
+/**
+ * Parse Mermaid code and return just the nodes (simplified interface)
+ * This is the primary function for extracting node IDs and labels
+ * for test panel integration.
+ *
+ * @param code - The Mermaid flowchart code
+ * @returns Array of MermaidNode objects with id, label, type, and optional section
+ *
+ * @example
+ * ```typescript
+ * const nodes = parseMermaidNodes(`
+ *   flowchart LR
+ *   A[OAuth Connection] --> B[Contact Sync]
+ *   B --> C{Check Status}
+ * `);
+ * // Returns:
+ * // [
+ * //   { id: 'A', label: 'OAuth Connection', type: 'process' },
+ * //   { id: 'B', label: 'Contact Sync', type: 'process' },
+ * //   { id: 'C', label: 'Check Status', type: 'decision' }
+ * // ]
+ * ```
+ */
+export function parseMermaidNodes(code: string): MermaidNode[] {
+  const { nodes } = parseMermaidCode(code);
+  return nodes;
+}
+
+/**
+ * Create a mapping from labels to node IDs for fuzzy matching
+ * This helps map descriptive step names to actual Mermaid node IDs
+ *
+ * @param code - The Mermaid flowchart code
+ * @returns Map from lowercase label keywords to node ID
+ *
+ * @example
+ * ```typescript
+ * const labelMap = createLabelToNodeIdMap(`
+ *   flowchart LR
+ *   OAuth1[OAuth Connection] --> Sync1[Contact Sync]
+ * `);
+ * // Returns Map:
+ * // 'oauth connection' -> 'OAuth1'
+ * // 'oauth' -> 'OAuth1'
+ * // 'contact sync' -> 'Sync1'
+ * // 'sync' -> 'Sync1'
+ * ```
+ */
+export function createLabelToNodeIdMap(code: string): Map<string, string> {
+  const nodes = parseMermaidNodes(code);
+  const labelMap = new Map<string, string>();
+
+  for (const node of nodes) {
+    // Add full label (lowercase)
+    labelMap.set(node.label.toLowerCase(), node.id);
+
+    // Add individual significant words from the label
+    const words = node.label.toLowerCase().split(/\s+/);
+    for (const word of words) {
+      // Skip common words
+      if (['the', 'a', 'an', 'to', 'from', 'with', 'and', 'or', 'for'].includes(word)) continue;
+      if (word.length < 3) continue;
+
+      // Only add if not already mapped to a different node
+      if (!labelMap.has(word)) {
+        labelMap.set(word, node.id);
+      }
+    }
+  }
+
+  return labelMap;
+}
+
+/**
+ * Get ordered array of node IDs based on their position in the flowchart
+ * This preserves the execution order based on edge connections
+ *
+ * @param code - The Mermaid flowchart code
+ * @returns Array of node IDs in execution order
+ */
+export function getOrderedNodeIds(code: string): string[] {
+  const { nodes, edges } = parseMermaidCode(code);
+
+  if (nodes.length === 0) return [];
+  if (edges.length === 0) return nodes.map((n) => n.id);
+
+  // Build adjacency list
+  const outgoing = new Map<string, string[]>();
+  const incoming = new Map<string, string[]>();
+
+  for (const node of nodes) {
+    outgoing.set(node.id, []);
+    incoming.set(node.id, []);
+  }
+
+  for (const edge of edges) {
+    const out = outgoing.get(edge.from);
+    const inc = incoming.get(edge.to);
+    if (out && !out.includes(edge.to)) out.push(edge.to);
+    if (inc && !inc.includes(edge.from)) inc.push(edge.from);
+  }
+
+  // Find start nodes (no incoming edges)
+  const startNodes = nodes.filter((n) => (incoming.get(n.id)?.length ?? 0) === 0);
+  if (startNodes.length === 0) {
+    // Fallback to first node if there's a cycle
+    startNodes.push(nodes[0]);
+  }
+
+  // Topological sort using Kahn's algorithm
+  const result: string[] = [];
+  const visited = new Set<string>();
+  const queue = startNodes.map((n) => n.id);
+
+  while (queue.length > 0) {
+    const nodeId = queue.shift()!;
+    if (visited.has(nodeId)) continue;
+
+    visited.add(nodeId);
+    result.push(nodeId);
+
+    // Add outgoing nodes whose dependencies are all visited
+    for (const targetId of outgoing.get(nodeId) || []) {
+      const deps = incoming.get(targetId) || [];
+      if (deps.every((d) => visited.has(d))) {
+        queue.push(targetId);
+      }
+    }
+  }
+
+  // Add any remaining nodes not reached (disconnected components)
+  for (const node of nodes) {
+    if (!visited.has(node.id)) {
+      result.push(node.id);
+    }
+  }
+
+  return result;
 }
 
 // ============================================================================

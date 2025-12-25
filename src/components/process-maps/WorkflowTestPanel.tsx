@@ -3,9 +3,12 @@
  *
  * Slide-out panel for configuring and running workflow tests.
  * Displays test progress, results, and logs.
+ *
+ * Uses parseMermaidNodes to extract actual node IDs from the Mermaid diagram
+ * so that highlighting works correctly with AI-generated diagrams.
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,13 +41,95 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
-  ProcessMapWorkflow,
-  ProcessMapTestRun,
   ProcessMapStepResult,
   RunMode,
   StepStatus,
   WorkflowStepDefinition,
+  WorkflowStepType,
 } from '@/lib/types/processMapTesting';
+import {
+  parseMermaidNodes,
+  getOrderedNodeIds,
+  type MermaidNode,
+} from '@/lib/testing/parsers/WorkflowParser';
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Map Mermaid node shape type to WorkflowStepType
+ */
+function mapMermaidTypeToStepType(
+  mermaidType: MermaidNode['type'],
+  label: string,
+  index: number,
+  totalNodes: number
+): WorkflowStepType {
+  const labelLower = label.toLowerCase();
+
+  // Check for specific keywords in the label first
+  if (/webhook|trigger|event|receive|subscription|start/.test(labelLower)) {
+    return 'trigger';
+  }
+  if (/notify|alert|email|message|slack|notification/.test(labelLower)) {
+    return 'notification';
+  }
+  if (/store|save|database|table|record|insert|update/.test(labelLower)) {
+    return 'storage';
+  }
+  if (/api|fetch|call|request|sync|oauth|endpoint/.test(labelLower)) {
+    return 'external_call';
+  }
+  if (/transform|extract|parse|convert|map|process|ai|claude|analyze/.test(labelLower)) {
+    return 'transform';
+  }
+  if (/check|verify|validate|condition|if|match/.test(labelLower)) {
+    return 'condition';
+  }
+
+  // Use Mermaid shape type as fallback
+  switch (mermaidType) {
+    case 'start':
+      return 'trigger';
+    case 'end':
+      return index === totalNodes - 1 ? 'notification' : 'action';
+    case 'decision':
+      return 'condition';
+    case 'data':
+      return 'storage';
+    default:
+      // Use position for additional hints
+      if (index === 0) return 'trigger';
+      if (index === totalNodes - 1) return 'notification';
+      return 'action';
+  }
+}
+
+/**
+ * Detect integration name from node label keywords
+ */
+function detectIntegrationFromLabel(label: string): string | undefined {
+  const labelLower = label.toLowerCase();
+
+  const integrationPatterns: Record<string, RegExp> = {
+    hubspot: /hubspot|deal|contact|crm|pipeline/,
+    fathom: /fathom|transcript|recording|meeting|video/,
+    google: /google|gmail|calendar|drive|workspace/,
+    slack: /slack|channel|notification|bot/,
+    justcall: /justcall|call|phone/,
+    savvycal: /savvycal|booking|schedule/,
+    supabase: /supabase|postgres|database|table/,
+  };
+
+  for (const [integration, pattern] of Object.entries(integrationPatterns)) {
+    if (pattern.test(labelLower)) {
+      return integration;
+    }
+  }
+
+  return undefined;
+}
 
 // ============================================================================
 // Types
@@ -65,6 +150,8 @@ interface WorkflowTestPanelProps {
   onStepStatusChange?: (stepStatuses: Map<string, StepStatus>) => void;
   /** Callback when current step changes */
   onCurrentStepChange?: (stepId: string | null) => void;
+  /** If true, render without fixed positioning (for embedding in other containers) */
+  embedded?: boolean;
 }
 
 // ============================================================================
@@ -241,6 +328,7 @@ export function WorkflowTestPanel({
   mermaidCode,
   onStepStatusChange,
   onCurrentStepChange,
+  embedded = false,
 }: WorkflowTestPanelProps) {
   // State
   const [runMode, setRunMode] = useState<RunMode>('mock');
@@ -252,59 +340,64 @@ export function WorkflowTestPanel({
   const [continueOnFailure, setContinueOnFailure] = useState(false);
   const [activeTab, setActiveTab] = useState('progress');
 
-  // Mock workflow data for demo (will be replaced with real parsing)
-  const [workflow] = useState<ProcessMapWorkflow | null>(() => {
-    // This will be replaced with actual workflow parsing
-    return null;
-  });
+  // Parse Mermaid nodes to get actual node IDs for highlighting
+  const mermaidNodes = useMemo(() => parseMermaidNodes(mermaidCode), [mermaidCode]);
+  const orderedNodeIds = useMemo(() => getOrderedNodeIds(mermaidCode), [mermaidCode]);
 
-  // Mock steps for demo
-  const mockSteps: WorkflowStepDefinition[] = [
-    {
-      id: 'step_1_oauth',
-      name: 'OAuth Connection',
-      type: 'trigger',
-      integration: 'hubspot',
-      description: 'User connects via HubSpot OAuth flow',
-      inputSchema: { type: 'object' },
-      outputSchema: { type: 'object' },
-      dependencies: [],
-      testConfig: { mockable: true, timeout: 30000, retryCount: 2 },
-    },
-    {
-      id: 'step_2_sync',
-      name: 'Contact Sync',
-      type: 'external_call',
-      integration: 'hubspot',
-      description: 'Sync contacts from HubSpot',
-      inputSchema: { type: 'object' },
-      outputSchema: { type: 'object' },
-      dependencies: ['step_1_oauth'],
-      testConfig: { mockable: true, timeout: 30000, retryCount: 2 },
-    },
-    {
-      id: 'step_3_deals',
-      name: 'Deal Sync',
-      type: 'external_call',
-      integration: 'hubspot',
-      description: 'Sync deals from HubSpot',
-      inputSchema: { type: 'object' },
-      outputSchema: { type: 'object' },
-      dependencies: ['step_1_oauth'],
-      testConfig: { mockable: true, timeout: 30000, retryCount: 2 },
-    },
-    {
-      id: 'step_4_storage',
-      name: 'Store Data',
-      type: 'storage',
-      integration: undefined,
-      description: 'Store synced data in database',
-      inputSchema: { type: 'object' },
-      outputSchema: { type: 'object' },
-      dependencies: ['step_2_sync', 'step_3_deals'],
-      testConfig: { mockable: false, timeout: 30000, retryCount: 2 },
-    },
-  ];
+  // Convert Mermaid nodes to WorkflowStepDefinition format
+  // This ensures we use the actual node IDs from the diagram
+  const workflowSteps: WorkflowStepDefinition[] = useMemo(() => {
+    if (mermaidNodes.length === 0) {
+      // Fallback to demo steps if no nodes found
+      return [
+        {
+          id: 'demo_1',
+          name: 'Step 1',
+          type: 'trigger' as WorkflowStepType,
+          description: 'No workflow nodes detected in diagram',
+          inputSchema: { type: 'object' },
+          outputSchema: { type: 'object' },
+          dependencies: [],
+          testConfig: { mockable: true, timeout: 30000, retryCount: 2 },
+        },
+      ];
+    }
+
+    // Use orderedNodeIds to maintain execution order
+    return orderedNodeIds.map((nodeId, index) => {
+      const node = mermaidNodes.find((n) => n.id === nodeId);
+      if (!node) {
+        return {
+          id: nodeId,
+          name: nodeId,
+          type: 'action' as WorkflowStepType,
+          description: '',
+          inputSchema: { type: 'object' as const },
+          outputSchema: { type: 'object' as const },
+          dependencies: index > 0 ? [orderedNodeIds[index - 1]] : [],
+          testConfig: { mockable: true, timeout: 30000, retryCount: 2 },
+        };
+      }
+
+      // Map Mermaid node type to WorkflowStepType
+      const stepType = mapMermaidTypeToStepType(node.type, node.label, index, mermaidNodes.length);
+
+      // Detect integration from label keywords
+      const integration = detectIntegrationFromLabel(node.label);
+
+      return {
+        id: node.id, // Use actual Mermaid node ID
+        name: node.label,
+        type: stepType,
+        integration,
+        description: node.section ? `Part of ${node.section}` : undefined,
+        inputSchema: { type: 'object' as const },
+        outputSchema: { type: 'object' as const },
+        dependencies: index > 0 ? [orderedNodeIds[index - 1]] : [],
+        testConfig: { mockable: stepType !== 'storage', timeout: 30000, retryCount: 2 },
+      };
+    });
+  }, [mermaidNodes, orderedNodeIds]);
 
   // Handle step status changes
   useEffect(() => {
@@ -341,8 +434,8 @@ export function WorkflowTestPanel({
     addLog('info', `Starting test run in ${runMode} mode`);
 
     // Simulate step-by-step execution
-    for (let i = 0; i < mockSteps.length; i++) {
-      const step = mockSteps[i];
+    for (let i = 0; i < workflowSteps.length; i++) {
+      const step = workflowSteps[i];
       setCurrentStepId(step.id);
 
       addLog('info', `Starting step: ${step.name}`);
@@ -397,7 +490,7 @@ export function WorkflowTestPanel({
     } else {
       toast.error(`${failed} step(s) failed`);
     }
-  }, [runMode, continueOnFailure]);
+  }, [runMode, continueOnFailure, workflowSteps]);
 
   // Reset test state
   const handleReset = useCallback(() => {
@@ -409,27 +502,9 @@ export function WorkflowTestPanel({
 
   if (!isOpen) return null;
 
-  return (
-    <div
-      className={cn(
-        'fixed inset-y-0 right-0 z-50 w-[400px] bg-background shadow-lg border-l',
-        'transform transition-transform duration-300 ease-in-out',
-        isOpen ? 'translate-x-0' : 'translate-x-full'
-      )}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
-        <div>
-          <h2 className="font-semibold">Test Workflow</h2>
-          <p className="text-sm text-muted-foreground truncate max-w-[280px]">
-            {processMapTitle}
-          </p>
-        </div>
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-
+  // Inner content shared between embedded and standalone modes
+  const testContent = (
+    <>
       {/* Configuration */}
       <div className="p-4 space-y-4 border-b">
         <div className="space-y-2">
@@ -500,7 +575,7 @@ export function WorkflowTestPanel({
       </div>
 
       {/* Results */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
         <div className="px-4 pt-2">
           <TabsList className="w-full">
             <TabsTrigger value="progress" className="flex-1">
@@ -512,7 +587,7 @@ export function WorkflowTestPanel({
           </TabsList>
         </div>
 
-        <TabsContent value="progress" className="p-4 pt-2">
+        <TabsContent value="progress" className="p-4 pt-2 flex-1 overflow-auto">
           {/* Summary */}
           {stepResults.length > 0 && (
             <Card className="mb-4">
@@ -534,7 +609,7 @@ export function WorkflowTestPanel({
                   <Separator orientation="vertical" className="h-8" />
                   <div>
                     <div className="text-2xl font-bold text-gray-500">
-                      {mockSteps.length - stepResults.length}
+                      {workflowSteps.length - stepResults.length}
                     </div>
                     <div className="text-xs text-muted-foreground">Pending</div>
                   </div>
@@ -543,20 +618,55 @@ export function WorkflowTestPanel({
             </Card>
           )}
 
-          <ScrollArea className="h-[calc(100vh-400px)]">
+          <div className={embedded ? 'max-h-[300px] overflow-auto' : ''}>
             <TestStepProgress
-              steps={mockSteps}
+              steps={workflowSteps}
               results={stepResults}
               currentStepId={currentStepId || undefined}
               isRunning={isRunning}
             />
-          </ScrollArea>
+          </div>
         </TabsContent>
 
-        <TabsContent value="logs" className="p-4 pt-2">
+        <TabsContent value="logs" className="p-4 pt-2 flex-1 overflow-auto">
           <LogsViewer logs={logs} />
         </TabsContent>
       </Tabs>
+    </>
+  );
+
+  // Embedded mode: render content directly without positioning
+  if (embedded) {
+    return (
+      <div className="flex flex-col h-full bg-background">
+        {testContent}
+      </div>
+    );
+  }
+
+  // Standalone mode: fixed position slide-out panel
+  return (
+    <div
+      className={cn(
+        'fixed inset-y-0 right-0 z-50 w-[400px] bg-background shadow-lg border-l',
+        'transform transition-transform duration-300 ease-in-out',
+        isOpen ? 'translate-x-0' : 'translate-x-full'
+      )}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b">
+        <div>
+          <h2 className="font-semibold">Test Workflow</h2>
+          <p className="text-sm text-muted-foreground truncate max-w-[280px]">
+            {processMapTitle}
+          </p>
+        </div>
+        <Button variant="ghost" size="icon" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {testContent}
     </div>
   );
 }
