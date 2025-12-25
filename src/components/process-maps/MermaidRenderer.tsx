@@ -752,7 +752,7 @@ export const MermaidRenderer = memo(function MermaidRenderer({
           )}
         </CardHeader>
       )}
-      <CardContent className="p-0">
+      <CardContent className={cn('p-0', testMode && 'flex flex-col h-full')}>
         {/* Controls */}
         {showControls && (
           <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
@@ -864,9 +864,9 @@ export const MermaidRenderer = memo(function MermaidRenderer({
           {!loading && !error && svgContent && (
             <div
               ref={containerRef}
-              className="overflow-auto p-4 mermaid-dark-text-override"
+              className={cn('overflow-auto p-4 mermaid-dark-text-override', testMode && 'flex-1 min-h-0')}
               style={{
-                maxHeight: isFullscreen ? 'calc(100vh - 120px)' : '600px',
+                maxHeight: isFullscreen ? 'calc(100vh - 120px)' : testMode ? undefined : '600px',
               }}
             >
               {/* CSS enhancements for Mermaid diagrams - let classDef handle node colors */}

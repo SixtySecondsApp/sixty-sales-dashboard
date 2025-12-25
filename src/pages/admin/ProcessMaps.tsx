@@ -737,7 +737,7 @@ export default function ProcessMaps() {
 
       {/* Workflow Test Panel - Side by Side Layout */}
       <Sheet open={testPanelOpen} onOpenChange={(open) => !open && handleTestPanelClose()}>
-        <SheetContent side="right" className="w-full sm:max-w-[90vw] lg:max-w-[1200px] overflow-hidden flex flex-col p-0">
+        <SheetContent side="right" className="w-full sm:max-w-[90vw] lg:max-w-[1200px] overflow-hidden flex flex-col p-0 pt-16">
           {testingMap && (
             <div className="flex flex-col h-full">
               {/* Header */}

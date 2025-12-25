@@ -587,10 +587,10 @@ export function WorkflowTestPanel({
           </TabsList>
         </div>
 
-        <TabsContent value="progress" className="p-4 pt-2 flex-1 overflow-auto">
+        <TabsContent value="progress" className="p-4 pt-2 flex-1 flex flex-col min-h-0 overflow-hidden">
           {/* Summary */}
           {stepResults.length > 0 && (
-            <Card className="mb-4">
+            <Card className="mb-4 flex-shrink-0">
               <CardContent className="py-3">
                 <div className="flex items-center justify-around text-center">
                   <div>
@@ -618,18 +618,27 @@ export function WorkflowTestPanel({
             </Card>
           )}
 
-          <div className={embedded ? 'max-h-[300px] overflow-auto' : ''}>
-            <TestStepProgress
-              steps={workflowSteps}
-              results={stepResults}
-              currentStepId={currentStepId || undefined}
-              isRunning={isRunning}
-            />
+          {/* Steps list with scroll indicator */}
+          <div className="flex-1 min-h-0 relative">
+            <ScrollArea className="h-full">
+              <TestStepProgress
+                steps={workflowSteps}
+                results={stepResults}
+                currentStepId={currentStepId || undefined}
+                isRunning={isRunning}
+              />
+            </ScrollArea>
+            {/* Bottom fade indicator when there's more content */}
+            {workflowSteps.length > 5 && (
+              <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none" />
+            )}
           </div>
         </TabsContent>
 
-        <TabsContent value="logs" className="p-4 pt-2 flex-1 overflow-auto">
-          <LogsViewer logs={logs} />
+        <TabsContent value="logs" className="p-4 pt-2 flex-1 min-h-0 overflow-hidden">
+          <ScrollArea className="h-full">
+            <LogsViewer logs={logs} />
+          </ScrollArea>
         </TabsContent>
       </Tabs>
     </>
