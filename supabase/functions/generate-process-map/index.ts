@@ -277,6 +277,50 @@ VSL Video Analytics Workflow:
    - Metrics: play rate, completion rate, engagement depth
    - Date range filtering for time-based analysis
 `,
+    sentry_bridge: `
+Sentry Bridge Workflow - Error to Task Automation:
+1. Error Capture:
+   - Sentry SDK captures errors in browser and server
+   - Errors sent to Sentry with context tags and user info
+   - Sentry groups errors into Issues with unique fingerprints
+2. Sentry Issue Alert:
+   - Sentry Alert Rule triggers on new issues or high frequency
+   - Webhook fires to branded URL use60.com/api/webhooks/sentry
+   - Payload includes issue ID title culprit environment and event count
+3. Vercel Webhook Proxy:
+   - api/webhooks/sentry.ts receives Sentry webhook
+   - Validates Sentry signature using HMAC SHA256
+   - Signs payload with SENTRY_WEBHOOK_PROXY_SECRET
+   - Forwards to Supabase Edge Function with X-Use60-Signature
+4. Edge Function Processing:
+   - sentry-webhook Edge Function validates proxy signature
+   - Checks rate limits and circuit breaker
+   - Logs webhook event to sentry_webhook_events table
+   - Applies routing rules from sentry_routing_rules
+5. Routing Decision:
+   - Matches issue against org routing rules
+   - Determines target AI Dev Hub project
+   - Assigns priority based on error severity
+   - Maps Sentry project to AI Dev Hub project
+6. Triage or Auto-Process:
+   - Triage Mode ON: Issue added to sentry_triage_queue for manual review
+   - Triage Mode OFF: Issue added to sentry_bridge_queue for auto-processing
+   - Queue status tracked: pending processing completed failed
+7. MCP Integration:
+   - Claude Code reads from queue tables
+   - Calls AI Dev Hub MCP create_task tool
+   - Creates bug task with Sentry context and links
+   - Updates queue status to completed
+8. Issue Mapping:
+   - sentry_issue_mappings links Sentry Issue to AI Dev Hub Task
+   - Enables bidirectional tracking
+   - Prevents duplicate task creation for same issue
+9. Task Created in AI Dev Hub:
+   - Task includes error title message and location
+   - AI context with Sentry trace ID and environment
+   - Direct link to Sentry issue for investigation
+   - Due date set based on priority
+`,
   },
 }
 
@@ -287,7 +331,25 @@ serve(async (req) => {
   }
 
   try {
-    const { action = 'generate', processType, processName, regenerate, direction = 'horizontal' }: RequestBody = await req.json()
+    // Safely parse request body - handle empty or malformed JSON
+    let body: RequestBody = { action: 'list' };
+    try {
+      const text = await req.text();
+      if (text && text.trim()) {
+        body = JSON.parse(text);
+      }
+    } catch (parseError) {
+      // If no body provided or invalid JSON, default to 'list' action
+      console.log('No request body or invalid JSON, defaulting to list action');
+    }
+
+    const {
+      action = 'generate',
+      processType,
+      processName,
+      regenerate,
+      direction = 'horizontal'
+    } = body;
 
     // Validate required fields based on action
     if (action === 'generate' && (!processType || !processName)) {

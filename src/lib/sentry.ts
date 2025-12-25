@@ -93,9 +93,14 @@ export function initSentry() {
     replaysOnErrorSampleRate: 1.0,
 
     // Enable trace propagation for distributed tracing
+    // NOTE: Supabase Edge Functions removed from tracePropagationTargets because
+    // they don't have sentry-trace/baggage in Access-Control-Allow-Headers,
+    // which causes CORS preflight failures and "Failed to send request" errors.
+    // TODO: Add sentry-trace,baggage to all edge function CORS headers to re-enable
     tracePropagationTargets: [
       'localhost',
-      /^https:\/\/.*\.supabase\.co/,
+      // Supabase removed - causes CORS issues with edge functions
+      // /^https:\/\/.*\.supabase\.co/,
       /^https:\/\/.*\.sixty\.io/,
     ],
 

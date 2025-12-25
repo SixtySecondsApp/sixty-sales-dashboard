@@ -130,6 +130,13 @@ const AVAILABLE_PROCESSES: Array<{
     icon: <BarChart3 className="h-4 w-4 text-rose-500" />,
     description: 'Video engagement tracking for landing page split testing',
   },
+  {
+    type: 'workflow',
+    name: 'sentry_bridge',
+    label: 'Sentry Bridge',
+    icon: <Workflow className="h-4 w-4 text-red-500" />,
+    description: 'Error monitoring to AI Dev Hub task automation via MCP',
+  },
 ];
 
 export default function ProcessMaps() {
@@ -154,7 +161,16 @@ export default function ProcessMaps() {
 
     setLoading(true);
     try {
-      console.log('ProcessMaps: Fetching maps via edge function for org:', orgId);
+      // Verify we have an authenticated session before calling edge function
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        console.error('ProcessMaps: No authenticated session', { sessionError });
+        toast.error('Please sign in to view process maps');
+        setLoading(false);
+        return;
+      }
+
+      console.log('ProcessMaps: Fetching maps via edge function for org:', orgId, 'user:', sessionData.session.user.email);
 
       // Use edge function with 'list' action to bypass RLS
       const response = await supabase.functions.invoke('generate-process-map', {
@@ -163,12 +179,28 @@ export default function ProcessMaps() {
 
       if (response.error) {
         const errorMessage = response.error.message || 'Unknown error';
+        const errorName = response.error.name || 'UnknownError';
+        const errorContext = response.error.context || {};
+
+        // Log detailed error info for debugging
+        console.error('ProcessMaps: Edge function error details:', {
+          name: errorName,
+          message: errorMessage,
+          context: errorContext,
+          fullError: response.error,
+        });
 
         // Handle specific error cases
         if (errorMessage.includes('Platform admin') || errorMessage.includes('Internal user')) {
           console.error('ProcessMaps: Access denied - not a platform admin');
           toast.error('Access denied. Platform admin privileges required.', {
             description: 'Only internal users with admin status can view process maps.'
+          });
+        } else if (errorName === 'FunctionsFetchError' || errorMessage.includes('Failed to send')) {
+          // Network-level error - the request didn't reach the server
+          console.error('ProcessMaps: Network error - request did not reach edge function');
+          toast.error('Network error', {
+            description: 'Could not connect to edge function. Check your network connection.'
           });
         } else {
           console.error('ProcessMaps: Edge function error:', errorMessage);

@@ -28,7 +28,8 @@ export type ProcessName =
   | 'savvycal'
   | 'meeting_intelligence'
   | 'task_extraction'
-  | 'vsl_analytics';
+  | 'vsl_analytics'
+  | 'sentry_bridge';
 
 export type FlowDirection = 'horizontal' | 'vertical';
 
