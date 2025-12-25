@@ -488,9 +488,20 @@ export const MermaidRenderer = memo(function MermaidRenderer({
     const svg = containerRef.current.querySelector('svg');
     if (!svg) return;
 
+    // Debug: Log stepStatuses
+    if (stepStatuses && stepStatuses.size > 0) {
+      console.log('[MermaidRenderer] stepStatuses:', Array.from(stepStatuses.entries()));
+    }
+    if (highlightedStepId) {
+      console.log('[MermaidRenderer] highlightedStepId:', highlightedStepId);
+    }
+
     // Get all node groups in the SVG
     // Mermaid uses various patterns for node IDs
     const nodes = svg.querySelectorAll('[id^="flowchart-"], [class*="node"]');
+
+    // Debug: Log all found nodes
+    console.log('[MermaidRenderer] Found nodes:', nodes.length, Array.from(nodes).map(n => (n as SVGElement).id));
 
     nodes.forEach((node) => {
       const element = node as SVGElement;

@@ -28,7 +28,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useOrgId } from '@/lib/contexts/OrgContext';
 import { MermaidRenderer } from '@/components/process-maps/MermaidRenderer';
-import type { StepStatus } from '@/lib/types/processMapTesting';
+import type { StepStatus, ProcessStructure } from '@/lib/types/processMapTesting';
 import { ProcessMapButton, ProcessType, ProcessName } from '@/components/process-maps/ProcessMapButton';
 import { WorkflowTestPanel } from '@/components/process-maps/WorkflowTestPanel';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -58,10 +58,13 @@ interface ProcessMap {
   process_name: string;
   title: string;
   description: string | null;
+  /** Structured JSON - source of truth for content (Phase 1 output) */
+  process_structure: ProcessStructure | null;
   mermaid_code: string;
   mermaid_code_horizontal: string | null;
   mermaid_code_vertical: string | null;
-  generation_status: 'pending' | 'partial' | 'complete';
+  /** Generation status: structure_ready means Phase 1 complete, Phase 2 pending */
+  generation_status: 'pending' | 'structure_ready' | 'partial' | 'complete';
   generated_by: string | null;
   version: number;
   created_at: string;
@@ -558,12 +561,12 @@ export default function ProcessMaps() {
                     showCode={false}
                     className="border-0 shadow-none"
                   />
-                  {/* Show processing indicator if only partial generation */}
-                  {map.generation_status === 'partial' && (
+                  {/* Show processing indicator if only partial/structure_ready generation */}
+                  {(map.generation_status === 'partial' || map.generation_status === 'structure_ready') && (
                     <div className="absolute top-2 right-2">
                       <Badge variant="outline" className="bg-background/80 backdrop-blur-sm text-xs gap-1">
                         <Loader2 className="h-3 w-3 animate-spin" />
-                        Processing
+                        {map.generation_status === 'structure_ready' ? 'Rendering...' : 'Processing'}
                       </Badge>
                     </div>
                   )}
@@ -735,10 +738,10 @@ export default function ProcessMaps() {
                 <>
                   Version {selectedMap.version} &middot; Updated{' '}
                   {formatDate(selectedMap.updated_at)}
-                  {selectedMap.generation_status === 'partial' && (
+                  {(selectedMap.generation_status === 'partial' || selectedMap.generation_status === 'structure_ready') && (
                     <span className="ml-2 text-amber-500">
                       <AlertCircle className="h-3 w-3 inline mr-1" />
-                      Partial generation
+                      {selectedMap.generation_status === 'structure_ready' ? 'Rendering views...' : 'Partial generation'}
                     </span>
                   )}
                 </>
@@ -845,6 +848,7 @@ export default function ProcessMaps() {
                         ? (testingMap.mermaid_code_vertical || testingMap.mermaid_code)
                         : (testingMap.mermaid_code_horizontal || testingMap.mermaid_code)
                     }
+                    processStructure={testingMap.process_structure}
                     onStepStatusChange={handleStepStatusChange}
                     onCurrentStepChange={handleCurrentStepChange}
                     onClose={handleTestPanelClose}

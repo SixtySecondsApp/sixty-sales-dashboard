@@ -17,6 +17,7 @@ export * from './workflowEngine';
 export * from './slackNotifications';
 export * from './meetingPrompts';
 export * from './searchPrompts';
+export * from './processMapPrompts';
 
 // ============================================================================
 // Model Configuration
@@ -156,6 +157,13 @@ export const FEATURE_MODEL_DEFAULTS: Record<string, ModelConfig> = {
     model: DEFAULT_MODELS.SONNET,
     temperature: 0.3,
     maxTokens: 500,
+  },
+
+  // Process Map Generation
+  process_map_generation: {
+    model: DEFAULT_MODELS.HAIKU,
+    temperature: 0.3,
+    maxTokens: 4096,
   },
 };
 

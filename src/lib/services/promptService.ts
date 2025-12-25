@@ -42,6 +42,8 @@ import {
   contentTopicsTemplate,
   // Search & Intelligence
   searchQueryParseTemplate,
+  // Process Maps
+  processMapGenerationTemplate,
 } from '@/lib/prompts';
 
 // ============================================================================
@@ -131,6 +133,9 @@ const DEFAULT_TEMPLATES: Record<string, PromptTemplate> = {
 
   // Search & Intelligence
   search_query_parse: searchQueryParseTemplate,
+
+  // Process Maps
+  process_map_generation: processMapGenerationTemplate,
 };
 
 // ============================================================================

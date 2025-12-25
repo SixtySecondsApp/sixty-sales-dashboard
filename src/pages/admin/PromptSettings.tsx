@@ -98,6 +98,12 @@ const PROMPT_CATEGORIES = {
     description: 'Prompts for search query parsing',
     features: ['search_query_parse'],
   },
+  processMaps: {
+    label: 'Process Maps',
+    icon: Code,
+    description: 'Prompts for generating Mermaid diagrams',
+    features: ['process_map_generation'],
+  },
 };
 
 const FEATURE_LABELS: Record<string, string> = {
@@ -121,6 +127,7 @@ const FEATURE_LABELS: Record<string, string> = {
   workflow_json: 'JSON Output',
   workflow_few_shot: 'Few-Shot Learning',
   search_query_parse: 'Search Query Parser',
+  process_map_generation: 'Mermaid Diagram Generation',
 };
 
 const MODEL_OPTIONS = [
@@ -159,6 +166,7 @@ export default function PromptSettings() {
     proposals: false,
     workflow: false,
     search: false,
+    processMaps: false,
   });
 
   const [selectedFeature, setSelectedFeature] = useState<string | null>(null);
