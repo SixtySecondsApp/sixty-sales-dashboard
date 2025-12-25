@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, memo, useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import type { StepStatus } from '@/lib/types/processMapTesting';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -178,6 +179,9 @@ function parseMermaidToSteps(code: string): WorkflowStep[] {
   return sections;
 }
 
+// Re-export StepStatus for backward compatibility
+export type StepTestStatus = StepStatus;
+
 interface MermaidRendererProps {
   code: string;
   title?: string;
@@ -185,6 +189,14 @@ interface MermaidRendererProps {
   className?: string;
   showControls?: boolean;
   showCode?: boolean;
+  /** Currently highlighted step ID for test visualization */
+  highlightedStepId?: string;
+  /** Map of step IDs to their test status */
+  stepStatuses?: Map<string, StepTestStatus>;
+  /** Callback when a step is clicked in the diagram */
+  onStepClick?: (stepId: string) => void;
+  /** Enable test mode styling (applies test-specific CSS) */
+  testMode?: boolean;
 }
 
 /**
@@ -287,6 +299,10 @@ export const MermaidRenderer = memo(function MermaidRenderer({
   className,
   showControls = true,
   showCode = false,
+  highlightedStepId,
+  stepStatuses,
+  onStepClick,
+  testMode = false,
 }: MermaidRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -464,6 +480,97 @@ export const MermaidRenderer = memo(function MermaidRenderer({
 
     return () => observer.disconnect();
   }, [renderDiagram]);
+
+  // Apply step highlighting for test mode
+  useEffect(() => {
+    if (!containerRef.current || !svgContent || !testMode) return;
+
+    const svg = containerRef.current.querySelector('svg');
+    if (!svg) return;
+
+    // Get all node groups in the SVG
+    // Mermaid uses various patterns for node IDs
+    const nodes = svg.querySelectorAll('[id^="flowchart-"], [class*="node"]');
+
+    nodes.forEach((node) => {
+      const element = node as SVGElement;
+      const nodeId = element.id || '';
+
+      // Extract the step ID from the node ID
+      // Mermaid generates IDs like "flowchart-NodeId-123"
+      const stepIdMatch = nodeId.match(/flowchart-([^-]+)/);
+      const stepId = stepIdMatch ? stepIdMatch[1] : '';
+
+      if (!stepId) return;
+
+      // Remove any existing test status classes
+      element.classList.remove(
+        'test-step-pending',
+        'test-step-running',
+        'test-step-passed',
+        'test-step-failed',
+        'test-step-skipped',
+        'test-step-highlighted'
+      );
+
+      // Apply status class if available
+      if (stepStatuses?.has(stepId)) {
+        const status = stepStatuses.get(stepId);
+        element.classList.add(`test-step-${status}`);
+      }
+
+      // Apply highlighted class for current step
+      if (highlightedStepId === stepId) {
+        element.classList.add('test-step-highlighted');
+      }
+
+      // Add click handler if callback provided
+      if (onStepClick) {
+        element.style.cursor = 'pointer';
+        element.onclick = (e) => {
+          e.stopPropagation();
+          onStepClick(stepId);
+        };
+      }
+    });
+
+    // Also try to match nodes by their label/text content for more robust matching
+    const allGroups = svg.querySelectorAll('g.node, g[class*="node"]');
+    allGroups.forEach((group) => {
+      const element = group as SVGElement;
+
+      // Try to find the node ID from data attributes or parent elements
+      let stepId = '';
+
+      // Check for id attribute patterns
+      const idAttr = element.getAttribute('id') || '';
+      const match = idAttr.match(/flowchart-([^-]+)/);
+      if (match) {
+        stepId = match[1];
+      }
+
+      if (!stepId) return;
+
+      // Apply status class
+      if (stepStatuses?.has(stepId)) {
+        const status = stepStatuses.get(stepId);
+
+        // Find the shape element (rect, circle, polygon) within the group
+        const shape = element.querySelector('rect, circle, polygon, path, ellipse');
+        if (shape) {
+          shape.classList.add(`test-step-shape-${status}`);
+        }
+      }
+
+      // Highlight current step
+      if (highlightedStepId === stepId) {
+        const shape = element.querySelector('rect, circle, polygon, path, ellipse');
+        if (shape) {
+          shape.classList.add('test-step-shape-highlighted');
+        }
+      }
+    });
+  }, [svgContent, stepStatuses, highlightedStepId, onStepClick, testMode]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -797,6 +904,139 @@ export const MermaidRenderer = memo(function MermaidRenderer({
                 /* Ensure diagram background is transparent */
                 .mermaid-dark-text-override svg {
                   background: transparent !important;
+                }
+
+                /* ============================================
+                   TEST MODE - Step Highlighting Styles
+                   ============================================ */
+
+                /* Keyframe animations */
+                @keyframes test-step-pulse {
+                  0%, 100% {
+                    opacity: 1;
+                    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.6));
+                  }
+                  50% {
+                    opacity: 0.85;
+                    filter: drop-shadow(0 0 16px rgba(59, 130, 246, 0.9));
+                  }
+                }
+
+                @keyframes test-step-success-glow {
+                  0% { filter: drop-shadow(0 0 0px rgba(34, 197, 94, 0)); }
+                  50% { filter: drop-shadow(0 0 10px rgba(34, 197, 94, 0.6)); }
+                  100% { filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.3)); }
+                }
+
+                @keyframes test-step-fail-shake {
+                  0%, 100% { transform: translateX(0); }
+                  10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+                  20%, 40%, 60%, 80% { transform: translateX(2px); }
+                }
+
+                /* Pending state - muted appearance */
+                .test-step-pending rect,
+                .test-step-pending circle,
+                .test-step-pending polygon,
+                .test-step-pending ellipse,
+                .test-step-shape-pending {
+                  opacity: 0.5 !important;
+                }
+
+                /* Running state - blue with pulse animation */
+                .test-step-running rect,
+                .test-step-running circle,
+                .test-step-running polygon,
+                .test-step-running ellipse,
+                .test-step-shape-running {
+                  fill: #3B82F6 !important;
+                  stroke: #1D4ED8 !important;
+                  stroke-width: 3px !important;
+                  animation: test-step-pulse 1.5s ease-in-out infinite !important;
+                }
+                .test-step-running .nodeLabel,
+                .test-step-running text {
+                  fill: #ffffff !important;
+                }
+
+                /* Passed state - green with success animation */
+                .test-step-passed rect,
+                .test-step-passed circle,
+                .test-step-passed polygon,
+                .test-step-passed ellipse,
+                .test-step-shape-passed {
+                  fill: #22C55E !important;
+                  stroke: #15803D !important;
+                  stroke-width: 2px !important;
+                  animation: test-step-success-glow 0.6s ease-out forwards !important;
+                  transition: fill 0.3s ease, stroke 0.3s ease !important;
+                }
+                .test-step-passed .nodeLabel,
+                .test-step-passed text {
+                  fill: #ffffff !important;
+                }
+
+                /* Failed state - red with shake animation */
+                .test-step-failed rect,
+                .test-step-failed circle,
+                .test-step-failed polygon,
+                .test-step-failed ellipse,
+                .test-step-shape-failed {
+                  fill: #EF4444 !important;
+                  stroke: #B91C1C !important;
+                  stroke-width: 3px !important;
+                  animation: test-step-fail-shake 0.5s ease-in-out !important;
+                }
+                .test-step-failed .nodeLabel,
+                .test-step-failed text {
+                  fill: #ffffff !important;
+                }
+
+                /* Skipped state - gray/muted */
+                .test-step-skipped rect,
+                .test-step-skipped circle,
+                .test-step-skipped polygon,
+                .test-step-skipped ellipse,
+                .test-step-shape-skipped {
+                  fill: #9CA3AF !important;
+                  stroke: #6B7280 !important;
+                  opacity: 0.6 !important;
+                }
+                .test-step-skipped .nodeLabel,
+                .test-step-skipped text {
+                  fill: #374151 !important;
+                }
+
+                /* Highlighted state - strong border glow effect */
+                .test-step-highlighted rect,
+                .test-step-highlighted circle,
+                .test-step-highlighted polygon,
+                .test-step-highlighted ellipse,
+                .test-step-shape-highlighted {
+                  stroke-width: 4px !important;
+                  filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.8)) !important;
+                }
+
+                /* Dark mode adjustments for test states */
+                .dark .test-step-pending rect,
+                .dark .test-step-pending circle,
+                .dark .test-step-pending polygon,
+                .dark .test-step-pending ellipse,
+                .dark .test-step-shape-pending {
+                  opacity: 0.4 !important;
+                }
+
+                .dark .test-step-skipped .nodeLabel,
+                .dark .test-step-skipped text {
+                  fill: #D1D5DB !important;
+                }
+
+                /* Hover effects for clickable steps */
+                .mermaid-dark-text-override g[style*="cursor: pointer"]:hover rect,
+                .mermaid-dark-text-override g[style*="cursor: pointer"]:hover circle,
+                .mermaid-dark-text-override g[style*="cursor: pointer"]:hover polygon {
+                  filter: brightness(1.1) !important;
+                  transition: filter 0.2s ease !important;
                 }
               `}</style>
               <div

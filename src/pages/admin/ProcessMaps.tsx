@@ -21,12 +21,16 @@ import {
   ArrowDown,
   BarChart3,
   Zap,
+  FlaskConical,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useOrgId } from '@/lib/contexts/OrgContext';
 import { MermaidRenderer } from '@/components/process-maps/MermaidRenderer';
+import type { StepStatus } from '@/lib/types/processMapTesting';
 import { ProcessMapButton, ProcessType, ProcessName, FlowDirection } from '@/components/process-maps/ProcessMapButton';
+import { WorkflowTestPanel } from '@/components/process-maps/WorkflowTestPanel';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import {
   Dialog,
   DialogContent,
@@ -158,6 +162,12 @@ export default function ProcessMaps() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [flowDirection, setFlowDirection] = useState<FlowDirection>('horizontal');
+
+  // Test panel state
+  const [testingMap, setTestingMap] = useState<ProcessMap | null>(null);
+  const [testPanelOpen, setTestPanelOpen] = useState(false);
+  const [stepStatuses, setStepStatuses] = useState<Map<string, StepStatus>>(new Map());
+  const [currentStepId, setCurrentStepId] = useState<string | undefined>(undefined);
 
   // Fetch process maps via edge function (bypasses RLS)
   const fetchProcessMaps = useCallback(async () => {
@@ -302,6 +312,31 @@ export default function ProcessMaps() {
   const handleMapGenerated = useCallback(() => {
     fetchProcessMaps();
   }, [fetchProcessMaps]);
+
+  const handleTestMap = useCallback((map: ProcessMap) => {
+    setTestingMap(map);
+    setStepStatuses(new Map());
+    setCurrentStepId(undefined);
+    setTestPanelOpen(true);
+  }, []);
+
+  const handleStepStatusChange = useCallback((statuses: Map<string, StepStatus>) => {
+    setStepStatuses(statuses);
+  }, []);
+
+  const handleCurrentStepChange = useCallback((stepId: string | null) => {
+    setCurrentStepId(stepId ?? undefined);
+  }, []);
+
+  const handleTestPanelClose = useCallback(() => {
+    setTestPanelOpen(false);
+    // Keep testingMap for a moment to allow animation, then clear
+    setTimeout(() => {
+      setTestingMap(null);
+      setStepStatuses(new Map());
+      setCurrentStepId(undefined);
+    }, 300);
+  }, []);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -493,7 +528,16 @@ export default function ProcessMaps() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => handleTestMap(map)}
+                      title="Test workflow"
+                    >
+                      <FlaskConical className="h-4 w-4 text-purple-500" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleViewMap(map)}
+                      title="View diagram"
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
@@ -579,6 +623,10 @@ export default function ProcessMaps() {
                     direction={flowDirection}
                     onGenerated={handleMapGenerated}
                   />
+                  <Button variant="outline" size="sm" onClick={() => handleTestMap(map)}>
+                    <FlaskConical className="h-4 w-4 mr-1.5 text-purple-500" />
+                    Test
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => handleViewMap(map)}>
                     <Eye className="h-4 w-4 mr-1.5" />
                     View
@@ -686,6 +734,56 @@ export default function ProcessMaps() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Workflow Test Panel */}
+      <Sheet open={testPanelOpen} onOpenChange={(open) => !open && handleTestPanelClose()}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-hidden flex flex-col p-0">
+          {testingMap && (
+            <div className="flex flex-col h-full">
+              {/* Header with Mermaid preview */}
+              <div className="border-b p-4 bg-gray-50 dark:bg-gray-900">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <FlaskConical className="h-4 w-4 text-purple-500" />
+                      Test: {testingMap.title}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Validate workflow execution with mock or production data
+                    </p>
+                  </div>
+                  <Badge variant="outline">{testingMap.process_type}</Badge>
+                </div>
+                {/* Mini Mermaid preview with step highlighting */}
+                <div className="rounded-md border bg-white dark:bg-gray-800 overflow-hidden max-h-48">
+                  <MermaidRenderer
+                    code={testingMap.mermaid_code}
+                    showControls={false}
+                    showCode={false}
+                    highlightedStepId={currentStepId}
+                    stepStatuses={stepStatuses}
+                    testMode={true}
+                    className="border-0 shadow-none"
+                  />
+                </div>
+              </div>
+
+              {/* Test Panel Content */}
+              <div className="flex-1 overflow-auto">
+                <WorkflowTestPanel
+                  isOpen={true}
+                  processMapTitle={testingMap.title}
+                  processMapId={testingMap.id}
+                  mermaidCode={testingMap.mermaid_code}
+                  onStepStatusChange={handleStepStatusChange}
+                  onCurrentStepChange={handleCurrentStepChange}
+                  onClose={handleTestPanelClose}
+                />
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
