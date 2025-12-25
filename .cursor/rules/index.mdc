@@ -1,0 +1,97 @@
+---
+name: use60-rules
+description: use60 - Pre & Post Meeting Command Centre. Core rules and project overview.
+alwaysApply: true
+---
+
+# use60 - Pre & Post Meeting Command Centre
+
+Sales intelligence platform that helps teams prepare for meetings and act on insights afterwards. Features AI meeting transcription, automated follow-ups, deal pipeline tracking, and workflow automation.
+
+## URLs & Ports
+
+| Environment | URL | Port |
+|-------------|-----|------|
+| Production (App) | app.use60.com | - |
+| Production (Landing) | www.use60.com | - |
+| Development (App) | localhost | 5175 |
+| Development (Landing) | localhost | 5173 |
+
+## Tech Stack
+
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, Framer Motion
+- **State**: Zustand (stores) + React Query (server state)
+- **Backend**: Supabase (PostgreSQL, Edge Functions, RLS, Realtime)
+- **Auth**: Supabase Auth or Clerk (dual support)
+- **Monorepo**: Main app + `/packages/landing`
+
+## Critical Rules
+
+### Code Style
+- TypeScript strict mode - avoid `any`, use proper types
+- Prefer `async/await` over `.then()` chains
+- Explicit error handling with `toast.error()` feedback
+- Follow existing patterns in the codebase
+
+### Database (CRITICAL)
+- **Column naming varies by table** - always verify before queries:
+  - `meetings` uses `owner_user_id` (NOT `user_id`)
+  - `contacts`, `deals`, `activities`, `tasks` use `user_id`
+- Use `maybeSingle()` for queries where "not found" is expected
+- Use `single()` only when record must exist
+- Edge functions bypass RLS - use service role carefully
+
+### File Operations
+- Always read files before editing
+- Use absolute paths only
+- Check existing patterns before creating new utilities
+
+## Rule Files Index
+
+| Rule File | Applies To | Purpose |
+|-----------|------------|---------|
+| `architecture.mdc` | lib/, services/, stores/ | System design, Service Locator, data flow |
+| `conventions.mdc` | *.ts, *.tsx | Naming, code style, imports |
+| `patterns.mdc` | hooks/, stores/, lib/ | React Query, Zustand, forms |
+| `api.mdc` | supabase/functions/, api/, services/ | Edge functions, CORS, auth |
+| `database.mdc` | migrations/, *.sql | Schema, RLS, column names |
+| `components.mdc` | components/, pages/ | UI patterns, modals, wizards |
+| `integrations.mdc` | integrations/, functions/ | Google, Fathom, Slack |
+| `slack-blocks.mdc` | slack*.ts | Slack Block Kit messages |
+
+## Quick Commands
+
+```bash
+# Development
+npm run dev           # Start app (port 5175)
+npm run dev:all       # Start app + API
+
+# Building
+npm run build         # Production build
+npm run build:check   # Type check + build
+
+# Testing
+npm run test          # All tests
+npm run test:e2e      # Playwright E2E
+```
+
+## Key File Locations
+
+```
+src/
+├── components/       # React components (feature-based folders)
+├── lib/
+│   ├── hooks/        # Custom React hooks
+│   ├── services/     # Business logic (Service Locator)
+│   ├── stores/       # Zustand stores
+│   └── utils/        # Utility functions
+├── pages/            # Route pages
+└── types/            # TypeScript interfaces
+
+supabase/
+├── functions/        # Edge functions
+└── migrations/       # Database migrations
+
+packages/
+└── landing/          # Landing pages (separate Vite app)
+```

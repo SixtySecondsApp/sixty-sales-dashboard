@@ -1,0 +1,203 @@
+---
+name: use60-patterns
+description: use60 React patterns - React Query, Zustand, forms, real-time subscriptions
+globs:
+  - "**/hooks/**"
+  - "**/stores/**"
+  - "**/lib/**"
+---
+
+# use60 Code Patterns
+
+## React Query + Supabase
+
+Standard data fetching pattern from `/src/lib/hooks/useActivities.ts`:
+
+```typescript
+export function useActivities(dateRange?: { start: Date; end: Date }) {
+  const { isViewMode, viewedUser } = useViewMode();
+  const queryClient = useQueryClient();
+
+  // Query with view mode awareness
+  const { data: activities = [], isLoading } = useQuery({
+    queryKey: isViewMode
+      ? ['activities', dateRange, 'view', viewedUser?.id]
+      : ['activities', dateRange],
+    queryFn: () => fetchActivities(dateRange, isViewMode ? viewedUser?.id : undefined),
+    staleTime: isViewMode ? 0 : 5 * 60 * 1000,  // Fresh for view mode
+  });
+
+  // Mutations with cache invalidation
+  const addActivityMutation = useMutation({
+    mutationFn: createActivity,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+      queryClient.invalidateQueries({ queryKey: ['salesData'] });  // Cascade
+      toast.success('Activity added');
+    },
+    onError: () => toast.error('Failed to add activity'),
+  });
+
+  return {
+    activities,
+    isLoading,
+    addActivity: addActivityMutation.mutate,
+    addActivityAsync: addActivityMutation.mutateAsync,
+  };
+}
+```
+
+## Real-time Subscriptions
+
+Combine React Query with Supabase realtime:
+
+```typescript
+useEffect(() => {
+  const channel = supabase
+    .channel('activities-changes')
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'activities' },
+      () => queryClient.invalidateQueries({ queryKey: ['activities'] })
+    )
+    .subscribe();
+
+  return () => { supabase.removeChannel(channel); };
+}, [queryClient]);
+```
+
+## Zustand Store Pattern
+
+From `/src/lib/stores/orgStore.ts`:
+
+```typescript
+interface OrgStore {
+  // State
+  activeOrgId: string | null;
+  organizations: Organization[];
+  isLoading: boolean;
+
+  // Actions
+  setActiveOrg: (orgId: string | null) => void;
+  loadOrganizations: () => Promise<void>;
+  getActiveOrg: () => Organization | null;
+}
+
+export const useOrgStore = create<OrgStore>()(
+  persist(
+    (set, get) => ({
+      activeOrgId: null,
+      organizations: [],
+      isLoading: false,
+
+      setActiveOrg: (orgId) => set({ activeOrgId: orgId }),
+
+      loadOrganizations: async () => {
+        if (get().isLoading) return;  // Prevent concurrent loads
+        set({ isLoading: true });
+
+        try {
+          const { data } = await supabase.from('organizations').select('*');
+          set({ organizations: data || [], isLoading: false });
+        } catch (error) {
+          set({ isLoading: false });
+        }
+      },
+
+      getActiveOrg: () => {
+        const { activeOrgId, organizations } = get();
+        return organizations.find(o => o.id === activeOrgId) || null;
+      },
+    }),
+    {
+      name: 'org-store',
+      partialize: (state) => ({ activeOrgId: state.activeOrgId }),
+    }
+  )
+);
+
+// Extracted selector hooks
+export function useActiveOrgId() {
+  return useOrgStore((state) => state.activeOrgId);
+}
+```
+
+## Form State Pattern
+
+From `/src/components/quick-add/hooks/useFormState.ts`:
+
+```typescript
+const initialFormData: FormData = {
+  type: 'outbound',
+  client_name: '',
+  amount: '',
+};
+
+export const useFormState = () => {
+  const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const updateFormData = (updates: Partial<FormData>) => {
+    setFormData(prev => ({ ...prev, ...updates }));
+  };
+
+  const resetForm = () => {
+    setFormData(initialFormData);
+    setValidationErrors({});
+    setIsSubmitting(false);
+  };
+
+  return {
+    formData,
+    updateFormData,
+    validationErrors,
+    setValidationErrors,
+    isSubmitting,
+    setIsSubmitting,
+    resetForm,
+  };
+};
+```
+
+## Service Class Pattern
+
+```typescript
+export class CompanyService {
+  static async getCompanies(options?: { search?: string }) {
+    const params = new URLSearchParams();
+    if (options?.search) params.append('search', options.search);
+
+    const response = await fetch(`${API_BASE_URL}/companies?${params}`);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+    return response.json();
+  }
+
+  static extractDomainFromEmail(email: string): string | null {
+    const domain = email.split('@')[1]?.toLowerCase();
+    const personalDomains = ['gmail.com', 'yahoo.com', 'hotmail.com'];
+    return !personalDomains.includes(domain) ? domain : null;
+  }
+}
+```
+
+## Authorization Pattern
+
+From `/src/lib/utils/adminUtils.ts`:
+
+```typescript
+type UserData = UserProfile | AuthUser | null | undefined;
+
+export const isUserAdmin = (userData: UserData): boolean => {
+  if (!userData) return false;
+  if (userData.is_admin === true) return true;
+  if ('role' in userData && userData.role?.toLowerCase() === 'admin') return true;
+  return false;
+};
+
+export const canEditDeal = (deal: Deal, userData: UserData): boolean => {
+  if (isUserAdmin(userData)) return true;
+  if (deal.owner_id === userData?.id && !isDealSplit(deal)) return true;
+  return false;
+};
+```

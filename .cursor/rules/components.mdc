@@ -1,0 +1,229 @@
+---
+name: use60-components
+description: use60 UI component patterns - feature folders, modals, forms, wizards
+globs:
+  - "**/components/**/*.tsx"
+  - "**/pages/**/*.tsx"
+---
+
+# use60 Component Patterns
+
+## Component Organization
+
+### Simple Components
+Single file when no sub-components needed:
+```
+components/
+├── DealWizard.tsx
+├── ProposalConfirmationModal.tsx
+└── ActivityCard.tsx
+```
+
+### Feature Folders
+For complex components with sub-components, hooks, and types:
+
+```
+components/
+└── QuickAdd/
+    ├── index.ts              # Re-exports: export { QuickAdd } from './QuickAdd'
+    ├── QuickAdd.tsx          # Main component
+    ├── hooks/
+    │   ├── useFormState.ts
+    │   └── useQuickAddValidation.ts
+    ├── types.ts
+    ├── ActionGrid.tsx        # Child components
+    └── ActivityForms.tsx
+```
+
+## Modal/Dialog Pattern
+
+From `/src/components/ProposalConfirmationModal.tsx`:
+
+```tsx
+interface ProposalConfirmationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (sentProposal: boolean) => void;
+  dealName: string;
+}
+
+export function ProposalConfirmationModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  dealName
+}: ProposalConfirmationModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Proposal Confirmation</DialogTitle>
+          <DialogDescription>
+            Have you sent a proposal for {dealName}?
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onConfirm(false)}>
+            No
+          </Button>
+          <Button onClick={() => onConfirm(true)}>
+            Yes, I sent it
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+## Form Pattern with Validation
+
+```tsx
+function ActivityForm() {
+  const { formData, updateFormData, validationErrors, resetForm } = useFormState();
+  const { addActivity } = useActivities();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const errors = validateForm(formData);
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+
+    try {
+      await addActivity(formData);
+      toast.success('Activity created');
+      resetForm();
+    } catch (error) {
+      toast.error('Failed to create activity');
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <Input
+        value={formData.name}
+        onChange={(e) => updateFormData({ name: e.target.value })}
+        error={validationErrors.name}
+      />
+      <Button type="submit">Create</Button>
+    </form>
+  );
+}
+```
+
+## Multi-Step Wizard Pattern
+
+From `/src/components/DealWizard.tsx`:
+
+```tsx
+const STEPS = ['Company', 'Contact', 'Deal Details', 'Review'] as const;
+
+function DealWizard({ onComplete, onCancel }: DealWizardProps) {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [wizardData, setWizardData] = useState<WizardData>({});
+
+  const updateWizardData = (data: Partial<WizardData>) => {
+    setWizardData(prev => ({ ...prev, ...data }));
+  };
+
+  const handleNext = () => {
+    if (currentStep < STEPS.length - 1) {
+      setCurrentStep(prev => prev + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 0) {
+      setCurrentStep(prev => prev - 1);
+    }
+  };
+
+  const renderStep = () => {
+    switch (currentStep) {
+      case 0: return <CompanyStep data={wizardData} onUpdate={updateWizardData} />;
+      case 1: return <ContactStep data={wizardData} onUpdate={updateWizardData} />;
+      case 2: return <DealDetailsStep data={wizardData} onUpdate={updateWizardData} />;
+      case 3: return <ReviewStep data={wizardData} onSubmit={handleSubmit} />;
+    }
+  };
+
+  return (
+    <div>
+      <StepIndicator steps={STEPS} currentStep={currentStep} />
+      {renderStep()}
+      <div className="flex justify-between">
+        <Button onClick={handleBack} disabled={currentStep === 0}>Back</Button>
+        <Button onClick={handleNext} disabled={currentStep === STEPS.length - 1}>
+          Next
+        </Button>
+      </div>
+    </div>
+  );
+}
+```
+
+## Loading States
+
+```tsx
+function DealsList() {
+  const { deals, isLoading, error } = useDeals();
+
+  if (isLoading) {
+    return <Skeleton className="h-48 w-full" />;
+  }
+
+  if (error) {
+    return <ErrorMessage message="Failed to load deals" />;
+  }
+
+  if (deals.length === 0) {
+    return <EmptyState message="No deals yet" />;
+  }
+
+  return (
+    <ul>
+      {deals.map(deal => <DealCard key={deal.id} deal={deal} />)}
+    </ul>
+  );
+}
+```
+
+## Permission-Aware Components
+
+```tsx
+function DealActions({ deal }: { deal: Deal }) {
+  const { userData } = useUser();
+
+  const canEdit = canEditDeal(deal, userData);
+  const canDelete = canDeleteDeal(deal, userData);
+
+  return (
+    <div>
+      {canEdit && <Button onClick={handleEdit}>Edit</Button>}
+      {canDelete && (
+        <Button variant="destructive" onClick={handleDelete}>
+          Delete
+        </Button>
+      )}
+    </div>
+  );
+}
+```
+
+## UI Components (Radix UI)
+
+use60 uses Radix UI primitives. Common imports:
+
+```tsx
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
+```

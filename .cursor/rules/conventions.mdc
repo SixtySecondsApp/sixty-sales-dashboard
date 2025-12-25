@@ -1,0 +1,140 @@
+---
+name: use60-conventions
+description: use60 code conventions - naming, style, imports, file structure
+globs:
+  - "**/*.ts"
+  - "**/*.tsx"
+---
+
+# use60 Code Conventions
+
+## File Naming
+
+| Type | Convention | Example |
+|------|------------|---------|
+| Components | PascalCase | `DealWizard.tsx`, `QuickAdd.tsx` |
+| Hooks | camelCase with `use` prefix | `useActivities.ts`, `useDealService.ts` |
+| Utilities | camelCase | `adminUtils.ts`, `calculations.ts` |
+| Services | camelCase with `Service` suffix | `calendarService.ts`, `companyService.ts` |
+| Stores | camelCase with `Store` suffix | `orgStore.ts`, `userStore.ts` |
+| Types | camelCase or feature name | `dealTypes.ts`, `integrations.ts` |
+
+## Component File Structure
+
+### Simple Components
+Single file: `ComponentName.tsx`
+
+### Complex Components (feature folders)
+```
+QuickAdd/
+├── index.ts              # Re-exports main component
+├── QuickAdd.tsx          # Main component
+├── hooks/
+│   ├── useFormState.ts
+│   └── useQuickAddValidation.ts
+├── types.ts
+└── ActionGrid.tsx        # Child components
+```
+
+## Hook Naming Patterns
+
+```typescript
+// Data fetching: use[Resource]
+useActivities()
+useDeals()
+useContacts()
+
+// Domain-specific: use[Domain][Feature]
+useDealSplits()
+useDealStages()
+useCalendarEvents()
+
+// Utilities: use[Feature]
+useDebounce()
+useMemoryMonitor()
+
+// Context hooks: use[ContextName]
+useViewMode()
+useServices()
+```
+
+## TypeScript Rules
+
+**Do:**
+```typescript
+// Explicit types for function parameters
+async function createDeal(data: DealCreateData): Promise<Deal> { }
+
+// Use proper union types
+type Status = 'pending' | 'active' | 'completed';
+
+// Interface for objects, type for unions
+interface Deal { id: string; name: string; }
+type DealStatus = 'open' | 'won' | 'lost';
+```
+
+**Don't:**
+```typescript
+// Avoid any
+function process(data: any) { }  // BAD
+
+// Avoid implicit any
+const items = [];  // BAD - use: const items: Item[] = [];
+
+// Avoid type assertions without reason
+const deal = data as Deal;  // BAD - validate first
+```
+
+## Import Organization
+
+```typescript
+// 1. React/external packages
+import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+
+// 2. Internal aliases (@/)
+import { useServices } from '@/lib/services/ServiceLocator';
+import { Button } from '@/components/ui/button';
+
+// 3. Relative imports
+import { useFormState } from './hooks/useFormState';
+import type { QuickAddProps } from './types';
+```
+
+## Error Handling
+
+```typescript
+// Always use try/catch with user feedback
+try {
+  const result = await createActivity(data);
+  toast.success('Activity created');
+  return result;
+} catch (error) {
+  console.error('Failed to create activity:', error);
+  toast.error('Failed to create activity');
+  throw error;  // Re-throw if caller needs to handle
+}
+```
+
+## Async Patterns
+
+**Do:**
+```typescript
+// async/await for readability
+const data = await supabase.from('deals').select('*');
+```
+
+**Don't:**
+```typescript
+// Avoid .then() chains
+supabase.from('deals').select('*')
+  .then(data => {})
+  .catch(err => {});
+```
+
+## Comments
+
+- Only add comments where logic isn't self-evident
+- Don't add JSDoc to every function - prefer self-documenting names
+- Use `// TODO:` for tracked work items
+- Use `// FIXME:` for known issues

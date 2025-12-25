@@ -1,0 +1,199 @@
+---
+name: use60-database
+description: use60 database patterns - schema, RLS, column naming gotchas, migrations
+globs:
+  - "**/supabase/migrations/**"
+  - "**/*.sql"
+  - "**/lib/database/**"
+---
+
+# use60 Database Patterns
+
+## CRITICAL: Column Name Gotchas
+
+**Different tables use different column names for user ownership:**
+
+| Table | User Column | Notes |
+|-------|-------------|-------|
+| `meetings` | `owner_user_id` | NOT `user_id` - common integration error! |
+| `contacts` | `user_id` | Standard |
+| `deals` | `user_id` | Standard |
+| `activities` | `user_id` | Standard |
+| `tasks` | `user_id` | Standard |
+| `calendar_events` | `user_id` | Standard |
+| `workflow_executions` | `user_id` | Standard |
+| `user_automation_rules` | `user_id` | References `auth.users(id)` |
+
+**Always verify the correct column name before writing migrations or queries!**
+
+## Query Patterns
+
+### maybeSingle() vs single()
+
+```sql
+-- Use maybeSingle() when record might not exist
+const { data } = await supabase
+  .from('calendar_events')
+  .select('id')
+  .eq('external_id', eventId)
+  .maybeSingle();  // Returns null gracefully
+
+-- Use single() only when record MUST exist
+const { data } = await supabase
+  .from('profiles')
+  .select('*')
+  .eq('id', userId)
+  .single();  // Throws PGRST116 if not found
+```
+
+### Handling "Not Found" Gracefully
+
+```typescript
+const { data, error } = await supabase
+  .from('events')
+  .select('id')
+  .eq('external_id', id)
+  .maybeSingle();
+
+if (error && error.code !== 'PGRST116') {
+  // PGRST116 = not found (expected), others are real errors
+  throw error;
+}
+
+if (!data) {
+  // Record doesn't exist - create it
+}
+```
+
+## Row Level Security (RLS)
+
+### Standard User-Scoped Policy
+
+```sql
+-- Enable RLS
+ALTER TABLE activities ENABLE ROW LEVEL SECURITY;
+
+-- Users can only see their own records
+CREATE POLICY "Users can view own activities" ON activities
+  FOR SELECT
+  USING (user_id = auth.uid());
+
+-- Users can only create records they own
+CREATE POLICY "Users can create own activities" ON activities
+  FOR INSERT
+  WITH CHECK (user_id = auth.uid());
+```
+
+### Admin Override Policy
+
+```sql
+CREATE POLICY "Admins can view all" ON activities
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.is_admin = true
+    )
+  );
+```
+
+### Multi-Tenant (Org-Based) Policy
+
+```sql
+CREATE POLICY "Org members can view org data" ON deals
+  FOR SELECT
+  USING (
+    org_id IN (
+      SELECT org_id FROM organization_memberships
+      WHERE user_id = auth.uid()
+    )
+  );
+```
+
+## Migration Patterns
+
+### With Error Logging
+
+```sql
+-- Create temp table for migration logging
+CREATE TEMP TABLE IF NOT EXISTS migration_log (
+  id SERIAL PRIMARY KEY,
+  phase TEXT,
+  operation TEXT,
+  status TEXT,
+  error_message TEXT,
+  records_affected INTEGER DEFAULT 0,
+  timestamp TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Log migration step
+CREATE OR REPLACE FUNCTION log_migration_step(
+  p_phase TEXT,
+  p_operation TEXT,
+  p_status TEXT,
+  p_records INTEGER DEFAULT 0,
+  p_error TEXT DEFAULT NULL
+) RETURNS void AS $$
+BEGIN
+  INSERT INTO migration_log (phase, operation, status, records_affected, error_message)
+  VALUES (p_phase, p_operation, p_status, p_records, p_error);
+END;
+$$ LANGUAGE plpgsql;
+```
+
+### Safe Column Add
+
+```sql
+-- Check if column exists before adding
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'meetings'
+    AND column_name = 'new_column'
+  ) THEN
+    ALTER TABLE meetings ADD COLUMN new_column TEXT;
+  END IF;
+END $$;
+```
+
+## Key Tables
+
+### Core Tables
+- `profiles` - User profiles (extends auth.users)
+- `organizations` - Multi-tenant orgs
+- `organization_memberships` - User-org relationships
+
+### Meeting Intelligence
+- `meetings` - Meeting records (uses `owner_user_id`!)
+- `meeting_file_search_index` - AI/RAG indexing status
+- `meeting_index_queue` - Async indexing queue
+
+### Pipeline
+- `deals` - Deal records
+- `deal_stages` - Pipeline stages (SQL → Opportunity → Verbal → Signed)
+- `activities` - User activities
+
+### Integrations
+- `calendar_events` - Google Calendar events
+- `slack_integrations` - Slack workspace connections
+- `fathom_org_integrations` - Fathom meeting sync
+
+## Edge Function Database Access
+
+**Edge functions bypass RLS with service role key:**
+
+```typescript
+// In edge function - use service role
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL')!,
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!  // Bypasses RLS
+);
+
+// Explicitly select columns, not select('*')
+const { data } = await supabase
+  .from('meetings')
+  .select('id, title, owner_user_id')  // Note: owner_user_id, not user_id!
+  .eq('owner_user_id', userId);
+```

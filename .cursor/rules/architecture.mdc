@@ -1,0 +1,146 @@
+---
+name: use60-architecture
+description: use60 system architecture - Service Locator, data flow, monorepo structure
+globs:
+  - "**/lib/**"
+  - "**/services/**"
+  - "**/stores/**"
+---
+
+# use60 Architecture
+
+## Monorepo Structure
+
+```
+sixty-sales-dashboard/          # Root
+├── src/                        # Main app (app.use60.com)
+├── packages/
+│   ├── landing/                # Landing pages (www.use60.com)
+│   └── shared/                 # Shared components
+├── supabase/
+│   ├── functions/              # Edge functions (Deno)
+│   └── migrations/             # PostgreSQL migrations
+└── api/                        # Vercel serverless functions
+```
+
+## Service Locator Pattern
+
+Central DI container at `/src/lib/services/ServiceLocator.tsx`:
+
+```typescript
+// Getting services in components/hooks
+import { useServices } from '@/lib/services/ServiceLocator';
+
+function MyComponent() {
+  const services = useServices();
+  const deals = await services.dealService.getDealsByOwner(userId);
+}
+```
+
+**Do:**
+- Use `useServices()` hook to access services
+- Depend on interfaces, not implementations
+
+**Don't:**
+- Import service classes directly
+- Create new service instances in components
+
+## Data Flow
+
+```
+Component
+    ↓ useQuery/useMutation
+React Query (cache + server state)
+    ↓ queryFn
+Service Layer (ServiceLocator)
+    ↓
+Supabase Client
+    ↓
+PostgreSQL (with RLS)
+```
+
+### State Management Split
+
+| Type | Tool | Example |
+|------|------|---------|
+| Server state | React Query | Deals, activities, contacts |
+| Client state | Zustand | Active org, UI preferences |
+| Form state | useState/useFormState | Form inputs, validation |
+
+## Zustand Stores
+
+Located at `/src/lib/stores/`:
+
+```typescript
+// Pattern: Store with persist middleware
+export const useOrgStore = create<OrgStore>()(
+  persist(
+    (set, get) => ({
+      activeOrgId: null,
+      setActiveOrg: (orgId) => set({ activeOrgId: orgId }),
+      getActiveOrg: () => get().organizations.find(o => o.id === get().activeOrgId),
+    }),
+    {
+      name: 'org-store',  // localStorage key
+      partialize: (state) => ({ activeOrgId: state.activeOrgId }),  // Selective persist
+    }
+  )
+);
+
+// Extract selector hooks for components
+export function useActiveOrgId() {
+  return useOrgStore((state) => state.activeOrgId);
+}
+```
+
+## Edge Function Architecture
+
+Located at `/supabase/functions/`:
+
+```
+functions/
+├── _shared/              # Shared utilities
+│   ├── cors.ts           # CORS headers
+│   ├── supabaseClient.ts # Service role client
+│   └── slackBlocks.ts    # Slack message builders
+├── google-calendar/      # Calendar sync
+├── fathom-sync/          # Meeting transcription
+├── slack-*/              # Slack integrations
+└── send-slack-message/   # Slack messaging
+```
+
+**Pattern:**
+```typescript
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { corsHeaders } from '../_shared/cors.ts';
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    // Auth verification
+    const authHeader = req.headers.get('Authorization')?.replace('Bearer ', '');
+    // ... business logic
+
+    return new Response(JSON.stringify(data), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+});
+```
+
+## Multi-Tenant Support
+
+Organization-based data isolation:
+
+- `org_id` column on tenant tables
+- RLS policies enforce org boundaries
+- `useOrgStore` manages active organization
+- Feature flag: `isMultiTenantEnabled()` for gradual rollout

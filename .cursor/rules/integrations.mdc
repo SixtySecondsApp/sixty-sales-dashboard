@@ -1,0 +1,216 @@
+---
+name: use60-integrations
+description: use60 external integrations - Google Calendar, Fathom, Slack, Meeting AI
+globs:
+  - "**/integrations/**"
+  - "**/functions/google-*/**"
+  - "**/functions/slack-*/**"
+  - "**/functions/fathom-*/**"
+---
+
+# use60 Integration Patterns
+
+## Google Calendar
+
+### Calendar Sync Service
+
+From `/src/lib/services/calendarService.ts`:
+
+```typescript
+class CalendarService {
+  async syncCalendarEvents(
+    action: 'sync-full' | 'sync-incremental' | 'sync-single',
+    calendarId: string = 'primary'
+  ): Promise<CalendarSyncStatus> {
+    // Calculate time range based on action
+    let timeMin: string, timeMax: string;
+    if (action === 'sync-single') {
+      timeMin = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      timeMax = new Date().toISOString();
+    }
+
+    // Invoke edge function
+    const response = await supabase.functions.invoke('google-calendar?action=list-events', {
+      body: { calendarId, timeMin, timeMax, maxResults: 250 }
+    });
+
+    // Upsert events with conflict resolution
+    for (const event of response.data.events) {
+      const { data: existing } = await supabase
+        .from('calendar_events')
+        .select('id')
+        .eq('external_id', event.id)
+        .eq('user_id', userId)
+        .maybeSingle();  // Handle not found gracefully
+
+      // Insert or update...
+    }
+  }
+}
+```
+
+**Key Points:**
+- Manual sync only (user-initiated)
+- Composite unique key: `(external_id, user_id)`
+- Auto-links to contacts via email matching
+
+## Fathom Meeting Intelligence
+
+### Meeting Sync Flow
+
+```
+Fathom Webhook → api/webhooks/fathom.ts
+    ↓
+Queue to meeting_index_queue
+    ↓
+Cron: fathom-sync (every 15 min)
+    ↓
+Index to Google File Search API
+    ↓
+Update meeting_file_search_index
+```
+
+### Meeting Tables
+
+```typescript
+// meetings table uses owner_user_id, NOT user_id!
+const { data } = await supabase
+  .from('meetings')
+  .select('id, title, transcript, owner_user_id')
+  .eq('owner_user_id', userId);
+
+// Indexing status
+const { data: indexStatus } = await supabase
+  .from('meeting_file_search_index')
+  .select('status, indexed_at')
+  .eq('meeting_id', meetingId)
+  .maybeSingle();
+```
+
+### Queue Pattern
+
+```typescript
+// Add to index queue
+await supabase.from('meeting_index_queue').insert({
+  meeting_id: meetingId,
+  user_id: userId,
+  priority: 0,
+  attempts: 0,
+  max_attempts: 3
+});
+
+// Process queue (in cron job)
+const { data: pending } = await supabase
+  .from('meeting_index_queue')
+  .select('*')
+  .lt('attempts', 3)
+  .order('priority', { ascending: false })
+  .order('created_at', { ascending: true })
+  .limit(10);
+```
+
+## Slack Integration
+
+### Message Sending
+
+```typescript
+const { data, error } = await supabase.functions.invoke('send-slack-message', {
+  body: {
+    channel: '#sales-alerts',
+    message: 'New deal closed!',
+    blocks: buildDealWonBlocks(deal)  // See slack-blocks.mdc
+  }
+});
+```
+
+### Slack Blocks Builder
+
+See `.cursor/rules/slack-blocks.mdc` for comprehensive Block Kit patterns including:
+- Deal alerts
+- Pipeline summaries
+- Meeting reminders
+- Win/loss notifications
+- Approval requests
+
+### Slack Integration Table
+
+```typescript
+const { data: integration } = await supabase
+  .from('slack_integrations')
+  .select('access_token, channel_id')
+  .eq('user_id', userId)
+  .eq('is_active', true)
+  .single();
+```
+
+## Integration Status Types
+
+```typescript
+type IntegrationStatus =
+  | 'disconnected'
+  | 'connecting'
+  | 'connected'
+  | 'error'
+  | 'syncing'
+  | 'sync_error';
+
+type GoogleWorkspaceService =
+  | 'gmail'
+  | 'calendar'
+  | 'docs'
+  | 'drive'
+  | 'contacts';
+
+interface IntegrationConnection {
+  id: string;
+  user_id: string;
+  service: GoogleWorkspaceService;
+  status: IntegrationStatus;
+  connected_at: string | null;
+  last_sync_at: string | null;
+  error_message: string | null;
+  scopes: string[];
+}
+```
+
+## Webhook Handlers
+
+Located at `/api/webhooks/`:
+
+```typescript
+// api/webhooks/fathom.ts
+export default async function handler(req: Request) {
+  if (req.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405 });
+  }
+
+  const signature = req.headers.get('x-fathom-signature');
+  if (!verifySignature(signature, body)) {
+    return new Response('Invalid signature', { status: 401 });
+  }
+
+  const { event, data } = await req.json();
+
+  switch (event) {
+    case 'meeting.completed':
+      await queueMeetingForIndexing(data.meeting_id);
+      break;
+    case 'transcript.ready':
+      await updateMeetingTranscript(data);
+      break;
+  }
+
+  return new Response(JSON.stringify({ success: true }));
+}
+```
+
+## Cron Jobs
+
+Located at `/api/cron/`:
+
+| Job | Schedule | Purpose |
+|-----|----------|---------|
+| `fathom-sync` | Every 15 min | Process meeting index queue |
+| `health-refresh` | Daily 7 AM | Update relationship health scores |
+| `email-sync` | Daily 8 AM | Sync Gmail threads |
+| `slack-digest` | Daily | Send pipeline summaries |
