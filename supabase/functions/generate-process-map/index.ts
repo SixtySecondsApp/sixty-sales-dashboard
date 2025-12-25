@@ -24,374 +24,42 @@ interface RequestBody {
   processType?: 'integration' | 'workflow'
   processName?: string
   regenerate?: boolean
-  direction?: 'horizontal' | 'vertical'  // default: 'horizontal'
+  // direction is deprecated - we now generate both views
 }
 
-// Process descriptions for AI context
+interface ProcessMapRecord {
+  id: string
+  org_id: string
+  process_type: string
+  process_name: string
+  title: string
+  description: string | null
+  mermaid_code: string | null
+  mermaid_code_horizontal: string | null
+  mermaid_code_vertical: string | null
+  generation_status: 'pending' | 'partial' | 'complete'
+  generated_by: string
+  version: number
+  created_at: string
+  updated_at: string
+}
+
+// Process descriptions for AI context - ultra concise, one line each
 const PROCESS_DESCRIPTIONS: Record<string, Record<string, string>> = {
   integration: {
-    hubspot: `
-HubSpot Integration Process:
-1. OAuth Connection: User connects via HubSpot OAuth flow, granting access to contacts, deals, and tasks
-2. Credential Storage: Access token and refresh token stored securely in org_integrations table
-3. Bi-directional Sync:
-   - Inbound: HubSpot webhooks trigger sync of contacts, deals, and form submissions
-   - Outbound: Changes in Sixty (deals, contacts, activities) sync back to HubSpot
-4. Pipeline Mapping: Sixty pipeline stages mapped to HubSpot deal stages
-5. Contact Sync: Contacts created/updated in both systems with deduplication
-6. Deal Sync: Deals synced with value, stage, and custom properties
-7. Form Ingestion: HubSpot form submissions create leads in Sixty
-8. AI Note Writeback: Meeting summaries and action items written back to HubSpot
-9. Task Sync: Tasks synchronized between both systems
-10. Queue Processing: hubspot-process-queue Edge Function handles async sync operations
-`,
-    google: `
-Google Workspace Integration Process:
-1. OAuth Connection: User authorizes Gmail, Calendar, Drive, and Tasks access
-2. Credential Storage: Google refresh token stored in google_integrations table
-3. Gmail Integration:
-   - Email sync for communication tracking
-   - Thread-based conversation view
-   - Email categorization and tagging
-4. Calendar Integration:
-   - Manual sync of calendar events (last 7 days)
-   - Event storage in calendar_events table
-   - Automatic contact linking via email matching
-   - Meeting association with CRM contacts
-5. Google Drive Integration:
-   - Document access for meeting context
-   - Proposal attachment tracking
-6. Google Tasks Integration:
-   - Task sync between Sixty and Google Tasks
-   - Priority and due date synchronization
-7. Contact Matching: Calendar attendees matched to CRM contacts
-`,
-    fathom: `
-Fathom Integration Process:
-1. OAuth Connection: User connects Fathom account via OAuth
-2. Credential Storage: Fathom access token stored in fathom_org_integrations table (org-level)
-3. Sync State Management:
-   - Sync status tracked in fathom_org_sync_state table
-   - States: idle | syncing | error
-   - Progress tracking: meetings_synced / total_meetings_found
-   - Stuck sync auto-recovery: resets after 30 minutes via database trigger
-4. Progressive Recording Sync:
-   - Initial sync: First 9 meetings get FULL processing (thumbnails + transcripts)
-   - Background queue: Remaining meetings processed asynchronously
-   - Real-time UI: Sync progress banner shows "X of Y synced" with progress bar
-   - Meetings display during sync (not blocked by syncing state)
-5. Meeting Creation:
-   - New meetings created in meetings table sorted by newest first
-   - Participants extracted and linked to CRM contacts
-   - Processing status columns: thumbnail_status, transcript_status, summary_status
-6. Thumbnail Generation:
-   - Thumbnails generated via generate-video-thumbnail-v2 Edge Function
-   - Status: pending → processing → complete/failed
-   - Real-time UI updates via Supabase subscriptions
-7. Transcript Sync:
-   - Transcripts fetched via Fathom API
-   - Stored in transcript_text column
-   - Triggers AI analysis pipeline
-8. Summary Generation:
-   - AI-generated meeting summaries
-   - Action items extraction to meeting_action_items table
-   - Sentiment analysis and coach ratings
-9. Company/Contact Linking:
-   - Attendee emails matched to contacts
-   - Company association via domain matching
-10. Meeting Intelligence Indexing:
-    - Meetings queued for Google File Search indexing
-    - Org-level stores for RAG queries via ask-meeting-ai
-    - Real-time indexing status: "295/334 indexed"
-11. Cron Job Sync:
-    - fathom-sync Edge Function for periodic sync
-    - Webhook notifications for new recordings
-`,
-    slack: `
-Slack Integration Process:
-1. OAuth Connection: Workspace admin authorizes Slack app
-2. Credential Storage: Bot token and workspace info stored in slack_integrations table
-3. Webhook Setup: Slack events subscribed for real-time notifications
-4. Deal Room Creation:
-   - Dedicated channels created for deals
-   - Automatic channel naming convention
-5. Meeting Summaries:
-   - Post-meeting summaries sent to relevant channels
-   - Action items shared with team
-6. Notifications:
-   - Deal stage changes
-   - Task assignments
-   - Upcoming meeting reminders
-7. Bot Commands:
-   - /sixty-deal - Quick deal lookup
-   - /sixty-tasks - View pending tasks
-8. Real-time Updates: Activity feed in Slack channels
-`,
-    justcall: `
-JustCall Integration Process:
-1. API Key Connection: User provides JustCall API credentials
-2. Credential Storage: API key stored in justcall_integrations table
-3. Webhook Setup: JustCall webhooks configured for call events
-4. Call Recording Sync:
-   - Inbound/outbound call recordings captured
-   - Call metadata stored in calls table
-5. Transcript Processing:
-   - Call transcripts fetched via JustCall API
-   - Stored in transcript_text column
-6. AI Analysis:
-   - Action items extracted from call transcripts
-   - Sentiment analysis performed
-7. Contact Linking:
-   - Phone numbers matched to contacts
-   - Call history associated with deals
-8. Activity Creation: Calls logged as activities in CRM
-`,
-    savvycal: `
-SavvyCal Integration Process:
-1. OAuth Connection: User connects SavvyCal account
-2. Credential Storage: Access token stored in savvycal_integrations table
-3. Webhook Setup: SavvyCal webhooks for booking notifications
-4. Booking Sync:
-   - New bookings trigger deal/contact creation
-   - Booking metadata stored in calendar_events
-5. Lead Creation:
-   - New contacts created from bookers
-   - Company association from email domain
-6. Activity Logging: Bookings logged as activities
-7. Reminder Integration: Booking reminders synced with task system
-8. Form Field Mapping: Custom booking form fields mapped to contact properties
-`,
+    hubspot: `Two-way sync of contacts, deals, and tasks with HubSpot CRM via OAuth and webhooks.`,
+    google: `Sync Gmail, Calendar, and Tasks via OAuth. Match attendees to CRM contacts.`,
+    fathom: `Import meeting recordings via OAuth. Generate thumbnails, transcripts, and AI summaries.`,
+    slack: `Send deal alerts and meeting summaries to Slack channels via bot integration.`,
+    justcall: `Sync call recordings via API. Fetch transcripts and run AI analysis.`,
+    savvycal: `Sync bookings via webhook. Auto-create contacts and log activities.`,
   },
   workflow: {
-    meeting_intelligence: `
-Meeting Intelligence Workflow:
-1. Meeting Ingestion:
-   - Fathom sync creates/updates meetings
-   - Calendar events imported
-2. Transcript Processing:
-   - Transcripts stored in meetings.transcript_text
-   - Database trigger fires on transcript update
-3. AI Queue System:
-   - Meetings queued for AI processing
-   - Queue stored in meeting_ai_queue table
-4. AI Analysis Pipeline:
-   - meeting-intelligence-process-queue Edge Function processes queue
-   - Claude AI analyzes transcript content
-5. Output Generation:
-   - Meeting summary generated
-   - Action items extracted to meeting_action_items table
-   - Sentiment analysis performed
-   - Key topics identified
-6. Next Action Suggestions:
-   - suggest-next-actions Edge Function called
-   - AI recommends follow-up tasks
-   - Suggestions stored in next_action_suggestions table
-7. Task Creation:
-   - User reviews suggestions
-   - Manual or auto-creation of tasks
-8. Google File Search Indexing:
-   - Meetings indexed to org-specific store
-   - RAG queries enabled via ask-meeting-ai
-9. Notifications:
-   - Task creation notifications sent
-   - Daily digest of meeting insights
-`,
-    task_extraction: `
-Task Extraction Workflow:
-1. Source Activities:
-   - Meeting transcripts from Fathom
-   - Call transcripts from JustCall
-   - Activity notes from CRM
-2. AI Extraction:
-   - extract-action-items Edge Function for meetings
-   - extract-call-action-items Edge Function for calls
-   - Claude AI identifies actionable items
-3. Action Item Storage:
-   - Meeting items in meeting_action_items table
-   - Call items in call_action_items table
-   - Deduplication against existing items
-4. Custom Extraction Rules:
-   - User-defined trigger phrases in task_extraction_rules
-   - Rule-based items created with high confidence
-5. Importance Classification:
-   - AI assigns importance: critical, high, medium, low
-   - Used for auto-task creation decisions
-6. Task Conversion:
-   - create-task-unified Edge Function
-   - Manual conversion via UI selection
-   - Auto-conversion based on importance thresholds
-7. Smart Tasks:
-   - Database triggers on activities table
-   - smart_task_templates define follow-up tasks
-   - Automatic task creation for deal-linked activities
-8. Task Sync:
-   - Tasks sync to Google Tasks if enabled
-   - HubSpot task sync if connected
-9. Overdue Notifications:
-   - Cron job checks overdue tasks
-   - Notifications sent with guardrails
-`,
-    vsl_analytics: `
-VSL Video Analytics Workflow:
-1. Landing Page Setup:
-   - Three VSL variants: /intro, /introducing, /introduction
-   - Each page has unique signupSource identifier
-   - Cloudinary-hosted videos with public IDs
-2. Video Component Integration:
-   - OptimizedCloudinaryVideo component renders video player
-   - HTML5 video element with custom event handlers
-   - Video events captured: view, play, pause, progress, seek, ended
-3. Anonymous Event Tracking:
-   - Session ID generated per visitor (anonymous)
-   - No authentication required for event submission
-   - Events sent to Supabase vsl_video_analytics table
-4. Event Data Capture:
-   - signup_source: identifies which VSL variant
-   - video_public_id: Cloudinary video identifier
-   - event_type: view, play, pause, progress, seek, ended
-   - playback_time: current position in seconds
-   - duration: total video length
-   - progress_percent: percentage watched (0-100)
-   - watch_time: cumulative seconds watched
-   - session_id: anonymous visitor identifier
-   - Metadata: user_agent, referrer, screen dimensions
-5. Database Storage:
-   - vsl_video_analytics table stores all events
-   - RLS disabled for public write access
-   - Indexed by signup_source, event_type, created_at, session_id
-   - Composite index for efficient dashboard queries
-6. Analytics Summary View:
-   - vsl_analytics_summary aggregated view
-   - Calculates per-day metrics by variant
-   - Metrics: unique_views, total_views, unique_plays, completions
-   - Progress milestones: reached_25, reached_50, reached_75 percent
-   - Average watch time and completion percentage
-7. Dashboard Display:
-   - Platform admin page at /platform/vsl-analytics
-   - Comparison cards showing each variant performance
-   - Trend charts for views over time
-   - Retention graphs showing viewer drop-off points
-8. Split Test Analysis:
-   - Compare performance across three VSL variants
-   - Identify best-performing video for conversion
-   - Metrics: play rate, completion rate, engagement depth
-   - Date range filtering for time-based analysis
-`,
-    sentry_bridge: `
-Sentry Bridge Workflow - Error to Task Automation:
-1. Error Capture:
-   - Sentry SDK captures errors in browser and server
-   - Errors sent to Sentry with context tags and user info
-   - Sentry groups errors into Issues with unique fingerprints
-2. Sentry Issue Alert:
-   - Sentry Alert Rule triggers on new issues or high frequency
-   - Webhook fires to branded URL use60.com/api/webhooks/sentry
-   - Payload includes issue ID title culprit environment and event count
-3. Vercel Webhook Proxy:
-   - api/webhooks/sentry.ts receives Sentry webhook
-   - Validates Sentry signature using HMAC SHA256
-   - Signs payload with SENTRY_WEBHOOK_PROXY_SECRET
-   - Forwards to Supabase Edge Function with X-Use60-Signature
-4. Edge Function Processing:
-   - sentry-webhook Edge Function validates proxy signature
-   - Checks rate limits and circuit breaker
-   - Logs webhook event to sentry_webhook_events table
-   - Applies routing rules from sentry_routing_rules
-5. Routing Decision:
-   - Matches issue against org routing rules
-   - Determines target AI Dev Hub project
-   - Assigns priority based on error severity
-   - Maps Sentry project to AI Dev Hub project
-6. Triage or Auto-Process:
-   - Triage Mode ON: Issue added to sentry_triage_queue for manual review
-   - Triage Mode OFF: Issue added to sentry_bridge_queue for auto-processing
-   - Queue status tracked: pending processing completed failed
-7. MCP Integration:
-   - Claude Code reads from queue tables
-   - Calls AI Dev Hub MCP create_task tool
-   - Creates bug task with Sentry context and links
-   - Updates queue status to completed
-8. Issue Mapping:
-   - sentry_issue_mappings links Sentry Issue to AI Dev Hub Task
-   - Enables bidirectional tracking
-   - Prevents duplicate task creation for same issue
-9. Task Created in AI Dev Hub:
-   - Task includes error title message and location
-   - AI context with Sentry trace ID and environment
-   - Direct link to Sentry issue for investigation
-   - Due date set based on priority
-`,
-    api_optimization: `
-API Call Optimization Workflow:
-
-1. Working Hours Detection:
-   - User timezone detection from browser and profile settings
-   - Working hours check from 8 AM to 6 PM local time
-   - Weekend detection for minimal polling mode
-   - Profile columns: working_hours_start, working_hours_end, timezone
-   - useWorkingHours hook provides isWorkingHours and isWeekend flags
-
-2. User Activity Monitoring:
-   - Mouse keyboard scroll and touch event tracking
-   - 5-minute idle threshold detection via useUserActivity hook
-   - Polling speed adjustment: normal speed when active, 10x slower when idle
-   - Tab visibility awareness via document.hidden
-
-3. Smart Polling Controller:
-   - useSmartPolling hook combines working hours and activity status
-   - Returns polling interval or false to disable polling entirely
-   - Tiered system: critical, important, standard, background, static
-   - Applied to all non-critical queries via useSmartRefetchConfig
-
-4. Batch Edge Functions - 4 Consolidated Endpoints:
-   - app-data-batch: Dashboard and page load data consolidation
-     Resources: deals, activities, tasks, health-scores, contacts, meetings, notifications
-     Reduces 4-8 calls per page load to 1 single request
-   - google-workspace-batch: All Google API calls consolidated
-     Services: calendar, gmail, drive, tasks, docs, connection
-     Reduces 12 separate functions to 1 batch call
-   - meeting-analysis-batch: Meeting detail page queries
-     Analyses: details, action-items, topics, suggestions, summary, transcript-search
-     Loads meeting detail page 4x faster
-   - integration-health-batch: Admin integration health checks
-     Integrations: google, fathom, hubspot, slack, justcall, savvycal
-     Admin dashboard 83 percent faster
-
-5. Frontend Batch Query Hooks:
-   - useBatchQuery.ts provides typed React Query hooks
-   - useAppDataBatch for general app data
-   - useGoogleWorkspaceBatch for Google services
-   - useMeetingAnalysisBatch for meeting details
-   - useIntegrationHealthBatch for admin health checks
-   - Convenience hooks: useDashboardBatch, useMeetingDetailBatch, useAdminIntegrationsBatch
-
-6. Query Tier Configuration:
-   - Critical tier: Real-time subscriptions, no polling (notifications, deal changes)
-   - Important tier: 5 min stale time, 60s polling during work hours (activities, tasks)
-   - Standard tier: 5 min stale time, 5 min polling (health scores, suggestions)
-   - Background tier: 10 min stale time, 30 min polling (leads, analytics)
-   - Static tier: 1 hour stale time, refetch on demand (settings, templates)
-
-7. Realtime Subscription Management:
-   - useRealtimeHub with working hours awareness
-   - Full mode during working hours: high and medium priority channels
-   - Minimal mode during off-hours: notifications only channel
-   - Reduces realtime connections by 67 percent during off-hours
-   - Hub consolidation: 35+ channels reduced to 2-3 managed channels
-
-8. Cache and Invalidation Strategy:
-   - Optimistic updates for mutations to avoid refetching
-   - Selective cache invalidation vs cascading invalidations
-   - useInvalidateBatchQueries for targeted batch cache clearing
-   - refetchOnWindowFocus for background tier data
-
-9. Results and Metrics:
-   - 95 percent reduction in daily API calls per user
-   - 80 percent reduction in edge function invocations
-   - 3x faster page loads via batched requests
-   - 67 percent fewer realtime connections off-hours
-   - Minimal UX impact for sales agents during work hours
-`,
+    meeting_intelligence: `AI analyzes transcripts to generate summaries, action items, and next step suggestions.`,
+    task_extraction: `Auto-create tasks from meetings and calls using AI extraction and smart templates.`,
+    vsl_analytics: `Track video engagement anonymously for A/B testing across landing page variants.`,
+    sentry_bridge: `Convert Sentry error alerts into AI Dev Hub tasks automatically via MCP.`,
+    api_optimization: `Reduce API calls 95% with smart polling, batching, and working hours awareness.`,
   },
 }
 
@@ -419,7 +87,6 @@ serve(async (req) => {
       processType,
       processName,
       regenerate,
-      direction = 'horizontal'
     } = body;
 
     // Validate required fields based on action
@@ -584,16 +251,6 @@ serve(async (req) => {
       )
     }
 
-    // Generate Mermaid diagram using Claude
-    const mermaidCode = await generateMermaidWithClaude(processType, processName, processDescription, direction)
-
-    if (!mermaidCode) {
-      return new Response(
-        JSON.stringify({ error: 'Failed to generate process map' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
     // Get current version for this process
     const { data: latestVersion } = await supabaseClient
       .from('process_maps')
@@ -606,11 +263,39 @@ serve(async (req) => {
       .single()
 
     const newVersion = (latestVersion?.version || 0) + 1
-
-    // Format title
     const title = formatTitle(processType, processName)
 
-    // Store in database (using supabaseService created earlier for admin check)
+    // Generate BOTH horizontal and vertical diagrams in parallel
+    console.log(`Generating both views for ${processType}/${processName}...`)
+
+    const [horizontalResult, verticalResult] = await Promise.allSettled([
+      generateMermaidWithClaude(processType, processName, processDescription, 'horizontal'),
+      generateMermaidWithClaude(processType, processName, processDescription, 'vertical')
+    ])
+
+    const horizontalCode = horizontalResult.status === 'fulfilled' ? horizontalResult.value : null
+    const verticalCode = verticalResult.status === 'fulfilled' ? verticalResult.value : null
+
+    // Determine generation status
+    let generationStatus: 'pending' | 'partial' | 'complete' = 'pending'
+    if (horizontalCode && verticalCode) {
+      generationStatus = 'complete'
+    } else if (horizontalCode || verticalCode) {
+      generationStatus = 'partial'
+    }
+
+    // Must have at least one diagram
+    if (!horizontalCode && !verticalCode) {
+      console.error('Failed to generate any diagrams')
+      return new Response(
+        JSON.stringify({ error: 'Failed to generate process map' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log(`Generated: horizontal=${!!horizontalCode}, vertical=${!!verticalCode}, status=${generationStatus}`)
+
+    // Store in database with both views
     const { data: processMap, error: insertError } = await supabaseService
       .from('process_maps')
       .insert({
@@ -619,7 +304,10 @@ serve(async (req) => {
         process_name: processName,
         title,
         description: processDescription.trim(),
-        mermaid_code: mermaidCode,
+        mermaid_code: verticalCode || horizontalCode, // Keep legacy column populated
+        mermaid_code_horizontal: horizontalCode,
+        mermaid_code_vertical: verticalCode,
+        generation_status: generationStatus,
         generated_by: user.id,
         version: newVersion
       })
@@ -636,9 +324,12 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        message: 'Process map generated successfully',
+        message: generationStatus === 'complete'
+          ? 'Process map generated successfully (both views)'
+          : 'Process map generated partially (one view failed)',
         processMap,
-        generated: true
+        generated: true,
+        generationStatus
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

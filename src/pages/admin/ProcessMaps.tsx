@@ -22,13 +22,14 @@ import {
   BarChart3,
   Zap,
   FlaskConical,
+  AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useOrgId } from '@/lib/contexts/OrgContext';
 import { MermaidRenderer } from '@/components/process-maps/MermaidRenderer';
 import type { StepStatus } from '@/lib/types/processMapTesting';
-import { ProcessMapButton, ProcessType, ProcessName, FlowDirection } from '@/components/process-maps/ProcessMapButton';
+import { ProcessMapButton, ProcessType, ProcessName } from '@/components/process-maps/ProcessMapButton';
 import { WorkflowTestPanel } from '@/components/process-maps/WorkflowTestPanel';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import {
@@ -58,6 +59,9 @@ interface ProcessMap {
   title: string;
   description: string | null;
   mermaid_code: string;
+  mermaid_code_horizontal: string | null;
+  mermaid_code_vertical: string | null;
+  generation_status: 'pending' | 'partial' | 'complete';
   generated_by: string | null;
   version: number;
   created_at: string;
@@ -77,77 +81,77 @@ const AVAILABLE_PROCESSES: Array<{
     name: 'hubspot',
     label: 'HubSpot',
     icon: <Link2 className="h-4 w-4 text-orange-500" />,
-    description: 'Bi-directional CRM sync with contacts, deals, and tasks',
+    description: 'Two-way CRM sync for contacts, deals and tasks',
   },
   {
     type: 'integration',
     name: 'google',
     label: 'Google Workspace',
     icon: <Calendar className="h-4 w-4 text-blue-500" />,
-    description: 'Gmail, Calendar, Drive, and Tasks integration',
+    description: 'Sync Gmail, Calendar and Drive',
   },
   {
     type: 'integration',
     name: 'fathom',
     label: 'Fathom',
     icon: <Workflow className="h-4 w-4 text-purple-500" />,
-    description: 'Meeting recordings, transcripts, and AI analysis',
+    description: 'Import meeting recordings and transcripts',
   },
   {
     type: 'integration',
     name: 'slack',
     label: 'Slack',
     icon: <Link2 className="h-4 w-4 text-pink-500" />,
-    description: 'Team notifications and deal rooms',
+    description: 'Send alerts and manage deal rooms',
   },
   {
     type: 'integration',
     name: 'justcall',
     label: 'JustCall',
     icon: <Link2 className="h-4 w-4 text-green-500" />,
-    description: 'Call recordings and transcript analysis',
+    description: 'Sync call recordings and transcripts',
   },
   {
     type: 'integration',
     name: 'savvycal',
     label: 'SavvyCal',
     icon: <Calendar className="h-4 w-4 text-indigo-500" />,
-    description: 'Booking sync and lead creation',
+    description: 'Sync bookings and create leads',
   },
   {
     type: 'workflow',
     name: 'meeting_intelligence',
     label: 'Meeting Intelligence',
     icon: <Workflow className="h-4 w-4 text-emerald-500" />,
-    description: 'AI-powered meeting analysis and action item extraction',
+    description: 'Extract insights and action items from meetings',
   },
   {
     type: 'workflow',
     name: 'task_extraction',
     label: 'Task Extraction',
     icon: <Workflow className="h-4 w-4 text-cyan-500" />,
-    description: 'Automatic task creation from meetings and calls',
+    description: 'Auto-create tasks from meetings and calls',
   },
   {
     type: 'workflow',
     name: 'vsl_analytics',
     label: 'VSL Analytics',
     icon: <BarChart3 className="h-4 w-4 text-rose-500" />,
-    description: 'Video engagement tracking for landing page split testing',
+    description: 'Track video engagement for A/B testing',
   },
   {
     type: 'workflow',
     name: 'sentry_bridge',
     label: 'Sentry Bridge',
     icon: <Workflow className="h-4 w-4 text-red-500" />,
-    description: 'Error monitoring to AI Dev Hub task automation via MCP',
+    description: 'Turn errors into dev tasks automatically',
   },
   {
     type: 'workflow',
     name: 'api_optimization',
     label: 'API Call Optimization',
     icon: <Zap className="h-4 w-4 text-amber-500" />,
-    description: 'Smart polling, batch endpoints, and working hours awareness',
+    description: 'Reduce API calls with smart batching',
   },
 ];
 
@@ -161,13 +165,15 @@ export default function ProcessMaps() {
   const [selectedMap, setSelectedMap] = useState<ProcessMap | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [flowDirection, setFlowDirection] = useState<FlowDirection>('horizontal');
+  // View direction state for modal and test panel (default to vertical)
+  const [modalViewDirection, setModalViewDirection] = useState<'horizontal' | 'vertical'>('vertical');
 
   // Test panel state
   const [testingMap, setTestingMap] = useState<ProcessMap | null>(null);
   const [testPanelOpen, setTestPanelOpen] = useState(false);
   const [stepStatuses, setStepStatuses] = useState<Map<string, StepStatus>>(new Map());
   const [currentStepId, setCurrentStepId] = useState<string | undefined>(undefined);
+  const [testViewDirection, setTestViewDirection] = useState<'horizontal' | 'vertical'>('vertical');
 
   // Fetch process maps via edge function (bypasses RLS)
   const fetchProcessMaps = useCallback(async () => {
@@ -359,38 +365,10 @@ export default function ProcessMaps() {
             Visualize integration and workflow processes with AI-generated diagrams
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Direction Toggle */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground hidden sm:inline">Flow:</span>
-            <div className="flex items-center border rounded-md">
-              <Button
-                variant={flowDirection === 'horizontal' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setFlowDirection('horizontal')}
-                className="rounded-r-none gap-1 px-2"
-                title="Horizontal flow (left to right)"
-              >
-                <ArrowRight className="h-3.5 w-3.5" />
-                <span className="text-xs hidden sm:inline">Horizontal</span>
-              </Button>
-              <Button
-                variant={flowDirection === 'vertical' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setFlowDirection('vertical')}
-                className="rounded-l-none gap-1 px-2"
-                title="Vertical flow (top to bottom)"
-              >
-                <ArrowDown className="h-3.5 w-3.5" />
-                <span className="text-xs hidden sm:inline">Vertical</span>
-              </Button>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" onClick={fetchProcessMaps}>
-            <RefreshCw className="h-4 w-4 mr-1.5" />
-            Refresh
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={fetchProcessMaps}>
+          <RefreshCw className="h-4 w-4 mr-1.5" />
+          Refresh
+        </Button>
       </div>
 
       {/* Quick Generate Cards */}
@@ -424,7 +402,6 @@ export default function ProcessMaps() {
                     variant="ghost"
                     size="sm"
                     showLabel={false}
-                    direction={flowDirection}
                     onGenerated={handleMapGenerated}
                   />
                 </div>
@@ -571,19 +548,42 @@ export default function ProcessMaps() {
               </CardHeader>
               <CardContent>
                 <div
-                  className="aspect-video bg-gray-50 dark:bg-gray-800/50 rounded-md overflow-hidden cursor-pointer border"
+                  className="aspect-video bg-gray-50 dark:bg-gray-800/50 rounded-md overflow-hidden cursor-pointer border relative"
                   onClick={() => handleViewMap(map)}
                 >
+                  {/* Show horizontal view in card thumbnail (or fallback to mermaid_code) */}
                   <MermaidRenderer
-                    code={map.mermaid_code}
+                    code={map.mermaid_code_horizontal || map.mermaid_code}
                     showControls={false}
                     showCode={false}
                     className="border-0 shadow-none"
                   />
+                  {/* Show processing indicator if only partial generation */}
+                  {map.generation_status === 'partial' && (
+                    <div className="absolute top-2 right-2">
+                      <Badge variant="outline" className="bg-background/80 backdrop-blur-sm text-xs gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Processing
+                      </Badge>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  <span>Updated {formatDate(map.updated_at)}</span>
+                <div className="flex items-center justify-between mt-3">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    <span>Updated {formatDate(map.updated_at)}</span>
+                  </div>
+                  {/* Show which views are available */}
+                  <div className="flex items-center gap-1">
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${map.mermaid_code_horizontal ? 'bg-green-500' : 'bg-gray-300'}`}
+                      title={map.mermaid_code_horizontal ? 'Horizontal view ready' : 'Horizontal view not generated'}
+                    />
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${map.mermaid_code_vertical ? 'bg-green-500' : 'bg-gray-300'}`}
+                      title={map.mermaid_code_vertical ? 'Vertical view ready' : 'Vertical view not generated'}
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -620,7 +620,6 @@ export default function ProcessMaps() {
                     variant="ghost"
                     size="sm"
                     label="Regenerate"
-                    direction={flowDirection}
                     onGenerated={handleMapGenerated}
                   />
                   <Button variant="outline" size="sm" onClick={() => handleTestMap(map)}>
@@ -667,19 +666,63 @@ export default function ProcessMaps() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <GitBranch className="h-5 w-5 text-emerald-500" />
-              {selectedMap?.title}
-            </DialogTitle>
-            <DialogDescription>
-              {selectedMap?.description || 'Process visualization diagram'}
-            </DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="flex items-center gap-2">
+                  <GitBranch className="h-5 w-5 text-emerald-500" />
+                  {selectedMap?.title}
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedMap?.description || 'Process visualization diagram'}
+                </DialogDescription>
+              </div>
+              {/* View Direction Toggle */}
+              {selectedMap && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">View:</span>
+                  <div className="flex items-center border rounded-md">
+                    <Button
+                      variant={modalViewDirection === 'horizontal' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setModalViewDirection('horizontal')}
+                      disabled={!selectedMap.mermaid_code_horizontal}
+                      className="rounded-r-none gap-1 px-2 h-7"
+                      title={selectedMap.mermaid_code_horizontal ? 'Horizontal view' : 'Horizontal view not available'}
+                    >
+                      <ArrowRight className="h-3 w-3" />
+                      <span className="text-xs">H</span>
+                      {selectedMap.mermaid_code_horizontal && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 ml-0.5" />
+                      )}
+                    </Button>
+                    <Button
+                      variant={modalViewDirection === 'vertical' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setModalViewDirection('vertical')}
+                      disabled={!selectedMap.mermaid_code_vertical}
+                      className="rounded-l-none gap-1 px-2 h-7"
+                      title={selectedMap.mermaid_code_vertical ? 'Vertical view' : 'Vertical view not available'}
+                    >
+                      <ArrowDown className="h-3 w-3" />
+                      <span className="text-xs">V</span>
+                      {selectedMap.mermaid_code_vertical && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 ml-0.5" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </DialogHeader>
 
           <div className="flex-1 overflow-auto">
             {selectedMap && (
               <MermaidRenderer
-                code={selectedMap.mermaid_code}
+                code={
+                  modalViewDirection === 'vertical'
+                    ? (selectedMap.mermaid_code_vertical || selectedMap.mermaid_code)
+                    : (selectedMap.mermaid_code_horizontal || selectedMap.mermaid_code)
+                }
                 showControls={true}
                 showCode={true}
               />
@@ -692,43 +735,29 @@ export default function ProcessMaps() {
                 <>
                   Version {selectedMap.version} &middot; Updated{' '}
                   {formatDate(selectedMap.updated_at)}
+                  {selectedMap.generation_status === 'partial' && (
+                    <span className="ml-2 text-amber-500">
+                      <AlertCircle className="h-3 w-3 inline mr-1" />
+                      Partial generation
+                    </span>
+                  )}
                 </>
               )}
             </div>
             <div className="flex items-center gap-3">
-              {/* Direction Toggle - regenerate in different direction */}
+              {/* Regenerate button */}
               {selectedMap && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground">Regenerate as:</span>
-                  <div className="flex items-center border rounded-md">
-                    <ProcessMapButton
-                      processType={selectedMap.process_type}
-                      processName={selectedMap.process_name as ProcessName}
-                      variant="ghost"
-                      size="sm"
-                      showLabel={false}
-                      direction="horizontal"
-                      onGenerated={() => {
-                        handleMapGenerated();
-                        setDialogOpen(false);
-                      }}
-                      className="rounded-r-none gap-1 px-2 h-7"
-                    />
-                    <ProcessMapButton
-                      processType={selectedMap.process_type}
-                      processName={selectedMap.process_name as ProcessName}
-                      variant="ghost"
-                      size="sm"
-                      showLabel={false}
-                      direction="vertical"
-                      onGenerated={() => {
-                        handleMapGenerated();
-                        setDialogOpen(false);
-                      }}
-                      className="rounded-l-none gap-1 px-2 h-7"
-                    />
-                  </div>
-                </div>
+                <ProcessMapButton
+                  processType={selectedMap.process_type}
+                  processName={selectedMap.process_name as ProcessName}
+                  variant="outline"
+                  size="sm"
+                  label="Regenerate Both"
+                  onGenerated={() => {
+                    handleMapGenerated();
+                    setDialogOpen(false);
+                  }}
+                />
               )}
             </div>
           </div>
@@ -752,7 +781,37 @@ export default function ProcessMaps() {
                       Watch steps highlight as test runs
                     </p>
                   </div>
-                  <Badge variant="outline">{testingMap.process_type}</Badge>
+                  <div className="flex items-center gap-3">
+                    {/* View Direction Toggle */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">View:</span>
+                      <div className="flex items-center border rounded-md">
+                        <Button
+                          variant={testViewDirection === 'horizontal' ? 'secondary' : 'ghost'}
+                          size="sm"
+                          onClick={() => setTestViewDirection('horizontal')}
+                          disabled={!testingMap.mermaid_code_horizontal}
+                          className="rounded-r-none gap-1 px-2 h-7"
+                          title={testingMap.mermaid_code_horizontal ? 'Horizontal view' : 'Horizontal view not available'}
+                        >
+                          <ArrowRight className="h-3 w-3" />
+                          <span className="text-xs">H</span>
+                        </Button>
+                        <Button
+                          variant={testViewDirection === 'vertical' ? 'secondary' : 'ghost'}
+                          size="sm"
+                          onClick={() => setTestViewDirection('vertical')}
+                          disabled={!testingMap.mermaid_code_vertical}
+                          className="rounded-l-none gap-1 px-2 h-7"
+                          title={testingMap.mermaid_code_vertical ? 'Vertical view' : 'Vertical view not available'}
+                        >
+                          <ArrowDown className="h-3 w-3" />
+                          <span className="text-xs">V</span>
+                        </Button>
+                      </div>
+                    </div>
+                    <Badge variant="outline">{testingMap.process_type}</Badge>
+                  </div>
                 </div>
               </div>
 
@@ -761,7 +820,11 @@ export default function ProcessMaps() {
                 {/* Left: Mermaid Diagram with Step Highlighting */}
                 <div className="lg:w-[60%] h-[40vh] lg:h-full border-b lg:border-b-0 lg:border-r bg-white dark:bg-gray-950 overflow-auto">
                   <MermaidRenderer
-                    code={testingMap.mermaid_code}
+                    code={
+                      testViewDirection === 'vertical'
+                        ? (testingMap.mermaid_code_vertical || testingMap.mermaid_code)
+                        : (testingMap.mermaid_code_horizontal || testingMap.mermaid_code)
+                    }
                     showControls={true}
                     showCode={false}
                     highlightedStepId={currentStepId}
@@ -777,7 +840,11 @@ export default function ProcessMaps() {
                     isOpen={true}
                     processMapTitle={testingMap.title}
                     processMapId={testingMap.id}
-                    mermaidCode={testingMap.mermaid_code}
+                    mermaidCode={
+                      testViewDirection === 'vertical'
+                        ? (testingMap.mermaid_code_vertical || testingMap.mermaid_code)
+                        : (testingMap.mermaid_code_horizontal || testingMap.mermaid_code)
+                    }
                     onStepStatusChange={handleStepStatusChange}
                     onCurrentStepChange={handleCurrentStepChange}
                     onClose={handleTestPanelClose}
