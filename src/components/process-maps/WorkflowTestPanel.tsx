@@ -496,6 +496,9 @@ export function WorkflowTestPanel({
 
     addLog('info', `Starting test run in ${runMode} mode`);
 
+    // Track results locally since React state updates are async
+    const localResults: ProcessMapStepResult[] = [];
+
     // Simulate step-by-step execution
     for (let i = 0; i < workflowSteps.length; i++) {
       const step = workflowSteps[i];
@@ -530,6 +533,8 @@ export function WorkflowTestPanel({
         logs: [],
       };
 
+      // Track locally and update React state
+      localResults.push(result);
       setStepResults((prev) => [...prev, result]);
       addLog(success ? 'info' : 'error', `Step ${step.name}: ${success ? 'passed' : 'failed'}`);
 
@@ -542,16 +547,16 @@ export function WorkflowTestPanel({
     setCurrentStepId(null);
     setIsRunning(false);
 
-    // Create test run summary
-    const passed = stepResults.filter((r) => r.status === 'passed').length;
-    const failed = stepResults.filter((r) => r.status === 'failed').length;
+    // Use local results for summary (React state is async, so stepResults may not be updated yet)
+    const passed = localResults.filter((r) => r.status === 'passed').length;
+    const failed = localResults.filter((r) => r.status === 'failed').length;
 
     addLog('info', `Test run completed: ${passed} passed, ${failed} failed`);
 
-    if (failed === 0) {
-      toast.success('All tests passed!');
-    } else {
-      toast.error(`${failed} step(s) failed`);
+    if (failed === 0 && passed > 0) {
+      toast.success(`All ${passed} tests passed!`);
+    } else if (failed > 0) {
+      toast.error(`${failed} step(s) failed, ${passed} passed`);
     }
   }, [runMode, continueOnFailure, workflowSteps]);
 
