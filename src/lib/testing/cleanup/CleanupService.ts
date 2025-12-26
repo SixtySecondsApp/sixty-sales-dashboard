@@ -43,6 +43,7 @@ export class CleanupService {
   private resourceTracker: ResourceTracker;
   private config: TestDataModeConfig;
   private progressCallback?: CleanupProgressCallback;
+  private orgId?: string;
 
   constructor(
     resourceTracker: ResourceTracker,
@@ -50,6 +51,13 @@ export class CleanupService {
   ) {
     this.resourceTracker = resourceTracker;
     this.config = { ...DEFAULT_TEST_DATA_MODE_CONFIG, ...config };
+  }
+
+  /**
+   * Set organization ID for cleanup operations
+   */
+  setOrgId(orgId: string): void {
+    this.orgId = orgId;
   }
 
   /**
@@ -189,24 +197,44 @@ export class CleanupService {
       return false;
     }
 
-    const objectTypeMap: Record<string, string> = {
-      contact: 'contacts',
-      deal: 'deals',
-      task: 'tasks',
-      activity: 'engagements',
+    if (!this.orgId) {
+      console.warn(`[CleanupService] HubSpot cleanup requires org_id`);
+      return false;
+    }
+
+    // Map resource type to delete action
+    const deleteActionMap: Record<string, string> = {
+      contact: 'delete_contact',
+      deal: 'delete_deal',
+      task: 'delete_task',
     };
 
-    const objectType = objectTypeMap[resource.resourceType];
-    if (!objectType) {
+    const action = deleteActionMap[resource.resourceType];
+    if (!action) {
       console.warn(`[CleanupService] Unknown HubSpot resource type: ${resource.resourceType}`);
       return false;
     }
 
-    const { error } = await supabase.functions.invoke('hubspot-delete-resource', {
-      body: {
-        objectType,
-        objectId: resource.externalId,
+    // Get session token for authorization
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) {
+      console.warn(`[CleanupService] No active session for HubSpot cleanup`);
+      return false;
+    }
+
+    console.log(`[CleanupService] Deleting HubSpot ${resource.resourceType}:`, resource.externalId);
+
+    const { data: response, error } = await supabase.functions.invoke('hubspot-admin', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        action,
+        org_id: this.orgId,
+        record_id: resource.externalId,
+      }),
     });
 
     if (error) {
@@ -214,6 +242,12 @@ export class CleanupService {
       throw new Error(error.message);
     }
 
+    if (!response?.success) {
+      console.error(`[CleanupService] HubSpot delete returned error:`, response?.error);
+      throw new Error(response?.error || 'Delete failed');
+    }
+
+    console.log(`[CleanupService] HubSpot ${resource.resourceType} deleted:`, resource.externalId);
     return true;
   }
 

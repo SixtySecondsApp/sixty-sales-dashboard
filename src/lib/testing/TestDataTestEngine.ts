@@ -382,6 +382,9 @@ export class TestDataTestEngine {
 
     // Initialize cleanup service
     this.cleanupService = new CleanupService(this.resourceTracker, this.testDataConfig);
+    if (options.integrationContext?.orgId) {
+      this.cleanupService.setOrgId(options.integrationContext.orgId);
+    }
 
     // Initialize step executor
     this.stepExecutor = new TestDataStepExecutor(
