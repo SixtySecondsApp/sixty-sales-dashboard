@@ -14,6 +14,47 @@ export {
   type TestEngineOptions,
 } from './ProcessMapTestEngine';
 
+// Test Data Mode engine
+export {
+  TestDataTestEngine,
+  type TestDataEngineOptions,
+  type TestDataEngineEvents,
+  type TestDataRunResult,
+} from './TestDataTestEngine';
+
+// Resource tracking
+export {
+  ResourceTracker,
+  AIPromptTracker,
+  type AddResourceOptions,
+  type AddPromptExecutionOptions,
+  type AIPromptSummary,
+} from './tracking';
+
+// Integration capabilities and execution
+export {
+  INTEGRATION_CAPABILITIES,
+  getIntegrationCapability,
+  supportsCleanup,
+  getCleanableIntegrations,
+  getReadOnlyIntegrations,
+  buildViewUrl,
+  getAllSupportedResourceTypes,
+  getIntegrationsForResourceType,
+  IntegrationExecutor,
+  type IntegrationOperation,
+  type StepExecutionContext,
+  type IntegrationExecutionResult,
+  type CreateResourceOptions,
+  type IntegrationContext,
+} from './integrations';
+
+// Cleanup service
+export {
+  CleanupService,
+  type CleanupProgressCallback,
+} from './cleanup';
+
 // Scenario engine
 export {
   ScenarioTestEngine,

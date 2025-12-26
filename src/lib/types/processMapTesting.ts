@@ -86,7 +86,7 @@ export interface WorkflowConnection {
 // Workflow Configuration
 // ============================================================================
 
-export type RunMode = 'schema_validation' | 'mock' | 'production_readonly';
+export type RunMode = 'schema_validation' | 'mock' | 'production_readonly' | 'test_data';
 
 export interface WorkflowTestConfig {
   /** Default run mode */
@@ -154,6 +154,8 @@ export interface TestRunConfig {
   continueOnFailure: boolean;
   /** Specific steps to test (null = all) */
   selectedSteps: string[] | null;
+  /** Delay between steps for visual feedback (ms, default: 200) */
+  stepDelayMs?: number;
 }
 
 export interface ProcessMapTestRun {
@@ -732,3 +734,208 @@ export interface ScenarioBatchResult {
   /** When batch was executed */
   executedAt: string;
 }
+
+// ============================================================================
+// Test Data Mode Types
+// ============================================================================
+
+/**
+ * Integrations that support test data mode
+ * Each integration has different capabilities for create/read/update/delete
+ */
+export type TestableIntegration =
+  | 'hubspot'
+  | 'fathom'
+  | 'google_calendar'
+  | 'google_email'
+  | 'slack'
+  | 'justcall'
+  | 'savvycal'
+  | 'supabase';
+
+/**
+ * Types of resources that can be created during test data mode
+ */
+export type ResourceType =
+  | 'contact'
+  | 'deal'
+  | 'task'
+  | 'activity'
+  | 'meeting'
+  | 'calendar_event'
+  | 'email'
+  | 'message'
+  | 'call'
+  | 'booking'
+  | 'record';
+
+/**
+ * Cleanup status for a tracked resource
+ */
+export type CleanupStatus = 'pending' | 'success' | 'failed' | 'skipped' | 'not_supported';
+
+/**
+ * Tracked resource created during test data mode
+ * Used for displaying links to 3rd party apps and for cleanup
+ */
+export interface TrackedResource {
+  /** Unique ID for tracking */
+  id: string;
+  /** Integration that created this resource */
+  integration: TestableIntegration;
+  /** Type of resource created */
+  resourceType: ResourceType;
+  /** Human-readable name/description */
+  displayName: string;
+  /** External ID in the 3rd party system (e.g., HubSpot contact ID) */
+  externalId: string | null;
+  /** URL to view this resource in the 3rd party app */
+  viewUrl: string | null;
+  /** Step ID that created this resource */
+  createdByStepId: string;
+  /** Step name that created this resource */
+  createdByStepName: string;
+  /** When the resource was created */
+  createdAt: string;
+  /** Cleanup status */
+  cleanupStatus: CleanupStatus;
+  /** Error message if cleanup failed */
+  cleanupError: string | null;
+  /** When cleanup was attempted */
+  cleanupAttemptedAt: string | null;
+  /** Raw data returned from creation (for debugging) */
+  rawData?: Record<string, unknown>;
+}
+
+/**
+ * Tracked AI prompt used during test execution
+ * Links to the AI prompts page for reference
+ */
+export interface TrackedAIPrompt {
+  /** Unique ID for tracking */
+  id: string;
+  /** Step ID that used this prompt */
+  stepId: string;
+  /** Step name for display */
+  stepName: string;
+  /** Feature key for the AI prompt (e.g., 'meeting_insights', 'email_analysis') */
+  featureKey: string;
+  /** Template ID if using a saved template */
+  templateId: string | null;
+  /** URL to view/edit this prompt in the AI prompts settings page */
+  promptViewUrl: string;
+  /** Token usage for this prompt execution */
+  tokenUsage?: {
+    input: number;
+    output: number;
+    total: number;
+  };
+  /** Cost in cents for this execution */
+  costCents?: number;
+  /** Model used (e.g., 'gpt-4', 'claude-3-opus') */
+  modelUsed?: string;
+  /** When the prompt was executed */
+  executedAt: string;
+  /** Duration of the AI call in ms */
+  durationMs?: number;
+}
+
+/**
+ * Result of cleanup operation
+ */
+export interface CleanupResult {
+  /** Whether cleanup was successful overall */
+  success: boolean;
+  /** Total resources to clean up */
+  totalResources: number;
+  /** Successfully cleaned up resources */
+  successCount: number;
+  /** Failed cleanup attempts */
+  failedCount: number;
+  /** Skipped resources (e.g., read-only integrations) */
+  skippedCount: number;
+  /** Resources that failed cleanup with details */
+  failedResources: Array<{
+    resource: TrackedResource;
+    error: string;
+  }>;
+  /** Manual cleanup instructions for resources that couldn't be auto-cleaned */
+  manualCleanupInstructions: string[];
+  /** Total cleanup duration in ms */
+  durationMs: number;
+  /** When cleanup started */
+  startedAt: string;
+  /** When cleanup completed */
+  completedAt: string;
+}
+
+/**
+ * Extended test run for test_data mode
+ * Includes resource tracking and cleanup information
+ */
+export interface TestDataTestRun extends ProcessMapTestRun {
+  /** Resources created during this test run */
+  trackedResources: TrackedResource[];
+  /** AI prompts used during this test run */
+  trackedAIPrompts: TrackedAIPrompt[];
+  /** Cleanup result (populated after cleanup completes) */
+  cleanupResult: CleanupResult | null;
+  /** Whether cleanup has been initiated */
+  cleanupInitiated: boolean;
+  /** Whether cleanup is in progress */
+  cleanupInProgress: boolean;
+}
+
+/**
+ * Integration capability definition
+ * Defines what operations each integration supports
+ */
+export interface IntegrationCapability {
+  /** Integration identifier */
+  integration: TestableIntegration;
+  /** Human-readable display name */
+  displayName: string;
+  /** Whether this integration supports creation of test data */
+  supportsCreate: boolean;
+  /** Whether this integration supports reading data */
+  supportsRead: boolean;
+  /** Whether this integration supports updating data */
+  supportsUpdate: boolean;
+  /** Whether this integration supports deleting data (cleanup) */
+  supportsDelete: boolean;
+  /** Resource types this integration can create */
+  resourceTypes: ResourceType[];
+  /** Pattern for generating view URLs (with {id} placeholder) */
+  viewUrlPattern: string | null;
+  /** Edge function to call for delete operations */
+  deleteEndpoint: string | null;
+  /** Notes about this integration's capabilities */
+  notes?: string;
+}
+
+/**
+ * Configuration for test data mode execution
+ */
+export interface TestDataModeConfig {
+  /** Whether to automatically clean up after test completion */
+  autoCleanup: boolean;
+  /** Delay in ms before starting cleanup (allows viewing results) */
+  cleanupDelayMs: number;
+  /** Whether to continue cleanup after individual failures */
+  continueCleanupOnFailure: boolean;
+  /** Whether to show real-time resource tracking */
+  showResourceTracking: boolean;
+  /** Whether to track AI prompt usage */
+  trackAIPrompts: boolean;
+}
+
+/**
+ * Default test data mode configuration
+ */
+export const DEFAULT_TEST_DATA_MODE_CONFIG: TestDataModeConfig = {
+  autoCleanup: true,
+  cleanupDelayMs: 3000,
+  continueCleanupOnFailure: true,
+  showResourceTracking: true,
+  trackAIPrompts: true,
+};

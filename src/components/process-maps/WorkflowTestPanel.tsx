@@ -60,6 +60,10 @@ import type {
   GeneratedTestScenario,
   TestCoverage,
   ScenarioType,
+  TrackedResource,
+  TrackedAIPrompt,
+  CleanupResult,
+  TestDataTestRun,
 } from '@/lib/types/processMapTesting';
 import {
   parseMermaidNodes,
@@ -68,10 +72,22 @@ import {
 } from '@/lib/testing/parsers/WorkflowParser';
 import { ProcessMapTestEngine } from '@/lib/testing/ProcessMapTestEngine';
 import { ScenarioTestEngine } from '@/lib/testing/ScenarioTestEngine';
+import { TestDataTestEngine } from '@/lib/testing/TestDataTestEngine';
 import { convertProcessStructureToWorkflow } from '@/lib/testing/converters/processStructureConverter';
 import { createTestMockRegistry, getAllMocksFromRegistry } from '@/lib/testing/mocks';
 import { generateScenarios, type ScenarioGeneratorResult } from '@/lib/testing/generators';
 import { analyzeCoverage } from '@/lib/testing/analyzers';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { ExternalLink, Trash2, Zap } from 'lucide-react';
 import { ScenarioCard, ScenarioList } from './ScenarioCard';
 import { TestHistoryPanel } from './TestHistoryPanel';
 import {
@@ -394,14 +410,29 @@ export function WorkflowTestPanel({
   const [scenarios, setScenarios] = useState<GeneratedTestScenario[]>([]);
   const [coverage, setCoverage] = useState<TestCoverage | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationPhase, setGenerationPhase] = useState<'idle' | 'analyzing' | 'generating' | 'saving' | 'complete'>('idle');
   const [isLoadingScenarios, setIsLoadingScenarios] = useState(false);
   const [runningScenarioId, setRunningScenarioId] = useState<string | null>(null);
   const [scenarioFilter, setScenarioFilter] = useState<ScenarioType | 'all'>('all');
+  const [justGenerated, setJustGenerated] = useState(false);
 
   // Batch execution state
   const [isBatchRunning, setIsBatchRunning] = useState(false);
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
   const batchRunnerRef = useRef<BatchScenarioRunner | null>(null);
+
+  // Test Data Mode state
+  const [showTestDataWarning, setShowTestDataWarning] = useState(false);
+  const [testDataRun, setTestDataRun] = useState<TestDataTestRun | null>(null);
+  const [trackedResources, setTrackedResources] = useState<TrackedResource[]>([]);
+  const [trackedAIPrompts, setTrackedAIPrompts] = useState<TrackedAIPrompt[]>([]);
+  const [cleanupResult, setCleanupResult] = useState<CleanupResult | null>(null);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
+  const [cleanupProgress, setCleanupProgress] = useState<{
+    total: number;
+    completed: number;
+    currentResource?: string;
+  } | null>(null);
 
   // Load saved scenarios and coverage from database
   useEffect(() => {
@@ -576,6 +607,14 @@ export function WorkflowTestPanel({
 
     addLog('info', `Starting test run in ${runMode} mode`);
 
+    // Reset test data mode state if applicable
+    if (runMode === 'test_data') {
+      setTrackedResources([]);
+      setTrackedAIPrompts([]);
+      setCleanupResult(null);
+      setTestDataRun(null);
+    }
+
     // Track results locally since React state updates are async
     const localResults: ProcessMapStepResult[] = [];
 
@@ -611,78 +650,194 @@ export function WorkflowTestPanel({
 
       addLog('debug', `Workflow created with ${workflow.steps.length} steps`);
 
-      // Create mock registry with detected integrations
-      const mockRegistry = createTestMockRegistry(
-        processMapId,
-        'test-org',
-        integrations.length > 0 ? (integrations as Array<'hubspot' | 'fathom' | 'google' | 'slack' | 'justcall' | 'savvycal' | 'supabase'>) : undefined
-      );
-      const mocks = getAllMocksFromRegistry(mockRegistry);
+      // Use TestDataTestEngine for test_data mode, otherwise use ProcessMapTestEngine
+      if (runMode === 'test_data') {
+        addLog('info', '🔴 LIVE MODE: Real API calls will be made');
 
-      addLog('debug', `Loaded ${mocks.length} mock configurations`);
-
-      // Create and run the test engine
-      const engine = new ProcessMapTestEngine({
-        workflow,
-        runMode,
-        config: {
-          continueOnFailure,
-          timeout: 300000, // 5 minutes
-        },
-        mocks,
-        events: {
-          onStepStart: (stepId: string, stepName: string) => {
-            setCurrentStepId(stepId);
-            addLog('info', `Starting step: ${stepName}`);
+        // Create and run the test data engine
+        const testDataEngine = new TestDataTestEngine({
+          workflow,
+          config: {
+            continueOnFailure,
+            timeout: 300000, // 5 minutes
+            autoCleanup: true,
+            cleanupDelayMs: 2000,
+            continueCleanupOnFailure: true,
           },
-          onStepComplete: (result: ProcessMapStepResult) => {
-            // Add ID to result if not present
-            const fullResult: ProcessMapStepResult = {
-              ...result,
-              id: result.id || `result_${Date.now()}_${result.sequenceNumber}`,
-            };
-            localResults.push(fullResult);
-            setStepResults((prev) => [...prev, fullResult]);
+          events: {
+            onStepStart: (stepId: string, stepName: string) => {
+              setCurrentStepId(stepId);
+              addLog('info', `Starting step: ${stepName}`);
+            },
+            onStepComplete: (result: ProcessMapStepResult) => {
+              const fullResult: ProcessMapStepResult = {
+                ...result,
+                id: result.id || `result_${Date.now()}_${result.sequenceNumber}`,
+              };
+              localResults.push(fullResult);
+              setStepResults((prev) => [...prev, fullResult]);
 
-            const statusMessage = result.status === 'passed'
-              ? `Step ${result.stepName}: passed`
-              : result.status === 'failed'
-                ? `Step ${result.stepName}: failed - ${result.errorMessage || 'Unknown error'}`
-                : `Step ${result.stepName}: ${result.status}`;
+              const statusMessage = result.status === 'passed'
+                ? `Step ${result.stepName}: passed`
+                : result.status === 'failed'
+                  ? `Step ${result.stepName}: failed - ${result.errorMessage || 'Unknown error'}`
+                  : `Step ${result.stepName}: ${result.status}`;
 
-            addLog(
-              result.status === 'passed' ? 'info' : result.status === 'failed' ? 'error' : 'warn',
-              statusMessage
-            );
+              addLog(
+                result.status === 'passed' ? 'info' : result.status === 'failed' ? 'error' : 'warn',
+                statusMessage
+              );
 
-            if (result.wasMocked) {
-              addLog('debug', `  → Mocked via ${result.mockSource || 'default mock'}`);
-            }
-            if (result.durationMs !== null && result.durationMs !== undefined) {
-              addLog('debug', `  → Duration: ${result.durationMs}ms`);
-            }
+              if (result.durationMs !== null && result.durationMs !== undefined) {
+                addLog('debug', `  → Duration: ${result.durationMs}ms`);
+              }
+            },
+            onResourceCreated: (resource: TrackedResource) => {
+              addLog('info', `📦 Created ${resource.integration} ${resource.resourceType}: ${resource.displayName}`);
+              setTrackedResources((prev) => [...prev, resource]);
+            },
+            onAIPromptUsed: (prompt: TrackedAIPrompt) => {
+              addLog('debug', `🤖 AI Prompt: ${prompt.featureKey} at step ${prompt.stepName}`);
+              setTrackedAIPrompts((prev) => [...prev, prompt]);
+            },
+            onCleanupStart: (totalResources: number) => {
+              addLog('info', `🧹 Starting cleanup of ${totalResources} resources...`);
+              setIsCleaningUp(true);
+              setCleanupProgress({ total: totalResources, completed: 0 });
+            },
+            onCleanupProgress: (resource: TrackedResource, index: number, total: number, success: boolean) => {
+              setCleanupProgress({
+                total,
+                completed: index + 1,
+                currentResource: resource.displayName,
+              });
+              setTrackedResources((prev) =>
+                prev.map((r) =>
+                  r.id === resource.id
+                    ? { ...r, cleanupStatus: success ? 'success' : 'failed' }
+                    : r
+                )
+              );
+              if (success) {
+                addLog('debug', `  ✓ Cleaned ${resource.displayName}`);
+              } else {
+                addLog('warn', `  ✗ Failed to clean ${resource.displayName}`);
+              }
+            },
+            onCleanupComplete: (result: CleanupResult) => {
+              setIsCleaningUp(false);
+              setCleanupProgress(null);
+              setCleanupResult(result);
+              addLog('info', `🧹 Cleanup complete: ${result.successCount} cleaned, ${result.failedCount} failed, ${result.skippedCount} skipped`);
+            },
+            onLog: (log: TestLogEntry) => {
+              addLog(log.level, log.message, log.data);
+            },
+            onError: (error: Error) => {
+              addLog('error', `Engine error: ${error.message}`);
+            },
           },
-          onLog: (log: TestLogEntry) => {
-            addLog(log.level, log.message, log.data);
-          },
-          onError: (error: Error) => {
-            addLog('error', `Engine error: ${error.message}`);
-          },
-        },
-      });
+        });
 
-      // Execute the test
-      const { testRun: runResult } = await engine.run();
+        // Execute the test
+        const result = await testDataEngine.run();
 
-      setTestRun(runResult as ProcessMapTestRun);
-      addLog('info', `Test run completed: ${runResult.stepsPassed} passed, ${runResult.stepsFailed} failed`);
+        setTestDataRun(result.testRun);
+        setTestRun(result.testRun);
+        setTrackedResources(result.trackedResources);
+        setTrackedAIPrompts(result.trackedAIPrompts);
+        if (result.cleanupResult) {
+          setCleanupResult(result.cleanupResult);
+        }
 
-      if (runResult.overallResult === 'pass') {
-        toast.success(`All ${runResult.stepsPassed} tests passed!`);
-      } else if (runResult.overallResult === 'partial') {
-        toast.warning(`${runResult.stepsPassed} passed, ${runResult.stepsFailed} failed`);
+        addLog('info', `Test run completed: ${result.testRun.stepsPassed} passed, ${result.testRun.stepsFailed} failed`);
+
+        // Switch to resources tab to show created resources
+        if (result.trackedResources.length > 0) {
+          setActiveTab('resources');
+        }
+
+        if (result.testRun.overallResult === 'pass') {
+          toast.success(`All ${result.testRun.stepsPassed} tests passed! ${result.trackedResources.length} resources cleaned up.`);
+        } else if (result.testRun.overallResult === 'partial') {
+          toast.warning(`${result.testRun.stepsPassed} passed, ${result.testRun.stepsFailed} failed`);
+        } else {
+          toast.error(`Test failed: ${result.testRun.errorMessage || 'Unknown error'}`);
+        }
       } else {
-        toast.error(`Test failed: ${runResult.errorMessage || 'Unknown error'}`);
+        // Standard mock/production_readonly mode
+        const mockRegistry = createTestMockRegistry(
+          processMapId,
+          'test-org',
+          integrations.length > 0 ? (integrations as Array<'hubspot' | 'fathom' | 'google' | 'slack' | 'justcall' | 'savvycal' | 'supabase'>) : undefined
+        );
+        const mocks = getAllMocksFromRegistry(mockRegistry);
+
+        addLog('debug', `Loaded ${mocks.length} mock configurations`);
+
+        // Create and run the test engine
+        const engine = new ProcessMapTestEngine({
+          workflow,
+          runMode,
+          config: {
+            continueOnFailure,
+            timeout: 300000, // 5 minutes
+          },
+          mocks,
+          events: {
+            onStepStart: (stepId: string, stepName: string) => {
+              setCurrentStepId(stepId);
+              addLog('info', `Starting step: ${stepName}`);
+            },
+            onStepComplete: (result: ProcessMapStepResult) => {
+              // Add ID to result if not present
+              const fullResult: ProcessMapStepResult = {
+                ...result,
+                id: result.id || `result_${Date.now()}_${result.sequenceNumber}`,
+              };
+              localResults.push(fullResult);
+              setStepResults((prev) => [...prev, fullResult]);
+
+              const statusMessage = result.status === 'passed'
+                ? `Step ${result.stepName}: passed`
+                : result.status === 'failed'
+                  ? `Step ${result.stepName}: failed - ${result.errorMessage || 'Unknown error'}`
+                  : `Step ${result.stepName}: ${result.status}`;
+
+              addLog(
+                result.status === 'passed' ? 'info' : result.status === 'failed' ? 'error' : 'warn',
+                statusMessage
+              );
+
+              if (result.wasMocked) {
+                addLog('debug', `  → Mocked via ${result.mockSource || 'default mock'}`);
+              }
+              if (result.durationMs !== null && result.durationMs !== undefined) {
+                addLog('debug', `  → Duration: ${result.durationMs}ms`);
+              }
+            },
+            onLog: (log: TestLogEntry) => {
+              addLog(log.level, log.message, log.data);
+            },
+            onError: (error: Error) => {
+              addLog('error', `Engine error: ${error.message}`);
+            },
+          },
+        });
+
+        // Execute the test
+        const { testRun: runResult } = await engine.run();
+
+        setTestRun(runResult as ProcessMapTestRun);
+        addLog('info', `Test run completed: ${runResult.stepsPassed} passed, ${runResult.stepsFailed} failed`);
+
+        if (runResult.overallResult === 'pass') {
+          toast.success(`All ${runResult.stepsPassed} tests passed!`);
+        } else if (runResult.overallResult === 'partial') {
+          toast.warning(`${runResult.stepsPassed} passed, ${runResult.stepsFailed} failed`);
+        } else {
+          toast.error(`Test failed: ${runResult.errorMessage || 'Unknown error'}`);
+        }
       }
     } catch (error) {
       const err = error as Error;
@@ -691,6 +846,7 @@ export function WorkflowTestPanel({
     } finally {
       setCurrentStepId(null);
       setIsRunning(false);
+      setIsCleaningUp(false);
     }
   }, [runMode, continueOnFailure, workflowSteps, processStructure, processMapId, processMapTitle, mermaidCode]);
 
@@ -700,9 +856,15 @@ export function WorkflowTestPanel({
     setStepResults([]);
     setLogs([]);
     setCurrentStepId(null);
+    // Reset test data mode state
+    setTestDataRun(null);
+    setTrackedResources([]);
+    setTrackedAIPrompts([]);
+    setCleanupResult(null);
+    setCleanupProgress(null);
   }, []);
 
-  // Generate test scenarios
+  // Generate test scenarios with phased feedback
   const handleGenerateScenarios = useCallback(async () => {
     if (!processStructure) {
       toast.error('No process structure available for scenario generation');
@@ -710,8 +872,15 @@ export function WorkflowTestPanel({
     }
 
     setIsGenerating(true);
+    setJustGenerated(false);
 
     try {
+      // Phase 1: Analyzing structure
+      setGenerationPhase('analyzing');
+      await new Promise(resolve => setTimeout(resolve, 300)); // Brief pause for UX
+
+      // Phase 2: Generating scenarios
+      setGenerationPhase('generating');
       const result = generateScenarios(
         processStructure,
         processMapId,
@@ -730,6 +899,9 @@ export function WorkflowTestPanel({
 
       // Generate hash for version tracking
       const structureHash = generateProcessStructureHash(processStructure);
+
+      // Phase 3: Saving to database
+      setGenerationPhase('saving');
 
       // Save scenarios and coverage to database
       try {
@@ -765,19 +937,28 @@ export function WorkflowTestPanel({
 
       setCoverage(coverageResult);
 
-      // Switch to scenarios tab
+      // Phase 4: Complete
+      setGenerationPhase('complete');
+      setJustGenerated(true);
+
+      // Switch to scenarios tab after brief delay to show completion
+      await new Promise(resolve => setTimeout(resolve, 500));
       setActiveTab('scenarios');
 
       toast.success(
         `Generated ${result.scenarios.length} scenarios: ` +
           `${result.pathScenarios.length} paths, ${result.failureScenarios.length} failure modes`
       );
+
+      // Reset justGenerated after a few seconds
+      setTimeout(() => setJustGenerated(false), 3000);
     } catch (error) {
       const err = error as Error;
       console.error('Scenario generation failed:', err);
       toast.error(`Failed to generate scenarios: ${err.message}`);
     } finally {
       setIsGenerating(false);
+      setGenerationPhase('idle');
     }
   }, [processStructure, processMapId]);
 
@@ -1124,6 +1305,15 @@ export function WorkflowTestPanel({
                   Production (Read-Only)
                 </div>
               </SelectItem>
+              <SelectItem value="test_data">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-orange-500" />
+                  Test Data Mode
+                  <Badge variant="destructive" className="text-[10px] px-1.5 py-0 ml-1">
+                    LIVE
+                  </Badge>
+                </div>
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1139,16 +1329,35 @@ export function WorkflowTestPanel({
         </div>
 
         <div className="flex gap-2">
-          <Button onClick={handleRunTest} disabled={isRunning || isGenerating} className="flex-1">
+          <Button
+            onClick={() => {
+              if (runMode === 'test_data') {
+                setShowTestDataWarning(true);
+              } else {
+                handleRunTest();
+              }
+            }}
+            disabled={isRunning || isGenerating || isCleaningUp}
+            className={cn("flex-1", runMode === 'test_data' && "bg-orange-600 hover:bg-orange-700")}
+          >
             {isRunning ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Running...
+                {runMode === 'test_data' ? 'Running Live Test...' : 'Running...'}
+              </>
+            ) : isCleaningUp ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Cleaning Up...
               </>
             ) : (
               <>
-                <Play className="mr-2 h-4 w-4" />
-                Run Test
+                {runMode === 'test_data' ? (
+                  <Zap className="mr-2 h-4 w-4" />
+                ) : (
+                  <Play className="mr-2 h-4 w-4" />
+                )}
+                {runMode === 'test_data' ? 'Run Live Test' : 'Run Test'}
               </>
             )}
           </Button>
@@ -1164,15 +1373,26 @@ export function WorkflowTestPanel({
         {/* Generate Scenarios Button */}
         {processStructure && (
           <Button
-            variant="secondary"
+            variant={justGenerated ? "default" : "secondary"}
             onClick={handleGenerateScenarios}
             disabled={isRunning || isGenerating}
-            className="w-full"
+            className={cn(
+              "w-full transition-all duration-300",
+              justGenerated && "bg-green-600 hover:bg-green-700 text-white"
+            )}
           >
             {isGenerating ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generating...
+                {generationPhase === 'analyzing' && 'Analyzing structure...'}
+                {generationPhase === 'generating' && 'Generating tests...'}
+                {generationPhase === 'saving' && 'Saving scenarios...'}
+                {generationPhase === 'idle' && 'Preparing...'}
+              </>
+            ) : justGenerated ? (
+              <>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Generated {scenarios.length} Tests
               </>
             ) : (
               <>
@@ -1190,13 +1410,23 @@ export function WorkflowTestPanel({
       </div>
 
       {/* Results */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-        <div className="px-4 pt-2">
-          <TabsList className="w-full">
-            <TabsTrigger value="progress" className="flex-1">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="px-4 pt-2 flex-shrink-0">
+          <TabsList className="w-full grid" style={{ gridTemplateColumns: runMode === 'test_data' ? 'repeat(5, 1fr)' : 'repeat(4, 1fr)' }}>
+            <TabsTrigger value="progress">
               Progress
             </TabsTrigger>
-            <TabsTrigger value="scenarios" className="flex-1">
+            {runMode === 'test_data' && (
+              <TabsTrigger value="resources">
+                Resources
+                {trackedResources.length > 0 && (
+                  <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
+                    {trackedResources.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="scenarios">
               Scenarios
               {scenarios.length > 0 && (
                 <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
@@ -1204,16 +1434,21 @@ export function WorkflowTestPanel({
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex-1">
+            <TabsTrigger value="history">
               History
             </TabsTrigger>
-            <TabsTrigger value="logs" className="flex-1">
+            <TabsTrigger value="logs">
               Logs
+              {logs.length > 0 && (
+                <Badge variant="outline" className="ml-1.5 text-[10px] px-1.5 py-0">
+                  {logs.length}
+                </Badge>
+              )}
             </TabsTrigger>
           </TabsList>
         </div>
 
-        <TabsContent value="progress" className="p-4 pt-2 flex-1 flex flex-col min-h-0 overflow-hidden">
+        <TabsContent value="progress" className="p-4 pt-2 flex-1 flex flex-col min-h-0 overflow-auto data-[state=inactive]:hidden">
           {/* Summary */}
           {stepResults.length > 0 && (
             <Card className="mb-4 flex-shrink-0">
@@ -1259,9 +1494,188 @@ export function WorkflowTestPanel({
               <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none" />
             )}
           </div>
+
+          {/* Cleanup Status for Test Data Mode */}
+          {runMode === 'test_data' && (cleanupResult || isCleaningUp) && (
+            <Card className="mt-4 flex-shrink-0">
+              <CardHeader className="py-2 px-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  Cleanup Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="py-2 px-3">
+                {isCleaningUp && cleanupProgress ? (
+                  <div className="space-y-2">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div
+                        className="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                        style={{
+                          width: `${(cleanupProgress.completed / cleanupProgress.total) * 100}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Cleaning up {cleanupProgress.completed}/{cleanupProgress.total}
+                      {cleanupProgress.currentResource && `: ${cleanupProgress.currentResource}`}
+                    </p>
+                  </div>
+                ) : cleanupResult ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-around text-center text-xs">
+                      <div>
+                        <span className="font-medium text-green-500">{cleanupResult.successCount}</span>
+                        <span className="text-muted-foreground ml-1">cleaned</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-red-500">{cleanupResult.failedCount}</span>
+                        <span className="text-muted-foreground ml-1">failed</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-500">{cleanupResult.skippedCount}</span>
+                        <span className="text-muted-foreground ml-1">skipped</span>
+                      </div>
+                    </div>
+                    {cleanupResult.manualCleanupInstructions.length > 0 && (
+                      <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-950/20 rounded border border-yellow-200 dark:border-yellow-800">
+                        <p className="text-xs font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                          Manual Cleanup Required:
+                        </p>
+                        <ul className="text-xs text-yellow-700 dark:text-yellow-300 space-y-1">
+                          {cleanupResult.manualCleanupInstructions.slice(0, 3).map((instruction, i) => (
+                            <li key={i}>• {instruction}</li>
+                          ))}
+                          {cleanupResult.manualCleanupInstructions.length > 3 && (
+                            <li className="text-muted-foreground">
+                              ... and {cleanupResult.manualCleanupInstructions.length - 3} more
+                            </li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
-        <TabsContent value="scenarios" className="p-4 pt-2 flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Resources Tab (Test Data Mode only) */}
+        <TabsContent value="resources" className="p-4 pt-2 flex-1 flex flex-col min-h-0 overflow-auto data-[state=inactive]:hidden">
+          {/* AI Prompts Used */}
+          {trackedAIPrompts.length > 0 && (
+            <Card className="mb-4 flex-shrink-0">
+              <CardHeader className="py-2 px-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  AI Prompts Used ({trackedAIPrompts.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="py-2 px-3">
+                <div className="space-y-2">
+                  {trackedAIPrompts.map((prompt) => (
+                    <div
+                      key={prompt.id}
+                      className="flex items-center justify-between text-xs p-2 bg-muted/50 rounded"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{prompt.featureKey}</p>
+                        <p className="text-muted-foreground">Step: {prompt.stepName}</p>
+                      </div>
+                      {prompt.viewUrl && (
+                        <Button variant="ghost" size="sm" asChild className="h-6 w-6 p-0">
+                          <a href={prompt.viewUrl} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Tracked Resources */}
+          {trackedResources.length > 0 ? (
+            <div className="flex-1 min-h-0 relative">
+              <ScrollArea className="h-full">
+                <div className="space-y-2">
+                  {trackedResources.map((resource) => (
+                    <div
+                      key={resource.id}
+                      className={cn(
+                        'flex items-center gap-3 p-3 rounded-md border',
+                        resource.cleanupStatus === 'success' && 'border-green-200 bg-green-50 dark:bg-green-950/20',
+                        resource.cleanupStatus === 'failed' && 'border-red-200 bg-red-50 dark:bg-red-950/20',
+                        resource.cleanupStatus === 'pending' && 'border-gray-200 dark:border-gray-800',
+                        resource.cleanupStatus === 'not_supported' && 'border-gray-200 bg-gray-50 dark:bg-gray-950/20'
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                            {resource.integration}
+                          </Badge>
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                            {resource.resourceType}
+                          </Badge>
+                          {resource.cleanupStatus === 'success' && (
+                            <Badge variant="default" className="text-[10px] px-1.5 py-0 bg-green-500">
+                              Cleaned
+                            </Badge>
+                          )}
+                          {resource.cleanupStatus === 'failed' && (
+                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                              Cleanup Failed
+                            </Badge>
+                          )}
+                          {resource.cleanupStatus === 'not_supported' && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-gray-500">
+                              Read-only
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm font-medium truncate">{resource.displayName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Step: {resource.createdByStepName}
+                        </p>
+                        {resource.externalId && (
+                          <p className="text-xs text-muted-foreground truncate">
+                            ID: {resource.externalId}
+                          </p>
+                        )}
+                        {resource.cleanupError && (
+                          <p className="text-xs text-red-500 mt-1">
+                            Error: {resource.cleanupError}
+                          </p>
+                        )}
+                      </div>
+                      {resource.viewUrl && (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={resource.viewUrl} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            View
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+              <div className="text-center">
+                <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>No resources tracked yet.</p>
+                <p className="text-xs">Run a test to see created resources.</p>
+              </div>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="scenarios" className="p-4 pt-2 flex-1 flex flex-col min-h-0 overflow-auto data-[state=inactive]:hidden">
           {/* Coverage Summary */}
           {coverage && (
             <Card className="mb-4 flex-shrink-0">
@@ -1424,50 +1838,99 @@ export function WorkflowTestPanel({
           </div>
         </TabsContent>
 
-        <TabsContent value="history" className="p-4 pt-2 flex-1 min-h-0 overflow-hidden">
+        <TabsContent value="history" className="p-4 pt-2 flex-1 min-h-0 overflow-auto data-[state=inactive]:hidden">
           <TestHistoryPanel processMapId={processMapId} />
         </TabsContent>
 
-        <TabsContent value="logs" className="p-4 pt-2 flex-1 min-h-0 overflow-hidden">
+        <TabsContent value="logs" className="p-4 pt-2 flex-1 min-h-0 overflow-auto data-[state=inactive]:hidden">
           <LogsViewer logs={logs} />
         </TabsContent>
       </Tabs>
     </>
   );
 
+  // Test Data Mode Warning Dialog
+  const testDataWarningDialog = (
+    <AlertDialog open={showTestDataWarning} onOpenChange={setShowTestDataWarning}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-orange-500" />
+            Test Data Mode Warning
+          </AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-3">
+              <p>
+                This will create <strong>REAL resources</strong> in your connected integrations:
+              </p>
+              <ul className="list-disc list-inside text-sm space-y-1">
+                <li>HubSpot contacts, deals, and tasks</li>
+                <li>Slack messages</li>
+                <li>Calendar events</li>
+                <li>Database records</li>
+              </ul>
+              <p className="text-sm text-muted-foreground">
+                All created resources will be automatically cleaned up after the test completes.
+                Any cleanup failures will be listed with manual cleanup instructions.
+              </p>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              setShowTestDataWarning(false);
+              handleRunTest();
+            }}
+            className="bg-orange-600 hover:bg-orange-700"
+          >
+            I Understand, Run Test
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   // Embedded mode: render content directly without positioning
   if (embedded) {
     return (
-      <div className="flex flex-col h-full bg-background">
-        {testContent}
-      </div>
+      <>
+        {testDataWarningDialog}
+        <div className="flex flex-col h-full bg-background">
+          {testContent}
+        </div>
+      </>
     );
   }
 
   // Standalone mode: fixed position slide-out panel
   return (
-    <div
-      className={cn(
-        'fixed inset-y-0 right-0 z-50 w-[400px] bg-background shadow-lg border-l',
-        'transform transition-transform duration-300 ease-in-out',
-        isOpen ? 'translate-x-0' : 'translate-x-full'
-      )}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
-        <div>
-          <h2 className="font-semibold">Test Workflow</h2>
-          <p className="text-sm text-muted-foreground truncate max-w-[280px]">
-            {processMapTitle}
-          </p>
+    <>
+      {testDataWarningDialog}
+      <div
+        className={cn(
+          'fixed inset-y-0 right-0 z-50 w-[400px] bg-background shadow-lg border-l',
+          'transform transition-transform duration-300 ease-in-out',
+          isOpen ? 'translate-x-0' : 'translate-x-full'
+        )}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b">
+          <div>
+            <h2 className="font-semibold">Test Workflow</h2>
+            <p className="text-sm text-muted-foreground truncate max-w-[280px]">
+              {processMapTitle}
+            </p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
 
-      {testContent}
-    </div>
+        {testContent}
+      </div>
+    </>
   );
 }
 

@@ -121,18 +121,23 @@ export interface StepExecutionResult {
  */
 export class DefaultStepExecutor implements StepExecutor {
   canExecute(step: WorkflowStepDefinition, runMode: RunMode): boolean {
+    // Defensive: default to 'mock' if runMode is falsy
+    const effectiveRunMode = runMode || 'mock';
+
     // Can execute any step in mock or schema_validation mode
-    if (runMode === 'mock' || runMode === 'schema_validation') {
+    if (effectiveRunMode === 'mock' || effectiveRunMode === 'schema_validation') {
       return true;
     }
 
     // In production_readonly mode, can execute if step only reads
-    if (runMode === 'production_readonly') {
-      const ops = step.testConfig.operations || ['read'];
+    if (effectiveRunMode === 'production_readonly') {
+      const ops = step.testConfig?.operations || ['read'];
       return ops.every(op => op === 'read');
     }
 
-    return false;
+    // Default to allowing execution for unknown modes (safer for mock/testing)
+    console.warn(`[DefaultStepExecutor] Unknown runMode "${effectiveRunMode}", defaulting to allow execution`);
+    return true;
   }
 
   async execute(
@@ -397,12 +402,13 @@ export class ProcessMapTestEngine {
 
   constructor(options: TestEngineOptions) {
     this.workflow = options.workflow;
-    this.runMode = options.runMode;
+    this.runMode = options.runMode || 'mock'; // Default to 'mock' mode
     this.testData = options.testData || {};
     this.config = {
       timeout: options.config?.timeout ?? 300000, // 5 minutes default
       continueOnFailure: options.config?.continueOnFailure ?? false,
       selectedSteps: options.config?.selectedSteps ?? null,
+      stepDelayMs: options.config?.stepDelayMs ?? 200, // Default 200ms delay between steps
     };
     this.mocks = options.mocks || [];
     this.events = options.events || {};
@@ -448,6 +454,11 @@ export class ProcessMapTestEngine {
 
       // Emit step start event
       this.events.onStepStart?.(stepId, step.name);
+
+      // Add delay between steps for visual feedback
+      if (this.config.stepDelayMs && this.config.stepDelayMs > 0) {
+        await this.delay(this.config.stepDelayMs);
+      }
 
       const stepStartedAt = new Date().toISOString();
 
@@ -660,6 +671,13 @@ export class ProcessMapTestEngine {
     }
 
     return order;
+  }
+
+  /**
+   * Helper method to delay execution
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 
