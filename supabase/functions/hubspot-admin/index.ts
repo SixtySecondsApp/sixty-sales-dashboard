@@ -4,7 +4,7 @@ import { corsHeaders } from '../_shared/cors.ts'
 import { HubSpotClient } from '../_shared/hubspot.ts'
 
 // HubSpot Admin Edge Function - v2
-type Action = 'status' | 'enqueue' | 'save_settings' | 'get_properties' | 'get_pipelines' | 'get_forms' | 'trigger_sync'
+type Action = 'status' | 'enqueue' | 'save_settings' | 'get_properties' | 'get_pipelines' | 'get_forms' | 'trigger_sync' | 'create_contact' | 'create_deal' | 'delete_contact' | 'delete_deal'
 
 /**
  * Get a valid HubSpot access token, refreshing if expired or about to expire
@@ -518,6 +518,222 @@ serve(async (req) => {
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+  }
+
+  // ============================================================================
+  // CRUD Operations for Test Data Mode
+  // ============================================================================
+
+  // Create a contact in HubSpot
+  if (action === 'create_contact') {
+    const properties = body.properties || {}
+
+    // Validate required fields
+    if (!properties.email && !properties.firstname && !properties.lastname) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'At least one of email, firstname, or lastname is required'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const { accessToken, error: tokenError } = await getValidAccessToken(svc, orgId)
+    if (!accessToken) {
+      return new Response(JSON.stringify({ success: false, error: tokenError || 'HubSpot not connected' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const client = new HubSpotClient({ accessToken })
+
+    try {
+      console.log('[hubspot-admin] Creating contact with properties:', JSON.stringify(properties))
+
+      const contact = await client.request<{ id: string; properties: any }>({
+        method: 'POST',
+        path: '/crm/v3/objects/contacts',
+        body: { properties },
+      })
+
+      console.log('[hubspot-admin] Contact created:', contact.id)
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          id: contact.id,
+          properties: contact.properties,
+          objectType: 'contact',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } catch (e: any) {
+      console.error('[hubspot-admin] Failed to create contact:', e)
+      return new Response(JSON.stringify({ success: false, error: e.message || 'Failed to create contact' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
+  // Create a deal in HubSpot
+  if (action === 'create_deal') {
+    const properties = body.properties || {}
+
+    // Validate required field
+    if (!properties.dealname) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'dealname is required'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const { accessToken, error: tokenError } = await getValidAccessToken(svc, orgId)
+    if (!accessToken) {
+      return new Response(JSON.stringify({ success: false, error: tokenError || 'HubSpot not connected' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const client = new HubSpotClient({ accessToken })
+
+    try {
+      console.log('[hubspot-admin] Creating deal with properties:', JSON.stringify(properties))
+
+      const deal = await client.request<{ id: string; properties: any }>({
+        method: 'POST',
+        path: '/crm/v3/objects/deals',
+        body: { properties },
+      })
+
+      console.log('[hubspot-admin] Deal created:', deal.id)
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          id: deal.id,
+          properties: deal.properties,
+          objectType: 'deal',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } catch (e: any) {
+      console.error('[hubspot-admin] Failed to create deal:', e)
+      return new Response(JSON.stringify({ success: false, error: e.message || 'Failed to create deal' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
+  // Delete a contact from HubSpot
+  if (action === 'delete_contact') {
+    const contactId = body.record_id || body.contact_id || body.id
+
+    if (!contactId) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'record_id is required'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const { accessToken, error: tokenError } = await getValidAccessToken(svc, orgId)
+    if (!accessToken) {
+      return new Response(JSON.stringify({ success: false, error: tokenError || 'HubSpot not connected' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const client = new HubSpotClient({ accessToken })
+
+    try {
+      console.log('[hubspot-admin] Deleting contact:', contactId)
+
+      await client.request({
+        method: 'DELETE',
+        path: `/crm/v3/objects/contacts/${contactId}`,
+      })
+
+      console.log('[hubspot-admin] Contact deleted:', contactId)
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          deleted: true,
+          id: contactId,
+          objectType: 'contact',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } catch (e: any) {
+      console.error('[hubspot-admin] Failed to delete contact:', e)
+      return new Response(JSON.stringify({ success: false, error: e.message || 'Failed to delete contact' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
+  // Delete a deal from HubSpot
+  if (action === 'delete_deal') {
+    const dealId = body.record_id || body.deal_id || body.id
+
+    if (!dealId) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'record_id is required'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const { accessToken, error: tokenError } = await getValidAccessToken(svc, orgId)
+    if (!accessToken) {
+      return new Response(JSON.stringify({ success: false, error: tokenError || 'HubSpot not connected' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const client = new HubSpotClient({ accessToken })
+
+    try {
+      console.log('[hubspot-admin] Deleting deal:', dealId)
+
+      await client.request({
+        method: 'DELETE',
+        path: `/crm/v3/objects/deals/${dealId}`,
+      })
+
+      console.log('[hubspot-admin] Deal deleted:', dealId)
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          deleted: true,
+          id: dealId,
+          objectType: 'deal',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } catch (e: any) {
+      console.error('[hubspot-admin] Failed to delete deal:', e)
+      return new Response(JSON.stringify({ success: false, error: e.message || 'Failed to delete deal' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
   }
 
   return new Response(JSON.stringify({ success: false, error: 'Unknown action' }), {

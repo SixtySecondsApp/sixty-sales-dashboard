@@ -175,7 +175,7 @@ export class IntegrationExecutor {
   }
 
   /**
-   * Execute HubSpot operations
+   * Execute HubSpot operations via hubspot-admin edge function
    */
   private async executeHubSpot(
     operation: IntegrationOperation,
@@ -183,14 +183,48 @@ export class IntegrationExecutor {
     data: Record<string, unknown>,
     stepContext: StepExecutionContext
   ): Promise<IntegrationExecutionResult> {
-    const endpoint = this.getHubSpotEndpoint(operation, resourceType);
+    // Map operation + resourceType to hubspot-admin action
+    const action = this.getHubSpotAction(operation, resourceType);
 
-    const { data: response, error } = await supabase.functions.invoke(endpoint, {
-      body: { ...data, operation, resourceType },
+    // Get org_id from integration context or data
+    const orgId = this.integrationContext.orgId || data.org_id;
+    if (!orgId) {
+      return { success: false, error: 'org_id is required for HubSpot operations' };
+    }
+
+    // Build request body based on operation
+    const body: Record<string, unknown> = {
+      action,
+      org_id: orgId,
+    };
+
+    if (operation === 'create') {
+      // For create operations, pass properties
+      body.properties = data.properties || this.buildHubSpotProperties(resourceType, data);
+    } else if (operation === 'delete') {
+      // For delete operations, pass record_id
+      body.record_id = data.record_id || data.externalId || data.id;
+    } else if (operation === 'read') {
+      // For read operations, pass record_id if specified
+      if (data.record_id || data.id) {
+        body.record_id = data.record_id || data.id;
+      }
+    }
+
+    console.log('[IntegrationExecutor] Calling hubspot-admin with:', { action, org_id: orgId });
+
+    const { data: response, error } = await supabase.functions.invoke('hubspot-admin', {
+      body,
     });
 
     if (error) {
+      console.error('[IntegrationExecutor] HubSpot error:', error);
       return { success: false, error: error.message };
+    }
+
+    if (!response?.success) {
+      console.error('[IntegrationExecutor] HubSpot returned error:', response?.error);
+      return { success: false, error: response?.error || 'HubSpot operation failed' };
     }
 
     // Track created resources
@@ -214,6 +248,52 @@ export class IntegrationExecutor {
     }
 
     return { success: true, data: response };
+  }
+
+  /**
+   * Get HubSpot admin action for operation + resource type
+   */
+  private getHubSpotAction(operation: IntegrationOperation, resourceType: ResourceType): string {
+    const actionMap: Record<string, string> = {
+      'create-contact': 'create_contact',
+      'create-deal': 'create_deal',
+      'delete-contact': 'delete_contact',
+      'delete-deal': 'delete_deal',
+      'read-status': 'status',
+      'read-properties': 'get_properties',
+      'read-pipelines': 'get_pipelines',
+    };
+    return actionMap[`${operation}-${resourceType}`] || `${operation}_${resourceType}`;
+  }
+
+  /**
+   * Build HubSpot properties object from data
+   */
+  private buildHubSpotProperties(
+    resourceType: ResourceType,
+    data: Record<string, unknown>
+  ): Record<string, unknown> {
+    if (resourceType === 'contact') {
+      return {
+        email: data.email || `test-${Date.now()}@60test.com`,
+        firstname: data.firstname || data.firstName || 'Test',
+        lastname: data.lastname || data.lastName || 'Contact',
+        phone: data.phone,
+        company: data.company,
+        ...(data.properties as Record<string, unknown> || {}),
+      };
+    }
+    if (resourceType === 'deal') {
+      return {
+        dealname: data.dealname || data.name || `Test Deal ${Date.now()}`,
+        amount: data.amount,
+        pipeline: data.pipeline || 'default',
+        dealstage: data.dealstage || data.stage,
+        closedate: data.closedate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        ...(data.properties as Record<string, unknown> || {}),
+      };
+    }
+    return data.properties as Record<string, unknown> || {};
   }
 
   /**
