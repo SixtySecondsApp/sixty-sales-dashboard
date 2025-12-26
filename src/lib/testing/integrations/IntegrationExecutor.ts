@@ -289,8 +289,10 @@ export class IntegrationExecutor {
     const actionMap: Record<string, string> = {
       'create-contact': 'create_contact',
       'create-deal': 'create_deal',
+      'create-task': 'create_task',
       'delete-contact': 'delete_contact',
       'delete-deal': 'delete_deal',
+      'delete-task': 'delete_task',
       'read-status': 'status',
       'read-properties': 'get_properties',
       'read-pipelines': 'get_pipelines',
@@ -334,6 +336,16 @@ export class IntegrationExecutor {
         pipeline: data.pipeline || 'default',
         dealstage: data.dealstage || data.stage,
         closedate: data.closedate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        ...(data.properties as Record<string, unknown> || {}),
+      };
+    }
+    if (resourceType === 'task') {
+      return {
+        hs_task_subject: data.hs_task_subject || data.subject || data.title || data.name || `Test Task ${Date.now()}`,
+        hs_task_body: data.hs_task_body || data.body || data.description || '',
+        hs_task_status: data.hs_task_status || data.status || 'NOT_STARTED',
+        hs_task_priority: data.hs_task_priority || data.priority || 'NONE',
+        hs_timestamp: data.hs_timestamp || data.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         ...(data.properties as Record<string, unknown> || {}),
       };
     }

@@ -4,7 +4,7 @@ import { corsHeaders } from '../_shared/cors.ts'
 import { HubSpotClient } from '../_shared/hubspot.ts'
 
 // HubSpot Admin Edge Function - v2
-type Action = 'status' | 'enqueue' | 'save_settings' | 'get_properties' | 'get_pipelines' | 'get_forms' | 'trigger_sync' | 'create_contact' | 'create_deal' | 'delete_contact' | 'delete_deal'
+type Action = 'status' | 'enqueue' | 'save_settings' | 'get_properties' | 'get_pipelines' | 'get_forms' | 'trigger_sync' | 'create_contact' | 'create_deal' | 'create_task' | 'delete_contact' | 'delete_deal' | 'delete_task'
 
 /**
  * Get a valid HubSpot access token, refreshing if expired or about to expire
@@ -632,6 +632,60 @@ serve(async (req) => {
     }
   }
 
+  // Create a task in HubSpot
+  if (action === 'create_task') {
+    const properties = body.properties || {}
+
+    // Validate required fields - tasks require hs_task_subject
+    if (!properties.hs_task_subject) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'hs_task_subject is required'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const { accessToken, error: tokenError } = await getValidAccessToken(svc, orgId)
+    if (!accessToken) {
+      return new Response(JSON.stringify({ success: false, error: tokenError || 'HubSpot not connected' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const client = new HubSpotClient({ accessToken })
+
+    try {
+      console.log('[hubspot-admin] Creating task with properties:', JSON.stringify(properties))
+
+      const task = await client.request<{ id: string; properties: any }>({
+        method: 'POST',
+        path: '/crm/v3/objects/tasks',
+        body: { properties },
+      })
+
+      console.log('[hubspot-admin] Task created:', task.id)
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          id: task.id,
+          properties: task.properties,
+          objectType: 'task',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } catch (e: any) {
+      console.error('[hubspot-admin] Failed to create task:', e)
+      return new Response(JSON.stringify({ success: false, error: e.message || 'Failed to create task' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
   // Delete a contact from HubSpot
   if (action === 'delete_contact') {
     const contactId = body.record_id || body.contact_id || body.id
@@ -730,6 +784,58 @@ serve(async (req) => {
     } catch (e: any) {
       console.error('[hubspot-admin] Failed to delete deal:', e)
       return new Response(JSON.stringify({ success: false, error: e.message || 'Failed to delete deal' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
+  // Delete a task from HubSpot
+  if (action === 'delete_task') {
+    const taskId = body.record_id || body.task_id || body.id
+
+    if (!taskId) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'record_id is required'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const { accessToken, error: tokenError } = await getValidAccessToken(svc, orgId)
+    if (!accessToken) {
+      return new Response(JSON.stringify({ success: false, error: tokenError || 'HubSpot not connected' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const client = new HubSpotClient({ accessToken })
+
+    try {
+      console.log('[hubspot-admin] Deleting task:', taskId)
+
+      await client.request({
+        method: 'DELETE',
+        path: `/crm/v3/objects/tasks/${taskId}`,
+      })
+
+      console.log('[hubspot-admin] Task deleted:', taskId)
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          deleted: true,
+          id: taskId,
+          objectType: 'task',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } catch (e: any) {
+      console.error('[hubspot-admin] Failed to delete task:', e)
+      return new Response(JSON.stringify({ success: false, error: e.message || 'Failed to delete task' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
