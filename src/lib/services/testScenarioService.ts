@@ -586,6 +586,416 @@ export async function fetchScenarioRunHistory(
 }
 
 // ============================================================================
+// History & Trend Query Functions
+// ============================================================================
+
+export interface ScenarioRunWithDetails extends DbScenarioRun {
+  scenario?: {
+    name: string;
+    scenario_type: ScenarioType;
+    expected_result: ExpectedScenarioResult;
+  };
+}
+
+export interface RunTrendData {
+  date: string;
+  passed: number;
+  failed: number;
+  errors: number;
+  total: number;
+  passRate: number;
+  avgDurationMs: number;
+}
+
+export interface FailureDetail {
+  scenarioId: string;
+  scenarioName: string;
+  scenarioType: ScenarioType;
+  lastRunResult: TestRunResult;
+  lastRunAt: string;
+  errorMessage?: string;
+  failureStepId?: string;
+  failureCount: number;
+}
+
+/**
+ * Fetch all scenario runs for a process map (with scenario details)
+ */
+export async function fetchProcessMapRunHistory(
+  processMapId: string,
+  options: {
+    limit?: number;
+    offset?: number;
+    startDate?: string;
+    endDate?: string;
+    resultFilter?: TestRunResult[];
+  } = {}
+): Promise<{ runs: ScenarioRunWithDetails[]; total: number }> {
+  try {
+    const { limit = 50, offset = 0, startDate, endDate, resultFilter } = options;
+
+    // First get scenario IDs for this process map
+    const { data: scenarios, error: scenarioError } = await supabase
+      .from('process_map_test_scenarios')
+      .select('id, name, scenario_type, expected_result')
+      .eq('process_map_id', processMapId);
+
+    if (scenarioError) {
+      logger.error('Error fetching scenarios for history:', scenarioError);
+      throw scenarioError;
+    }
+
+    if (!scenarios || scenarios.length === 0) {
+      return { runs: [], total: 0 };
+    }
+
+    const scenarioIds = scenarios.map((s) => s.id);
+    const scenarioMap = new Map(scenarios.map((s) => [s.id, s]));
+
+    // Build query for runs
+    let query = supabase
+      .from('process_map_scenario_runs')
+      .select('*', { count: 'exact' })
+      .in('scenario_id', scenarioIds)
+      .order('executed_at', { ascending: false });
+
+    if (startDate) {
+      query = query.gte('executed_at', startDate);
+    }
+    if (endDate) {
+      query = query.lte('executed_at', endDate);
+    }
+    if (resultFilter && resultFilter.length > 0) {
+      query = query.in('result', resultFilter);
+    }
+
+    const { data: runs, error: runsError, count } = await query.range(offset, offset + limit - 1);
+
+    if (runsError) {
+      logger.error('Error fetching run history:', runsError);
+      throw runsError;
+    }
+
+    // Enrich with scenario details
+    const enrichedRuns: ScenarioRunWithDetails[] = (runs as DbScenarioRun[] || []).map((run) => ({
+      ...run,
+      scenario: scenarioMap.get(run.scenario_id) as ScenarioRunWithDetails['scenario'],
+    }));
+
+    return { runs: enrichedRuns, total: count || 0 };
+  } catch (error) {
+    logger.error('Failed to fetch process map run history:', error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch run trends over time (for charts)
+ */
+export async function fetchRunTrends(
+  processMapId: string,
+  options: {
+    days?: number;
+    groupBy?: 'day' | 'week' | 'hour';
+  } = {}
+): Promise<RunTrendData[]> {
+  try {
+    const { days = 30, groupBy = 'day' } = options;
+
+    // Get start date
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    // Get all scenarios for this process map
+    const { data: scenarios, error: scenarioError } = await supabase
+      .from('process_map_test_scenarios')
+      .select('id')
+      .eq('process_map_id', processMapId);
+
+    if (scenarioError) {
+      logger.error('Error fetching scenarios for trends:', scenarioError);
+      throw scenarioError;
+    }
+
+    if (!scenarios || scenarios.length === 0) {
+      return [];
+    }
+
+    const scenarioIds = scenarios.map((s) => s.id);
+
+    // Fetch all runs in date range
+    const { data: runs, error: runsError } = await supabase
+      .from('process_map_scenario_runs')
+      .select('result, executed_at, duration_ms')
+      .in('scenario_id', scenarioIds)
+      .gte('executed_at', startDate.toISOString())
+      .order('executed_at', { ascending: true });
+
+    if (runsError) {
+      logger.error('Error fetching runs for trends:', runsError);
+      throw runsError;
+    }
+
+    if (!runs || runs.length === 0) {
+      return [];
+    }
+
+    // Group by date
+    const trendMap = new Map<string, {
+      passed: number;
+      failed: number;
+      errors: number;
+      totalDuration: number;
+      count: number;
+    }>();
+
+    for (const run of runs) {
+      const date = new Date(run.executed_at);
+      let key: string;
+
+      switch (groupBy) {
+        case 'hour':
+          key = `${date.toISOString().slice(0, 13)}:00:00Z`;
+          break;
+        case 'week': {
+          const weekStart = new Date(date);
+          weekStart.setDate(date.getDate() - date.getDay());
+          key = weekStart.toISOString().slice(0, 10);
+          break;
+        }
+        default: // day
+          key = date.toISOString().slice(0, 10);
+      }
+
+      if (!trendMap.has(key)) {
+        trendMap.set(key, { passed: 0, failed: 0, errors: 0, totalDuration: 0, count: 0 });
+      }
+
+      const trend = trendMap.get(key)!;
+      trend.count++;
+      trend.totalDuration += run.duration_ms || 0;
+
+      switch (run.result) {
+        case 'pass':
+          trend.passed++;
+          break;
+        case 'fail':
+        case 'partial':
+          trend.failed++;
+          break;
+        case 'error':
+          trend.errors++;
+          break;
+      }
+    }
+
+    // Convert to array
+    const trends: RunTrendData[] = [];
+    for (const [date, data] of trendMap.entries()) {
+      const total = data.passed + data.failed + data.errors;
+      trends.push({
+        date,
+        passed: data.passed,
+        failed: data.failed,
+        errors: data.errors,
+        total,
+        passRate: total > 0 ? Math.round((data.passed / total) * 100) : 0,
+        avgDurationMs: data.count > 0 ? Math.round(data.totalDuration / data.count) : 0,
+      });
+    }
+
+    return trends.sort((a, b) => a.date.localeCompare(b.date));
+  } catch (error) {
+    logger.error('Failed to fetch run trends:', error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch recent failures for quick debugging
+ */
+export async function fetchRecentFailures(
+  processMapId: string,
+  limit: number = 10
+): Promise<FailureDetail[]> {
+  try {
+    const { data: scenarios, error: scenarioError } = await supabase
+      .from('process_map_test_scenarios')
+      .select('id, name, scenario_type, expected_result, last_run_result')
+      .eq('process_map_id', processMapId)
+      .not('last_run_result', 'is', null);
+
+    if (scenarioError) {
+      logger.error('Error fetching scenarios for failures:', scenarioError);
+      throw scenarioError;
+    }
+
+    if (!scenarios || scenarios.length === 0) {
+      return [];
+    }
+
+    // Filter to only failed scenarios
+    const failedScenarios = scenarios.filter((s) => {
+      const result = s.last_run_result as DbTestScenario['last_run_result'];
+      return result && (result.result === 'fail' || result.result === 'error' || result.result === 'partial');
+    });
+
+    if (failedScenarios.length === 0) {
+      return [];
+    }
+
+    // Get failure counts from run history
+    const scenarioIds = failedScenarios.map((s) => s.id);
+    const { data: runs, error: runsError } = await supabase
+      .from('process_map_scenario_runs')
+      .select('scenario_id, result, error_message, failure_step_id')
+      .in('scenario_id', scenarioIds)
+      .in('result', ['fail', 'error', 'partial']);
+
+    if (runsError) {
+      logger.error('Error fetching failure details:', runsError);
+      throw runsError;
+    }
+
+    // Count failures per scenario
+    const failureCounts = new Map<string, number>();
+    const lastErrors = new Map<string, { errorMessage?: string; failureStepId?: string }>();
+
+    for (const run of runs || []) {
+      failureCounts.set(run.scenario_id, (failureCounts.get(run.scenario_id) || 0) + 1);
+      if (!lastErrors.has(run.scenario_id)) {
+        lastErrors.set(run.scenario_id, {
+          errorMessage: run.error_message || undefined,
+          failureStepId: run.failure_step_id || undefined,
+        });
+      }
+    }
+
+    // Build failure details
+    const failures: FailureDetail[] = failedScenarios.map((s) => {
+      const lastRun = s.last_run_result as DbTestScenario['last_run_result'];
+      const errorInfo = lastErrors.get(s.id);
+      return {
+        scenarioId: s.id,
+        scenarioName: s.name,
+        scenarioType: s.scenario_type as ScenarioType,
+        lastRunResult: lastRun!.result,
+        lastRunAt: lastRun!.runAt,
+        errorMessage: errorInfo?.errorMessage,
+        failureStepId: errorInfo?.failureStepId,
+        failureCount: failureCounts.get(s.id) || 1,
+      };
+    });
+
+    // Sort by most recent and limit
+    return failures
+      .sort((a, b) => new Date(b.lastRunAt).getTime() - new Date(a.lastRunAt).getTime())
+      .slice(0, limit);
+  } catch (error) {
+    logger.error('Failed to fetch recent failures:', error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch summary stats with trend comparison
+ */
+export async function fetchScenarioSummaryWithTrends(
+  processMapId: string
+): Promise<{
+  current: {
+    total: number;
+    passed: number;
+    failed: number;
+    notRun: number;
+    passRate: number;
+  };
+  previous: {
+    passRate: number;
+    trend: 'up' | 'down' | 'stable';
+    changePercent: number;
+  };
+  recentActivity: {
+    runsToday: number;
+    runsThisWeek: number;
+    avgDurationMs: number;
+  };
+}> {
+  try {
+    // Get current stats
+    const scenarios = await fetchScenarios(processMapId);
+
+    const current = {
+      total: scenarios.length,
+      passed: 0,
+      failed: 0,
+      notRun: 0,
+      passRate: 0,
+    };
+
+    for (const scenario of scenarios) {
+      if (!scenario.lastRunResult) {
+        current.notRun++;
+      } else if (scenario.lastRunResult.result === 'pass') {
+        current.passed++;
+      } else {
+        current.failed++;
+      }
+    }
+
+    const runScenarios = current.total - current.notRun;
+    current.passRate = runScenarios > 0 ? Math.round((current.passed / runScenarios) * 100) : 0;
+
+    // Get recent runs for trend comparison
+    const trends = await fetchRunTrends(processMapId, { days: 14 });
+
+    // Calculate previous week's pass rate
+    let previousPassRate = 0;
+    if (trends.length >= 7) {
+      const previousWeek = trends.slice(0, Math.floor(trends.length / 2));
+      const prevTotal = previousWeek.reduce((sum, t) => sum + t.total, 0);
+      const prevPassed = previousWeek.reduce((sum, t) => sum + t.passed, 0);
+      previousPassRate = prevTotal > 0 ? Math.round((prevPassed / prevTotal) * 100) : 0;
+    }
+
+    const changePercent = current.passRate - previousPassRate;
+    const trend: 'up' | 'down' | 'stable' =
+      changePercent > 2 ? 'up' :
+      changePercent < -2 ? 'down' :
+      'stable';
+
+    // Recent activity
+    const today = new Date().toISOString().slice(0, 10);
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekAgoStr = weekAgo.toISOString().slice(0, 10);
+
+    const runsToday = trends.filter((t) => t.date === today).reduce((sum, t) => sum + t.total, 0);
+    const runsThisWeek = trends.filter((t) => t.date >= weekAgoStr).reduce((sum, t) => sum + t.total, 0);
+    const avgDurationMs = trends.length > 0
+      ? Math.round(trends.reduce((sum, t) => sum + t.avgDurationMs, 0) / trends.length)
+      : 0;
+
+    return {
+      current,
+      previous: {
+        passRate: previousPassRate,
+        trend,
+        changePercent: Math.abs(changePercent),
+      },
+      recentActivity: {
+        runsToday,
+        runsThisWeek,
+        avgDurationMs,
+      },
+    };
+  } catch (error) {
+    logger.error('Failed to fetch scenario summary with trends:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
 // Utility Functions
 // ============================================================================
 

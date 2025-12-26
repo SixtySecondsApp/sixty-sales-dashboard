@@ -43,6 +43,9 @@ import {
   GitBranch,
   AlertOctagon,
   BarChart3,
+  PlayCircle,
+  Square,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
@@ -70,6 +73,7 @@ import { createTestMockRegistry, getAllMocksFromRegistry } from '@/lib/testing/m
 import { generateScenarios, type ScenarioGeneratorResult } from '@/lib/testing/generators';
 import { analyzeCoverage } from '@/lib/testing/analyzers';
 import { ScenarioCard, ScenarioList } from './ScenarioCard';
+import { TestHistoryPanel } from './TestHistoryPanel';
 import {
   saveScenarios,
   saveCoverageSnapshot,
@@ -79,6 +83,10 @@ import {
   generateProcessStructureHash,
   checkScenariosNeedRegeneration,
 } from '@/lib/services/testScenarioService';
+import {
+  BatchScenarioRunner,
+  type BatchProgress,
+} from '@/lib/testing/runners/BatchScenarioRunner';
 
 // ============================================================================
 // Helper Functions
@@ -389,6 +397,11 @@ export function WorkflowTestPanel({
   const [isLoadingScenarios, setIsLoadingScenarios] = useState(false);
   const [runningScenarioId, setRunningScenarioId] = useState<string | null>(null);
   const [scenarioFilter, setScenarioFilter] = useState<ScenarioType | 'all'>('all');
+
+  // Batch execution state
+  const [isBatchRunning, setIsBatchRunning] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
+  const batchRunnerRef = useRef<BatchScenarioRunner | null>(null);
 
   // Load saved scenarios and coverage from database
   useEffect(() => {
@@ -912,6 +925,169 @@ export function WorkflowTestPanel({
     }
   }, [processStructure, processMapId, runMode, workflowSteps]);
 
+  // Run all scenarios in batch
+  const handleRunAllScenarios = useCallback(async () => {
+    if (!processStructure || scenarios.length === 0) {
+      toast.error('No scenarios available to run');
+      return;
+    }
+
+    setIsBatchRunning(true);
+    setBatchProgress({
+      total: scenarios.length,
+      completed: 0,
+      passed: 0,
+      failed: 0,
+      errors: 0,
+      running: 0,
+      pending: scenarios.length,
+      progressPercent: 0,
+      runningScenarioIds: [],
+      estimatedRemainingMs: null,
+    });
+
+    try {
+      // Convert ProcessStructure to ProcessMapWorkflow
+      const workflow = convertProcessStructureToWorkflow(processStructure, {
+        workflowId: processMapId,
+        orgId: 'test-org',
+      });
+
+      // Get mocks
+      const integrations = Array.from(
+        new Set(
+          workflowSteps
+            .map((s) => s.integration)
+            .filter((i): i is string => !!i)
+        )
+      ) as Array<'hubspot' | 'fathom' | 'google' | 'slack' | 'justcall' | 'savvycal' | 'supabase'>;
+
+      const mockRegistry = createTestMockRegistry(processMapId, 'test-org', integrations.length > 0 ? integrations : undefined);
+      const mocks = getAllMocksFromRegistry(mockRegistry);
+
+      // Create batch runner
+      const runner = new BatchScenarioRunner(
+        {
+          workflow,
+          runMode,
+          baseMocks: mocks,
+          concurrency: 3,
+          persistResults: true,
+        },
+        {
+          onProgress: (progress) => {
+            setBatchProgress(progress);
+          },
+          onScenarioComplete: (result, progress) => {
+            // Update scenario in list with new last run result
+            setScenarios((prev) =>
+              prev.map((s) =>
+                s.id === result.scenario.id
+                  ? {
+                      ...s,
+                      lastRunResult: {
+                        result: result.matchedExpectation ? 'pass' : 'fail',
+                        runAt: result.executedAt,
+                        durationMs: result.testRun.durationMs || 0,
+                      },
+                    }
+                  : s
+              )
+            );
+          },
+          onComplete: (batchResult) => {
+            if (batchResult.failed === 0 && batchResult.errors === 0) {
+              toast.success(`All ${batchResult.passed} scenarios passed!`);
+            } else {
+              toast.warning(
+                `Batch complete: ${batchResult.passed} passed, ${batchResult.failed} failed, ${batchResult.errors} errors`
+              );
+            }
+          },
+        }
+      );
+
+      batchRunnerRef.current = runner;
+
+      // Filter scenarios based on current filter
+      const scenariosToRun = scenarioFilter === 'all'
+        ? scenarios
+        : scenarios.filter((s) => s.scenarioType === scenarioFilter);
+
+      await runner.runAll(scenariosToRun);
+    } catch (error) {
+      const err = error as Error;
+      console.error('[WorkflowTestPanel] Batch execution failed:', err);
+      toast.error(`Batch execution failed: ${err.message}`);
+    } finally {
+      setIsBatchRunning(false);
+      batchRunnerRef.current = null;
+    }
+  }, [processStructure, processMapId, scenarios, scenarioFilter, runMode, workflowSteps]);
+
+  // Stop batch execution
+  const handleStopBatch = useCallback(() => {
+    if (batchRunnerRef.current) {
+      batchRunnerRef.current.stop();
+      toast.info('Stopping batch execution...');
+    }
+  }, []);
+
+  // Export scenarios to JSON
+  const handleExportScenarios = useCallback(() => {
+    if (scenarios.length === 0) {
+      toast.error('No scenarios to export');
+      return;
+    }
+
+    try {
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        processMapId,
+        processMapTitle,
+        totalScenarios: scenarios.length,
+        coverage: coverage ? {
+          pathCoveragePercent: coverage.pathCoveragePercent,
+          branchCoveragePercent: coverage.branchCoveragePercent,
+          overallScore: coverage.overallScore,
+        } : null,
+        scenarios: scenarios.map((s) => ({
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          scenarioType: s.scenarioType,
+          expectedResult: s.expectedResult,
+          expectedFailureStep: s.expectedFailureStep,
+          expectedFailureType: s.expectedFailureType,
+          priority: s.priority,
+          tags: s.tags,
+          path: s.path,
+          mockOverrides: s.mockOverrides,
+          lastRunResult: s.lastRunResult,
+          generatedAt: s.generatedAt,
+        })),
+      };
+
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `test-scenarios-${processMapId.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Exported ${scenarios.length} scenarios`);
+    } catch (error) {
+      const err = error as Error;
+      console.error('Export failed:', err);
+      toast.error(`Export failed: ${err.message}`);
+    }
+  }, [scenarios, coverage, processMapId, processMapTitle]);
+
   if (!isOpen) return null;
 
   // Inner content shared between embedded and standalone modes
@@ -1028,6 +1204,9 @@ export function WorkflowTestPanel({
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="history" className="flex-1">
+              History
+            </TabsTrigger>
             <TabsTrigger value="logs" className="flex-1">
               Logs
             </TabsTrigger>
@@ -1121,9 +1300,48 @@ export function WorkflowTestPanel({
             </Card>
           )}
 
-          {/* Scenario Type Filter */}
+          {/* Batch Progress */}
+          {batchProgress && isBatchRunning && (
+            <Card className="mb-4 flex-shrink-0">
+              <CardContent className="py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">Running All Scenarios</span>
+                  <Button variant="ghost" size="sm" onClick={handleStopBatch}>
+                    <Square className="h-3 w-3 mr-1" />
+                    Stop
+                  </Button>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
+                  <div
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${batchProgress.progressPercent}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-around text-center text-xs">
+                  <div>
+                    <span className="font-medium text-green-500">{batchProgress.passed}</span>
+                    <span className="text-muted-foreground ml-1">passed</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-red-500">{batchProgress.failed}</span>
+                    <span className="text-muted-foreground ml-1">failed</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-blue-500">{batchProgress.running}</span>
+                    <span className="text-muted-foreground ml-1">running</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-500">{batchProgress.pending}</span>
+                    <span className="text-muted-foreground ml-1">pending</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Scenario Type Filter + Run All */}
           {scenarios.length > 0 && (
-            <div className="flex gap-1 mb-3 flex-shrink-0">
+            <div className="flex flex-wrap gap-1 mb-3 flex-shrink-0">
               <Button
                 variant={scenarioFilter === 'all' ? 'default' : 'outline'}
                 size="sm"
@@ -1159,6 +1377,36 @@ export function WorkflowTestPanel({
                 <AlertOctagon className="h-3 w-3 mr-1" />
                 Failure ({scenarios.filter(s => s.scenarioType === 'failure_mode').length})
               </Button>
+              <div className="flex-1" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportScenarios}
+                disabled={scenarios.length === 0}
+                className="text-xs"
+                title="Export scenarios to JSON"
+              >
+                <Download className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleRunAllScenarios}
+                disabled={isRunning || isGenerating || isBatchRunning || runningScenarioId !== null}
+                className="text-xs"
+              >
+                {isBatchRunning ? (
+                  <>
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    Running...
+                  </>
+                ) : (
+                  <>
+                    <PlayCircle className="h-3 w-3 mr-1" />
+                    Run {scenarioFilter === 'all' ? 'All' : scenarioFilter.replace('_', ' ')}
+                  </>
+                )}
+              </Button>
             </div>
           )}
 
@@ -1174,6 +1422,10 @@ export function WorkflowTestPanel({
               />
             </ScrollArea>
           </div>
+        </TabsContent>
+
+        <TabsContent value="history" className="p-4 pt-2 flex-1 min-h-0 overflow-hidden">
+          <TestHistoryPanel processMapId={processMapId} />
         </TabsContent>
 
         <TabsContent value="logs" className="p-4 pt-2 flex-1 min-h-0 overflow-hidden">
