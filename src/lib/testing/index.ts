@@ -14,6 +14,41 @@ export {
   type TestEngineOptions,
 } from './ProcessMapTestEngine';
 
+// Scenario engine
+export {
+  ScenarioTestEngine,
+  executeScenario,
+  executeAllScenarios,
+  type ScenarioTestEngineOptions,
+  type ScenarioExecutionResult,
+} from './ScenarioTestEngine';
+
+// Generators
+export {
+  discoverPaths,
+  getHappyPath,
+  getBranchPaths,
+  getPathIntegrations,
+  generateScenarios,
+  generateHappyPathScenario,
+  generateIntegrationFailureScenarios,
+  FAILURE_MODES,
+  FAILURE_MODE_DESCRIPTIONS,
+  type PathDiscoveryResult,
+  type ScenarioGeneratorOptions,
+  type ScenarioGeneratorResult,
+} from './generators';
+
+// Analyzers
+export {
+  analyzeCoverage,
+  getCoverageBreakdown,
+  getMissingFailureModes,
+  meetsMinimumCoverage,
+  type CoverageAnalysisInput,
+  type CoverageBreakdown,
+} from './analyzers';
+
 // Parsers
 export {
   parseDescription,

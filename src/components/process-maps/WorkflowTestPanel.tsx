@@ -38,6 +38,11 @@ import {
   FileText,
   AlertTriangle,
   Database,
+  Sparkles,
+  Route,
+  GitBranch,
+  AlertOctagon,
+  BarChart3,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
@@ -49,6 +54,9 @@ import type {
   WorkflowStepDefinition,
   WorkflowStepType,
   LogEntry as TestLogEntry,
+  GeneratedTestScenario,
+  TestCoverage,
+  ScenarioType,
 } from '@/lib/types/processMapTesting';
 import {
   parseMermaidNodes,
@@ -56,8 +64,12 @@ import {
   type MermaidNode,
 } from '@/lib/testing/parsers/WorkflowParser';
 import { ProcessMapTestEngine } from '@/lib/testing/ProcessMapTestEngine';
+import { ScenarioTestEngine } from '@/lib/testing/ScenarioTestEngine';
 import { convertProcessStructureToWorkflow } from '@/lib/testing/converters/processStructureConverter';
 import { createTestMockRegistry, getAllMocksFromRegistry } from '@/lib/testing/mocks';
+import { generateScenarios, type ScenarioGeneratorResult } from '@/lib/testing/generators';
+import { analyzeCoverage } from '@/lib/testing/analyzers';
+import { ScenarioCard, ScenarioList } from './ScenarioCard';
 
 // ============================================================================
 // Helper Functions
@@ -361,6 +373,13 @@ export function WorkflowTestPanel({
   const [continueOnFailure, setContinueOnFailure] = useState(false);
   const [activeTab, setActiveTab] = useState('progress');
 
+  // Scenario state
+  const [scenarios, setScenarios] = useState<GeneratedTestScenario[]>([]);
+  const [coverage, setCoverage] = useState<TestCoverage | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [runningScenarioId, setRunningScenarioId] = useState<string | null>(null);
+  const [scenarioFilter, setScenarioFilter] = useState<ScenarioType | 'all'>('all');
+
   // Parse Mermaid nodes to get actual node IDs for highlighting (fallback if no processStructure)
   const mermaidNodes = useMemo(() => {
     if (processStructure?.nodes) return []; // Don't parse if we have structure
@@ -627,6 +646,163 @@ export function WorkflowTestPanel({
     setCurrentStepId(null);
   }, []);
 
+  // Generate test scenarios
+  const handleGenerateScenarios = useCallback(async () => {
+    if (!processStructure) {
+      toast.error('No process structure available for scenario generation');
+      return;
+    }
+
+    setIsGenerating(true);
+
+    try {
+      const result = generateScenarios(
+        processStructure,
+        processMapId,
+        'test-org', // TODO: Use actual org ID
+        {
+          includeFailureModes: true,
+          maxPathScenarios: 50,
+        }
+      );
+
+      setScenarios(result.scenarios);
+
+      // Calculate coverage
+      const coverageResult = analyzeCoverage({
+        processStructure,
+        scenarios: result.scenarios,
+      });
+      setCoverage(coverageResult);
+
+      // Switch to scenarios tab
+      setActiveTab('scenarios');
+
+      toast.success(
+        `Generated ${result.scenarios.length} scenarios: ` +
+          `${result.pathScenarios.length} paths, ${result.failureScenarios.length} failure modes`
+      );
+    } catch (error) {
+      const err = error as Error;
+      console.error('Scenario generation failed:', err);
+      toast.error(`Failed to generate scenarios: ${err.message}`);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [processStructure, processMapId]);
+
+  // Run a single scenario
+  const handleRunScenario = useCallback(async (scenario: GeneratedTestScenario) => {
+    if (!processStructure) {
+      toast.error('No process structure available');
+      return;
+    }
+
+    setRunningScenarioId(scenario.id);
+    setActiveTab('progress');
+
+    const addLog = (level: LogEntry['level'], message: string, data?: Record<string, unknown>) => {
+      setLogs((prev) => [...prev, { timestamp: new Date().toISOString(), level, message, data }]);
+    };
+
+    addLog('info', `Running scenario: ${scenario.name}`);
+    setStepResults([]);
+    setLogs([]);
+
+    try {
+      // Convert ProcessStructure to ProcessMapWorkflow
+      const workflow = convertProcessStructureToWorkflow(processStructure, {
+        workflowId: processMapId,
+        orgId: 'test-org',
+      });
+
+      // Get mocks
+      const integrations = Array.from(
+        new Set(
+          workflowSteps
+            .map((s) => s.integration)
+            .filter((i): i is string => !!i)
+        )
+      ) as Array<'hubspot' | 'fathom' | 'google' | 'slack' | 'justcall' | 'savvycal' | 'supabase'>;
+
+      const mockRegistry = createTestMockRegistry(processMapId, 'test-org', integrations.length > 0 ? integrations : undefined);
+      const mocks = getAllMocksFromRegistry(mockRegistry);
+
+      // Create scenario engine
+      const engine = new ScenarioTestEngine({
+        workflow,
+        runMode,
+        baseMocks: mocks,
+        events: {
+          onStepStart: (stepId: string, stepName: string) => {
+            setCurrentStepId(stepId);
+            addLog('info', `Starting step: ${stepName}`);
+          },
+          onStepComplete: (result: ProcessMapStepResult) => {
+            const fullResult: ProcessMapStepResult = {
+              ...result,
+              id: result.id || `result_${Date.now()}_${result.sequenceNumber}`,
+            };
+            setStepResults((prev) => [...prev, fullResult]);
+
+            const statusMessage = result.status === 'passed'
+              ? `Step ${result.stepName}: passed`
+              : result.status === 'failed'
+                ? `Step ${result.stepName}: failed - ${result.errorMessage || 'Unknown error'}`
+                : `Step ${result.stepName}: ${result.status}`;
+
+            addLog(
+              result.status === 'passed' ? 'info' : result.status === 'failed' ? 'error' : 'warn',
+              statusMessage
+            );
+          },
+          onLog: (log: TestLogEntry) => {
+            addLog(log.level, log.message, log.data);
+          },
+          onError: (error: Error) => {
+            addLog('error', `Engine error: ${error.message}`);
+          },
+        },
+      });
+
+      // Execute scenario
+      const executionResult = await engine.executeScenario(scenario);
+
+      setTestRun(executionResult.testRun);
+
+      // Update scenario with last run result
+      setScenarios((prev) =>
+        prev.map((s) =>
+          s.id === scenario.id
+            ? {
+                ...s,
+                lastRunResult: {
+                  result: executionResult.testRun.overallResult || 'error',
+                  runAt: executionResult.executedAt,
+                  durationMs: executionResult.testRun.durationMs || 0,
+                },
+              }
+            : s
+        )
+      );
+
+      if (executionResult.matchedExpectation) {
+        toast.success(`Scenario "${scenario.name}" completed as expected`);
+      } else {
+        toast.warning(`Scenario "${scenario.name}" did not match expectation: ${executionResult.mismatchDetails}`);
+      }
+
+      addLog('info', `Scenario completed: ${executionResult.matchedExpectation ? 'matched expectation' : 'mismatch'}`);
+    } catch (error) {
+      const err = error as Error;
+      addLog('error', `Scenario execution failed: ${err.message}`);
+      toast.error(`Scenario execution failed: ${err.message}`);
+    } finally {
+      setRunningScenarioId(null);
+      setCurrentStepId(null);
+    }
+  }, [processStructure, processMapId, runMode, workflowSteps]);
+
   if (!isOpen) return null;
 
   // Inner content shared between embedded and standalone modes
@@ -678,7 +854,7 @@ export function WorkflowTestPanel({
         </div>
 
         <div className="flex gap-2">
-          <Button onClick={handleRunTest} disabled={isRunning} className="flex-1">
+          <Button onClick={handleRunTest} disabled={isRunning || isGenerating} className="flex-1">
             {isRunning ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -694,11 +870,38 @@ export function WorkflowTestPanel({
           <Button
             variant="outline"
             onClick={handleReset}
-            disabled={isRunning || stepResults.length === 0}
+            disabled={isRunning || isGenerating || stepResults.length === 0}
           >
             <RotateCcw className="h-4 w-4" />
           </Button>
         </div>
+
+        {/* Generate Scenarios Button */}
+        {processStructure && (
+          <Button
+            variant="secondary"
+            onClick={handleGenerateScenarios}
+            disabled={isRunning || isGenerating}
+            className="w-full"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Sparkles className="mr-2 h-4 w-4" />
+                Generate Tests
+                {scenarios.length > 0 && (
+                  <Badge variant="secondary" className="ml-2">
+                    {scenarios.length}
+                  </Badge>
+                )}
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       {/* Results */}
@@ -707,6 +910,14 @@ export function WorkflowTestPanel({
           <TabsList className="w-full">
             <TabsTrigger value="progress" className="flex-1">
               Progress
+            </TabsTrigger>
+            <TabsTrigger value="scenarios" className="flex-1">
+              Scenarios
+              {scenarios.length > 0 && (
+                <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
+                  {scenarios.length}
+                </Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger value="logs" className="flex-1">
               Logs
@@ -759,6 +970,100 @@ export function WorkflowTestPanel({
             {workflowSteps.length > 5 && (
               <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none" />
             )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="scenarios" className="p-4 pt-2 flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* Coverage Summary */}
+          {coverage && (
+            <Card className="mb-4 flex-shrink-0">
+              <CardContent className="py-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Test Coverage</span>
+                </div>
+                <div className="flex items-center justify-around text-center">
+                  <div>
+                    <div className="text-2xl font-bold text-blue-500">
+                      {coverage.pathCoveragePercent}%
+                    </div>
+                    <div className="text-xs text-muted-foreground">Paths</div>
+                  </div>
+                  <Separator orientation="vertical" className="h-8" />
+                  <div>
+                    <div className="text-2xl font-bold text-purple-500">
+                      {coverage.branchCoveragePercent}%
+                    </div>
+                    <div className="text-xs text-muted-foreground">Branches</div>
+                  </div>
+                  <Separator orientation="vertical" className="h-8" />
+                  <div>
+                    <div className={cn(
+                      'text-2xl font-bold',
+                      coverage.overallScore >= 80 ? 'text-green-500' :
+                      coverage.overallScore >= 60 ? 'text-yellow-500' : 'text-red-500'
+                    )}>
+                      {coverage.overallScore}%
+                    </div>
+                    <div className="text-xs text-muted-foreground">Overall</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Scenario Type Filter */}
+          {scenarios.length > 0 && (
+            <div className="flex gap-1 mb-3 flex-shrink-0">
+              <Button
+                variant={scenarioFilter === 'all' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setScenarioFilter('all')}
+                className="text-xs"
+              >
+                All ({scenarios.length})
+              </Button>
+              <Button
+                variant={scenarioFilter === 'happy_path' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setScenarioFilter('happy_path')}
+                className="text-xs"
+              >
+                <Route className="h-3 w-3 mr-1" />
+                Happy ({scenarios.filter(s => s.scenarioType === 'happy_path').length})
+              </Button>
+              <Button
+                variant={scenarioFilter === 'branch_path' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setScenarioFilter('branch_path')}
+                className="text-xs"
+              >
+                <GitBranch className="h-3 w-3 mr-1" />
+                Branch ({scenarios.filter(s => s.scenarioType === 'branch_path').length})
+              </Button>
+              <Button
+                variant={scenarioFilter === 'failure_mode' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setScenarioFilter('failure_mode')}
+                className="text-xs"
+              >
+                <AlertOctagon className="h-3 w-3 mr-1" />
+                Failure ({scenarios.filter(s => s.scenarioType === 'failure_mode').length})
+              </Button>
+            </div>
+          )}
+
+          {/* Scenario List */}
+          <div className="flex-1 min-h-0 relative">
+            <ScrollArea className="h-full">
+              <ScenarioList
+                scenarios={scenarios}
+                runningScenarioId={runningScenarioId || undefined}
+                onRunScenario={handleRunScenario}
+                disabled={isRunning || isGenerating}
+                filterType={scenarioFilter}
+              />
+            </ScrollArea>
           </div>
         </TabsContent>
 

@@ -537,3 +537,198 @@ export interface ProcessMapRecord {
   created_at: string;
   updated_at: string;
 }
+
+// ============================================================================
+// Auto-Generated Test Scenario Types
+// ============================================================================
+
+/**
+ * Scenario Type Classification
+ * - happy_path: Main success flow through the diagram
+ * - branch_path: Alternative route through decision points
+ * - failure_mode: Integration failure simulation (timeout, auth, rate limit, etc.)
+ */
+export type ScenarioType = 'happy_path' | 'branch_path' | 'failure_mode';
+
+/**
+ * Result expectation for scenario execution
+ */
+export type ExpectedScenarioResult = 'pass' | 'fail';
+
+/**
+ * Mock override for a specific scenario
+ * Allows forcing specific mock behavior for testing failure modes
+ */
+export interface ScenarioMockOverride {
+  /** Integration to override (e.g., 'hubspot', 'fathom') */
+  integration: string;
+  /** Optional specific step to apply override to */
+  stepId?: string;
+  /** Type of mock response to return */
+  mockType: MockType;
+  /** Priority for this override (higher = takes precedence) */
+  priority: number;
+  /** Custom error response data */
+  errorResponse?: Record<string, unknown>;
+  /** Simulated delay in ms */
+  delayMs?: number;
+}
+
+/**
+ * Decision point encountered along a path
+ * Tracks the condition evaluated and which branch was taken
+ */
+export interface DecisionPoint {
+  /** Node ID of the decision node */
+  nodeId: string;
+  /** Condition label (e.g., "Yes", "No", "Success", "Error") */
+  condition: string;
+  /** The node ID this decision leads to */
+  nextNodeId: string;
+}
+
+/**
+ * Path through the workflow diagram
+ * Represents a unique route from entry to exit
+ */
+export interface ScenarioPath {
+  /** Ordered list of step IDs in execution sequence */
+  stepIds: string[];
+  /** Decision points along this path */
+  decisions: DecisionPoint[];
+  /** Total number of steps in this path */
+  totalSteps: number;
+  /** Hash of step IDs for deduplication */
+  pathHash: string;
+}
+
+/**
+ * Generated Test Scenario
+ * Auto-created from ProcessStructure analysis
+ */
+export interface GeneratedTestScenario {
+  /** Unique scenario ID */
+  id: string;
+  /** Reference to workflow/process map */
+  workflowId: string;
+  /** Organization ID */
+  orgId: string;
+  /** Human-readable scenario name */
+  name: string;
+  /** Description of what this scenario tests */
+  description: string;
+  /** Classification of scenario type */
+  scenarioType: ScenarioType;
+  /** The path this scenario follows */
+  path: ScenarioPath;
+  /** Mock overrides to apply for this scenario */
+  mockOverrides: ScenarioMockOverride[];
+  /** Expected result (pass for happy/branch paths, fail for failure modes) */
+  expectedResult: ExpectedScenarioResult;
+  /** If expectedResult is 'fail', which step should fail */
+  expectedFailureStep?: string;
+  /** If expectedResult is 'fail', what type of failure */
+  expectedFailureType?: MockType;
+  /** Priority for test execution order (lower = higher priority) */
+  priority: number;
+  /** Tags for filtering/grouping scenarios */
+  tags: string[];
+  /** When this scenario was generated */
+  generatedAt: string;
+  /** Last run result and timestamp */
+  lastRunResult?: {
+    result: TestRunResult;
+    runAt: string;
+    durationMs: number;
+  };
+}
+
+/**
+ * Uncovered path information
+ * Helps identify gaps in test coverage
+ */
+export interface UncoveredPath {
+  /** The path that isn't covered */
+  path: ScenarioPath;
+  /** Why this path isn't covered */
+  reason: string;
+  /** Suggested scenario to cover this path */
+  suggestedScenario?: Partial<GeneratedTestScenario>;
+}
+
+/**
+ * Failure mode coverage tracking
+ * Shows which failure modes have been tested per integration
+ */
+export type FailureModeCoverage = Record<string, MockType[]>;
+
+/**
+ * Comprehensive Test Coverage Metrics
+ * Provides visibility into what's tested vs. what's not
+ */
+export interface TestCoverage {
+  /** Total unique paths through the diagram */
+  totalPaths: number;
+  /** Paths that have been tested */
+  coveredPaths: number;
+  /** Path coverage percentage (0-100) */
+  pathCoveragePercent: number;
+  /** Total decision branches */
+  totalBranches: number;
+  /** Branches that have been exercised */
+  coveredBranches: number;
+  /** Branch coverage percentage (0-100) */
+  branchCoveragePercent: number;
+  /** Failure modes tested per integration */
+  failureModeCoverage: FailureModeCoverage;
+  /** Integrations with full failure mode coverage */
+  integrationsWithFullCoverage: string[];
+  /** Integrations missing some failure mode tests */
+  integrationsWithPartialCoverage: string[];
+  /** Paths that haven't been tested */
+  uncoveredPaths: UncoveredPath[];
+  /** Overall coverage score (0-100) */
+  overallScore: number;
+  /** When coverage was last calculated */
+  calculatedAt: string;
+}
+
+/**
+ * Scenario execution result
+ * Extended from ProcessMapTestRun with scenario-specific data
+ */
+export interface ScenarioTestResult {
+  /** The scenario that was executed */
+  scenarioId: string;
+  /** Test run data */
+  testRun: ProcessMapTestRun;
+  /** Step results */
+  stepResults: ProcessMapStepResult[];
+  /** Whether the actual result matched expected */
+  matchedExpectation: boolean;
+  /** If not matched, details about the mismatch */
+  mismatchDetails?: string;
+  /** Execution timestamp */
+  executedAt: string;
+}
+
+/**
+ * Batch scenario run result
+ * Results from running multiple scenarios at once
+ */
+export interface ScenarioBatchResult {
+  /** Total scenarios executed */
+  totalScenarios: number;
+  /** Scenarios that matched expectations */
+  passed: number;
+  /** Scenarios that didn't match expectations */
+  failed: number;
+  /** Scenarios that couldn't be executed */
+  errors: number;
+  /** Individual scenario results */
+  results: ScenarioTestResult[];
+  /** Total execution time in ms */
+  totalDurationMs: number;
+  /** When batch was executed */
+  executedAt: string;
+}
