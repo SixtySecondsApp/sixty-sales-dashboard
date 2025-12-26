@@ -70,6 +70,15 @@ import { createTestMockRegistry, getAllMocksFromRegistry } from '@/lib/testing/m
 import { generateScenarios, type ScenarioGeneratorResult } from '@/lib/testing/generators';
 import { analyzeCoverage } from '@/lib/testing/analyzers';
 import { ScenarioCard, ScenarioList } from './ScenarioCard';
+import {
+  saveScenarios,
+  saveCoverageSnapshot,
+  fetchScenarios,
+  fetchLatestCoverage,
+  saveScenarioRun,
+  generateProcessStructureHash,
+  checkScenariosNeedRegeneration,
+} from '@/lib/services/testScenarioService';
 
 // ============================================================================
 // Helper Functions
@@ -377,8 +386,42 @@ export function WorkflowTestPanel({
   const [scenarios, setScenarios] = useState<GeneratedTestScenario[]>([]);
   const [coverage, setCoverage] = useState<TestCoverage | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isLoadingScenarios, setIsLoadingScenarios] = useState(false);
   const [runningScenarioId, setRunningScenarioId] = useState<string | null>(null);
   const [scenarioFilter, setScenarioFilter] = useState<ScenarioType | 'all'>('all');
+
+  // Load saved scenarios and coverage from database
+  useEffect(() => {
+    if (!processMapId || !isOpen) return;
+
+    const loadSavedData = async () => {
+      setIsLoadingScenarios(true);
+      try {
+        // Load scenarios and coverage in parallel
+        const [savedScenarios, savedCoverage] = await Promise.all([
+          fetchScenarios(processMapId),
+          fetchLatestCoverage(processMapId),
+        ]);
+
+        if (savedScenarios.length > 0) {
+          setScenarios(savedScenarios);
+          console.log(`[WorkflowTestPanel] Loaded ${savedScenarios.length} saved scenarios`);
+        }
+
+        if (savedCoverage) {
+          setCoverage(savedCoverage);
+          console.log('[WorkflowTestPanel] Loaded saved coverage:', savedCoverage.overallScore);
+        }
+      } catch (error) {
+        console.error('[WorkflowTestPanel] Failed to load saved data:', error);
+        // Don't show error toast - just continue without saved data
+      } finally {
+        setIsLoadingScenarios(false);
+      }
+    };
+
+    loadSavedData();
+  }, [processMapId, isOpen]);
 
   // Parse Mermaid nodes to get actual node IDs for highlighting (fallback if no processStructure)
   const mermaidNodes = useMemo(() => {
@@ -666,13 +709,47 @@ export function WorkflowTestPanel({
         }
       );
 
-      setScenarios(result.scenarios);
-
       // Calculate coverage
       const coverageResult = analyzeCoverage({
         processStructure,
         scenarios: result.scenarios,
       });
+
+      // Generate hash for version tracking
+      const structureHash = generateProcessStructureHash(processStructure);
+
+      // Save scenarios and coverage to database
+      try {
+        const [savedScenarios] = await Promise.all([
+          saveScenarios({
+            processMapId,
+            orgId: 'test-org', // TODO: Use actual org ID
+            scenarios: result.scenarios,
+            processStructureHash: structureHash,
+          }),
+          saveCoverageSnapshot({
+            processMapId,
+            orgId: 'test-org', // TODO: Use actual org ID
+            coverage: coverageResult,
+            totalScenarios: result.scenarios.length,
+            scenarioCounts: {
+              happyPath: result.pathScenarios.filter(s => s.scenarioType === 'happy_path').length,
+              branchPath: result.pathScenarios.filter(s => s.scenarioType === 'branch_path').length,
+              failureMode: result.failureScenarios.length,
+            },
+            processStructureHash: structureHash,
+          }),
+        ]);
+
+        // Use saved scenarios (they have database IDs)
+        setScenarios(savedScenarios);
+        console.log(`[WorkflowTestPanel] Saved ${savedScenarios.length} scenarios to database`);
+      } catch (saveError) {
+        console.error('[WorkflowTestPanel] Failed to save scenarios to database:', saveError);
+        // Fall back to using in-memory scenarios
+        setScenarios(result.scenarios);
+      }
+
       setCoverage(coverageResult);
 
       // Switch to scenarios tab
@@ -770,18 +847,50 @@ export function WorkflowTestPanel({
 
       setTestRun(executionResult.testRun);
 
-      // Update scenario with last run result
+      // Calculate step counts from results
+      const stepsPassed = executionResult.stepResults?.filter(r => r.status === 'passed').length || 0;
+      const stepsFailed = executionResult.stepResults?.filter(r => r.status === 'failed').length || 0;
+      const stepsExecuted = executionResult.stepResults?.length || 0;
+
+      // Find failure details if any step failed
+      const failedStep = executionResult.stepResults?.find(r => r.status === 'failed');
+
+      // Save scenario run to database
+      try {
+        // Only save if the scenario has a valid database ID (not a temp ID)
+        if (scenario.id && !scenario.id.startsWith('scenario_')) {
+          await saveScenarioRun({
+            scenarioId: scenario.id,
+            testRunId: executionResult.testRun.id,
+            result: executionResult.testRun.overallResult || 'error',
+            matchedExpectation: executionResult.matchedExpectation,
+            mismatchDetails: executionResult.mismatchDetails,
+            durationMs: executionResult.testRun.durationMs || 0,
+            stepsExecuted,
+            stepsPassed,
+            stepsFailed,
+            errorMessage: failedStep?.errorMessage,
+            failureStepId: failedStep?.stepId,
+            failureType: failedStep ? 'error' : undefined,
+          });
+          console.log(`[WorkflowTestPanel] Saved scenario run for ${scenario.name}`);
+        }
+      } catch (saveError) {
+        console.error('[WorkflowTestPanel] Failed to save scenario run:', saveError);
+        // Continue - don't block UI for save failures
+      }
+
+      // Update scenario with last run result in local state
+      const lastRunResult = {
+        result: executionResult.testRun.overallResult || 'error',
+        runAt: executionResult.executedAt,
+        durationMs: executionResult.testRun.durationMs || 0,
+      };
+
       setScenarios((prev) =>
         prev.map((s) =>
           s.id === scenario.id
-            ? {
-                ...s,
-                lastRunResult: {
-                  result: executionResult.testRun.overallResult || 'error',
-                  runAt: executionResult.executedAt,
-                  durationMs: executionResult.testRun.durationMs || 0,
-                },
-              }
+            ? { ...s, lastRunResult }
             : s
         )
       );
