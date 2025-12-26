@@ -103,6 +103,7 @@ import {
   BatchScenarioRunner,
   type BatchProgress,
 } from '@/lib/testing/runners/BatchScenarioRunner';
+import { useActiveOrgId } from '@/lib/stores/orgStore';
 
 // ============================================================================
 // Helper Functions
@@ -434,6 +435,9 @@ export function WorkflowTestPanel({
     currentResource?: string;
   } | null>(null);
 
+  // Get active organization ID for test_data mode
+  const activeOrgId = useActiveOrgId();
+
   // Load saved scenarios and coverage from database
   useEffect(() => {
     if (!processMapId || !isOpen) return;
@@ -657,6 +661,9 @@ export function WorkflowTestPanel({
         // Create and run the test data engine
         const testDataEngine = new TestDataTestEngine({
           workflow,
+          integrationContext: {
+            orgId: activeOrgId || undefined,
+          },
           config: {
             continueOnFailure,
             timeout: 300000, // 5 minutes

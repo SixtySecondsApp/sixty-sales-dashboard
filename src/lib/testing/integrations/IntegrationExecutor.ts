@@ -58,6 +58,8 @@ export interface CreateResourceOptions {
  * Integration-specific context for URL building
  */
 export interface IntegrationContext {
+  // Organization
+  orgId?: string;
   // HubSpot
   hubspotPortalId?: string;
   // Slack
