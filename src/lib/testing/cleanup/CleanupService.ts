@@ -5,7 +5,7 @@
  * to handle dependencies (e.g., delete deals before contacts).
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/clientV2';
 import {
   TrackedResource,
   CleanupResult,

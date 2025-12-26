@@ -5,7 +5,7 @@
  * calling edge functions and tracking the resources created.
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/clientV2';
 import {
   TestableIntegration,
   ResourceType,
