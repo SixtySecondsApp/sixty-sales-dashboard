@@ -276,7 +276,19 @@ export class IntegrationExecutor {
       'read-properties': 'get_properties',
       'read-pipelines': 'get_pipelines',
     };
-    return actionMap[`${operation}-${resourceType}`] || `${operation}_${resourceType}`;
+
+    const key = `${operation}-${resourceType}`;
+    if (actionMap[key]) {
+      return actionMap[key];
+    }
+
+    // For read operations on unknown types (like OAuth steps), use 'status' to verify connection
+    if (operation === 'read') {
+      return 'status';
+    }
+
+    // Fallback for other operations
+    return `${operation}_${resourceType}`;
   }
 
   /**
