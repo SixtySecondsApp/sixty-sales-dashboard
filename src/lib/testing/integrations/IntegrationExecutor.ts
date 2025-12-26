@@ -24,6 +24,12 @@ import { ResourceTracker, AddResourceOptions } from '../tracking/ResourceTracker
 export type IntegrationOperation = 'create' | 'read' | 'update' | 'delete';
 
 /**
+ * Raw operation that might come from workflow steps
+ * Some workflows use 'write' instead of 'create'
+ */
+export type RawIntegrationOperation = IntegrationOperation | 'write';
+
+/**
  * Context for step execution
  */
 export interface StepExecutionContext {
@@ -94,19 +100,32 @@ export class IntegrationExecutor {
   }
 
   /**
+   * Normalize operation names (e.g., 'write' -> 'create')
+   */
+  private normalizeOperation(operation: RawIntegrationOperation): IntegrationOperation {
+    // 'write' is an alias for 'create'
+    if (operation === 'write') {
+      return 'create';
+    }
+    return operation;
+  }
+
+  /**
    * Execute an integration operation
    */
   async execute(
     integration: TestableIntegration,
-    operation: IntegrationOperation,
+    operation: RawIntegrationOperation,
     resourceType: ResourceType,
     data: Record<string, unknown>,
     stepContext: StepExecutionContext
   ): Promise<IntegrationExecutionResult> {
+    // Normalize operation (e.g., 'write' -> 'create')
+    const normalizedOperation = this.normalizeOperation(operation);
     const capability = getIntegrationCapability(integration);
 
     // Validate operation is supported
-    if (!this.isOperationSupported(integration, operation)) {
+    if (!this.isOperationSupported(integration, normalizedOperation)) {
       return {
         success: false,
         error: `Operation "${operation}" not supported for ${capability.displayName}`,
@@ -117,21 +136,21 @@ export class IntegrationExecutor {
       // Route to appropriate handler based on integration
       switch (integration) {
         case 'hubspot':
-          return await this.executeHubSpot(operation, resourceType, data, stepContext);
+          return await this.executeHubSpot(normalizedOperation, resourceType, data, stepContext);
         case 'slack':
-          return await this.executeSlack(operation, resourceType, data, stepContext);
+          return await this.executeSlack(normalizedOperation, resourceType, data, stepContext);
         case 'google_calendar':
-          return await this.executeGoogleCalendar(operation, resourceType, data, stepContext);
+          return await this.executeGoogleCalendar(normalizedOperation, resourceType, data, stepContext);
         case 'google_email':
-          return await this.executeGoogleEmail(operation, resourceType, data, stepContext);
+          return await this.executeGoogleEmail(normalizedOperation, resourceType, data, stepContext);
         case 'savvycal':
-          return await this.executeSavvyCal(operation, resourceType, data, stepContext);
+          return await this.executeSavvyCal(normalizedOperation, resourceType, data, stepContext);
         case 'supabase':
-          return await this.executeSupabase(operation, resourceType, data, stepContext);
+          return await this.executeSupabase(normalizedOperation, resourceType, data, stepContext);
         case 'fathom':
         case 'justcall':
           // Read-only integrations
-          if (operation === 'read') {
+          if (normalizedOperation === 'read') {
             return await this.executeReadOnly(integration, resourceType, data, stepContext);
           }
           return {
@@ -145,7 +164,7 @@ export class IntegrationExecutor {
           };
       }
     } catch (error) {
-      console.error(`[IntegrationExecutor] Error executing ${integration} ${operation}:`, error);
+      console.error(`[IntegrationExecutor] Error executing ${integration} ${normalizedOperation}:`, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',

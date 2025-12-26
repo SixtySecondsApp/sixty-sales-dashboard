@@ -26,6 +26,7 @@ export {
 export {
   IntegrationExecutor,
   type IntegrationOperation,
+  type RawIntegrationOperation,
   type StepExecutionContext,
   type IntegrationExecutionResult,
   type CreateResourceOptions,

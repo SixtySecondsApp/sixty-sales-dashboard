@@ -30,7 +30,7 @@ import {
   StepExecutionResult,
 } from './ProcessMapTestEngine';
 import { ResourceTracker, AIPromptTracker } from './tracking';
-import { IntegrationExecutor, IntegrationContext } from './integrations';
+import { IntegrationExecutor, IntegrationContext, RawIntegrationOperation } from './integrations';
 import { CleanupService, CleanupProgressCallback } from './cleanup';
 
 // ============================================================================
@@ -145,7 +145,7 @@ class TestDataStepExecutor {
       try {
         const result = await this.integrationExecutor.execute(
           integration as Parameters<typeof this.integrationExecutor.execute>[0],
-          operation as 'create' | 'read' | 'update' | 'delete',
+          operation as RawIntegrationOperation,
           resourceType,
           inputData,
           {
