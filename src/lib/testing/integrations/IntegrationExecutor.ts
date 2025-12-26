@@ -215,8 +215,19 @@ export class IntegrationExecutor {
 
     console.log('[IntegrationExecutor] Calling hubspot-admin with:', { action, org_id: orgId });
 
+    // Get session token for authorization
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) {
+      return { success: false, error: 'No active session' };
+    }
+
     const { data: response, error } = await supabase.functions.invoke('hubspot-admin', {
-      body,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
     });
 
     if (error) {
