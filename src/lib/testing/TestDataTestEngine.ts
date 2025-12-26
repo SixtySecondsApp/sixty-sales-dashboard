@@ -69,6 +69,12 @@ export interface TestDataRunResult {
   testRun: TestDataTestRun;
   /** Step results */
   stepResults: Omit<ProcessMapStepResult, 'id'>[];
+  /** Tracked resources (convenience accessor) */
+  trackedResources: TrackedResource[];
+  /** Tracked AI prompts (convenience accessor) */
+  trackedAIPrompts: TrackedAIPrompt[];
+  /** Cleanup result if cleanup was performed */
+  cleanupResult: CleanupResult | null;
 }
 
 // ============================================================================
@@ -564,7 +570,13 @@ export class TestDataTestEngine {
       await this.performCleanup(testRun);
     }
 
-    return { testRun, stepResults };
+    return {
+      testRun,
+      stepResults,
+      trackedResources: testRun.trackedResources,
+      trackedAIPrompts: testRun.trackedAIPrompts,
+      cleanupResult: testRun.cleanupResult,
+    };
   }
 
   /**
