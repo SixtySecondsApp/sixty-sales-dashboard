@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase/clientV2';
-import { ProcessMapButton, MermaidRenderer } from '@/components/process-maps';
+import { ProcessMapButton, ProcessMapDisplay } from '@/components/process-maps';
 import { useOrgId } from '@/lib/contexts/OrgContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -455,106 +455,6 @@ export default function TasksDemo() {
 
   const actionItemsForDisplay = activityType === 'meeting' ? meetingActionItems : callActionItems;
 
-  const flowMermaid = useMemo(() => {
-    return `flowchart TD
-    subgraph sources["Source Activities"]
-        fathom["Meeting Transcripts<br/>from Fathom"]
-        justcall["Call Transcripts<br/>from JustCall"]
-        crm["Activity Notes<br/>from CRM"]
-    end
-
-    subgraph extraction["AI Extraction"]
-        extract_meetings["extract-action-items<br/>Edge Function"]
-        extract_calls["extract-call-action-items<br/>Edge Function"]
-        claude["Claude AI<br/>Identifies Actionable Items"]
-    end
-
-    subgraph storage["Action Item Storage"]
-        meeting_table["meeting_action_items<br/>Table"]
-        call_table["call_action_items<br/>Table"]
-        dedup["Deduplication<br/>Check"]
-    end
-
-    subgraph rules["Custom Extraction Rules"]
-        rule_config["task_extraction_rules<br/>User-Defined Triggers"]
-        rule_extract["Rule-Based Items<br/>High Confidence"]
-    end
-
-    subgraph classification["Importance Classification"]
-        importance["AI Assigns Importance<br/>critical/high/medium/low"]
-    end
-
-    subgraph conversion["Task Conversion"]
-        unified_func["create-task-unified<br/>Edge Function"]
-        manual_ui["Manual Conversion<br/>via UI Selection"]
-        auto_convert["Auto-Conversion<br/>Based on Thresholds"]
-    end
-
-    subgraph smart["Smart Tasks"]
-        triggers["Database Triggers<br/>on activities table"]
-        templates["smart_task_templates<br/>Define Follow-ups"]
-        auto_create["Automatic Task Creation<br/>for Deal-Linked Activities"]
-    end
-
-    subgraph sync["Task Sync"]
-        google_sync["Google Tasks Sync<br/>if enabled"]
-        hubspot_sync["HubSpot Task Sync<br/>if connected"]
-    end
-
-    subgraph notifications["Overdue Notifications"]
-        cron_job["Cron Job<br/>Checks Overdue Tasks"]
-        send_notif["Send Notifications<br/>with Guardrails"]
-    end
-
-    fathom --> extract_meetings
-    justcall --> extract_calls
-    crm --> claude
-
-    extract_meetings --> claude
-    extract_calls --> claude
-
-    claude --> dedup
-    rule_config --> rule_extract
-    rule_extract --> dedup
-
-    dedup --> meeting_table
-    dedup --> call_table
-
-    meeting_table --> importance
-    call_table --> importance
-
-    importance --> unified_func
-    importance --> manual_ui
-    importance --> auto_convert
-
-    unified_func --> conversion_decision{Task Created?}
-    manual_ui --> conversion_decision
-    auto_convert --> conversion_decision
-
-    conversion_decision -->|Yes| triggers
-    triggers --> templates
-    templates --> auto_create
-
-    auto_create --> google_sync
-    auto_create --> hubspot_sync
-
-    google_sync --> cron_job
-    hubspot_sync --> cron_job
-
-    cron_job --> send_notif
-
-    style sources fill:#e1f5ff
-    style extraction fill:#f3e5f5
-    style storage fill:#e8f5e9
-    style rules fill:#fff3e0
-    style classification fill:#fce4ec
-    style conversion fill:#f1f8e9
-    style smart fill:#ede7f6
-    style sync fill:#e0f2f1
-    style notifications fill:#ffebee
-`;
-  }, []);
-
   const smartTemplatesSummary = useMemo(() => {
     const active = smartTaskTemplates.filter((t) => t.is_active !== false);
     const byTrigger = new Map<string, number>();
@@ -641,12 +541,15 @@ export default function TasksDemo() {
           </CardContent>
         </Card>
 
-        <MermaidRenderer
-          code={flowMermaid}
+        <ProcessMapDisplay
+          processType="workflow"
+          processName="task_extraction"
           title="Task Extraction Flow"
           description="Visual diagram showing how tasks are extracted from meetings and calls"
           showControls={true}
           showCode={true}
+          showDirectionToggle={true}
+          defaultDirection="vertical"
         />
       </div>
 
