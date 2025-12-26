@@ -663,9 +663,5 @@ export class ProcessMapTestEngine {
   }
 }
 
-// ============================================================================
-// Exports
-// ============================================================================
-
-export { ExecutionContext, DefaultStepExecutor, ProcessMapTestEngine };
-export type { StepExecutor, StepExecutionResult };
+// Types are exported inline where defined
+// Classes (ExecutionContext, DefaultStepExecutor, ProcessMapTestEngine) are exported with their definitions

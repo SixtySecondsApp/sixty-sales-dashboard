@@ -42,17 +42,22 @@ import {
 import { toast } from 'sonner';
 import type {
   ProcessMapStepResult,
+  ProcessMapTestRun,
   ProcessStructure,
   RunMode,
   StepStatus,
   WorkflowStepDefinition,
   WorkflowStepType,
+  LogEntry as TestLogEntry,
 } from '@/lib/types/processMapTesting';
 import {
   parseMermaidNodes,
   getOrderedNodeIds,
   type MermaidNode,
 } from '@/lib/testing/parsers/WorkflowParser';
+import { ProcessMapTestEngine } from '@/lib/testing/ProcessMapTestEngine';
+import { convertProcessStructureToWorkflow } from '@/lib/testing/converters/processStructureConverter';
+import { createTestMockRegistry, getAllMocksFromRegistry } from '@/lib/testing/mocks';
 
 // ============================================================================
 // Helper Functions
@@ -482,7 +487,7 @@ export function WorkflowTestPanel({
     }
   }, [stepResults, currentStepId, onStepStatusChange]);
 
-  // Simulate running a test (will be replaced with actual engine)
+  // Run test using real ProcessMapTestEngine with mocks
   const handleRunTest = useCallback(async () => {
     setIsRunning(true);
     setStepResults([]);
@@ -499,66 +504,120 @@ export function WorkflowTestPanel({
     // Track results locally since React state updates are async
     const localResults: ProcessMapStepResult[] = [];
 
-    // Simulate step-by-step execution
-    for (let i = 0; i < workflowSteps.length; i++) {
-      const step = workflowSteps[i];
-      setCurrentStepId(step.id);
+    try {
+      // Convert ProcessStructure to ProcessMapWorkflow
+      // Detect integrations from workflow steps
+      const integrations = Array.from(
+        new Set(
+          workflowSteps
+            .map((s) => s.integration)
+            .filter((i): i is string => !!i)
+        )
+      );
 
-      addLog('info', `Starting step: ${step.name}`);
+      addLog('info', `Detected integrations: ${integrations.length > 0 ? integrations.join(', ') : 'none'}`);
 
-      // Simulate processing time
-      await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 1000));
+      // Create workflow for engine
+      const workflow = processStructure
+        ? convertProcessStructureToWorkflow(processStructure, {
+            workflowId: processMapId,
+            orgId: 'test-org', // Will be replaced with actual org ID when available
+          })
+        : {
+            id: processMapId,
+            name: processMapTitle,
+            orgId: 'test-org',
+            version: 1,
+            steps: workflowSteps,
+            metadata: {
+              mermaidCode,
+            },
+          };
 
-      // Simulate result (mostly success, occasional failure)
-      const success = Math.random() > 0.1;
-      const result: ProcessMapStepResult = {
-        id: `result_${Date.now()}_${i}`,
-        testRunId: 'test_run_1',
-        stepId: step.id,
-        stepName: step.name,
-        sequenceNumber: i + 1,
-        startedAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        durationMs: Math.floor(100 + Math.random() * 500),
-        status: success ? 'passed' : 'failed',
-        inputData: {},
-        outputData: success ? { success: true } : null,
-        expectedOutput: null,
-        validationResults: [],
-        errorMessage: success ? null : 'Simulated error for testing',
-        errorDetails: null,
-        errorStack: null,
-        wasMocked: runMode === 'mock',
-        mockSource: runMode === 'mock' ? step.integration || null : null,
-        logs: [],
-      };
+      addLog('debug', `Workflow created with ${workflow.steps.length} steps`);
 
-      // Track locally and update React state
-      localResults.push(result);
-      setStepResults((prev) => [...prev, result]);
-      addLog(success ? 'info' : 'error', `Step ${step.name}: ${success ? 'passed' : 'failed'}`);
+      // Create mock registry with detected integrations
+      const mockRegistry = createTestMockRegistry(
+        processMapId,
+        'test-org',
+        integrations.length > 0 ? (integrations as Array<'hubspot' | 'fathom' | 'google' | 'slack' | 'justcall' | 'savvycal' | 'supabase'>) : undefined
+      );
+      const mocks = getAllMocksFromRegistry(mockRegistry);
 
-      if (!success && !continueOnFailure) {
-        addLog('error', 'Test run stopped due to failure');
-        break;
+      addLog('debug', `Loaded ${mocks.length} mock configurations`);
+
+      // Create and run the test engine
+      const engine = new ProcessMapTestEngine({
+        workflow,
+        runMode,
+        config: {
+          continueOnFailure,
+          timeout: 300000, // 5 minutes
+        },
+        mocks,
+        events: {
+          onStepStart: (stepId: string, stepName: string) => {
+            setCurrentStepId(stepId);
+            addLog('info', `Starting step: ${stepName}`);
+          },
+          onStepComplete: (result: ProcessMapStepResult) => {
+            // Add ID to result if not present
+            const fullResult: ProcessMapStepResult = {
+              ...result,
+              id: result.id || `result_${Date.now()}_${result.sequenceNumber}`,
+            };
+            localResults.push(fullResult);
+            setStepResults((prev) => [...prev, fullResult]);
+
+            const statusMessage = result.status === 'passed'
+              ? `Step ${result.stepName}: passed`
+              : result.status === 'failed'
+                ? `Step ${result.stepName}: failed - ${result.errorMessage || 'Unknown error'}`
+                : `Step ${result.stepName}: ${result.status}`;
+
+            addLog(
+              result.status === 'passed' ? 'info' : result.status === 'failed' ? 'error' : 'warn',
+              statusMessage
+            );
+
+            if (result.wasMocked) {
+              addLog('debug', `  → Mocked via ${result.mockSource || 'default mock'}`);
+            }
+            if (result.durationMs !== null && result.durationMs !== undefined) {
+              addLog('debug', `  → Duration: ${result.durationMs}ms`);
+            }
+          },
+          onLog: (log: TestLogEntry) => {
+            addLog(log.level, log.message, log.data);
+          },
+          onError: (error: Error) => {
+            addLog('error', `Engine error: ${error.message}`);
+          },
+        },
+      });
+
+      // Execute the test
+      const { testRun: runResult } = await engine.run();
+
+      setTestRun(runResult as ProcessMapTestRun);
+      addLog('info', `Test run completed: ${runResult.stepsPassed} passed, ${runResult.stepsFailed} failed`);
+
+      if (runResult.overallResult === 'pass') {
+        toast.success(`All ${runResult.stepsPassed} tests passed!`);
+      } else if (runResult.overallResult === 'partial') {
+        toast.warning(`${runResult.stepsPassed} passed, ${runResult.stepsFailed} failed`);
+      } else {
+        toast.error(`Test failed: ${runResult.errorMessage || 'Unknown error'}`);
       }
+    } catch (error) {
+      const err = error as Error;
+      addLog('error', `Test execution failed: ${err.message}`);
+      toast.error(`Test execution failed: ${err.message}`);
+    } finally {
+      setCurrentStepId(null);
+      setIsRunning(false);
     }
-
-    setCurrentStepId(null);
-    setIsRunning(false);
-
-    // Use local results for summary (React state is async, so stepResults may not be updated yet)
-    const passed = localResults.filter((r) => r.status === 'passed').length;
-    const failed = localResults.filter((r) => r.status === 'failed').length;
-
-    addLog('info', `Test run completed: ${passed} passed, ${failed} failed`);
-
-    if (failed === 0 && passed > 0) {
-      toast.success(`All ${passed} tests passed!`);
-    } else if (failed > 0) {
-      toast.error(`${failed} step(s) failed, ${passed} passed`);
-    }
-  }, [runMode, continueOnFailure, workflowSteps]);
+  }, [runMode, continueOnFailure, workflowSteps, processStructure, processMapId, processMapTitle, mermaidCode]);
 
   // Reset test state
   const handleReset = useCallback(() => {
