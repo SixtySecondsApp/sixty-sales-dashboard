@@ -74,7 +74,7 @@ async function fetchActivities(dateRange?: { start: Date; end: Date }, viewedUse
   logger.log('[fetchActivities] Debug:', {
     viewedUserId,
     targetUserId,
-    currentUserId: user.id,
+    currentUserId: userId,
     isViewMode: !!viewedUserId
   });
 

@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase/clientV2';
 import type { Activity } from './useActivities';
 import logger from '@/lib/utils/logger';
 import { useViewMode } from '@/contexts/ViewModeContext';
+import { useAuth } from '@/lib/contexts/AuthContext';
 
 interface LazyActivitiesConfig {
   // Essential: Only fetch data when this is true
@@ -19,6 +20,8 @@ interface LazyActivitiesConfig {
   types?: Array<'sale' | 'outbound' | 'meeting' | 'proposal'>;
   // Override user ID for view mode
   viewedUserId?: string;
+  // Auth user ID from context (to avoid duplicate getUser() calls)
+  authUserId?: string;
 }
 
 async function fetchLimitedActivities(config: LazyActivitiesConfig) {
@@ -26,11 +29,16 @@ async function fetchLimitedActivities(config: LazyActivitiesConfig) {
     return [];
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+  // Use authUserId from config to avoid duplicate getUser() calls
+  let userId = config.authUserId;
+  if (!userId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    userId = user.id;
+  }
 
   // Use viewedUserId if provided (view mode), otherwise use authenticated user
-  const targetUserId = config.viewedUserId || user.id;
+  const targetUserId = config.viewedUserId || userId;
 
   let query = (supabase as any)
     .from('activities')
@@ -82,17 +90,19 @@ async function fetchLimitedActivities(config: LazyActivitiesConfig) {
 
 export function useLazyActivities(config: LazyActivitiesConfig = { enabled: false }) {
   const { isViewMode, viewedUser } = useViewMode();
-  
-  // Add viewedUserId to config if in view mode
+  const { userId } = useAuth();
+
+  // Add viewedUserId and authUserId to config
   const effectiveConfig = {
     ...config,
-    viewedUserId: isViewMode && viewedUser ? viewedUser.id : config.viewedUserId
+    viewedUserId: isViewMode && viewedUser ? viewedUser.id : config.viewedUserId,
+    authUserId: userId || undefined
   };
   
   const queryResult = useQuery({
     queryKey: ['activities-lazy', effectiveConfig],
     queryFn: () => fetchLimitedActivities(effectiveConfig),
-    enabled: effectiveConfig.enabled,
+    enabled: effectiveConfig.enabled && !!userId,
     staleTime: 5 * 60 * 1000, // 5 minutes - prevent excessive refetching
     cacheTime: 10 * 60 * 1000, // 10 minutes - keep data in cache longer
     refetchOnWindowFocus: false, // Don't refetch on window focus to prevent flicker
