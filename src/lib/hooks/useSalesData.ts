@@ -16,15 +16,12 @@ export interface SalesActivity {
   date: string;
 }
 
-async function fetchSalesData(startDate: Date, endDate: Date) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
+async function fetchSalesData(startDate: Date, endDate: Date, userId: string) {
   // Get current month's activities
   const { data: currentActivities, error: currentError } = await (supabase as any)
     .from('activities')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .gte('date', format(startDate, 'yyyy-MM-dd'))
     .lte('date', format(endDate, 'yyyy-MM-dd'))
     .order('date', { ascending: false });
@@ -38,7 +35,7 @@ async function fetchSalesData(startDate: Date, endDate: Date) {
   const { data: previousActivities, error: previousError } = await (supabase as any)
     .from('activities')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .gte('date', format(previousMonthStart, 'yyyy-MM-dd'))
     .lte('date', format(previousMonthEnd, 'yyyy-MM-dd'));
 
@@ -52,11 +49,12 @@ async function fetchSalesData(startDate: Date, endDate: Date) {
 
 export function useSalesData(startDate: Date, endDate: Date) {
   const { userData } = useUser();
-  
+  const userId = userData?.id;
+
   return useQuery({
-    queryKey: ['salesData', userData?.id, startDate, endDate],
-    queryFn: () => fetchSalesData(startDate, endDate),
-    enabled: !!userData?.id,
+    queryKey: ['salesData', userId, startDate, endDate],
+    queryFn: () => fetchSalesData(startDate, endDate, userId!),
+    enabled: !!userId,
   });
 }
 

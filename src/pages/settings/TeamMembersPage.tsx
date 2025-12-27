@@ -60,19 +60,40 @@ export default function TeamMembersPage() {
     const loadMembers = async () => {
       setIsLoadingMembers(true);
       try {
-        const { data, error } = await supabase
+        // Fetch memberships first
+        const { data: memberships, error: membershipError } = await supabase
           .from('organization_memberships')
-          .select(`
-            user_id,
-            role,
-            created_at,
-            user:profiles(id, email, full_name)
-          `)
+          .select('user_id, role, created_at')
           .eq('org_id', activeOrgId)
           .order('created_at', { ascending: true });
 
-        if (error) throw error;
-        setMembers(data || []);
+        if (membershipError) throw membershipError;
+        if (!memberships?.length) {
+          setMembers([]);
+          return;
+        }
+
+        // Fetch profiles for all member user_ids
+        const userIds = memberships.map((m) => m.user_id);
+        const { data: profiles, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, email, full_name')
+          .in('id', userIds);
+
+        if (profileError) throw profileError;
+
+        // Create a lookup map for profiles
+        const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
+
+        // Transform to expected format with user object
+        const membersWithProfiles = memberships.map((m) => ({
+          user_id: m.user_id,
+          role: m.role as 'owner' | 'admin' | 'member' | 'readonly',
+          created_at: m.created_at,
+          user: profileMap.get(m.user_id) || null,
+        }));
+
+        setMembers(membersWithProfiles);
       } catch (err: any) {
         console.error('Error loading members:', err);
       } finally {

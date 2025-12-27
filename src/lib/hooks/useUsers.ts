@@ -3,10 +3,10 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { setImpersonationData } from './useUser';
 import { getSiteUrl } from '@/lib/utils/siteUrl';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import logger from '@/lib/utils/logger';
 
-// Mock implementation - temporarily disabled Supabase calls to avoid 400 errors
-// TODO: Implement with Neon API when user management functionality is needed
+// Uses React Query cached auth to avoid duplicate getUser() calls
 
 export interface Target {
   id?: string;
@@ -39,18 +39,20 @@ export interface User {
 export function useUsers() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  // Use cached auth context
+  const { userId, userEmail } = useAuth();
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (userId) {
+      fetchUsers();
+    }
+  }, [userId]);
 
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
 
-      // Get current user first
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser) {
+      if (!userId) {
         logger.log('No authenticated user');
         setUsers([]);
         return;
@@ -121,9 +123,6 @@ export function useUsers() {
       });
 
       // Transform data to match expected User interface
-      // Get current user's email from auth session
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-
       const usersData = (profiles || []).map((profile) => {
         const email = profile.email || `user_${profile.id.slice(0, 8)}@private.local`;
         return {
@@ -159,21 +158,20 @@ export function useUsers() {
     }
   };
 
-  const updateUser = async ({ userId, updates }: { userId: string; updates: Partial<User> }) => {
-    if (!userId) {
+  const updateUser = async ({ userId: targetUserId, updates }: { userId: string; updates: Partial<User> }) => {
+    if (!targetUserId) {
       toast.error("Cannot update user: User ID missing.");
       return;
     }
 
     try {
-      // Get current user to check if they're trying to remove their own admin status
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      // Use cached userId to check if they're trying to remove their own admin status
 
       // Extract targets, is_internal, and profile updates
       const { targets, is_internal, ...profileUpdates } = updates;
 
       // Get user email for internal_users table operations
-      const user = users.find(u => u.id === userId);
+      const user = users.find(u => u.id === targetUserId);
       if (!user) {
         throw new Error('User not found');
       }
@@ -184,7 +182,7 @@ export function useUsers() {
         const { error: deleteError } = await supabase
           .from('targets')
           .delete()
-          .eq('user_id', userId);
+          .eq('user_id', targetUserId);
 
         if (deleteError) {
           logger.warn('Error deleting old targets:', deleteError);
@@ -195,7 +193,7 @@ export function useUsers() {
         const targetsToInsert = targets
           .filter(t => t && (t.id === undefined || !t.id.toString().startsWith('new_')))
           .map(t => ({
-            user_id: userId,
+            user_id: targetUserId,
             revenue_target: t.revenue_target,
             outbound_target: t.outbound_target,
             meetings_target: t.meetings_target,
@@ -217,7 +215,7 @@ export function useUsers() {
       }
 
       // Safety check: Prevent users from removing their own admin status
-      if (currentUser && currentUser.id === userId && 'is_admin' in profileUpdates) {
+      if (userId && userId === targetUserId && 'is_admin' in profileUpdates) {
         if (profileUpdates.is_admin === false && user.is_admin === true) {
           toast.error('You cannot remove your own admin status. Ask another admin to do this.');
           return;
@@ -282,7 +280,7 @@ export function useUsers() {
           const { error: profileError } = await supabase
             .from('profiles')
             .update(allowedUpdates)
-            .eq('id', userId);
+            .eq('id', targetUserId);
 
           if (profileError) {
             throw profileError;
@@ -298,16 +296,15 @@ export function useUsers() {
     }
   };
 
-  const deleteUser = async (userId: string) => {
+  const deleteUser = async (targetUserId: string) => {
     try {
-      // Get current user to verify admin status
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser) {
+      // Use cached userId from auth context
+      if (!userId) {
         throw new Error('No authenticated user found');
       }
 
       // Prevent self-deletion
-      if (currentUser.id === userId) {
+      if (userId === targetUserId) {
         toast.error('You cannot delete your own account');
         return;
       }
@@ -315,7 +312,7 @@ export function useUsers() {
       // Try edge function first for proper deletion (handles auth.users and RLS)
       try {
         const { data, error } = await supabase.functions.invoke('delete-user', {
-          body: { userId }
+          body: { userId: targetUserId }
         });
 
         if (error) {
@@ -340,20 +337,20 @@ export function useUsers() {
 
         // Fallback: Direct deletion from profiles table
         // Note: This won't delete from auth.users, but will remove the profile
-        const user = users.find(u => u.id === userId);
-        if (user?.email) {
+        const targetUser = users.find(u => u.id === targetUserId);
+        if (targetUser?.email) {
           // Deactivate in internal_users if exists
           await supabase
             .from('internal_users')
             .update({ is_active: false, updated_at: new Date().toISOString() })
-            .eq('email', user.email.toLowerCase());
+            .eq('email', targetUser.email.toLowerCase());
         }
 
         // Delete from profiles
         const { error: deleteError } = await supabase
           .from('profiles')
           .delete()
-          .eq('id', userId);
+          .eq('id', targetUserId);
 
         if (deleteError) {
           throw deleteError;
@@ -369,25 +366,24 @@ export function useUsers() {
     }
   };
 
-  const impersonateUser = async (userId: string) => {
+  const impersonateUser = async (targetUserId: string) => {
     try {
-      // Store current user info before impersonation
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser) {
+      // Use cached auth context
+      if (!userId) {
         throw new Error('No authenticated user found');
       }
 
       // Validate current user has email
-      if (!currentUser.email) {
+      if (!userEmail) {
         throw new Error('Current user does not have an email address');
       }
 
       // Call the impersonate-user edge function to get a magic link
       const { data, error } = await supabase.functions.invoke('impersonate-user', {
         body: {
-          userId,
-          adminId: currentUser.id,
-          adminEmail: currentUser.email,
+          userId: targetUserId,
+          adminId: userId,
+          adminEmail: userEmail,
           redirectTo: getSiteUrl()
         }
       });
@@ -403,7 +399,7 @@ export function useUsers() {
         logger.warn('Edge Function is returning old format. Using fallback password-based impersonation.');
 
         // Store original user info for restoration
-        setImpersonationData(currentUser.id, currentUser.email!);
+        setImpersonationData(userId, userEmail);
 
         // Sign in with the temporary password (old method)
         const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -423,7 +419,7 @@ export function useUsers() {
       if (data?.session) {
         // New session-based impersonation
         // Store original user info for restoration
-        setImpersonationData(currentUser.id, currentUser.email!);
+        setImpersonationData(userId, userEmail);
 
         // Set the new session directly
         const { error: setSessionError } = await supabase.auth.setSession(data.session);
@@ -438,7 +434,7 @@ export function useUsers() {
         window.location.reload();
       } else if (data?.magicLink) {
         // Fallback to magic link impersonation
-        setImpersonationData(currentUser.id, currentUser.email!);
+        setImpersonationData(userId, userEmail);
 
         toast.success('Starting impersonation...');
 

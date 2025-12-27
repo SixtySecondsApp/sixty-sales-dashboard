@@ -3,26 +3,17 @@
  * Provides email categorization, sentiment analysis, and smart features
  */
 
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { emailAnalysisService, type EmailAnalysis, type SmartReply, type EmailSummary } from '../services/emailAnalysisService';
 import type { GmailMessage } from '../types/gmail';
-import { supabase } from '../supabase/clientV2';
+import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import logger from '../utils/logger';
 
 export function useEmailAnalysis(email: GmailMessage | null) {
-  const [userId, setUserId] = useState<string | undefined>();
-
-  // Get current user ID
-  const { data: user } = useQuery({
-    queryKey: ['currentUser'],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setUserId(user.id);
-      return user;
-    },
-  });
+  // Use cached auth context instead of separate query
+  const { userId } = useAuth();
 
   // Analyze email
   const { data: analysis, isLoading: isAnalyzing, refetch: analyzeEmail } = useQuery({

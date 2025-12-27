@@ -6,9 +6,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ConfettiService } from '@/lib/services/confettiService';
 import { toast } from 'sonner';
 import { eventBus } from '@/lib/communication/EventBus';
+import { useUser } from '@/lib/hooks/useUser';
 
 export function useActivitiesActions() {
   const queryClient = useQueryClient();
+  // Get cached user data to avoid duplicate auth/profile calls
+  const { userData } = useUser();
 
   const addActivity = async (activity: {
     type: 'sale' | 'outbound' | 'meeting' | 'proposal';
@@ -27,25 +30,20 @@ export function useActivitiesActions() {
     contact_id?: string | null;
   }) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      if (!userData?.id) throw new Error('Not authenticated');
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('first_name, last_name')
-        .eq('id', user.id)
-        .single();
-
-      if (!profile) {
-      }
+      // Use cached profile data instead of fetching again
+      const salesRep = userData.first_name || userData.last_name
+        ? `${userData.first_name || ''} ${userData.last_name || ''}`.trim()
+        : userData.email || 'Unknown';
 
       // Create the insert data with only database-compatible fields
       // Filter out undefined values to prevent database errors
       const insertData: any = {
         type: activity.type,
         client_name: activity.client_name || 'Unknown',
-        user_id: user.id,
-        sales_rep: profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : user.email || 'Unknown',
+        user_id: userData.id,
+        sales_rep: salesRep,
         priority: activity.priority || 'medium',
         date: activity.date || new Date().toISOString(),
         status: activity.status || 'completed',

@@ -25,25 +25,38 @@ export function useOrgMembers() {
     queryFn: async () => {
       if (!orgId) return [];
 
-      const { data, error } = await supabase
+      // Fetch memberships first
+      const { data: memberships, error: membershipError } = await supabase
         .from('organization_memberships')
-        .select(`
-          user_id,
-          role,
-          user:profiles(id, email, full_name)
-        `)
+        .select('user_id, role')
         .eq('org_id', orgId)
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
+      if (membershipError) throw membershipError;
+      if (!memberships?.length) return [];
+
+      // Fetch profiles for all member user_ids
+      const userIds = memberships.map((m) => m.user_id);
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, email, full_name')
+        .in('id', userIds);
+
+      if (profileError) throw profileError;
+
+      // Create a lookup map for profiles
+      const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
 
       // Transform the data to a flat structure
-      return (data || []).map((member: any) => ({
-        user_id: member.user_id,
-        email: member.user?.email || '',
-        name: member.user?.full_name || null,
-        role: member.role,
-      })) as OrgMember[];
+      return memberships.map((member) => {
+        const profile = profileMap.get(member.user_id);
+        return {
+          user_id: member.user_id,
+          email: profile?.email || '',
+          name: profile?.full_name || null,
+          role: member.role,
+        };
+      }) as OrgMember[];
     },
     enabled: !!orgId,
   });
