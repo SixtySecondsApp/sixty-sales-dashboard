@@ -340,6 +340,18 @@ async function processItem(item: QueueItem): Promise<ProcessingResult> {
       throw new Error(`No active bridge config for org ${org_id}`);
     }
 
+    // Check if auto-creation of Dev Hub tickets is disabled
+    if (!config.auto_create_devhub_tickets) {
+      console.log(
+        `[sentry-bridge-worker] Auto-create Dev Hub tickets is disabled for org ${org_id}, skipping item ${id}`
+      );
+      await completeItem(id, 'skipped-devhub-disabled');
+      return {
+        success: true,
+        itemId: id,
+      };
+    }
+
     // Check for existing mapping
     const existingMapping = await checkExistingMapping(org_id, sentry_issue_id);
 

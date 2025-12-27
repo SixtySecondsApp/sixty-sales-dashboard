@@ -61,6 +61,7 @@ interface BridgeConfig {
   sentry_org_slug: string | null;
   sentry_project_slugs: string[] | null;
   triage_mode_enabled: boolean;
+  auto_create_devhub_tickets: boolean;
   default_dev_hub_project_id: string | null;
   default_owner_user_id: string | null;
   default_priority: 'low' | 'medium' | 'high' | 'urgent';
@@ -291,6 +292,35 @@ export default function SentryBridge() {
       toast({
         title: 'Error',
         description: 'Failed to toggle triage mode',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const toggleAutoCreateDevHubTickets = async () => {
+    if (!config) return;
+
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('sentry_bridge_config')
+        .update({ auto_create_devhub_tickets: !config.auto_create_devhub_tickets })
+        .eq('id', config.id);
+
+      if (error) throw error;
+
+      setConfig({ ...config, auto_create_devhub_tickets: !config.auto_create_devhub_tickets });
+      toast({
+        title: 'Success',
+        description: `Auto-create Dev Hub tickets ${!config.auto_create_devhub_tickets ? 'enabled' : 'disabled'}`,
+      });
+    } catch (error) {
+      console.error('Error toggling auto-create Dev Hub tickets:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to toggle auto-create Dev Hub tickets',
         variant: 'destructive',
       });
     } finally {
@@ -608,6 +638,20 @@ export default function SentryBridge() {
                     <Switch
                       checked={config.triage_mode_enabled}
                       onCheckedChange={toggleTriageMode}
+                      disabled={isSaving}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Auto-Create Dev Hub Tickets</Label>
+                      <p className="text-sm text-gray-400">
+                        Automatically post tickets to AI Dev Hub via MCP
+                      </p>
+                    </div>
+                    <Switch
+                      checked={config.auto_create_devhub_tickets}
+                      onCheckedChange={toggleAutoCreateDevHubTickets}
                       disabled={isSaving}
                     />
                   </div>

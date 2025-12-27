@@ -133,6 +133,7 @@ export interface BridgeConfig {
   sentry_org_slug?: string;
   sentry_project_slugs?: string[];
   triage_mode_enabled: boolean;
+  auto_create_devhub_tickets: boolean; // When false, skip MCP ticket creation
   default_dev_hub_project_id?: string;
   default_owner_user_id?: string;
   default_priority: 'low' | 'medium' | 'high' | 'urgent';
