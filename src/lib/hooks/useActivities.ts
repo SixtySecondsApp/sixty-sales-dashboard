@@ -10,6 +10,7 @@ import { ConfettiService } from '@/lib/services/confettiService';
 import { IdentifierType } from '@/components/IdentifierField';
 import logger from '@/lib/utils/logger';
 import { useViewMode } from '@/contexts/ViewModeContext';
+import { useAuth } from '@/lib/contexts/AuthContext';
 
 export interface Activity {
   id: string;
@@ -58,12 +59,17 @@ export interface Activity {
   sale_date?: string;
 }
 
-async function fetchActivities(dateRange?: { start: Date; end: Date }, viewedUserId?: string) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+async function fetchActivities(dateRange?: { start: Date; end: Date }, viewedUserId?: string, authUserId?: string) {
+  // Use provided auth user ID if available to avoid duplicate getUser() calls
+  let userId = authUserId;
+  if (!userId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    userId = user.id;
+  }
 
   // Use viewed user ID if in view mode, otherwise use current user
-  const targetUserId = viewedUserId || user.id;
+  const targetUserId = viewedUserId || userId;
 
   logger.log('[fetchActivities] Debug:', {
     viewedUserId,
@@ -439,64 +445,59 @@ async function deleteActivity(id: string) {
 export function useActivities(dateRange?: { start: Date; end: Date }) {
   const { isViewMode, viewedUser } = useViewMode();
   const queryClient = useQueryClient();
+  const { userId: authUserId } = useAuth(); // Get cached auth user ID
 
   // Set up real-time subscription for live updates (only once)
   useEffect(() => {
-    if (dateRange || isViewMode) return; // Only set up subscription for the main activities hook and not in view mode
-    
-    async function setupSubscription() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+    if (dateRange || isViewMode || !authUserId) return; // Only set up subscription for the main activities hook and not in view mode
 
-      const subscription = supabase
-        .channel('activities_changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'activities',
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
-            // Invalidate all relevant queries
-            queryClient.invalidateQueries({ queryKey: ['activities'] });
-            queryClient.invalidateQueries({ queryKey: ['salesData'] });
-            queryClient.invalidateQueries({ queryKey: ['targets'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
-          }
-        )
-        .subscribe();
+    const subscription = supabase
+      .channel('activities_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'activities',
+          filter: `user_id=eq.${authUserId}`
+        },
+        (payload) => {
+          // Invalidate all relevant queries with exact: true to prevent cascade
+          queryClient.invalidateQueries({ queryKey: ['activities'], exact: true });
+          queryClient.invalidateQueries({ queryKey: ['salesData'], exact: true });
+          queryClient.invalidateQueries({ queryKey: ['targets'], exact: true });
+          queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'], exact: true });
+        }
+      )
+      .subscribe();
 
-      return () => {
-        subscription.unsubscribe();
-      };
-    }
-
-    setupSubscription();
-  }, [queryClient, dateRange, isViewMode]);
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [queryClient, dateRange, isViewMode, authUserId]);
 
   // Create unique query key based on date range
-  const queryKey = dateRange 
+  const queryKey = dateRange
     ? ['activities', dateRange.start.toISOString(), dateRange.end.toISOString()]
     : ['activities'];
 
   const { data: activities = [], isLoading } = useQuery({
     queryKey: isViewMode && viewedUser ? [...queryKey, 'view', viewedUser.id] : queryKey,
-    queryFn: () => fetchActivities(dateRange, isViewMode ? viewedUser?.id : undefined),
+    queryFn: () => fetchActivities(dateRange, isViewMode ? viewedUser?.id : undefined, authUserId || undefined),
     // Ensure cache is not shared between view modes
     staleTime: isViewMode ? 0 : 5 * 60 * 1000,
+    enabled: !!authUserId, // Only fetch when we have auth user
   });
 
   // Add activity mutation with error handling
   const addActivityMutation = useMutation({
     mutationFn: createActivity,
     onSuccess: () => {
-      // Invalidate all relevant queries
-      queryClient.invalidateQueries({ queryKey: ['activities'] });
-      queryClient.invalidateQueries({ queryKey: ['salesData'] });
-      queryClient.invalidateQueries({ queryKey: ['targets'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      // Invalidate all relevant queries with exact: true to prevent cascade
+      queryClient.invalidateQueries({ queryKey: ['activities'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['salesData'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['targets'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'], exact: true });
       toast.success('Activity added successfully');
     },
     onError: (error: Error) => {
@@ -509,10 +510,11 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
   const addSaleMutation = useMutation({
     mutationFn: createSale,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['activities'] });
-      queryClient.invalidateQueries({ queryKey: ['salesData'] });
-      queryClient.invalidateQueries({ queryKey: ['targets'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      // Invalidate with exact: true to prevent cascade
+      queryClient.invalidateQueries({ queryKey: ['activities'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['salesData'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['targets'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'], exact: true });
       toast.success('Sale added successfully! 🎉');
       ConfettiService.celebrate();
     },
@@ -526,10 +528,11 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
     mutationFn: ({ id, updates }: { id: string; updates: Partial<Activity> }) =>
       updateActivity(id, updates),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['activities'] });
-      queryClient.invalidateQueries({ queryKey: ['salesData'] });
-      queryClient.invalidateQueries({ queryKey: ['targets'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      // Invalidate with exact: true to prevent cascade
+      queryClient.invalidateQueries({ queryKey: ['activities'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['salesData'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['targets'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'], exact: true });
       toast.success('Activity updated successfully');
     },
     onError: (error: Error) => {
@@ -541,10 +544,11 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
   const removeActivityMutation = useMutation({
     mutationFn: deleteActivity,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['activities'] });
-      queryClient.invalidateQueries({ queryKey: ['salesData'] });
-      queryClient.invalidateQueries({ queryKey: ['targets'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      // Invalidate with exact: true to prevent cascade
+      queryClient.invalidateQueries({ queryKey: ['activities'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['salesData'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['targets'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'], exact: true });
       toast.success('Activity deleted successfully');
     },
     onError: (error: Error) => {

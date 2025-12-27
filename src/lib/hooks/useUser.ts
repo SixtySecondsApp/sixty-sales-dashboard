@@ -420,23 +420,16 @@ export function useUser() {
     logger.log('📞 Calling fetchUser()...');
     fetchUser();
 
-    // Listen for auth changes
+    // Listen for auth changes (SIGN OUT only - AuthContext handles SIGN IN)
+    // NOTE: Removed SIGNED_IN handler to prevent duplicate auth calls
+    // AuthContext already manages sign-in state and triggers re-renders
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        // Skip initial session event to prevent duplicate fetch
-        if (event === 'INITIAL_SESSION') {
-          return;
-        }
-        
-        if (event === 'SIGNED_IN' && session && !userData) {
-          // User signed in and we don't have user data yet
-          fetchUser();
-        } else if (event === 'SIGNED_OUT') {
-          // User signed out
+      async (event) => {
+        if (event === 'SIGNED_OUT') {
+          // User signed out - clear local state
           setUserData(null);
           setOriginalUserData(null);
           setIsImpersonating(false);
-          // Clear all impersonation data
           clearImpersonationData();
         }
       }

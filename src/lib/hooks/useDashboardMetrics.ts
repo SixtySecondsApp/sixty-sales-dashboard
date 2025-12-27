@@ -8,6 +8,7 @@ import { useProgressiveDashboardData } from './useLazyActivities';
 import { supabase } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
 import { useViewMode } from '@/contexts/ViewModeContext';
+import { useAuth } from '@/lib/contexts/AuthContext';
 
 interface DashboardMetrics {
   revenue: number;
@@ -76,6 +77,7 @@ function calculateTrend(current: number, previous: number): number {
 export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true) {
   const queryClient = useQueryClient();
   const { isViewMode, viewedUser } = useViewMode();
+  const { userId: authUserId } = useAuth(); // Get cached auth user ID
   
   // Progressive data loading
   const { 
@@ -177,74 +179,59 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
 
   // Set up real-time subscription for activity updates
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !authUserId) return;
 
-    const setupRealtimeSubscription = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+    // Use viewed user ID if in view mode, otherwise use current user
+    const targetUserId = isViewMode && viewedUser ? viewedUser.id : authUserId;
 
-        // Use viewed user ID if in view mode, otherwise use current user
-        const targetUserId = isViewMode && viewedUser ? viewedUser.id : user.id;
+    // Subscribe to activities table changes for the target user
+    const channel = supabase
+      .channel('dashboard-activities-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'activities',
+          filter: `user_id=eq.${targetUserId}`
+        },
+        (payload) => {
+          logger.log('🔄 Real-time activity update received:', payload);
 
-        // Subscribe to activities table changes for the target user
-        const channel = supabase
-          .channel('dashboard-activities-changes')
-          .on(
-            'postgres_changes',
-            {
-              event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
-              schema: 'public',
-              table: 'activities',
-              filter: `user_id=eq.${targetUserId}`
-            },
-            (payload) => {
-              logger.log('🔄 Real-time activity update received:', payload);
-              
-              // Log the type of change for debugging
-              if (payload.eventType === 'INSERT') {
-                logger.log('✅ New activity added:', {
-                  type: payload.new?.type,
-                  date: payload.new?.date,
-                  amount: payload.new?.amount,
-                  client: payload.new?.client_name
-                });
-              } else if (payload.eventType === 'UPDATE') {
-                logger.log('📝 Activity updated:', payload.new);
-              } else if (payload.eventType === 'DELETE') {
-                logger.log('🗑️ Activity deleted:', payload.old);
-              }
-              
-              // Invalidate queries to trigger refetch
-              // Use setTimeout to ensure the database has processed the change
-              setTimeout(() => {
-                invalidateMetrics();
-                logger.log('🔄 Invalidated metrics cache after real-time update');
-              }, 100);
-            }
-          )
-          .subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-              logger.log('✅ Dashboard real-time subscription active');
-            }
-          });
+          // Log the type of change for debugging
+          if (payload.eventType === 'INSERT') {
+            logger.log('✅ New activity added:', {
+              type: payload.new?.type,
+              date: payload.new?.date,
+              amount: payload.new?.amount,
+              client: payload.new?.client_name
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            logger.log('📝 Activity updated:', payload.new);
+          } else if (payload.eventType === 'DELETE') {
+            logger.log('🗑️ Activity deleted:', payload.old);
+          }
 
-        // Cleanup subscription on unmount
-        return () => {
-          logger.log('🔌 Cleaning up dashboard real-time subscription');
-          channel.unsubscribe();
-        };
-      } catch (error) {
-        logger.error('Failed to set up real-time subscription:', error);
-      }
-    };
+          // Invalidate queries to trigger refetch
+          // Use setTimeout to ensure the database has processed the change
+          setTimeout(() => {
+            invalidateMetrics();
+            logger.log('🔄 Invalidated metrics cache after real-time update');
+          }, 100);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          logger.log('✅ Dashboard real-time subscription active');
+        }
+      });
 
-    const cleanupPromise = setupRealtimeSubscription();
-    
+    // Cleanup subscription on unmount
     return () => {
-      cleanupPromise.then(cleanup => cleanup?.());
+      logger.log('🔌 Cleaning up dashboard real-time subscription');
+      channel.unsubscribe();
     };
-  }, [enabled, queryClient, isViewMode, viewedUser?.id]);
+  }, [enabled, queryClient, isViewMode, viewedUser?.id, authUserId]);
 
   // Force refresh function for manual data reload
   const refreshDashboard = useCallback(() => {

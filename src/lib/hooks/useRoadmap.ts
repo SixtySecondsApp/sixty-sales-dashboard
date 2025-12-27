@@ -42,23 +42,16 @@ export function useRoadmap() {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const { userData } = useUser();
 
-  // Get session directly from Supabase
+  // Get session directly from Supabase (once on mount)
+  // NOTE: Removed auth listener - AuthContext handles auth state changes globally
+  // This hook will re-run when the parent component re-renders on auth changes
   useEffect(() => {
     const getSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
     };
-    
+
     getSession();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-      }
-    );
-
-    return () => subscription.unsubscribe();
   }, []);
 
   const fetchSuggestions = async (skipLoadingState = false) => {
