@@ -51,6 +51,34 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
+// Use sessionStorage to persist state across page reloads within the same tab
+// sessionStorage survives navigation/reload but is tab-specific
+const SESSION_STORAGE_KEY = 'processMaps_fetchState';
+
+function getSessionState(): { lastFetchedOrgId: string | null; isFetching: boolean; fetchCount: number } {
+  try {
+    const stored = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.warn('ProcessMaps: Failed to read sessionStorage:', e);
+  }
+  return { lastFetchedOrgId: null, isFetching: false, fetchCount: 0 };
+}
+
+function setSessionState(state: { lastFetchedOrgId: string | null; isFetching: boolean; fetchCount: number }) {
+  try {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.warn('ProcessMaps: Failed to write sessionStorage:', e);
+  }
+}
+
+// Log module init for debugging
+const initState = getSessionState();
+console.log('ProcessMaps MODULE INIT: sessionStorage state:', JSON.stringify(initState), 'fetchCount:', initState.fetchCount);
+
 interface ProcessMap {
   id: string;
   org_id: string;
@@ -178,28 +206,52 @@ export default function ProcessMaps() {
   const [currentStepId, setCurrentStepId] = useState<string | undefined>(undefined);
   const [testViewDirection, setTestViewDirection] = useState<'horizontal' | 'vertical'>('vertical');
 
+  // Track whether data was loaded in THIS component instance (resets on remount)
+  // This prevents the bug where sessionStorage says "already fetched" but component state is empty
+  const dataLoadedThisMountRef = React.useRef(false);
+
   // Fetch process maps via edge function (bypasses RLS)
-  const fetchProcessMaps = useCallback(async () => {
+  // Uses sessionStorage to persist state across page reloads within the same tab
+  const fetchProcessMaps = useCallback(async (forceRefresh = false) => {
     if (!orgId) {
       console.warn('ProcessMaps: No orgId available');
       setLoading(false);
       return;
     }
 
-    setLoading(true);
-    try {
-      // Verify we have an authenticated session before calling edge function
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !sessionData.session) {
-        console.error('ProcessMaps: No authenticated session', { sessionError });
-        toast.error('Please sign in to view process maps');
-        setLoading(false);
-        return;
-      }
+    const state = getSessionState();
+    console.log('ProcessMaps: Guard check - isFetching:', state.isFetching, 'lastOrgId:', state.lastFetchedOrgId, 'currentOrgId:', orgId, 'fetchCount:', state.fetchCount);
 
-      console.log('ProcessMaps: Fetching maps via edge function for org:', orgId, 'user:', sessionData.session.user.email);
+    // Skip if already fetching (prevents concurrent requests)
+    if (state.isFetching) {
+      console.log('ProcessMaps: Fetch already in progress, skipping');
+      return;
+    }
+
+    // Skip if we already have data for this orgId (unless force refresh)
+    // IMPORTANT: Also check dataLoadedThisMountRef to handle component remounts
+    // When component remounts (e.g., after tab switch with lazy loading), state is empty
+    // but sessionStorage still says we fetched - in that case, we MUST refetch
+    if (!forceRefresh && state.lastFetchedOrgId === orgId && dataLoadedThisMountRef.current) {
+      console.log('ProcessMaps: Already have data for org:', orgId, '(fetchCount:', state.fetchCount, ')');
+      setLoading(false);
+      return;
+    }
+
+    // Update state: mark as fetching and increment count
+    const newCount = state.fetchCount + 1;
+    setSessionState({ lastFetchedOrgId: orgId, isFetching: true, fetchCount: newCount });
+    const reason = !dataLoadedThisMountRef.current && state.lastFetchedOrgId === orgId
+      ? 'component remounted (state was lost)'
+      : forceRefresh ? 'force refresh' : 'first fetch';
+    console.log(`ProcessMaps: Guards passed, starting fetch #${newCount} (reason: ${reason})`);
+    setLoading(true);
+
+    try {
+      console.log('ProcessMaps: Fetching maps via edge function for org:', orgId);
 
       // Use edge function with 'list' action to bypass RLS
+      // The edge function will validate the JWT token from the request headers
       const response = await supabase.functions.invoke('generate-process-map', {
         body: { action: 'list' },
       });
@@ -240,20 +292,28 @@ export default function ProcessMaps() {
       }
 
       const data = response.data;
-      console.log(`ProcessMaps: Loaded ${data?.processMaps?.length || 0} maps (count: ${data?.count})`);
+      console.log(`ProcessMaps: Loaded ${data?.processMaps?.length || 0} maps (count: ${data?.count}) - fetch #${newCount}`);
       setProcessMaps(data?.processMaps || []);
+      // Mark that data was loaded in THIS component instance
+      dataLoadedThisMountRef.current = true;
     } catch (error) {
       console.error('Error fetching process maps:', error);
       toast.error('Failed to load process maps');
       setProcessMaps([]);
     } finally {
+      // Mark fetch as complete but keep lastFetchedOrgId
+      const currentState = getSessionState();
+      setSessionState({ ...currentState, isFetching: false });
       setLoading(false);
     }
   }, [orgId]);
 
   useEffect(() => {
-    fetchProcessMaps();
-  }, [fetchProcessMaps]);
+    if (orgId) {
+      fetchProcessMaps();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId]); // Only re-run when orgId changes, guards in fetchProcessMaps prevent duplicates
 
   // Filter process maps
   const filteredMaps = useMemo(() => {
@@ -319,7 +379,7 @@ export default function ProcessMaps() {
   );
 
   const handleMapGenerated = useCallback(() => {
-    fetchProcessMaps();
+    fetchProcessMaps(true);
   }, [fetchProcessMaps]);
 
   const handleTestMap = useCallback((map: ProcessMap) => {
@@ -368,7 +428,7 @@ export default function ProcessMaps() {
             Visualize integration and workflow processes with AI-generated diagrams
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchProcessMaps}>
+        <Button variant="outline" size="sm" onClick={() => fetchProcessMaps(true)}>
           <RefreshCw className="h-4 w-4 mr-1.5" />
           Refresh
         </Button>
