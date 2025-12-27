@@ -7,6 +7,74 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+/**
+ * Check if an error is an HTML gateway error (e.g., Cloudflare 500)
+ */
+function isHtmlGatewayError(error: any): boolean {
+  const message = String(error?.message || '')
+  return (
+    message.includes('<html>') ||
+    message.includes('<!DOCTYPE') ||
+    message.includes('Internal Server Error') ||
+    message.includes('502 Bad Gateway') ||
+    message.includes('503 Service Unavailable') ||
+    message.includes('504 Gateway Timeout')
+  )
+}
+
+/**
+ * Parse error message for better user feedback
+ */
+function parseErrorMessage(error: any): string {
+  const rawMessage = String(error?.message || error || 'Unknown error')
+  if (isHtmlGatewayError(error)) {
+    return 'Database temporarily unavailable. Please try again.'
+  }
+  if (rawMessage.length > 200) {
+    return rawMessage.substring(0, 200) + '... (truncated)'
+  }
+  return rawMessage
+}
+
+/**
+ * Sleep helper for retry delays
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+/**
+ * Execute database operation with retry for gateway errors
+ */
+async function executeWithRetry<T>(
+  operation: () => Promise<{ data: T | null; error: any }>,
+  maxRetries: number = 3,
+  initialDelayMs: number = 1000
+): Promise<{ data: T | null; error: any }> {
+  let lastError: any = null
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const result = await operation()
+
+    if (!result.error) {
+      return result
+    }
+
+    if (isHtmlGatewayError(result.error)) {
+      lastError = result.error
+      console.warn(
+        `[meetings-webhook] Gateway error on attempt ${attempt + 1}/${maxRetries}, retrying...`
+      )
+      await sleep(initialDelayMs * Math.pow(2, attempt))
+      continue
+    }
+
+    return result
+  }
+
+  return { data: null, error: lastError }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -148,30 +216,34 @@ async function handleSummary(supabase: any, data: any) {
       callsUrl: data.recording.recording_url
     }
 
-    // Upsert meeting
-    const { data: meeting, error: meetingError } = await supabase
-      .from('meetings')
-      .upsert({
-        org_id: orgId,
-        fathom_recording_id: shareId,
-        title: data.meeting.title,
-        share_url: data.recording.recording_share_url,
-        calls_url: data.recording.recording_url,
-        meeting_start: data.meeting.scheduled_start_time,
-        meeting_end: data.meeting.scheduled_end_time,
-        duration_minutes: data.recording.recording_duration_in_minutes,
-        owner_user_id: userId,
-        owner_email: data.fathom_user?.email || 'unknown@example.com',
-        team_name: data.fathom_user?.team || 'Sales',
-        summary: data.ai_summary,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'org_id,fathom_recording_id'
-      })
-      .select()
-      .single()
+    // Upsert meeting with retry for gateway errors
+    const { data: meeting, error: meetingError } = await executeWithRetry(() =>
+      supabase
+        .from('meetings')
+        .upsert({
+          org_id: orgId,
+          fathom_recording_id: shareId,
+          title: data.meeting.title,
+          share_url: data.recording.recording_share_url,
+          calls_url: data.recording.recording_url,
+          meeting_start: data.meeting.scheduled_start_time,
+          meeting_end: data.meeting.scheduled_end_time,
+          duration_minutes: data.recording.recording_duration_in_minutes,
+          owner_user_id: userId,
+          owner_email: data.fathom_user?.email || 'unknown@example.com',
+          team_name: data.fathom_user?.team || 'Sales',
+          summary: data.ai_summary,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'org_id,fathom_recording_id'
+        })
+        .select()
+        .single()
+    )
 
-    if (meetingError) throw meetingError
+    if (meetingError) {
+      throw new Error(`Failed to upsert meeting: ${parseErrorMessage(meetingError)}`)
+    }
 
     // Upsert attendees
     if (data.meeting.invitees && meeting) {

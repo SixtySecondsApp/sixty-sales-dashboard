@@ -1529,110 +1529,15 @@ async function syncSingleCall(
 
     // UPSERT meeting
     //
-    // Preferred (org-scoped) conflict target is: (org_id, fathom_recording_id).
-    // If the database has not yet been migrated to add the matching unique index,
-    // Postgres throws: "there is no unique or exclusion constraint matching the ON CONFLICT specification".
-    //
-    // For backwards compatibility (single-org deployments / pre-migration DBs),
-    // we retry using the legacy conflict target: (fathom_recording_id).
-    //
-    // If neither unique constraint exists (common in partially-migrated DBs), fall back to a
-    // manual "find then update/insert" path (not perfectly race-free, but unblocks syncing).
-    const upsertMeeting = async (onConflict: string) => {
-      return await supabase
-        .from('meetings')
-        .upsert(meetingData, { onConflict })
-        .select()
-        .single()
-    }
-
-    let meeting: any = null
-    let meetingError: any = null
-
-    ;({
-      data: meeting,
-      error: meetingError,
-    } = await upsertMeeting('org_id,fathom_recording_id'))
-
-    if (
-      meetingError &&
-      (meetingError.code === '42P10' ||
-        String(meetingError.message || '').toLowerCase().includes('on conflict specification') ||
-        String(meetingError.message || '').toLowerCase().includes('no unique'))
-    ) {
-      console.warn(
-        `[fathom-sync] Meeting upsert conflict target not supported by DB yet; retrying legacy onConflict=fathom_recording_id (org_id=${orgId || 'null'}, recording_id=${String(call.recording_id)})`
-      )
-
-      ;({
-        data: meeting,
-        error: meetingError,
-      } = await upsertMeeting('fathom_recording_id'))
-    }
-
-    // If we still have the "no unique/exclusion constraint" error, do a manual upsert.
-    if (
-      meetingError &&
-      (meetingError.code === '42P10' ||
-        String(meetingError.message || '').toLowerCase().includes('on conflict specification') ||
-        String(meetingError.message || '').toLowerCase().includes('no unique'))
-    ) {
-      try {
-        const recordingId = meetingData.fathom_recording_id as string | null
-        if (!recordingId) {
-          throw new Error('Missing recording_id in payload (cannot upsert meeting)')
-        }
-
-        // Try to find an existing meeting row.
-        let existing: any = null
-        if (orgId) {
-          const { data: ex } = await supabase
-            .from('meetings')
-            .select('id')
-            .eq('org_id', orgId)
-            .eq('fathom_recording_id', recordingId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-          existing = ex
-        } else {
-          const { data: ex } = await supabase
-            .from('meetings')
-            .select('id')
-            .eq('fathom_recording_id', recordingId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-          existing = ex
-        }
-
-        if (existing?.id) {
-          const { data: updated, error: updateErr } = await supabase
-            .from('meetings')
-            .update(meetingData)
-            .eq('id', existing.id)
-            .select()
-            .single()
-          if (updateErr) throw updateErr
-          meeting = updated
-          meetingError = null
-        } else {
-          const { data: inserted, error: insertErr } = await supabase
-            .from('meetings')
-            .insert(meetingData)
-            .select()
-            .single()
-          if (insertErr) throw insertErr
-          meeting = inserted
-          meetingError = null
-        }
-      } catch (fallbackErr) {
-        // Keep the original upsert error if fallback fails.
-        console.error('[fathom-sync] Manual upsert fallback failed:', fallbackErr)
-      }
-    }
+    // Use the refactored upsertMeeting service which handles:
+    // 1. Org-scoped constraint: (org_id, fathom_recording_id)
+    // 2. Legacy constraint fallback: (fathom_recording_id)
+    // 3. Manual find-then-update/insert fallback
+    // 4. Retry logic for transient gateway errors (Cloudflare 500, etc.)
+    const { meeting, error: meetingError } = await upsertMeeting(supabase, meetingData, orgId)
 
     if (meetingError) {
+      // Error message is already parsed by upsertMeeting for better user feedback
       throw new Error(`Failed to upsert meeting: ${meetingError.message}`)
     }
 

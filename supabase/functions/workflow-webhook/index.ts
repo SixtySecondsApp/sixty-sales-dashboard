@@ -7,6 +7,74 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+/**
+ * Check if an error is an HTML gateway error (e.g., Cloudflare 500)
+ */
+function isHtmlGatewayError(error: any): boolean {
+  const message = String(error?.message || '')
+  return (
+    message.includes('<html>') ||
+    message.includes('<!DOCTYPE') ||
+    message.includes('Internal Server Error') ||
+    message.includes('502 Bad Gateway') ||
+    message.includes('503 Service Unavailable') ||
+    message.includes('504 Gateway Timeout')
+  )
+}
+
+/**
+ * Parse error message for better user feedback
+ */
+function parseErrorMessage(error: any): string {
+  const rawMessage = String(error?.message || error || 'Unknown error')
+  if (isHtmlGatewayError(error)) {
+    return 'Database temporarily unavailable. Please try again.'
+  }
+  if (rawMessage.length > 200) {
+    return rawMessage.substring(0, 200) + '... (truncated)'
+  }
+  return rawMessage
+}
+
+/**
+ * Sleep helper for retry delays
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+/**
+ * Execute database operation with retry for gateway errors
+ */
+async function executeWithRetry<T>(
+  operation: () => Promise<{ data: T | null; error: any }>,
+  maxRetries: number = 3,
+  initialDelayMs: number = 1000
+): Promise<{ data: T | null; error: any }> {
+  let lastError: any = null
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const result = await operation()
+
+    if (!result.error) {
+      return result
+    }
+
+    if (isHtmlGatewayError(result.error)) {
+      lastError = result.error
+      console.warn(
+        `[workflow-webhook] Gateway error on attempt ${attempt + 1}/${maxRetries}, retrying...`
+      )
+      await sleep(initialDelayMs * Math.pow(2, attempt))
+      continue
+    }
+
+    return result
+  }
+
+  return { data: null, error: lastError }
+}
+
 // Make this function publicly accessible (no auth required)
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -285,15 +353,19 @@ async function processSummaryPayload(supabase: any, payload: any, fathomId: stri
     updated_at: new Date().toISOString()
   }
 
-  const { data: meeting, error } = await supabase
-    .from('meetings')
-    .upsert(meetingData, {
-      onConflict: 'org_id,fathom_recording_id'
-    })
-    .select()
-    .single()
+  const { data: meeting, error } = await executeWithRetry(() =>
+    supabase
+      .from('meetings')
+      .upsert(meetingData, {
+        onConflict: 'org_id,fathom_recording_id'
+      })
+      .select()
+      .single()
+  )
 
-  if (error) throw error
+  if (error) {
+    throw new Error(`Failed to upsert meeting: ${parseErrorMessage(error)}`)
+  }
 
   // Process attendees if available
   if (payload.meeting?.invitees && meeting) {
