@@ -12,6 +12,47 @@ import {
   generatePlaceholderThumbnail,
 } from './helpers.ts'
 
+/**
+ * Check if an error is an HTML gateway error (e.g., Cloudflare 500)
+ */
+function isHtmlGatewayError(error: any): boolean {
+  const message = String(error?.message || '')
+  return (
+    message.includes('<html>') ||
+    message.includes('<!DOCTYPE') ||
+    message.includes('Internal Server Error') ||
+    message.includes('502 Bad Gateway') ||
+    message.includes('503 Service Unavailable') ||
+    message.includes('504 Gateway Timeout')
+  )
+}
+
+/**
+ * Parse error message for better user feedback
+ */
+function parseErrorMessage(error: any): string {
+  const rawMessage = String(error?.message || error || 'Unknown error')
+
+  // If it's an HTML error, return a user-friendly message
+  if (isHtmlGatewayError(error)) {
+    return 'Database temporarily unavailable. Please try again.'
+  }
+
+  // If message is too long (likely contains HTML), truncate
+  if (rawMessage.length > 200) {
+    return rawMessage.substring(0, 200) + '... (truncated)'
+  }
+
+  return rawMessage
+}
+
+/**
+ * Sleep helper for retry delays
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 export interface MeetingUpsertInput {
   call: any
   orgId: string | null
@@ -147,12 +188,17 @@ export async function getExistingThumbnail(
  * 1. Try org-scoped constraint: (org_id, fathom_recording_id)
  * 2. Fallback to legacy constraint: (fathom_recording_id)
  * 3. Fallback to manual find-then-update/insert
+ *
+ * Includes retry logic for transient gateway errors (Cloudflare 500, etc.)
  */
 export async function upsertMeeting(
   supabase: SupabaseClient,
   meetingData: Record<string, any>,
   orgId: string | null
 ): Promise<{ meeting: any; error: any }> {
+  const MAX_RETRIES = 3
+  const INITIAL_DELAY_MS = 1000
+
   const upsertWithConflict = async (onConflict: string) => {
     return await supabase
       .from('meetings')
@@ -161,15 +207,46 @@ export async function upsertMeeting(
       .single()
   }
 
-  // Try org-scoped constraint first
-  let { data: meeting, error: meetingError } = await upsertWithConflict('org_id,fathom_recording_id')
+  // Retry wrapper for gateway errors
+  const upsertWithRetry = async (onConflict: string): Promise<{ data: any; error: any }> => {
+    let lastError: any = null
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const { data, error } = await upsertWithConflict(onConflict)
+
+      // Success - return immediately
+      if (!error) {
+        return { data, error: null }
+      }
+
+      // Check if it's a retryable gateway error
+      if (isHtmlGatewayError(error)) {
+        lastError = error
+        console.warn(
+          `[meeting-upsert] Gateway error on attempt ${attempt + 1}/${MAX_RETRIES}, retrying in ${INITIAL_DELAY_MS * Math.pow(2, attempt)}ms...`
+        )
+        await sleep(INITIAL_DELAY_MS * Math.pow(2, attempt))
+        continue
+      }
+
+      // Non-retryable error - return immediately
+      return { data, error }
+    }
+
+    // All retries exhausted
+    console.error('[meeting-upsert] All retries exhausted for gateway error')
+    return { data: null, error: lastError }
+  }
+
+  // Try org-scoped constraint first (with retries for gateway errors)
+  let { data: meeting, error: meetingError } = await upsertWithRetry('org_id,fathom_recording_id')
 
   // Check if constraint doesn't exist - try legacy constraint
   if (meetingError && isConstraintMissingError(meetingError)) {
     console.warn(
       `[meeting-upsert] Org-scoped constraint not found; retrying with fathom_recording_id only (org_id=${orgId || 'null'})`
     )
-    ;({ data: meeting, error: meetingError } = await upsertWithConflict('fathom_recording_id'))
+    ;({ data: meeting, error: meetingError } = await upsertWithRetry('fathom_recording_id'))
   }
 
   // If still constraint error, do manual upsert
@@ -177,6 +254,15 @@ export async function upsertMeeting(
     const result = await manualUpsert(supabase, meetingData, orgId)
     meeting = result.meeting
     meetingError = result.error
+  }
+
+  // Parse error message for better user feedback
+  if (meetingError) {
+    meetingError = {
+      ...meetingError,
+      message: parseErrorMessage(meetingError),
+      originalMessage: meetingError.message
+    }
   }
 
   return { meeting, error: meetingError }
@@ -195,12 +281,43 @@ function isConstraintMissingError(error: any): boolean {
 
 /**
  * Manual upsert fallback when no unique constraints exist
+ * Includes retry logic for transient gateway errors
  */
 async function manualUpsert(
   supabase: SupabaseClient,
   meetingData: Record<string, any>,
   orgId: string | null
 ): Promise<{ meeting: any; error: any }> {
+  const MAX_RETRIES = 3
+  const INITIAL_DELAY_MS = 1000
+
+  const executeWithRetry = async <T>(
+    operation: () => Promise<{ data: T | null; error: any }>
+  ): Promise<{ data: T | null; error: any }> => {
+    let lastError: any = null
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const result = await operation()
+
+      if (!result.error) {
+        return result
+      }
+
+      if (isHtmlGatewayError(result.error)) {
+        lastError = result.error
+        console.warn(
+          `[meeting-upsert] Gateway error in manual upsert (attempt ${attempt + 1}/${MAX_RETRIES}), retrying...`
+        )
+        await sleep(INITIAL_DELAY_MS * Math.pow(2, attempt))
+        continue
+      }
+
+      return result
+    }
+
+    return { data: null, error: lastError }
+  }
+
   try {
     const recordingId = meetingData.fathom_recording_id as string | null
     if (!recordingId) {
@@ -209,50 +326,60 @@ async function manualUpsert(
 
     console.log(`[meeting-upsert] Using manual find-then-upsert for recording ${recordingId}`)
 
-    // Try to find existing meeting
+    // Try to find existing meeting (with retry)
     let existing: any = null
     if (orgId) {
-      const { data: ex } = await supabase
-        .from('meetings')
-        .select('id')
-        .eq('org_id', orgId)
-        .eq('fathom_recording_id', recordingId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      const { data: ex, error: findErr } = await executeWithRetry(() =>
+        supabase
+          .from('meetings')
+          .select('id')
+          .eq('org_id', orgId)
+          .eq('fathom_recording_id', recordingId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      )
+      if (findErr) throw findErr
       existing = ex
     } else {
-      const { data: ex } = await supabase
-        .from('meetings')
-        .select('id')
-        .eq('fathom_recording_id', recordingId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      const { data: ex, error: findErr } = await executeWithRetry(() =>
+        supabase
+          .from('meetings')
+          .select('id')
+          .eq('fathom_recording_id', recordingId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      )
+      if (findErr) throw findErr
       existing = ex
     }
 
     if (existing?.id) {
-      const { data: updated, error: updateErr } = await supabase
-        .from('meetings')
-        .update(meetingData)
-        .eq('id', existing.id)
-        .select()
-        .single()
+      const { data: updated, error: updateErr } = await executeWithRetry(() =>
+        supabase
+          .from('meetings')
+          .update(meetingData)
+          .eq('id', existing.id)
+          .select()
+          .single()
+      )
       if (updateErr) throw updateErr
       return { meeting: updated, error: null }
     } else {
-      const { data: inserted, error: insertErr } = await supabase
-        .from('meetings')
-        .insert(meetingData)
-        .select()
-        .single()
+      const { data: inserted, error: insertErr } = await executeWithRetry(() =>
+        supabase
+          .from('meetings')
+          .insert(meetingData)
+          .select()
+          .single()
+      )
       if (insertErr) throw insertErr
       return { meeting: inserted, error: null }
     }
   } catch (fallbackErr) {
-    console.error('[meeting-upsert] Manual upsert fallback failed:', fallbackErr)
-    return { meeting: null, error: fallbackErr }
+    console.error('[meeting-upsert] Manual upsert fallback failed:', parseErrorMessage(fallbackErr))
+    return { meeting: null, error: { message: parseErrorMessage(fallbackErr), originalError: fallbackErr } }
   }
 }
 
