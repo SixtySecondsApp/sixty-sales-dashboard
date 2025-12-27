@@ -1,0 +1,666 @@
+/**
+ * Reprocess Pending Meetings Edge Function
+ *
+ * Purpose: Reprocess meetings that are stuck with pending/failed statuses
+ * Handles: transcripts, summaries, thumbnails, and AI indexing
+ *
+ * Uses per-user Fathom integration (not org-level)
+ */
+
+import { serve } from 'https://deno.land/std@0.190.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { corsHeaders } from '../_shared/cors.ts'
+import { fetchTranscriptFromFathom, fetchSummaryFromFathom } from '../_shared/fathomTranscript.ts'
+
+interface ReprocessRequest {
+  mode: 'diagnose' | 'reprocess'
+  limit?: number
+  types?: Array<'transcript' | 'summary' | 'thumbnail' | 'ai_index'>
+  meeting_ids?: string[]
+}
+
+interface MeetingStatus {
+  id: string
+  title: string
+  recording_start_time: string
+  recording_end_time: string | null
+  duration_seconds: number | null
+  fathom_recording_id: string | null
+  owner_user_id: string
+  thumbnail_status: string | null
+  transcript_status: string | null
+  summary_status: string | null
+  transcript_fetch_attempts: number | null
+  has_transcript: boolean
+  has_summary: boolean
+  has_thumbnail: boolean
+  is_short_meeting: boolean
+  short_meeting_reason: string | null
+}
+
+// Meetings under 60 seconds are considered "short" and may not have transcripts
+const SHORT_MEETING_THRESHOLD_SECONDS = 60
+
+interface DiagnoseResult {
+  total_pending: number
+  short_meetings_count: number
+  by_status: {
+    transcript_pending: number
+    transcript_failed: number
+    transcript_too_short: number
+    summary_pending: number
+    summary_failed: number
+    thumbnail_pending: number
+    thumbnail_failed: number
+  }
+  meetings: MeetingStatus[]
+}
+
+/**
+ * Calculate meeting duration in seconds
+ */
+function calculateDurationSeconds(startTime: string | null, endTime: string | null): number | null {
+  if (!startTime || !endTime) return null
+  const start = new Date(startTime).getTime()
+  const end = new Date(endTime).getTime()
+  if (isNaN(start) || isNaN(end)) return null
+  return Math.round((end - start) / 1000)
+}
+
+/**
+ * Determine if meeting is too short for transcription
+ */
+function isShortMeeting(durationSeconds: number | null): boolean {
+  if (durationSeconds === null) return false
+  return durationSeconds < SHORT_MEETING_THRESHOLD_SECONDS
+}
+
+/**
+ * Get reason why meeting might not have transcript
+ */
+function getShortMeetingReason(durationSeconds: number | null): string | null {
+  if (durationSeconds === null) return null
+  if (durationSeconds < 10) {
+    return 'Meeting was less than 10 seconds - likely no audio'
+  }
+  if (durationSeconds < 30) {
+    return 'Meeting was less than 30 seconds - may not have enough audio for transcription'
+  }
+  if (durationSeconds < SHORT_MEETING_THRESHOLD_SECONDS) {
+    return 'Meeting was less than 1 minute - transcript may be unavailable'
+  }
+  return null
+}
+
+interface ReprocessResult {
+  meeting_id: string
+  title: string
+  duration_seconds: number | null
+  is_short_meeting: boolean
+  short_meeting_reason: string | null
+  transcript: { success: boolean; message: string; skipped?: boolean } | null
+  summary: { success: boolean; message: string; skipped?: boolean } | null
+  thumbnail: { success: boolean; message: string } | null
+  ai_index: { success: boolean; message: string } | null
+}
+
+/**
+ * Refresh OAuth access token if expired
+ */
+async function refreshAccessToken(supabase: any, integration: any): Promise<string> {
+  const now = new Date()
+  const expiresAt = new Date(integration.token_expires_at)
+
+  // Check if token is expired or will expire within 5 minutes
+  const bufferMs = 5 * 60 * 1000
+  if (expiresAt.getTime() - now.getTime() > bufferMs) {
+    return integration.access_token
+  }
+
+  const clientId = Deno.env.get('FATHOM_CLIENT_ID')
+  const clientSecret = Deno.env.get('FATHOM_CLIENT_SECRET')
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Missing Fathom OAuth configuration for token refresh')
+  }
+
+  const tokenParams = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: integration.refresh_token,
+    client_id: clientId,
+    client_secret: clientSecret,
+  })
+
+  const tokenResponse = await fetch('https://fathom.video/external/v1/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: tokenParams.toString(),
+  })
+
+  if (!tokenResponse.ok) {
+    const errorText = await tokenResponse.text()
+    throw new Error(`Token refresh failed: ${errorText}`)
+  }
+
+  const tokenData = await tokenResponse.json()
+  const expiresIn = tokenData.expires_in || 3600
+  const newTokenExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
+
+  await supabase
+    .from('fathom_integrations')
+    .update({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token || integration.refresh_token,
+      token_expires_at: newTokenExpiresAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', integration.id)
+
+  return tokenData.access_token
+}
+
+/**
+ * Generate thumbnail for a meeting
+ */
+async function generateThumbnail(
+  meeting: { id: string; fathom_recording_id: string; fathom_share_url?: string },
+  supabase: any
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const shareUrl = meeting.fathom_share_url || `https://app.fathom.video/share/${meeting.fathom_recording_id}`
+
+    const response = await fetch(
+      `${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-video-thumbnail-v2`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        },
+        body: JSON.stringify({
+          recording_id: meeting.fathom_recording_id,
+          share_url: shareUrl,
+          fathom_embed_url: `https://fathom.video/embed/${meeting.fathom_recording_id}`,
+          meeting_id: meeting.id,
+        }),
+      }
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      return { success: false, message: `Thumbnail API error: ${errorText}` }
+    }
+
+    const data = await response.json()
+
+    // Update status
+    const isPlaceholder = data.thumbnail_url?.includes('dummyimage.com')
+    await supabase
+      .from('meetings')
+      .update({
+        thumbnail_url: data.thumbnail_url,
+        thumbnail_status: isPlaceholder ? 'pending' : 'complete',
+      })
+      .eq('id', meeting.id)
+
+    return {
+      success: !isPlaceholder,
+      message: isPlaceholder ? 'Placeholder generated (will retry)' : 'Thumbnail generated successfully',
+    }
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/**
+ * Queue meeting for AI indexing
+ */
+async function queueForAIIndex(
+  meetingId: string,
+  userId: string,
+  supabase: any
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const { error } = await supabase
+      .from('meeting_index_queue')
+      .upsert({
+        meeting_id: meetingId,
+        user_id: userId,
+        priority: 5,
+        attempts: 0,
+        max_attempts: 3,
+        created_at: new Date().toISOString(),
+      }, { onConflict: 'meeting_id,user_id' })
+
+    if (error) {
+      return { success: false, message: error.message }
+    }
+
+    return { success: true, message: 'Queued for AI indexing' }
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+    )
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const adminClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    const body: ReprocessRequest = await req.json().catch(() => ({ mode: 'diagnose' }))
+    const { mode = 'diagnose', limit = 50, types = ['transcript', 'summary', 'thumbnail', 'ai_index'], meeting_ids } = body
+
+    // Get user's Fathom integration
+    const { data: integration, error: integrationError } = await adminClient
+      .from('fathom_integrations')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (integrationError) {
+      return new Response(JSON.stringify({ error: `Database error: ${integrationError.message}` }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Build query for pending meetings
+    let query = adminClient
+      .from('meetings')
+      .select(`
+        id,
+        title,
+        recording_start_time,
+        recording_end_time,
+        fathom_recording_id,
+        fathom_share_url,
+        owner_user_id,
+        thumbnail_status,
+        transcript_status,
+        summary_status,
+        transcript_fetch_attempts,
+        transcript_text,
+        summary,
+        thumbnail_url
+      `)
+      .eq('owner_user_id', user.id)
+      .not('fathom_recording_id', 'is', null)
+      .order('recording_start_time', { ascending: false })
+
+    if (meeting_ids && meeting_ids.length > 0) {
+      query = query.in('id', meeting_ids)
+    } else {
+      // Filter for pending/failed statuses
+      query = query.or(
+        'thumbnail_status.in.(pending,processing,failed),' +
+        'transcript_status.in.(pending,processing,failed),' +
+        'summary_status.in.(pending,processing,failed)'
+      )
+    }
+
+    const { data: meetings, error: meetingsError } = await query.limit(limit)
+
+    if (meetingsError) {
+      return new Response(JSON.stringify({ error: `Query error: ${meetingsError.message}` }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // DIAGNOSE MODE - Just return status
+    if (mode === 'diagnose') {
+      const statuses: MeetingStatus[] = (meetings || []).map((m: any) => {
+        const durationSeconds = calculateDurationSeconds(m.recording_start_time, m.recording_end_time)
+        const isShort = isShortMeeting(durationSeconds)
+        return {
+          id: m.id,
+          title: m.title || 'Untitled',
+          recording_start_time: m.recording_start_time,
+          recording_end_time: m.recording_end_time,
+          duration_seconds: durationSeconds,
+          fathom_recording_id: m.fathom_recording_id,
+          owner_user_id: m.owner_user_id,
+          thumbnail_status: m.thumbnail_status,
+          transcript_status: m.transcript_status,
+          summary_status: m.summary_status,
+          transcript_fetch_attempts: m.transcript_fetch_attempts,
+          has_transcript: !!m.transcript_text,
+          has_summary: !!m.summary,
+          has_thumbnail: !!m.thumbnail_url && !m.thumbnail_url.includes('dummyimage.com'),
+          is_short_meeting: isShort,
+          short_meeting_reason: getShortMeetingReason(durationSeconds),
+        }
+      })
+
+      const shortMeetings = statuses.filter(s => s.is_short_meeting)
+
+      const diagnoseResult: DiagnoseResult = {
+        total_pending: statuses.length,
+        short_meetings_count: shortMeetings.length,
+        by_status: {
+          transcript_pending: statuses.filter(s => s.transcript_status === 'pending' && !s.is_short_meeting).length,
+          transcript_failed: statuses.filter(s => s.transcript_status === 'failed').length,
+          transcript_too_short: shortMeetings.filter(s => !s.has_transcript).length,
+          summary_pending: statuses.filter(s => s.summary_status === 'pending' && !s.is_short_meeting).length,
+          summary_failed: statuses.filter(s => s.summary_status === 'failed').length,
+          thumbnail_pending: statuses.filter(s => s.thumbnail_status === 'pending').length,
+          thumbnail_failed: statuses.filter(s => s.thumbnail_status === 'failed').length,
+        },
+        meetings: statuses,
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        mode: 'diagnose',
+        has_fathom_integration: !!integration,
+        result: diagnoseResult,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // REPROCESS MODE
+    if (!integration) {
+      return new Response(JSON.stringify({
+        error: 'No active Fathom integration found. Please connect Fathom first.',
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Refresh token if needed
+    let accessToken: string
+    try {
+      accessToken = await refreshAccessToken(adminClient, integration)
+    } catch (error) {
+      return new Response(JSON.stringify({
+        error: `Failed to refresh Fathom token: ${error instanceof Error ? error.message : String(error)}`,
+        recommendation: 'Please reconnect your Fathom account',
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const results: ReprocessResult[] = []
+
+    for (const meeting of meetings || []) {
+      const durationSeconds = calculateDurationSeconds(meeting.recording_start_time, meeting.recording_end_time)
+      const isShort = isShortMeeting(durationSeconds)
+      const shortReason = getShortMeetingReason(durationSeconds)
+
+      const result: ReprocessResult = {
+        meeting_id: meeting.id,
+        title: meeting.title || 'Untitled',
+        duration_seconds: durationSeconds,
+        is_short_meeting: isShort,
+        short_meeting_reason: shortReason,
+        transcript: null,
+        summary: null,
+        thumbnail: null,
+        ai_index: null,
+      }
+
+      // Process transcript if needed
+      if (types.includes('transcript') &&
+          (meeting.transcript_status === 'pending' || meeting.transcript_status === 'failed' || !meeting.transcript_text)) {
+
+        // For very short meetings (<10s), mark as too_short and skip API call
+        if (durationSeconds !== null && durationSeconds < 10) {
+          console.log(`⏱️ Meeting ${meeting.id} is too short (${durationSeconds}s) - marking as too_short`)
+          await adminClient
+            .from('meetings')
+            .update({ transcript_status: 'too_short' })
+            .eq('id', meeting.id)
+          result.transcript = {
+            success: false,
+            message: shortReason || 'Meeting too short for transcript',
+            skipped: true
+          }
+        } else if (isShort) {
+          // For short meetings (10-60s), still try but expect it might fail
+          console.log(`⏱️ Meeting ${meeting.id} is short (${durationSeconds}s) - attempting transcript anyway`)
+          try {
+            await adminClient
+              .from('meetings')
+              .update({ transcript_status: 'processing' })
+              .eq('id', meeting.id)
+
+            const transcript = await fetchTranscriptFromFathom(accessToken, meeting.fathom_recording_id)
+
+            if (transcript) {
+              await adminClient
+                .from('meetings')
+                .update({
+                  transcript_text: transcript,
+                  transcript_status: 'complete',
+                  last_transcript_fetch_at: new Date().toISOString(),
+                })
+                .eq('id', meeting.id)
+              result.transcript = { success: true, message: `Fetched ${transcript.length} characters (short meeting)` }
+            } else {
+              // Mark as too_short since it's likely the reason
+              await adminClient
+                .from('meetings')
+                .update({ transcript_status: 'too_short' })
+                .eq('id', meeting.id)
+              result.transcript = {
+                success: false,
+                message: shortReason || 'Meeting too short - no transcript available',
+                skipped: true
+              }
+            }
+          } catch (error) {
+            await adminClient
+              .from('meetings')
+              .update({ transcript_status: 'too_short' })
+              .eq('id', meeting.id)
+            result.transcript = {
+              success: false,
+              message: shortReason || 'Meeting too short for transcript',
+              skipped: true
+            }
+          }
+        } else {
+          // Normal meeting - process as usual
+          try {
+            console.log(`📄 Fetching transcript for meeting ${meeting.id}`)
+
+            await adminClient
+              .from('meetings')
+              .update({ transcript_status: 'processing' })
+              .eq('id', meeting.id)
+
+            const transcript = await fetchTranscriptFromFathom(accessToken, meeting.fathom_recording_id)
+
+            if (transcript) {
+              await adminClient
+                .from('meetings')
+                .update({
+                  transcript_text: transcript,
+                  transcript_status: 'complete',
+                  last_transcript_fetch_at: new Date().toISOString(),
+                })
+                .eq('id', meeting.id)
+
+              result.transcript = { success: true, message: `Fetched ${transcript.length} characters` }
+            } else {
+              await adminClient
+                .from('meetings')
+                .update({ transcript_status: 'pending' })
+                .eq('id', meeting.id)
+
+              result.transcript = { success: false, message: 'Transcript not yet available from Fathom' }
+            }
+          } catch (error) {
+            await adminClient
+              .from('meetings')
+              .update({ transcript_status: 'failed' })
+              .eq('id', meeting.id)
+
+            result.transcript = { success: false, message: error instanceof Error ? error.message : String(error) }
+          }
+        }
+      }
+
+      // Process summary if needed
+      if (types.includes('summary') &&
+          (meeting.summary_status === 'pending' || meeting.summary_status === 'failed' || !meeting.summary)) {
+
+        // For very short meetings, skip summary too
+        if (durationSeconds !== null && durationSeconds < 10) {
+          await adminClient
+            .from('meetings')
+            .update({ summary_status: 'too_short' })
+            .eq('id', meeting.id)
+          result.summary = {
+            success: false,
+            message: shortReason || 'Meeting too short for summary',
+            skipped: true
+          }
+        } else if (isShort && !meeting.transcript_text && !result.transcript?.success) {
+          // Short meeting without transcript - skip summary
+          await adminClient
+            .from('meetings')
+            .update({ summary_status: 'too_short' })
+            .eq('id', meeting.id)
+          result.summary = {
+            success: false,
+            message: 'No transcript available for summary (short meeting)',
+            skipped: true
+          }
+        } else {
+          try {
+            console.log(`📝 Fetching summary for meeting ${meeting.id}`)
+
+            await adminClient
+              .from('meetings')
+              .update({ summary_status: 'processing' })
+              .eq('id', meeting.id)
+
+            const summaryData = await fetchSummaryFromFathom(accessToken, meeting.fathom_recording_id)
+
+            if (summaryData?.summary) {
+              await adminClient
+                .from('meetings')
+                .update({
+                  summary: summaryData.summary,
+                  summary_status: 'complete',
+                  sentiment_score: summaryData.sentiment_score,
+                  coach_summary: summaryData.coach_summary,
+                  talk_time_rep_pct: summaryData.talk_time_rep_pct,
+                  talk_time_customer_pct: summaryData.talk_time_customer_pct,
+                  talk_time_judgement: summaryData.talk_time_judgement,
+                })
+                .eq('id', meeting.id)
+
+              result.summary = { success: true, message: 'Summary fetched successfully' }
+            } else {
+              // If short meeting and no summary, mark as too_short
+              if (isShort) {
+                await adminClient
+                  .from('meetings')
+                  .update({ summary_status: 'too_short' })
+                  .eq('id', meeting.id)
+                result.summary = {
+                  success: false,
+                  message: 'Summary not available (short meeting)',
+                  skipped: true
+                }
+              } else {
+                await adminClient
+                  .from('meetings')
+                  .update({ summary_status: 'pending' })
+                  .eq('id', meeting.id)
+                result.summary = { success: false, message: 'Summary not yet available from Fathom' }
+              }
+            }
+          } catch (error) {
+            await adminClient
+              .from('meetings')
+              .update({ summary_status: 'failed' })
+              .eq('id', meeting.id)
+
+            result.summary = { success: false, message: error instanceof Error ? error.message : String(error) }
+          }
+        }
+      }
+
+      // Process thumbnail if needed - ALWAYS try for short meetings too (video still exists)
+      if (types.includes('thumbnail') &&
+          (meeting.thumbnail_status === 'pending' || meeting.thumbnail_status === 'failed' ||
+           !meeting.thumbnail_url || meeting.thumbnail_url.includes('dummyimage.com'))) {
+        result.thumbnail = await generateThumbnail(
+          { id: meeting.id, fathom_recording_id: meeting.fathom_recording_id, fathom_share_url: meeting.fathom_share_url },
+          adminClient
+        )
+      }
+
+      // Queue for AI indexing if transcript exists
+      if (types.includes('ai_index')) {
+        const hasTranscript = meeting.transcript_text || result.transcript?.success
+        if (hasTranscript) {
+          result.ai_index = await queueForAIIndex(meeting.id, user.id, adminClient)
+        } else if (isShort) {
+          result.ai_index = { success: false, message: 'Short meeting - no transcript for indexing' }
+        } else {
+          result.ai_index = { success: false, message: 'No transcript available for indexing' }
+        }
+      }
+
+      results.push(result)
+
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
+
+    const successCount = results.filter(r =>
+      (r.transcript?.success ?? true) &&
+      (r.summary?.success ?? true) &&
+      (r.thumbnail?.success ?? true)
+    ).length
+
+    return new Response(JSON.stringify({
+      success: true,
+      mode: 'reprocess',
+      total_processed: results.length,
+      successful: successCount,
+      failed: results.length - successCount,
+      results,
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+
+  } catch (error) {
+    console.error('Error in reprocess-pending-meetings:', error)
+    return new Response(JSON.stringify({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : String(error),
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+})

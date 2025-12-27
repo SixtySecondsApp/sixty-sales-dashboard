@@ -104,6 +104,8 @@ import {
   type BatchProgress,
 } from '@/lib/testing/runners/BatchScenarioRunner';
 import { useActiveOrgId } from '@/lib/stores/orgStore';
+import { useTestDataStore } from '@/lib/stores/testDataStore';
+import { supabase } from '@/lib/supabase/clientV2';
 
 // ============================================================================
 // Helper Functions
@@ -435,8 +437,75 @@ export function WorkflowTestPanel({
     currentResource?: string;
   } | null>(null);
 
+  // Reference to TestDataTestEngine for manual cleanup
+  const testDataEngineRef = useRef<TestDataTestEngine | null>(null);
+
   // Get active organization ID for test_data mode
   const activeOrgId = useActiveOrgId();
+
+  // Test data store for persisting state across navigation - use selectors for stable refs
+  const storeGetTestRun = useTestDataStore((state) => state.getTestRun);
+  const storeSetTestRun = useTestDataStore((state) => state.setTestRun);
+  const storeSetCleanupResult = useTestDataStore((state) => state.setCleanupResult);
+  const storeClearTestRun = useTestDataStore((state) => state.clearTestRun);
+
+  // Load persisted test data on mount
+  useEffect(() => {
+    if (!processMapId || !isOpen) return;
+
+    const persistedData = storeGetTestRun(processMapId);
+    if (persistedData) {
+      console.log('[WorkflowTestPanel] Restoring persisted test data for', processMapId);
+      setTestDataRun(persistedData.testRun);
+      setTestRun(persistedData.testRun);
+      setTrackedResources(persistedData.trackedResources);
+      setTrackedAIPrompts(persistedData.trackedAIPrompts);
+      if (persistedData.cleanupResult) {
+        setCleanupResult(persistedData.cleanupResult);
+      }
+      // Note: Engine reference is not persisted (can't serialize class instances)
+      // The user will need to re-run tests if they want cleanup functionality
+      // Switch to resources tab if there are resources
+      if (persistedData.trackedResources.length > 0 && !persistedData.cleanupResult) {
+        setActiveTab('resources');
+      }
+    }
+  }, [processMapId, isOpen, storeGetTestRun]);
+
+  // HubSpot portal ID for view URLs
+  const [hubspotPortalId, setHubspotPortalId] = useState<string | null>(null);
+
+  // Fetch HubSpot portal ID when org changes
+  useEffect(() => {
+    if (!activeOrgId) {
+      setHubspotPortalId(null);
+      return;
+    }
+
+    const fetchHubspotPortalId = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('hubspot_org_integrations')
+          .select('hubspot_portal_id, hubspot_hub_id')
+          .eq('org_id', activeOrgId)
+          .maybeSingle();
+
+        if (error) {
+          console.warn('[WorkflowTestPanel] Failed to fetch HubSpot portal ID:', error);
+          return;
+        }
+
+        if (data) {
+          // Use portal_id or hub_id
+          setHubspotPortalId(data.hubspot_portal_id || data.hubspot_hub_id || null);
+        }
+      } catch (err) {
+        console.warn('[WorkflowTestPanel] Error fetching HubSpot portal ID:', err);
+      }
+    };
+
+    fetchHubspotPortalId();
+  }, [activeOrgId]);
 
   // Load saved scenarios and coverage from database
   useEffect(() => {
@@ -663,11 +732,14 @@ export function WorkflowTestPanel({
           workflow,
           integrationContext: {
             orgId: activeOrgId || undefined,
+            hubspotPortalId: hubspotPortalId || undefined,
           },
           config: {
             continueOnFailure,
             timeout: 300000, // 5 minutes
-            autoCleanup: true,
+          },
+          testDataConfig: {
+            autoCleanup: false, // Manual cleanup - user triggers after viewing resources
             cleanupDelayMs: 2000,
             continueCleanupOnFailure: true,
           },
@@ -746,6 +818,9 @@ export function WorkflowTestPanel({
           },
         });
 
+        // Store engine reference for manual cleanup
+        testDataEngineRef.current = testDataEngine;
+
         // Execute the test
         const result = await testDataEngine.run();
 
@@ -757,6 +832,14 @@ export function WorkflowTestPanel({
           setCleanupResult(result.cleanupResult);
         }
 
+        // Persist to store for navigation persistence
+        storeSetTestRun(
+          processMapId,
+          result.testRun,
+          result.trackedResources,
+          result.trackedAIPrompts
+        );
+
         addLog('info', `Test run completed: ${result.testRun.stepsPassed} passed, ${result.testRun.stepsFailed} failed`);
 
         // Switch to resources tab to show created resources
@@ -765,7 +848,7 @@ export function WorkflowTestPanel({
         }
 
         if (result.testRun.overallResult === 'pass') {
-          toast.success(`All ${result.testRun.stepsPassed} tests passed! ${result.trackedResources.length} resources cleaned up.`);
+          toast.success(`All ${result.testRun.stepsPassed} tests passed! ${result.trackedResources.length} resources created - click "Run Cleanup" when ready.`);
         } else if (result.testRun.overallResult === 'partial') {
           toast.warning(`${result.testRun.stepsPassed} passed, ${result.testRun.stepsFailed} failed`);
         } else {
@@ -855,7 +938,7 @@ export function WorkflowTestPanel({
       setIsRunning(false);
       setIsCleaningUp(false);
     }
-  }, [runMode, continueOnFailure, workflowSteps, processStructure, processMapId, processMapTitle, mermaidCode]);
+  }, [runMode, continueOnFailure, workflowSteps, processStructure, processMapId, processMapTitle, mermaidCode, activeOrgId, hubspotPortalId, storeSetTestRun]);
 
   // Reset test state
   const handleReset = useCallback(() => {
@@ -869,7 +952,62 @@ export function WorkflowTestPanel({
     setTrackedAIPrompts([]);
     setCleanupResult(null);
     setCleanupProgress(null);
-  }, []);
+    testDataEngineRef.current = null;
+    // Clear from store
+    storeClearTestRun(processMapId);
+  }, [processMapId, storeClearTestRun]);
+
+  // Manual cleanup for test_data mode
+  const handleManualCleanup = useCallback(async () => {
+    if (!testDataEngineRef.current || !testDataRun) {
+      toast.error('No test run available for cleanup');
+      return;
+    }
+
+    const addLog = (level: LogEntry['level'], message: string) => {
+      setLogs((prev) => [...prev, { timestamp: new Date().toISOString(), level, message }]);
+    };
+
+    addLog('info', '🧹 Starting manual cleanup...');
+    setIsCleaningUp(true);
+    setCleanupProgress({ total: trackedResources.length, completed: 0 });
+
+    try {
+      const result = await testDataEngineRef.current.performCleanup(testDataRun);
+      setCleanupResult(result);
+
+      // Update tracked resources with cleanup status
+      setTrackedResources((prev) =>
+        prev.map((r) => {
+          const failed = result.failedResources.find((f) => f.resource.id === r.id);
+          if (failed) {
+            return { ...r, cleanupStatus: 'failed' as const, cleanupError: failed.error };
+          }
+          return { ...r, cleanupStatus: 'success' as const };
+        })
+      );
+
+      addLog('info', `🧹 Cleanup complete: ${result.successCount} cleaned, ${result.failedCount} failed`);
+
+      // Update store with cleanup result
+      storeSetCleanupResult(processMapId, result);
+
+      if (result.success) {
+        toast.success(`Successfully cleaned up ${result.successCount} resources`);
+        // Clear from store after successful cleanup
+        storeClearTestRun(processMapId);
+      } else {
+        toast.warning(`Cleanup completed with ${result.failedCount} failures. Check manual cleanup instructions.`);
+      }
+    } catch (error) {
+      const err = error as Error;
+      addLog('error', `Cleanup failed: ${err.message}`);
+      toast.error(`Cleanup failed: ${err.message}`);
+    } finally {
+      setIsCleaningUp(false);
+      setCleanupProgress(null);
+    }
+  }, [trackedResources, testDataRun, processMapId, storeSetCleanupResult, storeClearTestRun]);
 
   // Generate test scenarios with phased feedback
   const handleGenerateScenarios = useCallback(async () => {
@@ -1603,6 +1741,102 @@ export function WorkflowTestPanel({
             </Card>
           )}
 
+          {/* Cleanup Actions */}
+          {trackedResources.length > 0 && !cleanupResult && (
+            <Card className="mb-4 flex-shrink-0 border-orange-200 dark:border-orange-800">
+              <CardContent className="py-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Ready to clean up?</p>
+                    <p className="text-xs text-muted-foreground">
+                      {testDataEngineRef.current
+                        ? 'Review the resources above, then clean up when ready.'
+                        : 'Re-run the test to enable cleanup (session was restored).'}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleManualCleanup}
+                    disabled={isCleaningUp || isRunning || !testDataEngineRef.current}
+                    variant="destructive"
+                    size="sm"
+                    title={!testDataEngineRef.current ? 'Re-run test to enable cleanup' : undefined}
+                  >
+                    {isCleaningUp ? (
+                      <>
+                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                        Cleaning...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="mr-2 h-3 w-3" />
+                        Run Cleanup
+                      </>
+                    )}
+                  </Button>
+                </div>
+                {isCleaningUp && cleanupProgress && (
+                  <div className="mt-3">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div
+                        className="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                        style={{
+                          width: `${(cleanupProgress.completed / cleanupProgress.total) * 100}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {cleanupProgress.completed}/{cleanupProgress.total}
+                      {cleanupProgress.currentResource && `: ${cleanupProgress.currentResource}`}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Cleanup Result Summary */}
+          {cleanupResult && (
+            <Card className="mb-4 flex-shrink-0 border-green-200 dark:border-green-800">
+              <CardContent className="py-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <span className="text-sm font-medium">Cleanup Complete</span>
+                </div>
+                <div className="flex items-center justify-around text-center text-xs">
+                  <div>
+                    <span className="font-medium text-green-500">{cleanupResult.successCount}</span>
+                    <span className="text-muted-foreground ml-1">cleaned</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-red-500">{cleanupResult.failedCount}</span>
+                    <span className="text-muted-foreground ml-1">failed</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-500">{cleanupResult.skippedCount}</span>
+                    <span className="text-muted-foreground ml-1">skipped</span>
+                  </div>
+                </div>
+                {cleanupResult.manualCleanupInstructions.length > 0 && (
+                  <div className="mt-3 p-2 bg-yellow-50 dark:bg-yellow-950/20 rounded border border-yellow-200 dark:border-yellow-800">
+                    <p className="text-xs font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                      Manual Cleanup Required:
+                    </p>
+                    <ul className="text-xs text-yellow-700 dark:text-yellow-300 space-y-1">
+                      {cleanupResult.manualCleanupInstructions.slice(0, 3).map((instruction, i) => (
+                        <li key={i}>• {instruction}</li>
+                      ))}
+                      {cleanupResult.manualCleanupInstructions.length > 3 && (
+                        <li className="text-muted-foreground">
+                          ... and {cleanupResult.manualCleanupInstructions.length - 3} more
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Tracked Resources */}
           {trackedResources.length > 0 ? (
             <div className="flex-1 min-h-0 relative">
@@ -1877,8 +2111,8 @@ export function WorkflowTestPanel({
                 <li>Database records</li>
               </ul>
               <p className="text-sm text-muted-foreground">
-                All created resources will be automatically cleaned up after the test completes.
-                Any cleanup failures will be listed with manual cleanup instructions.
+                After the test completes, you can view and verify the created resources.
+                When ready, use the "Run Cleanup" button to delete all test data.
               </p>
             </div>
           </AlertDialogDescription>

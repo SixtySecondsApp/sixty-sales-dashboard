@@ -120,6 +120,10 @@ const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const queryClient = useQueryClient();
 
+  // Track if user explicitly signed in (vs session restoration)
+  // This ref persists across renders and is used to determine if we should invalidate queries
+  const justSignedInRef = React.useRef(false);
+
   // Initialize auth state
   useEffect(() => {
     let mounted = true;
@@ -178,6 +182,14 @@ const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        // DETAILED DEBUG: Track all auth events to diagnose tab-switch refetch issue
+        const timestamp = new Date().toISOString();
+        console.log(`🔐 [${timestamp}] AUTH EVENT: ${event}`, {
+          hasSession: !!session,
+          justSignedIn: justSignedInRef.current,
+          userId: session?.user?.id?.slice(0, 8) + '...',
+          documentVisible: document.visibilityState
+        });
         logger.log('Auth state change:', event, !!session);
         
         if (mounted) {
@@ -187,13 +199,16 @@ const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Handle specific auth events
           switch (event) {
             case 'SIGNED_IN':
-              // Only log for manual sign-ins, not session restoration
-              if (!isInitialLoad) {
-                logger.log('🔐 Manual sign-in successful for:', session?.user?.email);
+              // Only invalidate queries if user EXPLICITLY signed in via signIn() function
+              // This prevents refetching all data on session restoration, page load, or tab switch
+              if (justSignedInRef.current) {
+                logger.log('🔐 Explicit sign-in detected for:', session?.user?.email);
+                console.log('⚠️ [INVALIDATE] Calling queryClient.invalidateQueries() - explicit sign-in');
+                queryClient.invalidateQueries();
+                justSignedInRef.current = false; // Reset the flag
+              } else {
+                console.log('✅ [SKIP] Skipped query invalidation - session restoration/tab switch');
               }
-              
-              // Invalidate all queries to refetch with new auth context
-              queryClient.invalidateQueries();
               
               // Log auth event and set Sentry user context
               if (session?.user) {
@@ -274,13 +289,19 @@ const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signIn = useCallback(async (email: string, password: string) => {
     try {
       logger.log('🔐 Attempting sign in for:', email.toLowerCase().trim());
-      
+
+      // Mark that this is an explicit sign-in (not session restoration)
+      // This flag is checked in the SIGNED_IN event handler to determine if we should invalidate queries
+      justSignedInRef.current = true;
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.toLowerCase().trim(),
         password,
       });
 
       if (error) {
+        // Reset the flag on error - this wasn't a successful sign-in
+        justSignedInRef.current = false;
         // Log full error details including response body if available
         const errorDetails: any = {
           message: error.message,
@@ -330,18 +351,21 @@ const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       return { error: null };
     } catch (error: any) {
+      // Reset the flag on error - this wasn't a successful sign-in
+      justSignedInRef.current = false;
+
       logger.error('❌ Sign in exception:', {
         message: error?.message,
         status: error?.status || error?.statusCode,
         stack: error?.stack,
         fullError: error
       });
-      
-      return { 
-        error: { 
+
+      return {
+        error: {
           message: authUtils.formatAuthError(error),
           status: error?.status || error?.statusCode || 500
-        } 
+        }
       };
     }
   }, []);

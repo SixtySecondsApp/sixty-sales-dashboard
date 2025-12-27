@@ -483,13 +483,13 @@ const MeetingsList: React.FC = () => {
       const to = from + ITEMS_PER_PAGE - 1
 
       // Use explicit any to avoid deep type instantiation issues
-      // Note: Removed explicit FK name for company - let PostgREST infer the relationship
+      // Note: Use explicit FK name for company since there are multiple FKs between meetings and companies
       // Also query tasks via the tasks_meeting_id_fkey relationship
       const queryBase = supabase
         .from('meetings')
         .select(`
           *,
-          company:companies(name, domain),
+          company:companies!meetings_company_id_fkey(name, domain),
           action_items:meeting_action_items(completed),
           tasks!tasks_meeting_id_fkey(status)
         `)
@@ -602,7 +602,9 @@ const MeetingsList: React.FC = () => {
       <MeetingUsageBar />
 
       {/* Sync Progress Banner - Shows during active sync, doesn't block content */}
-      {isSyncing && syncState && (
+      {/* Hide when sync is effectively complete (all meetings synced) */}
+      {isSyncing && syncState &&
+       !(syncState.meetings_synced > 0 && syncState.meetings_synced >= syncState.total_meetings_found) && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}

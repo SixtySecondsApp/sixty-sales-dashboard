@@ -750,7 +750,7 @@ export const MermaidRenderer = memo(function MermaidRenderer({
     <Card
       ref={cardRef}
       className={cn(
-        'overflow-hidden',
+        testMode ? 'overflow-auto h-full flex flex-col' : 'overflow-hidden',
         isFullscreen && 'fixed inset-0 z-50 rounded-none bg-background',
         className
       )}
@@ -875,9 +875,13 @@ export const MermaidRenderer = memo(function MermaidRenderer({
           {!loading && !error && svgContent && (
             <div
               ref={containerRef}
-              className={cn('overflow-auto p-4 mermaid-dark-text-override', testMode && 'flex-1 min-h-0')}
+              className={cn(
+                'overflow-auto p-4 mermaid-dark-text-override',
+                testMode && 'flex-1 min-h-0 h-full'
+              )}
               style={{
-                maxHeight: isFullscreen ? 'calc(100vh - 120px)' : testMode ? undefined : '600px',
+                maxHeight: isFullscreen ? 'calc(100vh - 120px)' : testMode ? 'none' : '600px',
+                minHeight: testMode ? '200px' : undefined,
               }}
             >
               {/* CSS enhancements for Mermaid diagrams - let classDef handle node colors */}

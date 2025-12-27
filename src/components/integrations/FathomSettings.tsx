@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
 import { useOrgStore } from '@/lib/stores/orgStore';
+import { supabase } from '@/lib/supabase/clientV2';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, CheckCircle2, XCircle, RefreshCw, Calendar, Play, Trash2, Copy, Zap, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, RefreshCw, Calendar, Play, Trash2, Copy, Zap, ExternalLink, ChevronDown, ChevronUp, AlertTriangle, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -42,6 +43,9 @@ export function FathomSettings() {
   const [deleteSyncedMeetings, setDeleteSyncedMeetings] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [showWebhookGuide, setShowWebhookGuide] = useState(true);
+  const [reprocessing, setReprocessing] = useState(false);
+  const [reprocessResult, setReprocessResult] = useState<any>(null);
+  const [showReprocessModal, setShowReprocessModal] = useState(false);
 
   const copyWebhookUrl = async () => {
     try {
@@ -90,6 +94,89 @@ export function FathomSettings() {
     } finally {
       setSyncing(false);
     }
+  };
+
+  const handleReprocessPending = async (mode: 'diagnose' | 'reprocess' = 'diagnose') => {
+    setReprocessing(true);
+    setReprocessResult(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reprocess-pending-meetings`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            mode,
+            limit: 50,
+            types: ['transcript', 'summary', 'thumbnail', 'ai_index']
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to process pending meetings');
+      }
+
+      const result = await response.json();
+      setReprocessResult(result);
+
+      if (mode === 'diagnose') {
+        if (result.result?.total_pending === 0) {
+          toast.success('All meetings are up to date!');
+        } else {
+          setShowReprocessModal(true);
+          const shortCount = result.result?.short_meetings_count || 0;
+          const totalPending = result.result?.total_pending || 0;
+          toast.info(
+            `Found ${totalPending} pending meeting${totalPending !== 1 ? 's' : ''}` +
+            (shortCount > 0 ? ` (${shortCount} short/silent)` : '')
+          );
+        }
+      } else {
+        // Reprocess mode completed
+        const shortMeetings = result.results?.filter((r: any) => r.is_short_meeting) || [];
+        const successCount = result.successful || 0;
+        const failedCount = result.failed || 0;
+
+        if (shortMeetings.length > 0) {
+          toast.info(
+            `Processed ${successCount} meetings. ${shortMeetings.length} short meetings had limited processing.`,
+            { duration: 5000 }
+          );
+        } else if (failedCount > 0) {
+          toast.warning(
+            `Processed ${successCount} meetings successfully, ${failedCount} had issues.`
+          );
+        } else {
+          toast.success(`Successfully processed ${successCount} meetings!`);
+        }
+
+        // Show modal with details
+        setShowReprocessModal(true);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to process pending meetings');
+    } finally {
+      setReprocessing(false);
+    }
+  };
+
+  const formatDuration = (seconds: number | null): string => {
+    if (seconds === null) return 'Unknown';
+    if (seconds < 60) return `${seconds}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
   };
 
   if (loading) {
@@ -361,6 +448,21 @@ export function FathomSettings() {
                   <Calendar className="h-4 w-4" />
                   Custom Sync Range
                 </Button>
+
+                <Button
+                  onClick={() => handleReprocessPending('diagnose')}
+                  disabled={reprocessing}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                >
+                  {reprocessing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  {reprocessing ? 'Checking...' : 'Reprocess Pending'}
+                </Button>
               </div>
             </div>
           )}
@@ -428,14 +530,16 @@ export function FathomSettings() {
                 try {
                   await disconnectFathom(deleteSyncedMeetings);
                   toast.success(
-                    deleteSyncedMeetings 
-                      ? 'Fathom disconnected and synced meetings deleted' 
+                    deleteSyncedMeetings
+                      ? 'Fathom disconnected and synced meetings deleted'
                       : 'Fathom disconnected successfully'
                   );
                   setShowDisconnectDialog(false);
                   setDeleteSyncedMeetings(false);
                 } catch (error) {
-                  toast.error('Failed to disconnect Fathom');
+                  const message = error instanceof Error ? error.message : 'Failed to disconnect Fathom';
+                  toast.error(message);
+                  console.error('[FathomSettings] Disconnect error:', error);
                 } finally {
                   setDisconnecting(false);
                 }
@@ -531,6 +635,269 @@ export function FathomSettings() {
               {syncing && <Loader2 className="h-4 w-4 animate-spin" />}
               Start Sync
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reprocess Pending Modal */}
+      <Dialog open={showReprocessModal} onOpenChange={setShowReprocessModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {reprocessResult?.mode === 'diagnose' ? 'Pending Meetings' : 'Reprocess Results'}
+            </DialogTitle>
+            <DialogDescription>
+              {reprocessResult?.mode === 'diagnose'
+                ? 'Review meetings that need processing'
+                : 'Summary of processed meetings'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Diagnose Mode Summary */}
+            {reprocessResult?.mode === 'diagnose' && reprocessResult.result && (
+              <>
+                {/* Status Summary */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">Total Pending</div>
+                    <div className="text-xl font-semibold text-gray-900 dark:text-white">
+                      {reprocessResult.result.total_pending}
+                    </div>
+                  </div>
+                  {reprocessResult.result.short_meetings_count > 0 && (
+                    <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                      <div className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        Short Meetings
+                      </div>
+                      <div className="text-xl font-semibold text-amber-700 dark:text-amber-300">
+                        {reprocessResult.result.short_meetings_count}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Status Breakdown */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Status Breakdown</h4>
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    {reprocessResult.result.by_status.transcript_pending > 0 && (
+                      <div className="p-2 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
+                        {reprocessResult.result.by_status.transcript_pending} transcripts pending
+                      </div>
+                    )}
+                    {reprocessResult.result.by_status.transcript_failed > 0 && (
+                      <div className="p-2 rounded bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300">
+                        {reprocessResult.result.by_status.transcript_failed} transcripts failed
+                      </div>
+                    )}
+                    {reprocessResult.result.by_status.transcript_too_short > 0 && (
+                      <div className="p-2 rounded bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300">
+                        {reprocessResult.result.by_status.transcript_too_short} too short
+                      </div>
+                    )}
+                    {reprocessResult.result.by_status.summary_pending > 0 && (
+                      <div className="p-2 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
+                        {reprocessResult.result.by_status.summary_pending} summaries pending
+                      </div>
+                    )}
+                    {reprocessResult.result.by_status.thumbnail_pending > 0 && (
+                      <div className="p-2 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
+                        {reprocessResult.result.by_status.thumbnail_pending} thumbnails pending
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Meeting List */}
+                {reprocessResult.result.meetings?.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Meetings</h4>
+                    <div className="max-h-60 overflow-y-auto space-y-2">
+                      {reprocessResult.result.meetings.map((meeting: any) => (
+                        <div
+                          key={meeting.id}
+                          className={`p-3 rounded-lg border ${
+                            meeting.is_short_meeting
+                              ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800'
+                              : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900 dark:text-white text-sm">
+                                {meeting.title}
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {new Date(meeting.recording_start_time).toLocaleString()}
+                                {meeting.duration_seconds !== null && (
+                                  <span className="ml-2">
+                                    ({formatDuration(meeting.duration_seconds)})
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {meeting.is_short_meeting && (
+                              <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
+                                <Clock className="h-3 w-3 mr-1" />
+                                Short
+                              </Badge>
+                            )}
+                          </div>
+                          {meeting.short_meeting_reason && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              {meeting.short_meeting_reason}
+                            </p>
+                          )}
+                          <div className="flex gap-2 mt-2 flex-wrap">
+                            {!meeting.has_transcript && !meeting.is_short_meeting && (
+                              <Badge variant="secondary" className="text-xs">No transcript</Badge>
+                            )}
+                            {!meeting.has_summary && !meeting.is_short_meeting && (
+                              <Badge variant="secondary" className="text-xs">No summary</Badge>
+                            )}
+                            {!meeting.has_thumbnail && (
+                              <Badge variant="secondary" className="text-xs">No thumbnail</Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Reprocess Mode Results */}
+            {reprocessResult?.mode === 'reprocess' && reprocessResult.results && (
+              <>
+                {/* Summary Stats */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800 text-center">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">Processed</div>
+                    <div className="text-xl font-semibold text-gray-900 dark:text-white">
+                      {reprocessResult.total_processed}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-center">
+                    <div className="text-sm text-green-600 dark:text-green-400">Successful</div>
+                    <div className="text-xl font-semibold text-green-700 dark:text-green-300">
+                      {reprocessResult.successful}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-center">
+                    <div className="text-sm text-red-600 dark:text-red-400">Issues</div>
+                    <div className="text-xl font-semibold text-red-700 dark:text-red-300">
+                      {reprocessResult.failed}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Results List */}
+                <div className="max-h-60 overflow-y-auto space-y-2">
+                  {reprocessResult.results.map((result: any) => (
+                    <div
+                      key={result.meeting_id}
+                      className={`p-3 rounded-lg border ${
+                        result.is_short_meeting
+                          ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800'
+                          : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="font-medium text-gray-900 dark:text-white text-sm flex items-center gap-2">
+                          {result.title}
+                          {result.is_short_meeting && (
+                            <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {formatDuration(result.duration_seconds)}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      {result.short_meeting_reason && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mb-2 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          {result.short_meeting_reason}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        {result.transcript && (
+                          <span className={`px-2 py-0.5 rounded ${
+                            result.transcript.success
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                              : result.transcript.skipped
+                              ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                              : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                          }`}>
+                            {result.transcript.success ? '✓' : result.transcript.skipped ? '⏭' : '✗'} Transcript
+                          </span>
+                        )}
+                        {result.summary && (
+                          <span className={`px-2 py-0.5 rounded ${
+                            result.summary.success
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                              : result.summary.skipped
+                              ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                              : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                          }`}>
+                            {result.summary.success ? '✓' : result.summary.skipped ? '⏭' : '✗'} Summary
+                          </span>
+                        )}
+                        {result.thumbnail && (
+                          <span className={`px-2 py-0.5 rounded ${
+                            result.thumbnail.success
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                              : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                          }`}>
+                            {result.thumbnail.success ? '✓' : '✗'} Thumbnail
+                          </span>
+                        )}
+                        {result.ai_index && (
+                          <span className={`px-2 py-0.5 rounded ${
+                            result.ai_index.success
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                              : 'bg-gray-100 dark:bg-gray-700/30 text-gray-600 dark:text-gray-400'
+                          }`}>
+                            {result.ai_index.success ? '✓' : '○'} AI Index
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowReprocessModal(false)}
+            >
+              Close
+            </Button>
+            {reprocessResult?.mode === 'diagnose' && reprocessResult.result?.total_pending > 0 && (
+              <Button
+                onClick={() => handleReprocessPending('reprocess')}
+                disabled={reprocessing}
+                className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+              >
+                {reprocessing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4" />
+                    Reprocess All ({reprocessResult.result.total_pending})
+                  </>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

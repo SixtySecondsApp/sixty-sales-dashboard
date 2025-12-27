@@ -231,7 +231,11 @@ export function buildViewUrl(
   url = url.replace('{id}', externalId);
 
   // HubSpot-specific replacements
-  if (integration === 'hubspot' && context?.portalId) {
+  if (integration === 'hubspot') {
+    if (!context?.portalId) {
+      // Portal ID is required for HubSpot URLs
+      return null;
+    }
     url = url.replace('{portalId}', context.portalId);
 
     // Map resource type to HubSpot object type

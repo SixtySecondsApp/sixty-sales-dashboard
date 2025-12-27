@@ -46,3 +46,4 @@ COMMENT ON COLUMN public.savvycal_integration_secrets.api_token IS 'Legacy: sing
 
 
 
+

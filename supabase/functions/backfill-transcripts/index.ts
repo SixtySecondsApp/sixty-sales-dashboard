@@ -38,9 +38,11 @@ serve(async (req) => {
     }
 
     let limit = BATCH_SIZE
+    let requestedOrgId: string | null = null
     try {
       const body = await req.json()
       limit = Math.min(body.limit || BATCH_SIZE, 50)
+      requestedOrgId = body.org_id || null
     } catch {}
 
     const adminClient = createClient(
@@ -48,54 +50,83 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { data: integration, error: integrationError } = await adminClient
-      .from('fathom_integrations')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .single()
+    // Use requested org_id if provided, otherwise fall back to first membership
+    let orgId = requestedOrgId
+    if (!orgId) {
+      const { data: membership, error: membershipError } = await adminClient
+        .from('organization_memberships')
+        .select('org_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle()
 
-    if (integrationError || !integration) {
-      return new Response(JSON.stringify({ error: 'No active Fathom integration found' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      if (membershipError || !membership) {
+        return new Response(JSON.stringify({ error: 'User is not a member of any organization' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      orgId = membership.org_id
     }
 
-    let accessToken = integration.access_token
-    const expiresAt = new Date(integration.token_expires_at)
-    const now = new Date()
+    // Verify user has access to this org
+    const { data: membership, error: membershipError } = await adminClient
+      .from('organization_memberships')
+      .select('org_id')
+      .eq('user_id', user.id)
+      .eq('org_id', orgId)
+      .maybeSingle()
 
-    if (expiresAt.getTime() - now.getTime() < 5 * 60 * 1000) {
-      const clientId = Deno.env.get('FATHOM_CLIENT_ID')
-      const clientSecret = Deno.env.get('FATHOM_CLIENT_SECRET')
+    if (membershipError || !membership) {
+      return new Response(JSON.stringify({ error: 'User is not a member of this organization' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
 
-      if (clientId && clientSecret && integration.refresh_token) {
-        const tokenParams = new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: integration.refresh_token,
-          client_id: clientId,
-          client_secret: clientSecret,
-        })
+    // Look up org-level Fathom integration
+    const { data: integration, error: integrationError } = await adminClient
+      .from('fathom_org_integrations')
+      .select('*')
+      .eq('org_id', orgId)
+      .eq('is_active', true)
+      .maybeSingle()
 
-        const tokenResponse = await fetch('https://fathom.ai/oauth/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: tokenParams.toString(),
-        })
+    if (integrationError || !integration) {
+      return new Response(JSON.stringify({ error: 'No active Fathom integration found for your organization' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
 
-        if (tokenResponse.ok) {
-          const tokenData = await tokenResponse.json()
-          accessToken = tokenData.access_token
-          await adminClient.from('fathom_integrations').update({
-            access_token: tokenData.access_token,
-            refresh_token: tokenData.refresh_token || integration.refresh_token,
-            token_expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
-          }).eq('id', integration.id)
-        }
+    // Get access token from org credentials table
+    const { data: credentials, error: credsError } = await adminClient
+      .from('fathom_org_credentials')
+      .select('access_token, token_expires_at')
+      .eq('org_id', orgId)
+      .maybeSingle()
+
+    if (credsError) {
+      console.error('Failed to fetch credentials:', credsError)
+      return new Response(JSON.stringify({ error: 'Failed to get Fathom credentials' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    if (!credentials?.access_token) {
+      return new Response(JSON.stringify({ error: 'No valid Fathom access token available. Please reconnect Fathom.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // Check if token is expired
+    if (credentials.token_expires_at) {
+      const expiresAt = new Date(credentials.token_expires_at)
+      if (expiresAt < new Date()) {
+        return new Response(JSON.stringify({ error: 'Fathom access token expired. Please reconnect Fathom or wait for automatic refresh.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
     }
 
+    const accessToken = credentials.access_token
+
+    // Debug: Log token and org details
+    console.log(`[backfill] org_id: ${orgId}`)
+    console.log(`[backfill] Token length: ${accessToken.length}`)
+    console.log(`[backfill] Token start: ${accessToken.substring(0, 20)}...`)
+    console.log(`[backfill] Token end: ...${accessToken.substring(accessToken.length - 20)}`)
+    console.log(`[backfill] Token has whitespace: ${accessToken !== accessToken.trim()}`)
+
     const { data: meetings, error: queryError } = await adminClient
       .from('meetings')
-      .select('id, fathom_recording_id, owner_user_id')
+      .select('id, fathom_recording_id, owner_user_id, org_id')
+      .eq('org_id', orgId)
       .is('transcript_text', null)
       .not('fathom_recording_id', 'is', null)
       .order('meeting_start', { ascending: false })
@@ -122,11 +153,26 @@ serve(async (req) => {
       }
 
       try {
-        console.log(`Fetching transcript for meeting ${meeting.id} (recording ${recordingId})`)
-        const transcript = await fetchTranscriptFromFathom(accessToken, recordingId)
+        console.log(`[backfill] Fetching transcript for meeting ${meeting.id} (recording ${recordingId})`)
+        console.log(`[backfill] Using token: ${accessToken.substring(0, 20)}...`)
+
+        let transcript: string | null = null
+        let fetchError: string | null = null
+
+        try {
+          transcript = await fetchTranscriptFromFathom(accessToken, recordingId)
+        } catch (e) {
+          fetchError = e instanceof Error ? e.message : String(e)
+          console.error(`[backfill] Error fetching transcript: ${fetchError}`)
+        }
 
         if (!transcript) {
-          results.push({ meeting_id: meeting.id, recording_id: recordingId, success: false, message: 'Transcript not available from Fathom' })
+          results.push({
+            meeting_id: meeting.id,
+            recording_id: recordingId,
+            success: false,
+            message: fetchError || 'Transcript not available from Fathom (null returned)'
+          })
           continue
         }
 

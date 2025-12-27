@@ -367,16 +367,17 @@ export const useOrgStore = create<OrgStore>()(
  * Returns the active org ID or null, with fallback for single-tenant mode
  */
 export function useActiveOrgId(): string | null {
+  // Use selectors to avoid re-renders when unrelated store state changes
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
-  const { getActiveOrg } = useOrgStore();
+  const firstOrgId = useOrgStore((state) => state.organizations[0]?.id ?? null);
 
   // If multi-tenant is disabled, return default or first org
   if (!isMultiTenantEnabled()) {
     const defaultOrgId = getDefaultOrgId();
     if (defaultOrgId) return defaultOrgId;
 
-    const activeOrg = getActiveOrg();
-    return activeOrg?.id || null;
+    // Use the selected first org ID instead of calling getActiveOrg()
+    return firstOrgId;
   }
 
   return activeOrgId;

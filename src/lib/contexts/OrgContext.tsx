@@ -117,19 +117,17 @@ export function OrgProvider({ children }: OrgProviderProps) {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
 
-  // Get store state and actions
-  const {
-    organizations,
-    memberships,
-    isLoading,
-    error,
-    loadOrganizations,
-    setActiveOrg,
-    createOrganization,
-    getUserRole,
-    isOrgMember,
-    clear: clearOrgStore,
-  } = useOrgStore();
+  // Get store state with selectors to avoid re-renders on unrelated state changes
+  const organizations = useOrgStore((state) => state.organizations);
+  const memberships = useOrgStore((state) => state.memberships);
+  const isLoading = useOrgStore((state) => state.isLoading);
+  const error = useOrgStore((state) => state.error);
+  const getUserRole = useOrgStore((state) => state.getUserRole);
+  const isOrgMember = useOrgStore((state) => state.isOrgMember);
+
+  // Get actions using getState() to avoid reference changes causing effect re-runs
+  // These functions are stable and don't need to be in dependency arrays
+  const storeActions = useOrgStore.getState();
 
   // Use hooks for reactive values
   const activeOrgId = useActiveOrgId();
@@ -182,17 +180,21 @@ export function OrgProvider({ children }: OrgProviderProps) {
   }, [userRole]);
 
   // Load organizations when user authenticates
+  // Use user?.id instead of user object to prevent effect from re-running
+  // when user object reference changes but ID stays the same
+  // Use storeActions.loadOrganizations/clear which are stable references
   useEffect(() => {
     if (authLoading) return;
 
     if (isAuthenticated && user) {
       logger.log('[OrgContext] User authenticated, loading organizations');
-      loadOrganizations();
+      storeActions.loadOrganizations();
     } else {
       logger.log('[OrgContext] User not authenticated, clearing org store');
-      clearOrgStore();
+      storeActions.clear();
     }
-  }, [isAuthenticated, user, authLoading, loadOrganizations, clearOrgStore]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user?.id, authLoading]);
 
   // Switch to a different organization
   const switchOrg = useCallback((orgId: string) => {
@@ -204,24 +206,24 @@ export function OrgProvider({ children }: OrgProviderProps) {
       return;
     }
 
-    setActiveOrg(orgId);
+    storeActions.setActiveOrg(orgId);
 
     // Invalidate all org-scoped queries to refetch with new RLS context
     logger.log('[OrgContext] Invalidating all org queries for cache refresh');
     invalidateAllOrgQueries(queryClient);
-  }, [isOrgMember, setActiveOrg, queryClient]);
+  }, [isOrgMember, queryClient, storeActions]);
 
   // Refresh organizations from server
   const refreshOrgs = useCallback(async () => {
     logger.log('[OrgContext] Refreshing organizations');
-    await loadOrganizations();
-  }, [loadOrganizations]);
+    await storeActions.loadOrganizations();
+  }, [storeActions]);
 
   // Create a new organization
   const createOrg = useCallback(async (name: string): Promise<Organization | null> => {
     logger.log('[OrgContext] Creating organization:', name);
-    return createOrganization(name);
-  }, [createOrganization]);
+    return storeActions.createOrganization(name);
+  }, [storeActions]);
 
   // Set session-level org override (for database queries)
   // Note: With Supabase, RLS uses auth.uid() directly through organization_memberships

@@ -222,6 +222,10 @@ export class IntegrationExecutor {
     if (operation === 'create') {
       // For create operations, pass properties
       body.properties = data.properties || this.buildHubSpotProperties(resourceType, data);
+    } else if (operation === 'update') {
+      // For update operations, pass record_id and properties
+      body.record_id = data.record_id || data.externalId || data.id;
+      body.properties = data.properties || this.buildHubSpotProperties(resourceType, data);
     } else if (operation === 'delete') {
       // For delete operations, pass record_id
       body.record_id = data.record_id || data.externalId || data.id;
@@ -290,6 +294,9 @@ export class IntegrationExecutor {
       'create-contact': 'create_contact',
       'create-deal': 'create_deal',
       'create-task': 'create_task',
+      'update-contact': 'update_contact',
+      'update-deal': 'update_deal',
+      'update-task': 'update_task',
       'delete-contact': 'delete_contact',
       'delete-deal': 'delete_deal',
       'delete-task': 'delete_task',

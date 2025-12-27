@@ -14,14 +14,15 @@ import { supabase } from '@/lib/supabase/clientV2';
 import type { IntegrationTest, TestResult, ConnectionStatus } from '../types';
 
 /**
- * Get Fathom connection status for the current org
+ * Get Fathom connection status for the current user
+ * Note: Fathom is now a per-user integration - each user connects their own Fathom account
  */
-export async function getFathomConnectionStatus(orgId: string): Promise<ConnectionStatus> {
+export async function getFathomConnectionStatus(userId: string): Promise<ConnectionStatus> {
   try {
     const { data: integration, error } = await supabase
-      .from('fathom_org_integrations')
+      .from('fathom_integrations')
       .select('*')
-      .eq('org_id', orgId)
+      .eq('user_id', userId)
       .eq('is_active', true)
       .maybeSingle();
 
@@ -51,13 +52,13 @@ export async function getFathomConnectionStatus(orgId: string): Promise<Connecti
 }
 
 /**
- * Get Fathom sync state for the current org
+ * Get Fathom sync state for the current user
  */
-export async function getFathomSyncState(orgId: string) {
+export async function getFathomSyncState(userId: string) {
   const { data, error } = await supabase
-    .from('fathom_org_sync_state')
+    .from('fathom_sync_state')
     .select('*')
-    .eq('org_id', orgId)
+    .eq('user_id', userId)
     .maybeSingle();
 
   if (error) {
@@ -69,9 +70,10 @@ export async function getFathomSyncState(orgId: string) {
 }
 
 /**
- * Create all Fathom tests for a given org
+ * Create all Fathom tests for a given user
+ * Note: Fathom is now a per-user integration - each user connects their own Fathom account
  */
-export function createFathomTests(orgId: string): IntegrationTest[] {
+export function createFathomTests(userId: string): IntegrationTest[] {
   return [
     // =========================================================================
     // Authentication & Connection Tests
@@ -79,18 +81,18 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
     {
       id: 'fathom-connection-status',
       name: 'Connection Status',
-      description: 'Verify Fathom is connected to the organization',
+      description: 'Verify Fathom is connected for this user',
       category: 'authentication',
       timeout: 10000,
       run: async (): Promise<TestResult> => {
-        const status = await getFathomConnectionStatus(orgId);
+        const status = await getFathomConnectionStatus(userId);
 
         if (!status.isConnected) {
           return {
             testId: 'fathom-connection-status',
             testName: 'Connection Status',
             status: 'failed',
-            message: status.error || 'Fathom is not connected to this organization',
+            message: status.error || 'Fathom is not connected for this user',
           };
         }
 
@@ -117,9 +119,9 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
       run: async (): Promise<TestResult> => {
         try {
           // Call the test-fathom-token edge function which has service role access
-          // to verify tokens stored in fathom_org_credentials table
+          // to verify tokens stored in fathom_integrations table (per-user)
           const { data, error } = await supabase.functions.invoke('test-fathom-token', {
-            body: { org_id: orgId },
+            body: { user_id: userId },
           });
 
           if (error) {
@@ -222,7 +224,7 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
           // Use test-fathom-token edge function which is designed for quick connectivity tests
           // It verifies the token and makes a test API call to Fathom
           const { data, error } = await supabase.functions.invoke('test-fathom-token', {
-            body: { org_id: orgId },
+            body: { user_id: userId },
           });
 
           if (error) {
@@ -321,7 +323,7 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
       timeout: 10000,
       run: async (): Promise<TestResult> => {
         try {
-          const syncState = await getFathomSyncState(orgId);
+          const syncState = await getFathomSyncState(userId);
 
           if (!syncState) {
             // No sync state yet - might be a new connection
@@ -440,11 +442,11 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
       timeout: 15000,
       run: async (): Promise<TestResult> => {
         try {
-          // Get recent synced meetings
+          // Get recent synced meetings for this user (per-user Fathom sync)
           const { data: meetings, error } = await supabase
             .from('meetings')
             .select('id, title, meeting_start, fathom_recording_id, transcript_text, summary')
-            .eq('org_id', orgId)
+            .eq('owner_user_id', userId)
             .not('fathom_recording_id', 'is', null)
             .order('created_at', { ascending: false })
             .limit(10);
@@ -539,11 +541,11 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
         // Full webhook testing would require sending a test webhook from Fathom
 
         try {
-          // Check if we've received any webhooks recently
+          // Check if we've received any webhooks recently for this user
           const { data: recentMeetings, error } = await supabase
             .from('meetings')
             .select('id, created_at')
-            .eq('org_id', orgId)
+            .eq('owner_user_id', userId)
             .not('fathom_recording_id', 'is', null)
             .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
             .order('created_at', { ascending: false })
@@ -599,7 +601,7 @@ export function createFathomTests(orgId: string): IntegrationTest[] {
           // specifically designed for quick health checks
           const startTime = Date.now();
           const { data, error } = await supabase.functions.invoke('test-fathom-token', {
-            body: { org_id: orgId },
+            body: { user_id: userId },
           });
 
           const duration = Date.now() - startTime;

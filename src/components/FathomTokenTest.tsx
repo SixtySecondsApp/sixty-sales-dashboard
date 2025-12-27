@@ -117,11 +117,23 @@ export function FathomTokenTest() {
             </div>
           )}
 
-          {/* Account Error */}
+          {/* Account Error - only show as warning if meetings also failed */}
           {result.fathom_account_error && (
-            <div className="mb-3 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
-              <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                <strong>⚠️ Could not fetch Fathom account info:</strong> {result.fathom_account_error}
+            <div className={`mb-3 p-2 rounded border ${
+              result.api_test?.meetings_count > 0
+                ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
+                : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+            }`}>
+              <p className={`text-xs ${
+                result.api_test?.meetings_count > 0
+                  ? 'text-gray-500 dark:text-gray-400'
+                  : 'text-yellow-700 dark:text-yellow-300'
+              }`}>
+                <strong>{result.api_test?.meetings_count > 0 ? 'ℹ️' : '⚠️'} Note:</strong>{' '}
+                {result.api_test?.meetings_count > 0
+                  ? 'The /me endpoint is not available for your account type (this is normal and doesn\'t affect syncing).'
+                  : `Could not fetch Fathom account info: ${result.fathom_account_error}`
+                }
               </p>
             </div>
           )}

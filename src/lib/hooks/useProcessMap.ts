@@ -43,7 +43,8 @@ interface UseProcessMapResult {
 
 /**
  * Hook to fetch and manage a process map by type and name.
- * Retrieves the most up-to-date process map from the database for the current org.
+ * Uses the edge function to bypass RLS and retrieve the most up-to-date
+ * process map for the current org.
  */
 export function useProcessMap({
   processType,
@@ -65,23 +66,27 @@ export function useProcessMap({
     setError(null);
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from('process_maps')
-        .select('*')
-        .eq('org_id', orgId)
-        .eq('process_type', processType)
-        .eq('process_name', processName)
-        .order('version', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Use edge function with 'list' action to bypass RLS (same as ProcessMaps page)
+      const response = await supabase.functions.invoke('generate-process-map', {
+        body: { action: 'list' },
+      });
 
-      if (fetchError) {
-        throw fetchError;
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to fetch process maps');
       }
 
-      setProcessMap(data as ProcessMapData | null);
+      const allMaps: ProcessMapData[] = response.data?.processMaps || [];
+
+      // Find the specific map matching processType and processName
+      // Sort by version descending to get the latest
+      const matchingMap = allMaps
+        .filter(m => m.process_type === processType && m.process_name === processName)
+        .sort((a, b) => b.version - a.version)[0] || null;
+
+      setProcessMap(matchingMap);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch process map';
+      console.error('[useProcessMap] Error:', message);
       setError(message);
       setProcessMap(null);
     } finally {

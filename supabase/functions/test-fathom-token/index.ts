@@ -7,10 +7,13 @@ const corsHeaders = {
 }
 
 /**
- * Test Fathom Token Edge Function
+ * Test Fathom Token Edge Function (Per-User)
  *
  * Purpose: Test if stored Fathom access token works with API
  * Usage: Call this to verify your token before running full sync
+ *
+ * Note: Fathom is now per-user - each user connects their own Fathom account
+ * because OAuth tokens only grant access to recordings owned by the authenticated user.
  *
  * Now includes workspace/team diagnostics to help identify connection issues
  */
@@ -37,28 +40,17 @@ serve(async (req) => {
     if (userError || !user) {
       throw new Error('Unauthorized: Invalid token')
     }
-    // Prefer org-scoped integration; allow caller to pass org_id
-    const body = await req.json().catch(() => ({} as any))
-    let orgId: string | null = (body && typeof body.org_id === 'string' ? body.org_id : null)
 
-    if (!orgId) {
-      const { data: membership } = await supabase
-        .from('organization_memberships')
-        .select('org_id')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle()
-      orgId = membership?.org_id || null
-    } else {
-      const { data: membership } = await supabase
-        .from('organization_memberships')
-        .select('org_id')
-        .eq('org_id', orgId)
-        .eq('user_id', user.id)
-        .limit(1)
-        .maybeSingle()
-      if (!membership) throw new Error('Forbidden: You are not a member of this organization')
+    // Parse body - accept user_id (new) or org_id (backwards compat)
+    const body = await req.json().catch(() => ({} as any))
+    const requestedUserId: string | null = body?.user_id || null
+    const requestedOrgId: string | null = body?.org_id || null
+
+    // Determine which user's integration to test
+    // If user_id is passed, verify it matches the auth user (security)
+    let targetUserId = user.id
+    if (requestedUserId && requestedUserId !== user.id) {
+      throw new Error('Forbidden: Can only test your own Fathom integration')
     }
 
     let accessToken: string
@@ -67,68 +59,27 @@ serve(async (req) => {
     let integrationEmail: string | null = null
     let integrationId: string | null = null
 
-    if (orgId) {
-      const { data: orgIntegration } = await supabase
-        .from('fathom_org_integrations')
-        .select('*')
-        .eq('org_id', orgId)
-        .eq('is_active', true)
-        .maybeSingle()
+    // Per-user integration (PRIMARY - each user connects their own Fathom account)
+    const { data: integration, error: integrationError } = await supabase
+      .from('fathom_integrations')
+      .select('*')
+      .eq('user_id', targetUserId)
+      .eq('is_active', true)
+      .maybeSingle()
 
-      if (orgIntegration) {
-        const { data: creds, error: credsError } = await supabase
-          .from('fathom_org_credentials')
-          .select('access_token, token_expires_at')
-          .eq('org_id', orgId)
-          .single()
-
-        if (credsError || !creds?.access_token) {
-          throw new Error('No active Fathom credentials found for this org (reconnect required)')
-        }
-
-        accessToken = creds.access_token
-        tokenExpiresAt = creds.token_expires_at || null
-        scopes = orgIntegration.scopes || ['public_api']
-        integrationEmail = orgIntegration.fathom_user_email || null
-        integrationId = orgIntegration.id
-      } else {
-        // Fall back to legacy per-user integration
-        const { data: integration, error: integrationError } = await supabase
-          .from('fathom_integrations')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .maybeSingle()
-
-        if (integrationError || !integration) {
-          throw new Error('No active Fathom integration found')
-        }
-
-        accessToken = integration.access_token
-        tokenExpiresAt = integration.token_expires_at || null
-        scopes = integration.scopes || ['public_api']
-        integrationEmail = integration.fathom_user_email || null
-        integrationId = integration.id
-      }
-    } else {
-      // No org resolved: legacy per-user integration only
-      const { data: integration, error: integrationError } = await supabase
-        .from('fathom_integrations')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .maybeSingle()
-
-      if (integrationError || !integration) {
-        throw new Error('No active Fathom integration found')
-      }
-
-      accessToken = integration.access_token
-      tokenExpiresAt = integration.token_expires_at || null
-      scopes = integration.scopes || ['public_api']
-      integrationEmail = integration.fathom_user_email || null
-      integrationId = integration.id
+    if (integrationError) {
+      throw new Error(`Database error: ${integrationError.message}`)
     }
+
+    if (!integration) {
+      throw new Error('No active Fathom integration found for this user')
+    }
+
+    accessToken = integration.access_token
+    tokenExpiresAt = integration.token_expires_at || null
+    scopes = integration.scopes || ['public_api']
+    integrationEmail = integration.fathom_user_email || null
+    integrationId = integration.id
 
     // STEP 1: Fetch user/team info from /me endpoint
     //
@@ -281,7 +232,7 @@ serve(async (req) => {
           message: '✅ Token is valid and working!',
           integration: {
             id: integrationId,
-            org_id: orgId,
+            user_id: targetUserId,
             email: integrationEmail || userInfo?.email || 'Unknown',
             expires_at: tokenExpiresAt,
             scopes,
@@ -330,15 +281,16 @@ serve(async (req) => {
             body: responseData,
           },
           integration: {
-            id: integration.id,
-            email: integration.fathom_user_email,
-            expires_at: integration.token_expires_at,
-            scopes: integration.scopes,
-            token_preview: integration.access_token?.substring(0, 20) + '...',
+            id: integrationId,
+            user_id: targetUserId,
+            email: integrationEmail,
+            expires_at: tokenExpiresAt,
+            scopes,
+            token_preview: accessToken?.substring(0, 20) + '...',
           },
           fathom_account: userInfo,
           fathom_account_error: userInfoError,
-          recommendation: 'Please reconnect your Fathom account in the Integrations page',
+          recommendation: 'Please reconnect your Fathom account in Settings → Integrations',
         }),
         {
           status: 200,

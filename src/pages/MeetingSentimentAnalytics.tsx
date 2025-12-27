@@ -91,7 +91,7 @@ export default function MeetingSentimentAnalytics() {
           sentiment_reasoning,
           talk_time_rep_pct,
           talk_time_customer_pct,
-          company:companies(name)
+          company:companies!meetings_company_id_fkey(name)
         `)
         .eq('owner_user_id', user.id)
         .gte('meeting_start', startDate.toISOString())

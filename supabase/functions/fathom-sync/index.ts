@@ -597,41 +597,13 @@ serve(async (req) => {
     }
     const { sync_type, start_date, end_date, call_id, limit, webhook_payload, skip_thumbnails } = body
 
-    // Load integration (org-scoped preferred; user-scoped fallback for legacy)
+    // Load integration (per-user is PRIMARY - each user connects their own Fathom account)
+    // Fathom OAuth tokens only grant access to recordings owned by the authenticated user
     let integration: any = null
-    let integrationScope: 'org' | 'user' = 'org'
+    let integrationScope: 'org' | 'user' = 'user'
 
-    if (orgId) {
-      const { data: orgIntegration, error: orgIntegrationError } = await supabase
-        .from('fathom_org_integrations')
-        .select('*')
-        .eq('org_id', orgId)
-        .eq('is_active', true)
-        .maybeSingle()
-
-      if (!orgIntegrationError && orgIntegration) {
-        const { data: creds, error: credsError } = await supabase
-          .from('fathom_org_credentials')
-          .select('*')
-          .eq('org_id', orgId)
-          .single()
-
-        if (credsError) {
-          throw new Error(`Fathom credentials missing for org: ${credsError.message}`)
-        }
-
-        integration = {
-          ...orgIntegration,
-          ...creds,
-          org_id: orgId,
-          _scope: 'org',
-        }
-        integrationScope = 'org'
-      }
-    }
-
-    // Legacy per-user fallback if org integration is not configured
-    if (!integration && userId) {
+    // Per-user integration (PRIMARY approach)
+    if (userId) {
       const { data: userIntegration, error: integrationError } = await supabase
         .from('fathom_integrations')
         .select('*')
@@ -646,6 +618,35 @@ serve(async (req) => {
       if (userIntegration) {
         integration = { ...userIntegration, _scope: 'user' }
         integrationScope = 'user'
+      }
+    }
+
+    // Fallback to org-scoped integration (for backwards compatibility during transition)
+    if (!integration && orgId) {
+      const { data: orgIntegration, error: orgIntegrationError } = await supabase
+        .from('fathom_org_integrations')
+        .select('*')
+        .eq('org_id', orgId)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (!orgIntegrationError && orgIntegration) {
+        const { data: creds, error: credsError } = await supabase
+          .from('fathom_org_credentials')
+          .select('*')
+          .eq('org_id', orgId)
+          .maybeSingle()
+
+        if (creds) {
+          integration = {
+            ...orgIntegration,
+            ...creds,
+            org_id: orgId,
+            _scope: 'org',
+          }
+          integrationScope = 'org'
+          console.log(`[fathom-sync] Using org-scoped fallback for user ${userId}. Consider connecting Fathom directly.`)
+        }
       }
     }
 

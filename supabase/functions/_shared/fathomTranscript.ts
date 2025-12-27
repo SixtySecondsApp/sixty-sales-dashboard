@@ -15,23 +15,33 @@ export async function fetchTranscriptFromFathom(
 ): Promise<string | null> {
   try {
     const url = `https://api.fathom.ai/external/v1/recordings/${recordingId}/transcript`
-    
-    // Try X-Api-Key first (preferred for Fathom API)
+
+    console.log(`[fetchTranscript] Fetching transcript for recording ${recordingId}`)
+    console.log(`[fetchTranscript] Token preview: ${accessToken.substring(0, 15)}...${accessToken.substring(accessToken.length - 10)}`)
+
+    // Try Bearer token first (for OAuth tokens - most common in our setup)
     let response = await fetch(url, {
       headers: {
-        'X-Api-Key': accessToken,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
     })
-    
-    // If X-Api-Key fails with 401, try Bearer (for OAuth tokens)
+
+    console.log(`[fetchTranscript] Bearer auth response: ${response.status}`)
+
+    // If Bearer fails with 401, log the error and try X-Api-Key
     if (response.status === 401) {
+      const errorBody = await response.text()
+      console.log(`[fetchTranscript] 401 error body: ${errorBody.substring(0, 200)}`)
+      console.log(`[fetchTranscript] Trying X-Api-Key instead...`)
+
       response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          'X-Api-Key': accessToken,
           'Content-Type': 'application/json',
         },
       })
+      console.log(`[fetchTranscript] X-Api-Key auth response: ${response.status}`)
     }
 
     if (response.status === 404) {

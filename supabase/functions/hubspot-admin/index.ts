@@ -3,8 +3,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { HubSpotClient } from '../_shared/hubspot.ts'
 
-// HubSpot Admin Edge Function - v2
-type Action = 'status' | 'enqueue' | 'save_settings' | 'get_properties' | 'get_pipelines' | 'get_forms' | 'trigger_sync' | 'create_contact' | 'create_deal' | 'create_task' | 'delete_contact' | 'delete_deal' | 'delete_task'
+// HubSpot Admin Edge Function - v3 (added update actions)
+type Action = 'status' | 'enqueue' | 'save_settings' | 'get_properties' | 'get_pipelines' | 'get_forms' | 'trigger_sync' | 'create_contact' | 'create_deal' | 'create_task' | 'update_contact' | 'update_deal' | 'update_task' | 'delete_contact' | 'delete_deal' | 'delete_task'
 
 /**
  * Get a valid HubSpot access token, refreshing if expired or about to expire
@@ -680,6 +680,198 @@ serve(async (req) => {
     } catch (e: any) {
       console.error('[hubspot-admin] Failed to create task:', e)
       return new Response(JSON.stringify({ success: false, error: e.message || 'Failed to create task' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
+  // Update a contact in HubSpot (e.g., lifecycle stage)
+  if (action === 'update_contact') {
+    const contactId = body.record_id || body.contact_id || body.id
+    const properties = body.properties || {}
+
+    if (!contactId) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'record_id is required'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (Object.keys(properties).length === 0) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'At least one property to update is required'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const { accessToken, error: tokenError } = await getValidAccessToken(svc, orgId)
+    if (!accessToken) {
+      return new Response(JSON.stringify({ success: false, error: tokenError || 'HubSpot not connected' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const client = new HubSpotClient({ accessToken })
+
+    try {
+      console.log('[hubspot-admin] Updating contact:', contactId, 'with properties:', JSON.stringify(properties))
+
+      const contact = await client.request<{ id: string; properties: any }>({
+        method: 'PATCH',
+        path: `/crm/v3/objects/contacts/${contactId}`,
+        body: { properties },
+      })
+
+      console.log('[hubspot-admin] Contact updated:', contact.id)
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          id: contact.id,
+          properties: contact.properties,
+          objectType: 'contact',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } catch (e: any) {
+      console.error('[hubspot-admin] Failed to update contact:', e)
+      return new Response(JSON.stringify({ success: false, error: e.message || 'Failed to update contact' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
+  // Update a deal in HubSpot (e.g., pipeline stage)
+  if (action === 'update_deal') {
+    const dealId = body.record_id || body.deal_id || body.id
+    const properties = body.properties || {}
+
+    if (!dealId) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'record_id is required'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (Object.keys(properties).length === 0) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'At least one property to update is required'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const { accessToken, error: tokenError } = await getValidAccessToken(svc, orgId)
+    if (!accessToken) {
+      return new Response(JSON.stringify({ success: false, error: tokenError || 'HubSpot not connected' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const client = new HubSpotClient({ accessToken })
+
+    try {
+      console.log('[hubspot-admin] Updating deal:', dealId, 'with properties:', JSON.stringify(properties))
+
+      const deal = await client.request<{ id: string; properties: any }>({
+        method: 'PATCH',
+        path: `/crm/v3/objects/deals/${dealId}`,
+        body: { properties },
+      })
+
+      console.log('[hubspot-admin] Deal updated:', deal.id)
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          id: deal.id,
+          properties: deal.properties,
+          objectType: 'deal',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } catch (e: any) {
+      console.error('[hubspot-admin] Failed to update deal:', e)
+      return new Response(JSON.stringify({ success: false, error: e.message || 'Failed to update deal' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
+  // Update a task in HubSpot (e.g., status)
+  if (action === 'update_task') {
+    const taskId = body.record_id || body.task_id || body.id
+    const properties = body.properties || {}
+
+    if (!taskId) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'record_id is required'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (Object.keys(properties).length === 0) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'At least one property to update is required'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const { accessToken, error: tokenError } = await getValidAccessToken(svc, orgId)
+    if (!accessToken) {
+      return new Response(JSON.stringify({ success: false, error: tokenError || 'HubSpot not connected' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const client = new HubSpotClient({ accessToken })
+
+    try {
+      console.log('[hubspot-admin] Updating task:', taskId, 'with properties:', JSON.stringify(properties))
+
+      const task = await client.request<{ id: string; properties: any }>({
+        method: 'PATCH',
+        path: `/crm/v3/objects/tasks/${taskId}`,
+        body: { properties },
+      })
+
+      console.log('[hubspot-admin] Task updated:', task.id)
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          id: task.id,
+          properties: task.properties,
+          objectType: 'task',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } catch (e: any) {
+      console.error('[hubspot-admin] Failed to update task:', e)
+      return new Response(JSON.stringify({ success: false, error: e.message || 'Failed to update task' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })

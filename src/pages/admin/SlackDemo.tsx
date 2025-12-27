@@ -349,7 +349,7 @@ export default function SlackDemo() {
       // 2) If it returns 0 rows, fall back to owner_user_id / owner_email matching (older data may have org_id null)
       const runQuery = async (useOrgFilter: boolean) => {
         // Some environments may not have a relationship between meetings -> companies; if so, we retry without the join.
-        const baseSelect = 'id, title, meeting_start, owner_email, company:companies(name)';
+        const baseSelect = 'id, title, meeting_start, owner_email, company:companies!meetings_company_id_fkey(name)';
         const fallbackSelect = 'id, title, meeting_start, owner_email';
 
         const build = (selectStr: string) => {

@@ -7,20 +7,21 @@ const corsHeaders = {
 }
 
 interface DisconnectRequest {
-  org_id?: string
   delete_synced_meetings?: boolean
 }
 
 /**
- * Fathom Disconnect Edge Function (org-scoped)
+ * Fathom Disconnect Edge Function (Per-User)
  *
  * Purpose:
- * - Allow org owners/admins to disconnect the org-level Fathom integration
- * - Optionally delete all Fathom-synced meetings for that org
+ * - Allow any user to disconnect their own Fathom integration
+ * - Optionally delete all Fathom-synced meetings owned by that user
  *
  * Security:
  * - Requires a valid user session
- * - Requires org role in ('owner','admin')
+ * - Users can only disconnect their own integration
+ *
+ * Note: This is a per-user integration - each user manages their own Fathom connection.
  */
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -29,15 +30,7 @@ serve(async (req) => {
 
   try {
     const body: DisconnectRequest = await req.json().catch(() => ({} as DisconnectRequest))
-    const orgId = body.org_id || null
     const deleteSyncedMeetings = !!body.delete_synced_meetings
-
-    if (!orgId) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing org_id' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
 
     const authHeader = req.headers.get('Authorization') || ''
     if (!authHeader) {
@@ -62,35 +55,34 @@ serve(async (req) => {
       )
     }
 
-    // Service role client for privileged operations (credentials table is service-role-only)
+    // Service role client for privileged operations
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       { auth: { persistSession: false, autoRefreshToken: false } }
     )
 
-    // Verify org admin role
-    const { data: membership } = await supabase
-      .from('organization_memberships')
-      .select('role')
-      .eq('org_id', orgId)
+    // Verify user has an active integration
+    const { data: existingIntegration } = await supabase
+      .from('fathom_integrations')
+      .select('id')
       .eq('user_id', user.id)
+      .eq('is_active', true)
       .maybeSingle()
 
-    const role = membership?.role || null
-    if (role !== 'owner' && role !== 'admin') {
+    if (!existingIntegration) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Forbidden: org admin required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'No active Fathom integration found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Optionally delete org meetings synced from Fathom
+    // Optionally delete user's meetings synced from Fathom
     if (deleteSyncedMeetings) {
       const { error: delMeetingsError } = await supabase
         .from('meetings')
         .delete()
-        .eq('org_id', orgId)
+        .eq('owner_user_id', user.id)
         .not('fathom_recording_id', 'is', null)
 
       if (delMeetingsError) {
@@ -99,18 +91,34 @@ serve(async (req) => {
       }
     }
 
-    // Deactivate integration (keep credentials row; token refresh will ignore inactive)
-    const { error: deactivateError } = await supabase
-      .from('fathom_org_integrations')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('org_id', orgId)
+    // Delete sync state
+    const { error: deleteSyncError } = await supabase
+      .from('fathom_sync_state')
+      .delete()
+      .eq('user_id', user.id)
 
-    if (deactivateError) {
-      throw new Error(`Failed to deactivate integration: ${deactivateError.message}`)
+    if (deleteSyncError) {
+      console.error('[fathom-disconnect] Failed to delete sync state:', deleteSyncError)
     }
 
+    // Delete integration record entirely (ensures fresh token on reconnect)
+    const { error: deleteIntegrationError } = await supabase
+      .from('fathom_integrations')
+      .delete()
+      .eq('user_id', user.id)
+
+    if (deleteIntegrationError) {
+      throw new Error(`Failed to delete integration: ${deleteIntegrationError.message}`)
+    }
+
+    console.log(`[fathom-disconnect] Successfully disconnected Fathom for user ${user.id}`)
+
     return new Response(
-      JSON.stringify({ success: true, org_id: orgId, deleted_meetings: deleteSyncedMeetings }),
+      JSON.stringify({
+        success: true,
+        user_id: user.id,
+        deleted_meetings: deleteSyncedMeetings
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
@@ -120,4 +128,3 @@ serve(async (req) => {
     )
   }
 })
-

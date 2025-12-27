@@ -276,7 +276,7 @@ export function usePendingSuggestionsCount() {
     // No refetchInterval - realtime subscription handles updates
     // This eliminates ~60 calls/hour per user
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    refetchOnWindowFocus: true, // Refresh when user returns to tab
+    refetchOnWindowFocus: false, // DISABLED: was causing excessive refetches on tab switch
   })
 
   useEffect(() => {

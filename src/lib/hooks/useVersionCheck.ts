@@ -26,6 +26,7 @@ interface UseVersionCheckReturn {
 let CURRENT_BUILD_ID: string | null = null;
 const POLL_INTERVAL = 30000; // 30 seconds
 const API_TIMEOUT = 5000; // 5 seconds
+const VISIBILITY_CHANGE_DEBOUNCE = 10000; // 10 seconds - minimum time before checking on tab switch
 
 /**
  * Hook for checking version updates and managing release information
@@ -53,6 +54,7 @@ export function useVersionCheck(): UseVersionCheckReturn {
   
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingRef = useRef(false);
+  const lastCheckTimeRef = useRef<number>(Date.now());
 
   /**
    * Fetches version data with timeout and error handling
@@ -217,6 +219,7 @@ export function useVersionCheck(): UseVersionCheckReturn {
     } finally {
       setIsLoading(false);
       isPollingRef.current = false;
+      lastCheckTimeRef.current = Date.now();
     }
   }, [clientBuildId, fetchVersionData, fetchReleasesData, releases.length]);
 
@@ -313,13 +316,20 @@ export function useVersionCheck(): UseVersionCheckReturn {
 
   /**
    * Handle visibility change to pause/resume polling
+   * DEBOUNCED: Only checks for updates if significant time has passed since the last check
+   * This prevents excessive API calls on rapid tab switches
    */
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         // Resume polling when page becomes visible
         if (!pollIntervalRef.current) {
-          checkForUpdates(true);
+          // DEBOUNCE: Only check immediately if enough time has passed since last check
+          const timeSinceLastCheck = Date.now() - lastCheckTimeRef.current;
+          if (timeSinceLastCheck >= VISIBILITY_CHANGE_DEBOUNCE) {
+            checkForUpdates(true);
+          }
+          // Always resume the polling interval
           pollIntervalRef.current = setInterval(() => {
             checkForUpdates(true);
           }, POLL_INTERVAL);
@@ -332,9 +342,9 @@ export function useVersionCheck(): UseVersionCheckReturn {
         }
       }
     };
-    
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };

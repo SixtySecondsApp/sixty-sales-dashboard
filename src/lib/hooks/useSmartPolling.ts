@@ -200,9 +200,10 @@ export function useSmartRefetchConfig(
     refetchInterval: interval,
     // Only refetch in background for critical/important data
     refetchIntervalInBackground: tier === 'critical' || tier === 'important',
-    // Always refetch on window focus for background/static tiers
-    // (since they poll less frequently)
-    refetchOnWindowFocus: tier === 'background' || tier === 'static' || isReducedMode,
+    // DISABLED: refetchOnWindowFocus was causing excessive refetches on tab switch
+    // The global queryClient.ts setting is refetchOnWindowFocus: false - respect that
+    // Previously this was: tier === 'background' || tier === 'static' || isReducedMode
+    refetchOnWindowFocus: false,
   };
 }
 

@@ -4,10 +4,16 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { useOrgStore } from '@/lib/stores/orgStore';
 import { toast } from 'sonner';
 
-export interface FathomOrgIntegration {
+/**
+ * Per-user Fathom integration.
+ * Each user connects their own Fathom account and syncs their own meetings.
+ */
+export interface FathomIntegration {
   id: string;
-  org_id: string;
-  connected_by_user_id: string | null;
+  user_id: string;
+  access_token: string;
+  refresh_token: string;
+  token_expires_at: string;
   fathom_user_id: string | null;
   fathom_user_email: string | null;
   scopes: string[];
@@ -17,38 +23,43 @@ export interface FathomOrgIntegration {
   updated_at: string;
 }
 
-export interface FathomOrgSyncState {
+export interface FathomSyncState {
   id: string;
-  org_id: string;
+  user_id: string;
   integration_id: string;
   sync_status: 'idle' | 'syncing' | 'error';
   meetings_synced: number;
   total_meetings_found: number;
-  last_sync_started_at: string | null;
-  last_sync_completed_at: string | null;
+  last_successful_sync: string | null;
   cursor_position: string | null;
   error_message: string | null;
+  error_count: number;
+  last_error_at: string | null;
 }
+
+// Legacy types for backwards compatibility
+export type FathomOrgIntegration = FathomIntegration;
+export type FathomOrgSyncState = FathomSyncState;
 
 export function useFathomIntegration() {
   const { user } = useAuth();
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
-  const activeOrgRole = useOrgStore((s) => s.activeOrgRole);
-  const canManage = activeOrgRole === 'owner' || activeOrgRole === 'admin';
+  // Per-user integration: any user can manage their own Fathom connection
+  const canManage = true;
   // Supabase typed client in this repo does not include all integration tables.
-  // Use a narrow escape hatch for these org-scoped integration tables.
+  // Use a narrow escape hatch for these per-user integration tables.
   const supabaseAny = supabase as any;
 
-  const [integration, setIntegration] = useState<FathomOrgIntegration | null>(null);
-  const [syncState, setSyncState] = useState<FathomOrgSyncState | null>(null);
+  const [integration, setIntegration] = useState<FathomIntegration | null>(null);
+  const [syncState, setSyncState] = useState<FathomSyncState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lifetimeMeetingsCount, setLifetimeMeetingsCount] = useState<number>(0);
   const [syncInProgress, setSyncInProgress] = useState(false); // Track local sync operation
 
-  // Fetch integration and sync state
+  // Fetch integration and sync state for the current user
   useEffect(() => {
-    if (!user || !activeOrgId) {
+    if (!user) {
       setIntegration(null);
       setSyncState(null);
       setLifetimeMeetingsCount(0);
@@ -60,11 +71,11 @@ export function useFathomIntegration() {
       try {
         setLoading(true);
         setError(null);
-        // Get active org integration
+        // Get active user integration (per-user)
         const { data: integrationData, error: integrationError } = await supabaseAny
-          .from('fathom_org_integrations')
+          .from('fathom_integrations')
           .select('*')
-          .eq('org_id', activeOrgId)
+          .eq('user_id', user.id)
           .eq('is_active', true)
           .maybeSingle();
         if (integrationError) {
@@ -76,9 +87,9 @@ export function useFathomIntegration() {
         // Get sync state if integration exists
         if (integrationData) {
           const { data: syncData, error: syncError } = await supabaseAny
-            .from('fathom_org_sync_state')
+            .from('fathom_sync_state')
             .select('*')
-            .eq('org_id', activeOrgId)
+            .eq('user_id', user.id)
             .maybeSingle();
 
           if (syncError) {
@@ -87,11 +98,12 @@ export function useFathomIntegration() {
 
           setSyncState(syncData);
 
-          // Compute lifetime count of org Fathom meetings
+          // Compute lifetime count of user's Fathom meetings
+          // meetings table uses owner_user_id for the meeting owner
           const { count, error: countError } = await supabaseAny
             .from('meetings')
             .select('id', { count: 'exact', head: true })
-            .eq('org_id', activeOrgId)
+            .eq('owner_user_id', user.id)
             .not('fathom_recording_id', 'is', null);
           if (!countError && typeof count === 'number') {
             setLifetimeMeetingsCount(count);
@@ -110,33 +122,31 @@ export function useFathomIntegration() {
 
     fetchIntegration();
 
-    // Set up real-time subscriptions
-    // These will work regardless of whether integration exists initially
-    // They'll update the state when integration is connected/disconnected
+    // Set up real-time subscriptions for per-user integration
     const integrationSubscription = supabaseAny
-      .channel('fathom_integrations_changes')
+      .channel(`fathom_integrations_${user.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'fathom_org_integrations',
-          filter: `org_id=eq.${activeOrgId}`,
+          table: 'fathom_integrations',
+          filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
+        (payload: any) => {
           if (payload.eventType === 'DELETE') {
             setIntegration(null);
             setSyncState(null);
             setLifetimeMeetingsCount(0);
           } else {
-            setIntegration(payload.new as FathomOrgIntegration);
+            setIntegration(payload.new as FathomIntegration);
             // Fetch sync state when integration is created/updated
             supabaseAny
-              .from('fathom_org_sync_state')
+              .from('fathom_sync_state')
               .select('*')
-              .eq('org_id', activeOrgId)
+              .eq('user_id', user.id)
               .maybeSingle()
-              .then(({ data }) => {
+              .then(({ data }: { data: FathomSyncState | null }) => {
                 if (data) setSyncState(data);
               });
           }
@@ -145,51 +155,51 @@ export function useFathomIntegration() {
       .subscribe();
 
     const syncSubscription = supabaseAny
-      .channel('fathom_sync_state_changes')
+      .channel(`fathom_sync_state_${user.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'fathom_org_sync_state',
-          filter: `org_id=eq.${activeOrgId}`,
+          table: 'fathom_sync_state',
+          filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
+        (payload: any) => {
           if (payload.eventType === 'DELETE') {
             setSyncState(null);
           } else {
-            setSyncState(payload.new as FathomOrgSyncState);
+            setSyncState(payload.new as FathomSyncState);
           }
         }
       )
       .subscribe();
 
     // Listen for new meetings to refresh lifetime count
-    // Only count Fathom meetings (those with fathom_recording_id)
+    // Only count user's Fathom meetings (those with fathom_recording_id)
     const meetingsSubscription = supabaseAny
-      .channel('meetings_changes')
+      .channel(`meetings_fathom_${user.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'meetings',
-          filter: `org_id=eq.${activeOrgId}`,
+          filter: `owner_user_id=eq.${user.id}`,
         },
         async () => {
           // Only update count if Fathom is connected
           const { data: currentIntegration } = await supabaseAny
-            .from('fathom_org_integrations')
+            .from('fathom_integrations')
             .select('id')
-            .eq('org_id', activeOrgId)
+            .eq('user_id', user.id)
             .eq('is_active', true)
             .maybeSingle();
-          
+
           if (currentIntegration) {
             const { count } = await supabaseAny
               .from('meetings')
               .select('id', { count: 'exact', head: true })
-              .eq('org_id', activeOrgId)
+              .eq('owner_user_id', user.id)
               .not('fathom_recording_id', 'is', null);
             if (typeof count === 'number') setLifetimeMeetingsCount(count);
           }
@@ -202,18 +212,15 @@ export function useFathomIntegration() {
       syncSubscription.unsubscribe();
       meetingsSubscription.unsubscribe();
     };
-  }, [user, activeOrgId]);
+  }, [user]);
 
-  // Initiate OAuth flow
+  // Initiate OAuth flow (per-user)
   const connectFathom = async (): Promise<boolean> => {
     try {
       setError(null);
 
-      if (!activeOrgId) {
-        throw new Error('No active organization selected');
-      }
-      if (!canManage) {
-        throw new Error('Only organization owners/admins can connect Fathom');
+      if (!user) {
+        throw new Error('You must be logged in to connect Fathom');
       }
 
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -221,11 +228,12 @@ export function useFathomIntegration() {
         throw new Error('No active session');
       }
 
+      // Per-user OAuth: no org_id needed, Edge Function uses user_id from token
       const response = await supabase.functions.invoke('fathom-oauth-initiate', {
         headers: {
           Authorization: `Bearer ${sessionData.session.access_token}`,
         },
-        body: { org_id: activeOrgId },
+        body: {},
       });
 
       if (response.error) {
@@ -274,7 +282,46 @@ export function useFathomIntegration() {
         `width=${width},height=${height},left=${left},top=${top}`
       );
 
-      // Listen for OAuth completion
+      // Track if we've already handled the connection
+      let connectionHandled = false;
+
+      // Helper to handle successful connection
+      const handleConnectionSuccess = async () => {
+        if (connectionHandled) return;
+        connectionHandled = true;
+
+        console.log('[useFathomIntegration] Connection detected, refreshing data...');
+
+        // Show success notification
+        toast.success('Fathom Connected!', {
+          description: 'Your Fathom account has been successfully connected. Starting initial sync...'
+        });
+
+        // Refresh integration data (per-user)
+        try {
+          const { data: integrationData } = await supabaseAny
+            .from('fathom_integrations')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('is_active', true)
+            .maybeSingle();
+
+          setIntegration(integrationData);
+
+          // Get sync state
+          const { data: syncData } = await supabaseAny
+            .from('fathom_sync_state')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          setSyncState(syncData);
+        } catch (err) {
+          console.error('[useFathomIntegration] Error refreshing data:', err);
+        }
+      };
+
+      // Listen for OAuth completion via postMessage
       const handleMessage = async (event: MessageEvent) => {
         // Security: only accept messages from our own origin
         if (event.origin !== window.location.origin) return;
@@ -282,44 +329,74 @@ export function useFathomIntegration() {
         if (popup && event.source !== popup) return;
 
         if (event.data?.type === 'fathom-oauth-success') {
+          console.log('[useFathomIntegration] Received postMessage success');
           popup?.close();
           window.removeEventListener('message', handleMessage);
-
-          // Show success notification
-          toast.success('Fathom Connected!', {
-            description: 'Your Fathom account has been successfully connected. Starting initial sync...'
-          });
-
-          // Refresh integration data
-          try {
-            const { data: integrationData } = await supabaseAny
-              .from('fathom_org_integrations')
-              .select('*')
-              .eq('org_id', activeOrgId)
-              .eq('is_active', true)
-              .maybeSingle();
-
-            setIntegration(integrationData);
-
-            // Get sync state
-            const { data: syncData } = await supabaseAny
-              .from('fathom_org_sync_state')
-              .select('*')
-              .eq('org_id', activeOrgId)
-              .maybeSingle();
-
-            setSyncState(syncData);
-          } catch (err) {
-          }
+          await handleConnectionSuccess();
         }
       };
 
       window.addEventListener('message', handleMessage);
+
+      // Fallback: Poll for connection in case postMessage fails (browser security policies)
+      // This handles cases where cross-origin restrictions block the message
+      let pollCount = 0;
+      const maxPolls = 60; // Poll for up to 60 seconds
+      const pollInterval = setInterval(async () => {
+        pollCount++;
+
+        // Check if popup is closed
+        if (popup?.closed) {
+          console.log('[useFathomIntegration] Popup closed, checking for connection...');
+          clearInterval(pollInterval);
+          window.removeEventListener('message', handleMessage);
+
+          // Check if we got connected
+          if (!connectionHandled) {
+            const { data: integrationData } = await supabaseAny
+              .from('fathom_integrations')
+              .select('*')
+              .eq('user_id', user.id)
+              .eq('is_active', true)
+              .maybeSingle();
+
+            if (integrationData) {
+              await handleConnectionSuccess();
+            }
+          }
+          return;
+        }
+
+        // Periodic check for connection (in case real-time subscription missed it)
+        if (pollCount % 5 === 0 && !connectionHandled) {
+          const { data: integrationData } = await supabaseAny
+            .from('fathom_integrations')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('is_active', true)
+            .maybeSingle();
+
+          if (integrationData) {
+            console.log('[useFathomIntegration] Connection found via polling');
+            clearInterval(pollInterval);
+            window.removeEventListener('message', handleMessage);
+            popup?.close();
+            await handleConnectionSuccess();
+          }
+        }
+
+        // Stop polling after max time
+        if (pollCount >= maxPolls) {
+          console.log('[useFathomIntegration] Polling timeout');
+          clearInterval(pollInterval);
+          window.removeEventListener('message', handleMessage);
+        }
+      }, 1000);
+
       return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to connect';
-      // If the org is already connected, don't poison the UI with an "error" state.
-      // The expected next action is to open Configure instead of reconnecting.
+      // If user already has a connection, guide them to configure
       const alreadyConnected =
         msg.toLowerCase().includes('already has an active fathom connection') ||
         msg.toLowerCase().includes('integration already exists');
@@ -330,13 +407,13 @@ export function useFathomIntegration() {
       } else {
         // Clear any previous error and guide the user.
         setError(null);
-        toast.info('Fathom is already connected for this organization. Open Configure to manage it.');
+        toast.info('Fathom is already connected. Open Configure to manage it.');
       }
       return false;
     }
   };
 
-  // Disconnect Fathom
+  // Disconnect Fathom (per-user)
   const disconnectFathom = async (deleteSyncedMeetings: boolean = false) => {
     try {
       setError(null);
@@ -344,11 +421,8 @@ export function useFathomIntegration() {
       if (!integration) {
         throw new Error('No integration to disconnect');
       }
-      if (!activeOrgId) {
-        throw new Error('No active organization selected');
-      }
-      if (!canManage) {
-        throw new Error('Only organization owners/admins can disconnect Fathom');
+      if (!user) {
+        throw new Error('You must be logged in to disconnect Fathom');
       }
 
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -356,29 +430,61 @@ export function useFathomIntegration() {
         throw new Error('No active session');
       }
 
+      console.log('[useFathomIntegration] Disconnecting Fathom for user:', user.id);
+
+      // Per-user disconnect: no org_id needed
       const response = await supabase.functions.invoke('fathom-disconnect', {
         headers: {
           Authorization: `Bearer ${sessionData.session.access_token}`,
         },
         body: {
-          org_id: activeOrgId,
           delete_synced_meetings: deleteSyncedMeetings,
         },
       });
 
+      console.log('[useFathomIntegration] Disconnect response:', response);
+
+      // Check for error in response
       if (response.error) {
-        throw new Error(response.error.message || 'Failed to disconnect');
+        // Try to extract a better error message
+        let message = response.error.message || 'Failed to disconnect';
+        try {
+          const resp = (response.error as any)?.context?.response as Response | undefined;
+          if (resp) {
+            const text = await resp.text();
+            if (text) {
+              try {
+                const parsed = JSON.parse(text);
+                message = parsed?.error || parsed?.message || message;
+              } catch {
+                message = text;
+              }
+            }
+          }
+        } catch {
+          // ignore extraction errors
+        }
+        throw new Error(message);
       }
 
+      // Check for success: false in response data (non-2xx handled above, but 200 with success: false is possible)
+      if (response.data && response.data.success === false) {
+        throw new Error(response.data.error || 'Failed to disconnect Fathom');
+      }
+
+      console.log('[useFathomIntegration] Disconnect successful');
       setIntegration(null);
       setSyncState(null);
       setLifetimeMeetingsCount(0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to disconnect');
+      const msg = err instanceof Error ? err.message : 'Failed to disconnect';
+      console.error('[useFathomIntegration] Disconnect error:', msg);
+      setError(msg);
+      throw err; // Re-throw so the component can show a toast
     }
   };
 
-  // Trigger manual sync
+  // Trigger manual sync (per-user)
   const triggerSync = async (params?: {
     sync_type?: 'initial' | 'incremental' | 'manual' | 'onboarding_fast' | 'onboarding_background';
     start_date?: string;
@@ -411,8 +517,8 @@ export function useFathomIntegration() {
       }
       console.log('[useFathomIntegration] Integration found:', integration.id);
 
-      if (!activeOrgId) {
-        throw new Error('No active organization selected');
+      if (!user) {
+        throw new Error('You must be logged in to sync');
       }
 
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -422,12 +528,12 @@ export function useFathomIntegration() {
       }
       console.log('[useFathomIntegration] Session valid, invoking fathom-sync...');
 
+      // Per-user sync: no org_id needed, Edge Function uses user_id from token
       const response = await supabase.functions.invoke('fathom-sync', {
         headers: {
           Authorization: `Bearer ${sessionData.session.access_token}`,
         },
         body: {
-          org_id: activeOrgId,
           sync_type: params?.sync_type || 'manual',
           start_date: params?.start_date,
           end_date: params?.end_date,
@@ -463,11 +569,11 @@ export function useFathomIntegration() {
         errors: syncResult?.errors,
       });
 
-      // Refresh lifetime count after sync completes
+      // Refresh lifetime count after sync completes (per-user count)
       const { count, error: countError } = await supabaseAny
         .from('meetings')
         .select('id', { count: 'exact', head: true })
-        .eq('org_id', activeOrgId)
+        .eq('owner_user_id', user.id)
         .not('fathom_recording_id', 'is', null);
 
       console.log('[useFathomIntegration] Count query result:', { count, countError });
@@ -488,6 +594,26 @@ export function useFathomIntegration() {
     }
   };
 
+  // Check if sync is stale (stuck in 'syncing' for more than 10 minutes)
+  // Note: Per-user sync state uses last_successful_sync instead of last_sync_started_at
+  const isSyncStale = (() => {
+    if (syncState?.sync_status !== 'syncing') return false;
+    // If there's been a recent successful sync, the syncing state shouldn't be stuck
+    if (syncState?.last_successful_sync) {
+      const lastSync = new Date(syncState.last_successful_sync).getTime();
+      const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+      // If syncing started after last successful sync, it might be stale
+      // Without last_sync_started_at, we rely on error_count increasing
+      if (syncState.error_count && syncState.error_count > 3) {
+        return true; // Too many errors, likely stuck
+      }
+    }
+    return false;
+  })();
+
+  // If sync is stale, treat it as not syncing
+  const effectiveSyncing = syncInProgress || (syncState?.sync_status === 'syncing' && !isSyncStale);
+
   return {
     integration,
     syncState,
@@ -496,7 +622,8 @@ export function useFathomIntegration() {
     isConnected: !!integration,
     canManage,
     // Combine local sync state (immediate feedback) with database sync state
-    isSyncing: syncInProgress || syncState?.sync_status === 'syncing',
+    // But ignore stale syncs (stuck for >10 minutes)
+    isSyncing: effectiveSyncing,
     syncInProgress, // Expose for components that need to differentiate
     lifetimeMeetingsCount,
     connectFathom,

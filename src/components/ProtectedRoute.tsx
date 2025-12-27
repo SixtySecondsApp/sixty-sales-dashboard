@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useOnboardingProgress } from '@/lib/hooks/useOnboardingProgress';
-import { supabase } from '@/lib/supabase/clientV2';
 import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -93,33 +92,28 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
     location.pathname.startsWith('/roadmap');
 
   // Check email verification status
+  // Use user object from AuthContext instead of calling getSession() to avoid
+  // potential auth state cascades and reduce redundant session fetches
   useEffect(() => {
-    const checkEmailVerification = async () => {
-      // Skip check for public routes
-      if (isPublicRoute) {
-        setIsCheckingEmail(false);
-        return;
-      }
-
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          setEmailVerified(!!session.user.email_confirmed_at);
-        } else {
-          setEmailVerified(null);
-        }
-      } catch (err) {
-        console.error('Error checking email verification:', err);
-        setEmailVerified(null);
-      } finally {
-        setIsCheckingEmail(false);
-      }
-    };
-
-    if (!loading) {
-      checkEmailVerification();
+    // Skip check for public routes
+    if (isPublicRoute) {
+      setIsCheckingEmail(false);
+      return;
     }
-  }, [loading, isPublicRoute]);
+
+    // Wait for auth to complete loading
+    if (loading) {
+      return;
+    }
+
+    // Use user from AuthContext instead of calling getSession()
+    if (user) {
+      setEmailVerified(!!(user as any).email_confirmed_at);
+    } else {
+      setEmailVerified(null);
+    }
+    setIsCheckingEmail(false);
+  }, [loading, isPublicRoute, user]);
 
   useEffect(() => {
     // Clean up timeout on unmount

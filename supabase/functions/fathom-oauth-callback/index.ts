@@ -14,10 +14,12 @@ const publicUrl =
   'https://use60.com'
 
 /**
- * Fathom OAuth Callback Edge Function
+ * Fathom OAuth Callback Edge Function (Per-User)
  *
  * Purpose: Handle OAuth callback from Fathom, exchange code for tokens
- * Flow: Fathom redirects here → Exchange code → Store tokens → Redirect to app
+ * Flow: Fathom redirects here → Exchange code → Store tokens (per-user) → Redirect to app
+ *
+ * Note: This is a per-user integration - each user connects their own Fathom account.
  */
 serve(async (req) => {
   // Handle CORS preflight
@@ -106,7 +108,6 @@ serve(async (req) => {
     }
 
     const userId = stateRecord.user_id
-    const stateOrgId: string | null = (stateRecord as any).org_id || null
 
     // Delete used state
     await supabase
@@ -122,6 +123,7 @@ serve(async (req) => {
     if (!clientId || !clientSecret || !redirectUri) {
       throw new Error('Missing Fathom OAuth configuration')
     }
+
     // Exchange authorization code for access token
     const tokenParams = new URLSearchParams({
       grant_type: 'authorization_code',
@@ -145,119 +147,71 @@ serve(async (req) => {
     }
 
     const tokenData = await tokenResponse.json()
-    // Get Fathom user info - try multiple endpoints and methods
+
+    // Get the connecting user's info from Supabase
     let fathomUserId: string | null = null
     let fathomUserEmail: string | null = null
-    let fathomTeamId: string | null = null
-    let fathomTeamName: string | null = null
 
+    // Get user's email from their Supabase profile
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email, full_name')
+      .eq('id', userId)
+      .maybeSingle()
+
+    // Also get from auth.users as fallback
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId)
+
+    fathomUserEmail = userProfile?.email || authUser?.user?.email || null
+    console.log(`[fathom-oauth] User email from Supabase: ${fathomUserEmail}`)
+
+    // Try to get Fathom user info from recordings endpoint
     try {
-      console.log('[fathom-oauth] Fetching user info from /me endpoint...')
-
-      // OAuth tokens may use Bearer authentication instead of X-Api-Key
-      // Try Bearer first (standard OAuth), then fallback to X-Api-Key
-      let userInfoResponse = await fetch('https://api.fathom.ai/external/v1/me', {
+      console.log('[fathom-oauth] Fetching Fathom workspace info from recordings...')
+      const recordingsResponse = await fetch('https://api.fathom.ai/external/v1/recordings?limit=1', {
         headers: {
           'Authorization': `Bearer ${tokenData.access_token}`,
         },
       })
 
-      if (!userInfoResponse.ok) {
-        console.log('[fathom-oauth] Bearer auth failed, trying X-Api-Key...')
-        // Try with X-Api-Key instead
-        userInfoResponse = await fetch('https://api.fathom.ai/external/v1/me', {
-          headers: {
-            'X-Api-Key': tokenData.access_token,
-          },
-        })
-      }
+      if (recordingsResponse.ok) {
+        const recordingsData = await recordingsResponse.json()
+        console.log('[fathom-oauth] Recordings response structure:', Object.keys(recordingsData))
 
-      if (userInfoResponse.ok) {
-        const userInfo = await userInfoResponse.json()
-        console.log('[fathom-oauth] User info response:', JSON.stringify(userInfo))
-
-        fathomUserId = userInfo.id || userInfo.user_id || null
-        fathomUserEmail = userInfo.email || userInfo.user_email || null
-
-        // Extract team info if available
-        if (userInfo.team) {
-          fathomTeamId = userInfo.team.id || userInfo.team_id || null
-          fathomTeamName = userInfo.team.name || userInfo.team_name || null
-        } else {
-          fathomTeamId = userInfo.team_id || null
-          fathomTeamName = userInfo.team_name || null
+        // Check if there's user info in the response
+        if (recordingsData.user) {
+          fathomUserId = recordingsData.user.id || null
         }
-
-        console.log(`[fathom-oauth] Extracted: userId=${fathomUserId}, email=${fathomUserEmail}, teamId=${fathomTeamId}, teamName=${fathomTeamName}`)
       } else {
-        const errorText = await userInfoResponse.text()
-        console.error(`[fathom-oauth] /me endpoint failed: ${userInfoResponse.status} - ${errorText}`)
+        const errorText = await recordingsResponse.text()
+        console.log(`[fathom-oauth] Recordings endpoint returned ${recordingsResponse.status}: ${errorText.substring(0, 100)}`)
       }
     } catch (error) {
-      console.error('[fathom-oauth] Error fetching user info:', error)
+      console.error('[fathom-oauth] Error fetching Fathom info:', error)
       // Continue anyway - this is not critical
-    }
-
-    // If we still don't have user email, try fetching from meetings to extract it
-    if (!fathomUserEmail) {
-      try {
-        console.log('[fathom-oauth] Email not found, trying to extract from meetings...')
-        const meetingsResponse = await fetch('https://api.fathom.ai/external/v1/meetings?limit=1', {
-          headers: {
-            'Authorization': `Bearer ${tokenData.access_token}`,
-          },
-        })
-
-        if (meetingsResponse.ok) {
-          const meetingsData = await meetingsResponse.json()
-          const meetings = meetingsData.items || meetingsData.meetings || meetingsData.data || (Array.isArray(meetingsData) ? meetingsData : [])
-
-          if (meetings.length > 0) {
-            const firstMeeting = meetings[0]
-            // Try to get email from host or recorded_by
-            fathomUserEmail = firstMeeting.recorded_by?.email || firstMeeting.host_email || firstMeeting.host?.email || null
-            console.log(`[fathom-oauth] Extracted email from meeting: ${fathomUserEmail}`)
-          }
-        }
-      } catch (e) {
-        console.error('[fathom-oauth] Error extracting email from meetings:', e)
-      }
     }
 
     // Calculate token expiry
     const expiresIn = tokenData.expires_in || 3600 // Default 1 hour
     const tokenExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
 
-    // Resolve org_id from state (preferred), otherwise fall back to first membership (legacy states)
-    let orgId: string | null = stateOrgId
-    if (!orgId) {
-      const { data: membership } = await supabase
-        .from('organization_memberships')
-        .select('org_id')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle()
-      orgId = membership?.org_id || null
-    }
+    console.log(`[fathom-oauth] Storing per-user integration for user ${userId}`)
 
-    if (!orgId) {
-      throw new Error('No organization could be resolved for this OAuth connection')
-    }
-
-    // Store org-scoped integration metadata (non-sensitive)
-    const { data: orgIntegration, error: insertError } = await supabase
-      .from('fathom_org_integrations')
+    // Store per-user integration (includes tokens directly)
+    const { data: userIntegration, error: insertError } = await supabase
+      .from('fathom_integrations')
       .upsert({
-        org_id: orgId,
-        connected_by_user_id: userId,
+        user_id: userId,
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        token_expires_at: tokenExpiresAt,
         fathom_user_id: fathomUserId,
         fathom_user_email: fathomUserEmail,
         scopes: tokenData.scope?.split(' ') || ['public_api'],
         is_active: true,
         last_sync_at: null,
       }, {
-        onConflict: 'org_id',
+        onConflict: 'user_id',
       })
       .select()
       .single()
@@ -266,46 +220,31 @@ serve(async (req) => {
       throw new Error(`Failed to store integration: ${insertError.message}`)
     }
 
-    // Store org-scoped credentials (service role only)
-    const { error: credsError } = await supabase
-      .from('fathom_org_credentials')
-      .upsert({
-        org_id: orgId,
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
-        token_expires_at: tokenExpiresAt,
-      }, {
-        onConflict: 'org_id',
-      })
-
-    if (credsError) {
-      throw new Error(`Failed to store integration credentials: ${credsError.message}`)
-    }
-
-    // Create initial sync state
+    // Create initial sync state for the user
     const { error: syncStateError } = await supabase
-      .from('fathom_org_sync_state')
+      .from('fathom_sync_state')
       .upsert({
-        org_id: orgId,
-        integration_id: orgIntegration.id,
+        user_id: userId,
+        integration_id: userIntegration.id,
         sync_status: 'idle',
         meetings_synced: 0,
         total_meetings_found: 0,
       }, {
-        onConflict: 'org_id',
+        onConflict: 'user_id',
       })
 
     if (syncStateError) {
+      console.log(`[fathom-oauth] Warning: Failed to create sync state: ${syncStateError.message}`)
       // Continue anyway - sync state can be created later
     }
+
     // Return JSON response for POST requests, HTML for GET redirects
     if (req.method === 'POST') {
       return new Response(
         JSON.stringify({
           success: true,
-          integration_id: orgIntegration.id,
+          integration_id: userIntegration.id,
           user_id: userId,
-          org_id: orgId,
           message: 'Fathom integration connected successfully'
         }),
         {
@@ -364,10 +303,17 @@ serve(async (req) => {
             <div class="spinner"></div>
           </div>
           <script>
-            // Redirect after 2 seconds
-            setTimeout(() => {
-              window.location.href = '${publicUrl}/integrations?fathom=connected';
-            }, 2000);
+            // Notify parent window of success
+            if (window.opener) {
+              window.opener.postMessage({ type: 'fathom-oauth-success' }, '*');
+              // Close popup after a short delay
+              setTimeout(() => window.close(), 1500);
+            } else {
+              // Redirect after 2 seconds if not in popup
+              setTimeout(() => {
+                window.location.href = '${publicUrl}/integrations?fathom=connected';
+              }, 2000);
+            }
           </script>
         </body>
       </html>`,

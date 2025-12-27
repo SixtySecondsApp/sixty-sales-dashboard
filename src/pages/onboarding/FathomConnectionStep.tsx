@@ -29,17 +29,17 @@ export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepPro
 
   // Poll for connection status after OAuth popup
   const pollForConnection = useCallback(async () => {
-    if (!user || !activeOrgId) return false;
+    if (!user) return false;
 
     const { data } = await (supabase as any)
-      .from('fathom_org_integrations')
+      .from('fathom_integrations')
       .select('*')
-      .eq('org_id', activeOrgId)
+      .eq('user_id', user.id)
       .eq('is_active', true)
       .maybeSingle();
 
     return data !== null;
-  }, [user, activeOrgId]);
+  }, [user]);
 
   const startPolling = useCallback(() => {
     setIsPolling(true);

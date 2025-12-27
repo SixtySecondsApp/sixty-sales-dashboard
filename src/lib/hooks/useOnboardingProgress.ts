@@ -190,7 +190,10 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
     return () => {
       subscription.unsubscribe();
     };
-  }, [user]);
+  // Use user?.id instead of user object to prevent effect from re-running
+  // when user object reference changes but ID stays the same
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const completeStep = useCallback(
     async (step: OnboardingStep) => {

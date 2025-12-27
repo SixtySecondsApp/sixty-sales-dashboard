@@ -106,10 +106,12 @@ export function usePlanBySlug(slug: string | undefined) {
  * Get organization subscription with plan details
  */
 export function useOrgSubscription(orgId: string | undefined) {
+  const { user, loading } = useAuth();
+
   return useQuery({
     queryKey: subscriptionKeys.org(orgId || ''),
     queryFn: () => getOrgSubscription(orgId!),
-    enabled: !!orgId,
+    enabled: !!orgId && !!user && !loading, // Wait for auth to complete before querying
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 }
@@ -146,10 +148,12 @@ export function useSubscriptionState(orgId: string | undefined): SubscriptionSta
  * Get subscription summary for quick status checks
  */
 export function useSubscriptionSummary(orgId: string | undefined) {
+  const { user, loading } = useAuth();
+
   return useQuery({
     queryKey: subscriptionKeys.summary(orgId || ''),
     queryFn: () => getSubscriptionSummary(orgId!),
-    enabled: !!orgId,
+    enabled: !!orgId && !!user && !loading, // Wait for auth to complete before querying
     staleTime: 1000 * 60 * 5,
   });
 }
@@ -192,10 +196,12 @@ export function useTrialStatus(orgId: string | undefined): TrialStatus & {
  * Get usage limits for an organization
  */
 export function useOrgUsage(orgId: string | undefined) {
+  const { user, loading } = useAuth();
+
   return useQuery({
     queryKey: subscriptionKeys.usage(orgId || ''),
     queryFn: () => getOrgUsageLimits(orgId!),
-    enabled: !!orgId,
+    enabled: !!orgId && !!user && !loading, // Wait for auth to complete before querying
     staleTime: 1000 * 60 * 2, // 2 minutes - usage changes more frequently
   });
 }
@@ -207,10 +213,12 @@ export function useCanPerformAction(
   orgId: string | undefined,
   action: 'create_meeting' | 'add_user'
 ) {
+  const { user, loading } = useAuth();
+
   return useQuery({
     queryKey: [...subscriptionKeys.usage(orgId || ''), 'can', action],
     queryFn: () => canPerformAction(orgId!, action),
-    enabled: !!orgId,
+    enabled: !!orgId && !!user && !loading, // Wait for auth to complete before querying
     staleTime: 1000 * 60 * 2,
   });
 }
@@ -219,10 +227,12 @@ export function useCanPerformAction(
  * Check if organization has access to a feature
  */
 export function useHasFeatureAccess(orgId: string | undefined, feature: string) {
+  const { user, loading } = useAuth();
+
   return useQuery({
     queryKey: [...subscriptionKeys.org(orgId || ''), 'feature', feature],
     queryFn: () => hasFeatureAccess(orgId!, feature),
-    enabled: !!orgId,
+    enabled: !!orgId && !!user && !loading, // Wait for auth to complete before querying
     staleTime: 1000 * 60 * 5,
   });
 }
@@ -239,10 +249,12 @@ export function useBillingHistory(
   limit = 20,
   offset = 0
 ) {
+  const { user, loading } = useAuth();
+
   return useQuery({
     queryKey: [...subscriptionKeys.billing(orgId || ''), limit, offset],
     queryFn: () => getBillingHistory(orgId!, limit, offset),
-    enabled: !!orgId,
+    enabled: !!orgId && !!user && !loading, // Wait for auth to complete before querying
     staleTime: 1000 * 60 * 5,
   });
 }
@@ -425,12 +437,13 @@ export function useCurrentSubscription() {
  * Hook for checking if current org has active subscription
  */
 export function useHasActiveSubscription() {
+  const { user, loading } = useAuth();
   const { activeOrgId } = useOrg();
 
   return useQuery({
     queryKey: [...subscriptionKeys.org(activeOrgId || ''), 'active'],
     queryFn: () => hasActiveSubscription(activeOrgId!),
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && !!user && !loading, // Wait for auth to complete before querying
     staleTime: 1000 * 60 * 5,
   });
 }
@@ -467,10 +480,12 @@ export function useFreeTierPlan() {
  * Check if organization is on free tier
  */
 export function useIsOnFreeTier(orgId: string | undefined) {
+  const { user, loading } = useAuth();
+
   return useQuery({
     queryKey: [...subscriptionKeys.org(orgId || ''), 'is-free-tier'],
     queryFn: () => isOnFreeTier(orgId!),
-    enabled: !!orgId,
+    enabled: !!orgId && !!user && !loading, // Wait for auth to complete before querying
     staleTime: 1000 * 60 * 5,
   });
 }
@@ -479,10 +494,12 @@ export function useIsOnFreeTier(orgId: string | undefined) {
  * Get free tier usage status for upgrade prompts
  */
 export function useFreeTierUsageStatus(orgId: string | undefined) {
+  const { user, loading } = useAuth();
+
   return useQuery({
     queryKey: [...subscriptionKeys.usage(orgId || ''), 'free-tier-status'],
     queryFn: () => getFreeTierUsageStatus(orgId!),
-    enabled: !!orgId,
+    enabled: !!orgId && !!user && !loading, // Wait for auth to complete before querying
     staleTime: 1000 * 60 * 2, // 2 minutes - usage changes more frequently
   });
 }
