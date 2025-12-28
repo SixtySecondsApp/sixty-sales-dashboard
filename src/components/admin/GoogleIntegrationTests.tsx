@@ -18,6 +18,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
+
+// Helper to get auth headers for edge functions
+async function getAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('No active session');
+  }
+  return { Authorization: `Bearer ${session.access_token}` };
+}
 import { CalendarSyncTest } from './CalendarSyncTest';
 import { CalendarE2ETest } from './CalendarE2ETest';
 import { CalendarDatabaseViewer } from './CalendarDatabaseViewer';
@@ -235,12 +244,14 @@ export function GoogleIntegrationTests() {
         'Test Calendar Sync Function',
         'Calendar',
         async () => {
+          const headers = await getAuthHeaders();
           const { data, error } = await supabase.functions.invoke('google-calendar?action=list-events', {
             body: {
               timeMin: new Date().toISOString(),
               timeMax: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
               maxResults: 5
-            }
+            },
+            headers
           });
           
           if (error) throw error;
@@ -261,8 +272,10 @@ export function GoogleIntegrationTests() {
         'Fetch Gmail Labels',
         'Gmail',
         async () => {
+          const headers = await getAuthHeaders();
           const { data, error } = await supabase.functions.invoke('google-gmail?action=labels', {
-            body: {}
+            body: {},
+            headers
           });
           
           if (error) throw error;
@@ -281,10 +294,12 @@ export function GoogleIntegrationTests() {
         'Fetch Gmail Messages',
         'Gmail',
         async () => {
+          const headers = await getAuthHeaders();
           const { data, error } = await supabase.functions.invoke('google-gmail?action=list', {
             body: {
               maxResults: 5
-            }
+            },
+            headers
           });
           
           if (error) throw error;
@@ -305,8 +320,10 @@ export function GoogleIntegrationTests() {
         'Google Calendar Edge Function',
         'Edge Functions',
         async () => {
+          const headers = await getAuthHeaders();
           const { data, error } = await supabase.functions.invoke('google-calendar?action=list-calendars', {
-            body: {}
+            body: {},
+            headers
           });
           
           if (error) throw error;
@@ -325,8 +342,10 @@ export function GoogleIntegrationTests() {
         'System',
         async () => {
           // First check if we can hit any Edge Function
+          const headers = await getAuthHeaders();
           const { data, error } = await supabase.functions.invoke('google-calendar?action=list-calendars', {
-            body: {}
+            body: {},
+            headers
           });
           
           // Even if it errors due to auth, we can still check if the function is deployed

@@ -165,12 +165,21 @@ class GmailService {
         throw new Error('Not authenticated');
       }
 
+      // Get session for auth header - edge function requires explicit Authorization
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No active session');
+      }
+
       // Call the Gmail edge function sync action
       const { data, error } = await supabase.functions.invoke('google-gmail', {
         body: {
           action: 'sync',
           query: options.query,
           maxResults: options.maxResults || 50,
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
         },
       });
 

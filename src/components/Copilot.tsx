@@ -13,6 +13,15 @@ import logger from '@/lib/utils/logger';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 
+// Helper to get auth headers for edge functions
+async function getAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('No active session');
+  }
+  return { Authorization: `Bearer ${session.access_token}` };
+}
+
 interface CopilotProps {
   onGenerateEmail?: (contactId?: string) => void;
   onDraftEmail?: (contactId?: string) => void;
@@ -75,16 +84,18 @@ export const Copilot: React.FC<CopilotProps> = ({
           }
           try {
             // Get email details first to extract reply information
+            const headers = await getAuthHeaders();
             const { data: emailData, error: emailError } = await supabase.functions.invoke('google-gmail', {
-              body: { action: 'get', messageId: emailId }
+              body: { action: 'get', messageId: emailId },
+              headers
             });
             
             if (emailError) throw emailError;
             
             // Extract reply-to email from headers
-            const headers = emailData?.payload?.headers || [];
-            const fromHeader = headers.find((h: any) => h.name?.toLowerCase() === 'from');
-            const subjectHeader = headers.find((h: any) => h.name?.toLowerCase() === 'subject');
+            const emailHeaders = emailData?.payload?.headers || [];
+            const fromHeader = emailHeaders.find((h: any) => h.name?.toLowerCase() === 'from');
+            const subjectHeader = emailHeaders.find((h: any) => h.name?.toLowerCase() === 'subject');
             
             // Extract email from "Name <email@example.com>" format
             const extractEmail = (str: string) => {
@@ -104,13 +115,15 @@ export const Copilot: React.FC<CopilotProps> = ({
             }
             
             // Send reply via Gmail API
+            const replyHeaders = await getAuthHeaders();
             const { error: replyError } = await supabase.functions.invoke('google-gmail?action=reply', {
               body: {
                 messageId: emailId,
                 body: replyBody,
                 replyAll: false,
                 isHtml: false
-              }
+              },
+              headers: replyHeaders
             });
             
             if (replyError) throw replyError;
@@ -145,12 +158,14 @@ export const Copilot: React.FC<CopilotProps> = ({
             const additionalMessage = prompt('Optional: Add a message before forwarding:') || undefined;
             
             // Forward email via Gmail API
+            const forwardHeaders = await getAuthHeaders();
             const { error: forwardError } = await supabase.functions.invoke('google-gmail?action=forward', {
               body: {
                 messageId: emailId,
                 to: recipients,
                 additionalMessage
-              }
+              },
+              headers: forwardHeaders
             });
             
             if (forwardError) throw forwardError;
@@ -169,12 +184,14 @@ export const Copilot: React.FC<CopilotProps> = ({
             return;
           }
           try {
+            const archiveHeaders = await getAuthHeaders();
             const { error } = await supabase.functions.invoke('google-gmail?action=archive', {
-              body: { messageId: emailId }
+              body: { messageId: emailId },
+              headers: archiveHeaders
             });
-            
+
             if (error) throw error;
-            
+
             toast.success('Email archived successfully');
             logger.log('Email archived:', emailId);
           } catch (error) {
@@ -190,12 +207,14 @@ export const Copilot: React.FC<CopilotProps> = ({
           }
           try {
             // Toggle star - we'd need to check current state, but for now just star it
+            const starHeaders = await getAuthHeaders();
             const { error } = await supabase.functions.invoke('google-gmail?action=star', {
-              body: { messageId: emailId, starred: true }
+              body: { messageId: emailId, starred: true },
+              headers: starHeaders
             });
-            
+
             if (error) throw error;
-            
+
             toast.success('Email starred');
             logger.log('Email starred:', emailId);
           } catch (error) {
@@ -211,8 +230,10 @@ export const Copilot: React.FC<CopilotProps> = ({
           }
           try {
             // Get email details first
+            const taskHeaders = await getAuthHeaders();
             const { data: emailData, error: emailError } = await supabase.functions.invoke('google-gmail', {
-              body: { action: 'get', messageId: emailId }
+              body: { action: 'get', messageId: emailId },
+              headers: taskHeaders
             });
             
             if (emailError) throw emailError;

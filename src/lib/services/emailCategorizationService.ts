@@ -11,6 +11,15 @@
 import { supabase } from '@/lib/supabase/clientV2';
 import type { Database } from '@/lib/database.types';
 
+// Helper to get auth headers for edge functions
+async function getAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('No active session');
+  }
+  return { Authorization: `Bearer ${session.access_token}` };
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -156,15 +165,17 @@ export function getCategoryDefinition(key: EmailCategory): CategoryDefinition | 
  * Fetch all Gmail labels for the current user
  */
 export async function fetchGmailLabels(): Promise<GmailLabel[]> {
+  const headers = await getAuthHeaders();
   const { data, error } = await supabase.functions.invoke('google-gmail', {
-    body: { action: 'list-labels' }
+    body: { action: 'list-labels' },
+    headers
   });
-  
+
   if (error) {
     console.error('[emailCategorizationService] Error fetching Gmail labels:', error);
     throw new Error(error.message || 'Failed to fetch Gmail labels');
   }
-  
+
   return data?.labels || [];
 }
 
@@ -172,15 +183,17 @@ export async function fetchGmailLabels(): Promise<GmailLabel[]> {
  * Find a Gmail label by name (case-insensitive)
  */
 export async function findGmailLabelByName(name: string): Promise<GmailLabel | null> {
+  const headers = await getAuthHeaders();
   const { data, error } = await supabase.functions.invoke('google-gmail', {
-    body: { action: 'find-label', name }
+    body: { action: 'find-label', name },
+    headers
   });
-  
+
   if (error) {
     console.error('[emailCategorizationService] Error finding Gmail label:', error);
     throw new Error(error.message || 'Failed to find Gmail label');
   }
-  
+
   return data;
 }
 
@@ -195,20 +208,22 @@ export async function getOrCreateGmailLabel(
     textColor?: string;
   }
 ): Promise<{ label: GmailLabel; created: boolean; isSixtyManaged: boolean }> {
+  const headers = await getAuthHeaders();
   const { data, error } = await supabase.functions.invoke('google-gmail', {
-    body: { 
-      action: 'get-or-create-label', 
+    body: {
+      action: 'get-or-create-label',
       name,
       backgroundColor: options?.backgroundColor,
       textColor: options?.textColor,
-    }
+    },
+    headers
   });
-  
+
   if (error) {
     console.error('[emailCategorizationService] Error creating Gmail label:', error);
     throw new Error(error.message || 'Failed to create Gmail label');
   }
-  
+
   return data;
 }
 

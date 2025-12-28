@@ -24,7 +24,17 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
-import { 
+
+// Helper to get auth headers for edge functions
+async function getAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('No active session');
+  }
+  return { Authorization: `Bearer ${session.access_token}` };
+}
+
+import {
   useGoogleIntegration,
   useGoogleIntegrationHealth,
   useGoogleServiceStatus,
@@ -200,8 +210,10 @@ export const GoogleIntegrationTestSuite: React.FC<GoogleIntegrationTestSuiteProp
       // === 2. Gmail Integration Tests ===
       if (serviceStatus?.gmail) {
         await runTest('Gmail Labels', 'Gmail', 'Fetch all email labels', async () => {
+          const headers = await getAuthHeaders();
           const response = await supabase.functions.invoke('google-gmail?action=list-labels', {
-            body: {}
+            body: {},
+            headers
           });
           
           if (response.error) throw response.error;
@@ -214,8 +226,10 @@ export const GoogleIntegrationTestSuite: React.FC<GoogleIntegrationTestSuiteProp
         updateProgress();
 
         await runTest('Gmail Emails', 'Gmail', 'Fetch recent emails', async () => {
+          const headers = await getAuthHeaders();
           const response = await supabase.functions.invoke('google-gmail?action=list', {
-            body: { maxResults: 10 }
+            body: { maxResults: 10 },
+            headers
           });
           
           if (response.error) throw response.error;
@@ -241,8 +255,10 @@ export const GoogleIntegrationTestSuite: React.FC<GoogleIntegrationTestSuiteProp
       // === 3. Calendar Integration Tests ===
       if (serviceStatus?.calendar) {
         await runTest('Calendar List', 'Calendar', 'Fetch user calendars', async () => {
+          const headers = await getAuthHeaders();
           const response = await supabase.functions.invoke('google-calendar?action=list-calendars', {
-            body: {}
+            body: {},
+            headers
           });
           
           if (response.error) throw response.error;
@@ -257,13 +273,15 @@ export const GoogleIntegrationTestSuite: React.FC<GoogleIntegrationTestSuiteProp
         await runTest('Calendar Events', 'Calendar', 'Fetch recent calendar events', async () => {
           const now = new Date();
           const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-          
+          const headers = await getAuthHeaders();
+
           const response = await supabase.functions.invoke('google-calendar?action=list-events', {
             body: {
               timeMin: now.toISOString(),
               timeMax: nextWeek.toISOString(),
               maxResults: 20
-            }
+            },
+            headers
           });
           
           if (response.error) throw response.error;
@@ -281,7 +299,8 @@ export const GoogleIntegrationTestSuite: React.FC<GoogleIntegrationTestSuiteProp
           const testEventTitle = `Test Event ${Date.now()}`;
           const startTime = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
           const endTime = new Date(startTime.getTime() + 60 * 60 * 1000); // 1 hour duration
-          
+          const headers = await getAuthHeaders();
+
           // Create event
           const createResponse = await supabase.functions.invoke('google-calendar?action=create-event', {
             body: {
@@ -290,7 +309,8 @@ export const GoogleIntegrationTestSuite: React.FC<GoogleIntegrationTestSuiteProp
               startTime: startTime.toISOString(),
               endTime: endTime.toISOString(),
               calendarId: 'primary'
-            }
+            },
+            headers
           });
           
           if (createResponse.error) throw createResponse.error;
@@ -305,17 +325,19 @@ export const GoogleIntegrationTestSuite: React.FC<GoogleIntegrationTestSuiteProp
                 calendarId: 'primary',
                 summary: testEventTitle + ' (Updated)',
                 description: 'Updated test event - safe to delete'
-              }
+              },
+              headers
             });
             
             if (updateResponse.error) throw updateResponse.error;
-            
+
             // Delete event (cleanup)
             const deleteResponse = await supabase.functions.invoke('google-calendar?action=delete-event', {
               body: {
                 eventId,
                 calendarId: 'primary'
-              }
+              },
+              headers
             });
             
             if (deleteResponse.error) throw deleteResponse.error;
@@ -331,7 +353,8 @@ export const GoogleIntegrationTestSuite: React.FC<GoogleIntegrationTestSuiteProp
             // If cleanup fails, at least try to delete
             try {
               await supabase.functions.invoke('google-calendar?action=delete-event', {
-                body: { eventId, calendarId: 'primary' }
+                body: { eventId, calendarId: 'primary' },
+                headers
               });
             } catch {}
             throw cleanupError;
@@ -384,11 +407,13 @@ export const GoogleIntegrationTestSuite: React.FC<GoogleIntegrationTestSuiteProp
         updateProgress();
 
         await runTest('Calendar Sync Full', 'Calendar Sync', 'Test full calendar sync', async () => {
+          const headers = await getAuthHeaders();
           const response = await supabase.functions.invoke('calendar-sync', {
             body: {
               action: 'sync-full',
               calendarId: 'primary'
-            }
+            },
+            headers
           });
           
           if (response.error) throw response.error;
@@ -402,11 +427,13 @@ export const GoogleIntegrationTestSuite: React.FC<GoogleIntegrationTestSuiteProp
         updateProgress();
 
         await runTest('Calendar Sync Incremental', 'Calendar Sync', 'Test incremental sync', async () => {
+          const headers = await getAuthHeaders();
           const response = await supabase.functions.invoke('calendar-sync', {
             body: {
               action: 'sync-incremental',
               calendarId: 'primary'
-            }
+            },
+            headers
           });
           
           if (response.error) throw response.error;
@@ -423,11 +450,13 @@ export const GoogleIntegrationTestSuite: React.FC<GoogleIntegrationTestSuiteProp
       // === 5. Drive Integration Tests ===
       if (serviceStatus?.drive) {
         await runTest('Drive Files', 'Drive', 'List Drive files', async () => {
+          const headers = await getAuthHeaders();
           const response = await supabase.functions.invoke('google-drive', {
             body: {
               action: 'list-files',
               maxResults: 20
-            }
+            },
+            headers
           });
           
           if (response.error) throw response.error;
@@ -441,13 +470,15 @@ export const GoogleIntegrationTestSuite: React.FC<GoogleIntegrationTestSuiteProp
 
         await runTest('Drive Folder CRUD', 'Drive', 'Create and delete test folder', async () => {
           const testFolderName = `Test Folder ${Date.now()}`;
-          
+          const headers = await getAuthHeaders();
+
           // Create folder
           const createResponse = await supabase.functions.invoke('google-drive', {
             body: {
               action: 'create-folder',
               name: testFolderName
-            }
+            },
+            headers
           });
           
           if (createResponse.error) throw createResponse.error;

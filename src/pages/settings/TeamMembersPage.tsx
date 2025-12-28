@@ -74,16 +74,26 @@ export default function TeamMembersPage() {
         }
 
         // Fetch profiles for all member user_ids
+        // Note: profiles table has first_name and last_name, NOT full_name
         const userIds = memberships.map((m) => m.user_id);
         const { data: profiles, error: profileError } = await supabase
           .from('profiles')
-          .select('id, email, full_name')
+          .select('id, email, first_name, last_name')
           .in('id', userIds);
 
         if (profileError) throw profileError;
 
-        // Create a lookup map for profiles
-        const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
+        // Create a lookup map for profiles with constructed full_name
+        const profileMap = new Map(
+          profiles?.map((p) => [
+            p.id,
+            {
+              id: p.id,
+              email: p.email,
+              full_name: [p.first_name, p.last_name].filter(Boolean).join(' ') || null,
+            },
+          ]) || []
+        );
 
         // Transform to expected format with user object
         const membersWithProfiles = memberships.map((m) => ({

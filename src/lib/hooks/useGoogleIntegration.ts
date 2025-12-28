@@ -111,16 +111,27 @@ export function useGoogleServiceToggle() {
   });
 }
 
+// Helper to get auth headers for edge functions
+async function getAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('No active session');
+  }
+  return { Authorization: `Bearer ${session.access_token}` };
+}
+
 // Gmail hooks
 export function useGmailLabels(enabled = true) {
   return useQuery({
     queryKey: GOOGLE_QUERY_KEYS.gmail.labels,
     queryFn: async () => {
+      const headers = await getAuthHeaders();
       // The Edge Function expects action as a query parameter
       const response = await supabase.functions.invoke('google-gmail?action=list-labels', {
-        body: {}
+        body: {},
+        headers
       });
-      
+
       if (response.error) throw response.error;
       return response.data;
     },
@@ -134,13 +145,15 @@ export function useGmailEmails(query?: string, enabled = true) {
   return useQuery({
     queryKey: GOOGLE_QUERY_KEYS.gmail.emails(query),
     queryFn: async () => {
+      const headers = await getAuthHeaders();
       // Use supabase.functions.invoke which handles CORS automatically
       const response = await supabase.functions.invoke('google-gmail', {
         body: {
           action: 'list',
           query,
           maxResults: 200 // Increased to show more emails
-        }
+        },
+        headers
       });
 
       if (response.error) {
@@ -164,11 +177,13 @@ export function useGmailGetMessage(messageId: string | null, enabled = true) {
     queryFn: async () => {
       if (!messageId) throw new Error('Message ID is required');
 
+      const headers = await getAuthHeaders();
       const response = await supabase.functions.invoke('google-gmail', {
         body: {
           action: 'get',
           messageId
-        }
+        },
+        headers
       });
 
       if (response.error) {
@@ -187,13 +202,15 @@ export function useGmailGetMessage(messageId: string | null, enabled = true) {
 
 export function useGmailSend() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (emailData: { to: string; subject: string; body: string; isHtml?: boolean; cc?: string; bcc?: string; attachments?: any[] }) => {
+      const headers = await getAuthHeaders();
       const response = await supabase.functions.invoke('google-gmail?action=send', {
-        body: emailData
+        body: emailData,
+        headers
       });
-      
+
       if (response.error) throw response.error;
       return response.data;
     },
@@ -444,7 +461,7 @@ export function useGoogleServiceEnabled(service: 'gmail' | 'calendar' | 'drive')
 // Gmail Action Hooks
 export function useGmailMarkAsRead() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ messageId, read }: { messageId: string; read: boolean }) => {
       // Validate inputs before making the request
@@ -455,21 +472,23 @@ export function useGmailMarkAsRead() {
         throw new Error('read must be a boolean');
       }
 
+      const headers = await getAuthHeaders();
       const response = await supabase.functions.invoke('google-gmail?action=mark-as-read', {
-        body: { messageId: messageId.trim(), read }
+        body: { messageId: messageId.trim(), read },
+        headers
       });
-      
+
       if (response.error) {
         // Check if response.data contains error details
         const errorMessage = response.data?.error || response.error.message || 'Failed to mark email as read';
         throw new Error(errorMessage);
       }
-      
+
       // Check if response.data indicates an error (Edge Function might return error in data)
       if (response.data?.error) {
         throw new Error(response.data.error);
       }
-      
+
       return response.data;
     },
     onSuccess: () => {
@@ -481,13 +500,15 @@ export function useGmailMarkAsRead() {
 
 export function useGmailStar() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ messageId, starred }: { messageId: string; starred: boolean }) => {
+      const headers = await getAuthHeaders();
       const response = await supabase.functions.invoke('google-gmail?action=star', {
-        body: { messageId, starred }
+        body: { messageId, starred },
+        headers
       });
-      
+
       if (response.error) throw response.error;
       return response.data;
     },
@@ -500,13 +521,15 @@ export function useGmailStar() {
 
 export function useGmailArchive() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (messageId: string) => {
+      const headers = await getAuthHeaders();
       const response = await supabase.functions.invoke('google-gmail?action=archive', {
-        body: { messageId }
+        body: { messageId },
+        headers
       });
-      
+
       if (response.error) throw response.error;
       return response.data;
     },
@@ -522,8 +545,10 @@ export function useGmailTrash() {
 
   return useMutation({
     mutationFn: async (messageId: string) => {
+      const headers = await getAuthHeaders();
       const response = await supabase.functions.invoke('google-gmail?action=delete', {
-        body: { messageId }
+        body: { messageId },
+        headers
       });
 
       if (response.error) throw response.error;
@@ -539,8 +564,10 @@ export function useGmailTrash() {
 export function useGmailGetAttachment() {
   return useMutation({
     mutationFn: async ({ messageId, attachmentId }: { messageId: string; attachmentId: string }) => {
+      const headers = await getAuthHeaders();
       const response = await supabase.functions.invoke('google-gmail?action=get-attachment', {
-        body: { messageId, attachmentId }
+        body: { messageId, attachmentId },
+        headers
       });
 
       if (response.error) {

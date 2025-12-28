@@ -55,6 +55,15 @@ import { supabase } from '@/lib/supabase/clientV2';
 import { parseGmailAttachment } from '@/lib/utils/attachmentUtils';
 // import { emailAIService } from '@/lib/services/emailAIService'; // TODO: Add AI categorization
 
+// Helper to get auth headers for edge functions
+async function getAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('No active session');
+  }
+  return { Authorization: `Bearer ${session.access_token}` };
+}
+
 export default function Email() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
@@ -739,11 +748,13 @@ export default function Email() {
                 onClick={async () => {
                   try {
                     // Test with the exact format expected by the Edge Function
+                    const headers = await getAuthHeaders();
                     const response = await supabase.functions.invoke('google-gmail?action=list', {
                       body: {
                         query: 'in:inbox',
                         maxResults: 200
-                      }
+                      },
+                      headers
                     });
                     if (response.error) {
                       toast.error(`API Error: ${response.error.message || response.error}`);
