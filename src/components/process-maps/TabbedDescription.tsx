@@ -14,7 +14,7 @@ interface TabbedDescriptionProps {
   defaultTab?: 'overview' | 'details';
 }
 
-interface ParsedSection {
+export interface ParsedSection {
   header: string;
   items: string[];
   type: 'bullets' | 'features';
@@ -23,7 +23,7 @@ interface ParsedSection {
 /**
  * Parse markdown content into structured sections
  */
-function parseStructuredContent(markdown: string): ParsedSection[] {
+export function parseStructuredContent(markdown: string): ParsedSection[] {
   if (!markdown) return [];
 
   const sections: ParsedSection[] = [];
@@ -79,7 +79,7 @@ function parseStructuredContent(markdown: string): ParsedSection[] {
 /**
  * Format inline markdown (bold, italic, code) in text
  */
-function formatInlineMarkdown(text: string): React.ReactNode[] {
+export function formatInlineMarkdown(text: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
   let remaining = text;
   let key = 0;
@@ -125,7 +125,7 @@ function formatInlineMarkdown(text: string): React.ReactNode[] {
 /**
  * Render a single section with proper formatting
  */
-function StructuredSection({ section }: { section: ParsedSection }) {
+export function StructuredSection({ section }: { section: ParsedSection }) {
   if (section.type === 'features' && section.items.length >= 2) {
     // Render as feature cards
     return (

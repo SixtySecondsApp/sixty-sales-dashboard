@@ -32,7 +32,12 @@ import type { StepStatus, ProcessStructure } from '@/lib/types/processMapTesting
 import { ProcessMapButton, ProcessType, ProcessName } from '@/components/process-maps/ProcessMapButton';
 import { WorkflowTestPanel } from '@/components/process-maps/WorkflowTestPanel';
 import { ExpandableDescription } from '@/components/process-maps/ExpandableDescription';
-import { TabbedDescription } from '@/components/process-maps/TabbedDescription';
+import {
+  parseStructuredContent,
+  formatInlineMarkdown,
+  StructuredSection,
+  type ParsedSection
+} from '@/components/process-maps/TabbedDescription';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import {
   Dialog,
@@ -202,6 +207,8 @@ export default function ProcessMaps() {
   const [deleting, setDeleting] = useState<string | null>(null);
   // View direction state for modal and test panel (default to vertical)
   const [modalViewDirection, setModalViewDirection] = useState<'horizontal' | 'vertical'>('vertical');
+  // Modal content tab: 'chart' shows diagram, 'details' shows technical description
+  const [modalContentTab, setModalContentTab] = useState<'chart' | 'details'>('chart');
 
   // Test panel state
   const [testingMap, setTestingMap] = useState<ProcessMap | null>(null);
@@ -354,8 +361,15 @@ export default function ProcessMaps() {
 
   const handleViewMap = useCallback((map: ProcessMap) => {
     setSelectedMap(map);
+    setModalContentTab('chart'); // Reset to chart tab when opening modal
     setDialogOpen(true);
   }, []);
+
+  // Parse long description for selected map
+  const selectedMapSections = useMemo(() => {
+    if (!selectedMap?.description_long) return [];
+    return parseStructuredContent(selectedMap.description_long);
+  }, [selectedMap?.description_long]);
 
   const handleDeleteMap = useCallback(
     async (mapId: string) => {
@@ -758,75 +772,108 @@ export default function ProcessMaps() {
       {/* View Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle className="flex items-center gap-2">
-                  <GitBranch className="h-5 w-5 text-emerald-500" />
-                  {selectedMap?.title}
-                </DialogTitle>
-                {selectedMap && selectedMap.description && (
-                  <div className="mt-2">
-                    <TabbedDescription
-                      short={selectedMap.description}
-                      long={selectedMap.description_long}
-                      defaultTab="details"
-                    />
+          <DialogHeader className="pb-0">
+            <DialogTitle className="flex items-center gap-2">
+              <GitBranch className="h-5 w-5 text-emerald-500" />
+              {selectedMap?.title}
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Content Tabs */}
+          {selectedMap && (
+            <Tabs value={modalContentTab} onValueChange={(v) => setModalContentTab(v as 'chart' | 'details')} className="flex-1 flex flex-col min-h-0">
+              <div className="flex items-center justify-between border-b pb-2">
+                <TabsList className="h-9">
+                  <TabsTrigger value="chart" className="text-xs gap-1.5">
+                    <GitBranch className="h-3 w-3" />
+                    Process Chart
+                  </TabsTrigger>
+                  {selectedMap.description_long && (
+                    <TabsTrigger value="details" className="text-xs gap-1.5">
+                      Technical Details
+                      <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
+                        {selectedMapSections.length}
+                      </Badge>
+                    </TabsTrigger>
+                  )}
+                </TabsList>
+
+                {/* View Direction Toggle - only show on chart tab */}
+                {modalContentTab === 'chart' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">View:</span>
+                    <div className="flex items-center border rounded-md">
+                      <Button
+                        variant={modalViewDirection === 'horizontal' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        onClick={() => setModalViewDirection('horizontal')}
+                        disabled={!selectedMap.mermaid_code_horizontal}
+                        className="rounded-r-none gap-1 px-2 h-7"
+                        title={selectedMap.mermaid_code_horizontal ? 'Horizontal view' : 'Horizontal view not available'}
+                      >
+                        <ArrowRight className="h-3 w-3" />
+                        <span className="text-xs">H</span>
+                        {selectedMap.mermaid_code_horizontal && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 ml-0.5" />
+                        )}
+                      </Button>
+                      <Button
+                        variant={modalViewDirection === 'vertical' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        onClick={() => setModalViewDirection('vertical')}
+                        disabled={!selectedMap.mermaid_code_vertical}
+                        className="rounded-l-none gap-1 px-2 h-7"
+                        title={selectedMap.mermaid_code_vertical ? 'Vertical view' : 'Vertical view not available'}
+                      >
+                        <ArrowDown className="h-3 w-3" />
+                        <span className="text-xs">V</span>
+                        {selectedMap.mermaid_code_vertical && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 ml-0.5" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
-              {/* View Direction Toggle */}
-              {selectedMap && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">View:</span>
-                  <div className="flex items-center border rounded-md">
-                    <Button
-                      variant={modalViewDirection === 'horizontal' ? 'secondary' : 'ghost'}
-                      size="sm"
-                      onClick={() => setModalViewDirection('horizontal')}
-                      disabled={!selectedMap.mermaid_code_horizontal}
-                      className="rounded-r-none gap-1 px-2 h-7"
-                      title={selectedMap.mermaid_code_horizontal ? 'Horizontal view' : 'Horizontal view not available'}
-                    >
-                      <ArrowRight className="h-3 w-3" />
-                      <span className="text-xs">H</span>
-                      {selectedMap.mermaid_code_horizontal && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 ml-0.5" />
-                      )}
-                    </Button>
-                    <Button
-                      variant={modalViewDirection === 'vertical' ? 'secondary' : 'ghost'}
-                      size="sm"
-                      onClick={() => setModalViewDirection('vertical')}
-                      disabled={!selectedMap.mermaid_code_vertical}
-                      className="rounded-l-none gap-1 px-2 h-7"
-                      title={selectedMap.mermaid_code_vertical ? 'Vertical view' : 'Vertical view not available'}
-                    >
-                      <ArrowDown className="h-3 w-3" />
-                      <span className="text-xs">V</span>
-                      {selectedMap.mermaid_code_vertical && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 ml-0.5" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </DialogHeader>
 
-          <div className="flex-1 overflow-auto">
-            {selectedMap && (
-              <MermaidRenderer
-                code={
-                  modalViewDirection === 'vertical'
-                    ? (selectedMap.mermaid_code_vertical || selectedMap.mermaid_code)
-                    : (selectedMap.mermaid_code_horizontal || selectedMap.mermaid_code)
-                }
-                showControls={true}
-                showCode={true}
-              />
-            )}
-          </div>
+              {/* Process Chart Tab */}
+              <TabsContent value="chart" className="flex-1 overflow-auto mt-0 pt-3">
+                {selectedMap.description && (
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {selectedMap.description}
+                  </p>
+                )}
+                <MermaidRenderer
+                  code={
+                    modalViewDirection === 'vertical'
+                      ? (selectedMap.mermaid_code_vertical || selectedMap.mermaid_code)
+                      : (selectedMap.mermaid_code_horizontal || selectedMap.mermaid_code)
+                  }
+                  showControls={true}
+                  showCode={true}
+                />
+              </TabsContent>
+
+              {/* Technical Details Tab */}
+              <TabsContent value="details" className="flex-1 overflow-auto mt-0 pt-3">
+                <div className="space-y-4 pr-2">
+                  {selectedMapSections.length > 0 ? (
+                    selectedMapSections.map((section, idx) => (
+                      <StructuredSection key={idx} section={section} />
+                    ))
+                  ) : selectedMap.description_long ? (
+                    <p className="text-sm text-muted-foreground">
+                      {formatInlineMarkdown(selectedMap.description_long)}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">
+                      No technical details available for this process map.
+                    </p>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          )}
 
           <div className="flex items-center justify-between pt-4 border-t">
             <div className="text-xs text-muted-foreground">
