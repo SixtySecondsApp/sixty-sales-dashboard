@@ -3,12 +3,15 @@
  * Main component for ChatGPT-style conversational interface
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useCopilot } from '@/lib/contexts/CopilotContext';
 import { CopilotEmpty } from './copilot/CopilotEmpty';
 import { ChatMessage } from './copilot/ChatMessage';
 import { ChatInput } from './copilot/ChatInput';
+import { CopilotLayout } from './copilot/CopilotLayout';
 import { CopilotService } from '@/lib/services/copilotService';
+import { EmailActionModal, EmailActionData, EmailActionType } from './copilot/EmailActionModal';
+import { useDynamicPrompts } from '@/lib/hooks/useDynamicPrompts';
 import logger from '@/lib/utils/logger';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
@@ -28,19 +31,35 @@ interface CopilotProps {
   initialQuery?: string;
 }
 
+// Email modal state interface
+interface EmailModalState {
+  isOpen: boolean;
+  actionType: EmailActionType;
+  emailId: string;
+  emailDetails: {
+    replyTo?: string;
+    subject?: string;
+    originalSnippet?: string;
+  };
+}
+
 export const Copilot: React.FC<CopilotProps> = ({
   onGenerateEmail,
   onDraftEmail,
   initialQuery
 }) => {
-  const { messages, isLoading, sendMessage, context } = useCopilot();
+  const { messages, isLoading, sendMessage, cancelRequest, context } = useCopilot();
   const [inputValue, setInputValue] = useState(initialQuery || '');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [suggestedPrompts] = useState([
-    'What should I prioritize today?',
-    'Show me deals that need attention',
-    'Draft a follow-up email for Alexander Wolf'
-  ]);
+  const { prompts: suggestedPrompts } = useDynamicPrompts(3);
+
+  // Email action modal state
+  const [emailModal, setEmailModal] = useState<EmailModalState>({
+    isOpen: false,
+    actionType: 'reply',
+    emailId: '',
+    emailDetails: {}
+  });
 
   // Auto-send initial query if provided
   useEffect(() => {
@@ -89,50 +108,38 @@ export const Copilot: React.FC<CopilotProps> = ({
               body: { action: 'get', messageId: emailId },
               headers
             });
-            
+
             if (emailError) throw emailError;
-            
+
             // Extract reply-to email from headers
             const emailHeaders = emailData?.payload?.headers || [];
             const fromHeader = emailHeaders.find((h: any) => h.name?.toLowerCase() === 'from');
             const subjectHeader = emailHeaders.find((h: any) => h.name?.toLowerCase() === 'subject');
-            
+
             // Extract email from "Name <email@example.com>" format
             const extractEmail = (str: string) => {
               const match = str.match(/<(.+)>/);
               return match ? match[1] : str.trim();
             };
-            
+
             const replyTo = fromHeader ? extractEmail(fromHeader.value) : '';
             const subject = subjectHeader?.value || 'Re: Email';
             const replySubject = subject.startsWith('Re:') ? subject : `Re: ${subject}`;
-            
-            // Prompt user for reply body (in a real implementation, you'd open a composer modal)
-            const replyBody = prompt(`Reply to: ${replyTo}\nSubject: ${replySubject}\n\nEnter your reply:`);
-            
-            if (!replyBody) {
-              return; // User cancelled
-            }
-            
-            // Send reply via Gmail API
-            const replyHeaders = await getAuthHeaders();
-            const { error: replyError } = await supabase.functions.invoke('google-gmail?action=reply', {
-              body: {
-                messageId: emailId,
-                body: replyBody,
-                replyAll: false,
-                isHtml: false
-              },
-              headers: replyHeaders
+
+            // Open modal for reply
+            setEmailModal({
+              isOpen: true,
+              actionType: 'reply',
+              emailId,
+              emailDetails: {
+                replyTo,
+                subject: replySubject,
+                originalSnippet: emailData?.snippet
+              }
             });
-            
-            if (replyError) throw replyError;
-            
-            toast.success('Reply sent successfully');
-            logger.log('Reply sent:', emailId);
           } catch (error) {
-            logger.error('Error replying to email:', error);
-            toast.error('Failed to send reply');
+            logger.error('Error preparing reply:', error);
+            toast.error('Failed to prepare reply');
           }
           break;
           
@@ -142,39 +149,33 @@ export const Copilot: React.FC<CopilotProps> = ({
             return;
           }
           try {
-            // Prompt user for recipients
-            const recipientsInput = prompt('Enter email addresses to forward to (comma-separated):');
-            if (!recipientsInput) {
-              return; // User cancelled
-            }
-            
-            const recipients = recipientsInput.split(',').map(e => e.trim()).filter(e => e);
-            if (recipients.length === 0) {
-              toast.error('Please enter at least one recipient');
-              return;
-            }
-            
-            // Optional: Prompt for additional message
-            const additionalMessage = prompt('Optional: Add a message before forwarding:') || undefined;
-            
-            // Forward email via Gmail API
-            const forwardHeaders = await getAuthHeaders();
-            const { error: forwardError } = await supabase.functions.invoke('google-gmail?action=forward', {
-              body: {
-                messageId: emailId,
-                to: recipients,
-                additionalMessage
-              },
-              headers: forwardHeaders
+            // Get email details first
+            const fwdHeaders = await getAuthHeaders();
+            const { data: fwdEmailData, error: fwdEmailError } = await supabase.functions.invoke('google-gmail', {
+              body: { action: 'get', messageId: emailId },
+              headers: fwdHeaders
             });
-            
-            if (forwardError) throw forwardError;
-            
-            toast.success('Email forwarded successfully');
-            logger.log('Email forwarded:', emailId);
+
+            if (fwdEmailError) throw fwdEmailError;
+
+            const fwdEmailHeaders = fwdEmailData?.payload?.headers || [];
+            const fwdSubjectHeader = fwdEmailHeaders.find((h: any) => h.name?.toLowerCase() === 'subject');
+            const fwdSubject = fwdSubjectHeader?.value || 'Forwarded Email';
+            const forwardSubject = fwdSubject.startsWith('Fwd:') ? fwdSubject : `Fwd: ${fwdSubject}`;
+
+            // Open modal for forward
+            setEmailModal({
+              isOpen: true,
+              actionType: 'forward',
+              emailId,
+              emailDetails: {
+                subject: forwardSubject,
+                originalSnippet: fwdEmailData?.snippet
+              }
+            });
           } catch (error) {
-            logger.error('Error forwarding email:', error);
-            toast.error('Failed to forward email');
+            logger.error('Error preparing forward:', error);
+            toast.error('Failed to prepare forward');
           }
           break;
           
@@ -374,41 +375,93 @@ export const Copilot: React.FC<CopilotProps> = ({
 
   const isEmpty = messages.length === 0 && !isLoading;
 
+  // Handle email modal submission (reply/forward)
+  const handleEmailModalSubmit = useCallback(async (data: EmailActionData) => {
+    const { emailId, actionType } = emailModal;
+    const headers = await getAuthHeaders();
+
+    if (actionType === 'reply') {
+      const { error } = await supabase.functions.invoke('google-gmail?action=reply', {
+        body: {
+          messageId: emailId,
+          body: data.body,
+          replyAll: false,
+          isHtml: false
+        },
+        headers
+      });
+
+      if (error) throw error;
+      toast.success('Reply sent successfully');
+      logger.log('Reply sent:', emailId);
+    } else if (actionType === 'forward') {
+      const { error } = await supabase.functions.invoke('google-gmail?action=forward', {
+        body: {
+          messageId: emailId,
+          to: data.recipients,
+          additionalMessage: data.body
+        },
+        headers
+      });
+
+      if (error) throw error;
+      toast.success('Email forwarded successfully');
+      logger.log('Email forwarded:', emailId);
+    }
+  }, [emailModal]);
+
+  const closeEmailModal = useCallback(() => {
+    setEmailModal(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 flex flex-col min-h-[calc(100vh-4rem)]">
-      {/* Empty State or Active Conversation */}
-      {isEmpty ? (
-        <CopilotEmpty onPromptClick={handlePromptClick} />
-      ) : (
-        <>
-          {/* Chat Messages Area */}
-          <div className="flex-1 space-y-6 mb-6 overflow-y-auto">
-            {messages.map(message => {
-              // Stable key based on message ID only - prevents unnecessary re-renders
-              return (
-                <ChatMessage
-                  key={message.id}
-                  message={message}
-                  onActionClick={handleActionClick}
-                />
-              );
-            })}
+    <CopilotLayout>
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 flex flex-col min-h-[calc(100vh-4rem)]">
+        {/* Empty State or Active Conversation */}
+        {isEmpty ? (
+          <CopilotEmpty onPromptClick={handlePromptClick} />
+        ) : (
+          <>
+            {/* Chat Messages Area */}
+            <div className="flex-1 space-y-6 mb-6 overflow-y-auto">
+              {messages.map(message => {
+                // Stable key based on message ID only - prevents unnecessary re-renders
+                return (
+                  <ChatMessage
+                    key={message.id}
+                    message={message}
+                    onActionClick={handleActionClick}
+                  />
+                );
+              })}
 
-            <div ref={messagesEndRef} />
-          </div>
+              <div ref={messagesEndRef} />
+            </div>
 
-          {/* Chat Input */}
-          <ChatInput
-            value={inputValue}
-            onChange={setInputValue}
-            onSend={handleSend}
-            disabled={isLoading}
-            suggestedPrompts={suggestedPrompts}
-            onPromptClick={handlePromptClick}
-          />
-        </>
-      )}
-    </div>
+            {/* Chat Input */}
+            <ChatInput
+              value={inputValue}
+              onChange={setInputValue}
+              onSend={handleSend}
+              onCancel={cancelRequest}
+              disabled={isLoading}
+              isLoading={isLoading}
+              suggestedPrompts={suggestedPrompts}
+              onPromptClick={handlePromptClick}
+            />
+          </>
+        )}
+
+        {/* Email Action Modal (Reply/Forward) */}
+        <EmailActionModal
+          isOpen={emailModal.isOpen}
+          onClose={closeEmailModal}
+          onSubmit={handleEmailModalSubmit}
+          actionType={emailModal.actionType}
+          emailDetails={emailModal.emailDetails}
+        />
+      </div>
+    </CopilotLayout>
   );
 };
 

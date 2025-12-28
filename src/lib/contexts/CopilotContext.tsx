@@ -3,7 +3,7 @@
  * Manages global state for AI Copilot feature
  */
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
 import { CopilotService } from '@/lib/services/copilotService';
 import type {
   CopilotMessage,
@@ -25,11 +25,14 @@ interface CopilotContextValue {
   openCopilot: (initialQuery?: string, startNewChat?: boolean) => void;
   closeCopilot: () => void;
   sendMessage: (message: string) => Promise<void>;
+  cancelRequest: () => void;
   messages: CopilotMessage[];
   isLoading: boolean;
   context: CopilotContextType;
   setContext: (context: Partial<CopilotContextType>) => void;
   startNewChat: () => void;
+  conversationId?: string;
+  loadConversation: (conversationId: string) => Promise<void>;
 }
 
 const CopilotContext = createContext<CopilotContextValue | undefined>(undefined);
@@ -61,6 +64,9 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
   });
   const [pendingQuery, setPendingQuery] = useState<{ query: string; startNewChat: boolean } | null>(null);
 
+  // Abort controller for cancelling requests
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   // Initialize user context
   React.useEffect(() => {
     const initContext = async () => {
@@ -78,6 +84,11 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
   }, []);
 
   const startNewChat = useCallback(() => {
+    // Cancel any pending request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     setState(prev => ({
       ...prev,
       messages: [],
@@ -86,6 +97,32 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
       mode: 'empty',
       isLoading: false
     }));
+  }, []);
+
+  // Cancel the current request
+  const cancelRequest = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      logger.log('Request cancelled by user');
+
+      // Update state to remove loading and pending message
+      setState(prev => {
+        // Remove the last assistant message if it's still loading (has toolCall)
+        const messages = prev.messages.filter((msg, idx) => {
+          if (idx === prev.messages.length - 1 && msg.role === 'assistant' && msg.toolCall) {
+            return false;
+          }
+          return true;
+        });
+
+        return {
+          ...prev,
+          messages,
+          isLoading: false
+        };
+      });
+    }
   }, []);
 
   const openCopilot = useCallback((initialQuery?: string, startNewChatFlag?: boolean) => {
@@ -319,6 +356,10 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     async (message: string) => {
       if (!message.trim() || state.isLoading) return;
 
+      // Create new abort controller for this request
+      abortControllerRef.current = new AbortController();
+      const abortSignal = abortControllerRef.current.signal;
+
       // Add user message to state
       const userMessage: CopilotMessage = {
         id: `user-${Date.now()}`,
@@ -361,8 +402,13 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         if (toolCall) {
           // Update tool call steps progressively
           for (let i = 0; i < toolCall.steps.length; i++) {
-            // Slow down for dramatic effect - each step takes 2-3 seconds
-            await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 1000));
+            // Check if request was cancelled
+            if (abortSignal.aborted) {
+              logger.log('Request cancelled during animation');
+              return;
+            }
+            // Quick animation - each step takes 300-500ms for snappy UX
+            await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 200));
             
             setState(prev => {
               const updatedMessages = prev.messages.map(msg => {
@@ -406,13 +452,24 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
           });
         }
 
-        // Send to API with timeout
+        // Check if cancelled before API call
+        if (abortSignal.aborted) {
+          logger.log('Request cancelled before API call');
+          return;
+        }
+
+        // Send to API with timeout and abort support
         let response;
         try {
-          const timeoutPromise = new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('Request timeout')), 30000)
-          );
-          
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            const timeoutId = setTimeout(() => reject(new Error('Request timeout')), 30000);
+            // Clear timeout if aborted
+            abortSignal.addEventListener('abort', () => {
+              clearTimeout(timeoutId);
+              reject(new Error('Request cancelled'));
+            });
+          });
+
           // Format context for API
           const apiContext: CopilotContextType = {
             ...context,
@@ -422,12 +479,16 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
             dealIds: context.dealIds,
             temporalContext: getTemporalContext()
           };
-          
+
           response = await Promise.race([
             CopilotService.sendMessage(message, apiContext, state.conversationId),
             timeoutPromise
           ]) as Awaited<ReturnType<typeof CopilotService.sendMessage>>;
-        } catch (timeoutError) {
+        } catch (err: any) {
+          if (err.message === 'Request cancelled' || abortSignal.aborted) {
+            logger.log('Request was cancelled');
+            return;
+          }
           throw new Error('Request took too long. Please try again.');
         }
 
@@ -490,7 +551,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     if (pendingQuery) {
       const { query, startNewChat } = pendingQuery;
       setPendingQuery(null); // Clear pending query
-      
+
       // For new chats, add a small delay to ensure state is reset
       const delay = startNewChat ? 200 : 100;
       setTimeout(() => {
@@ -499,16 +560,61 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     }
   }, [pendingQuery, sendMessage]);
 
+  // Load a conversation from history
+  const loadConversation = useCallback(async (conversationId: string) => {
+    try {
+      setState(prev => ({ ...prev, isLoading: true }));
+
+      // Fetch conversation messages from database
+      const { data: messages, error } = await supabase
+        .from('copilot_messages')
+        .select('id, role, content, metadata, created_at')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        logger.error('Error loading conversation:', error);
+        throw error;
+      }
+
+      // Convert database messages to CopilotMessage format
+      const copilotMessages: CopilotMessage[] = (messages || []).map(msg => ({
+        id: msg.id,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        timestamp: new Date(msg.created_at),
+        structuredResponse: msg.metadata?.structuredResponse,
+        recommendations: msg.metadata?.recommendations
+      }));
+
+      setState(prev => ({
+        ...prev,
+        messages: copilotMessages,
+        conversationId,
+        mode: copilotMessages.length > 0 ? 'active' : 'empty',
+        isLoading: false
+      }));
+
+      logger.log('Loaded conversation:', conversationId, 'with', copilotMessages.length, 'messages');
+    } catch (error) {
+      logger.error('Failed to load conversation:', error);
+      setState(prev => ({ ...prev, isLoading: false }));
+    }
+  }, []);
+
   const value: CopilotContextValue = {
     isOpen,
     openCopilot,
     closeCopilot,
     sendMessage,
+    cancelRequest,
     messages: state.messages,
     isLoading: state.isLoading,
     context,
     setContext,
-    startNewChat
+    startNewChat,
+    conversationId: state.conversationId,
+    loadConversation
   };
 
   return <CopilotContext.Provider value={value}>{children}</CopilotContext.Provider>;

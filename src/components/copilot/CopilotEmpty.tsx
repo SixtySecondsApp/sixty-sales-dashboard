@@ -4,21 +4,17 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send } from 'lucide-react';
+import { Send, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useDynamicPrompts } from '@/lib/hooks/useDynamicPrompts';
 
 interface CopilotEmptyProps {
   onPromptClick: (prompt: string) => void;
 }
 
-const suggestedPrompts = [
-  'What should I prioritize today?',
-  'Show me deals that need attention',
-  'Draft a follow-up email for Alexander Wolf'
-];
-
 export const CopilotEmpty: React.FC<CopilotEmptyProps> = ({ onPromptClick }) => {
+  const { prompts: suggestedPrompts, isLoading: promptsLoading } = useDynamicPrompts(3);
   const [inputValue, setInputValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -96,21 +92,35 @@ export const CopilotEmpty: React.FC<CopilotEmptyProps> = ({ onPromptClick }) => 
             Try asking:
           </p>
           <div className="flex flex-col gap-3">
-            {suggestedPrompts.map((prompt, index) => (
-              <button
-                key={index}
-                onClick={() => onPromptClick(prompt)}
-                className={cn(
-                  'px-6 py-4 bg-white dark:bg-gray-900/60 backdrop-blur-sm border border-gray-200 dark:border-gray-800/50 rounded-xl',
-                  'text-base text-gray-900 dark:text-gray-300 text-left',
-                  'hover:bg-gray-50 dark:hover:bg-gray-800/60 hover:border-gray-300 dark:hover:border-gray-700/50 hover:scale-[1.02]',
-                  'transition-all duration-200',
-                  'focus:outline-none focus:ring-2 focus:ring-blue-500'
-                )}
-              >
-                {prompt}
-              </button>
-            ))}
+            {promptsLoading ? (
+              // Loading skeleton for prompts
+              <>
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="px-6 py-4 bg-gray-100 dark:bg-gray-800/40 rounded-xl animate-pulse"
+                  >
+                    <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
+                  </div>
+                ))}
+              </>
+            ) : (
+              suggestedPrompts.map((prompt, index) => (
+                <button
+                  key={index}
+                  onClick={() => onPromptClick(prompt)}
+                  className={cn(
+                    'px-6 py-4 bg-white dark:bg-gray-900/60 backdrop-blur-sm border border-gray-200 dark:border-gray-800/50 rounded-xl',
+                    'text-base text-gray-900 dark:text-gray-300 text-left',
+                    'hover:bg-gray-50 dark:hover:bg-gray-800/60 hover:border-gray-300 dark:hover:border-gray-700/50 hover:scale-[1.02]',
+                    'transition-all duration-200',
+                    'focus:outline-none focus:ring-2 focus:ring-blue-500'
+                  )}
+                >
+                  {prompt}
+                </button>
+              ))
+            )}
           </div>
         </div>
       </div>

@@ -18,7 +18,7 @@ interface ChatMessageProps {
   onActionClick?: (action: any) => void;
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionClick }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, onActionClick }) => {
   const isUser = message.role === 'user';
   const { userData } = useUser();
 
@@ -122,6 +122,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionClick
       )}
     </div>
   );
-};
+});
+
+ChatMessage.displayName = 'ChatMessage';
 
 export default ChatMessage;
