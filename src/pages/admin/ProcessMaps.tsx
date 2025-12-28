@@ -32,6 +32,7 @@ import type { StepStatus, ProcessStructure } from '@/lib/types/processMapTesting
 import { ProcessMapButton, ProcessType, ProcessName } from '@/components/process-maps/ProcessMapButton';
 import { WorkflowTestPanel } from '@/components/process-maps/WorkflowTestPanel';
 import { ExpandableDescription } from '@/components/process-maps/ExpandableDescription';
+import { TabbedDescription } from '@/components/process-maps/TabbedDescription';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import {
   Dialog,
@@ -764,12 +765,12 @@ export default function ProcessMaps() {
                   <GitBranch className="h-5 w-5 text-emerald-500" />
                   {selectedMap?.title}
                 </DialogTitle>
-                {selectedMap && (
-                  <div className="mt-1">
-                    <ExpandableDescription
+                {selectedMap && selectedMap.description && (
+                  <div className="mt-2">
+                    <TabbedDescription
                       short={selectedMap.description}
                       long={selectedMap.description_long}
-                      maxLines={2}
+                      defaultTab="details"
                     />
                   </div>
                 )}
