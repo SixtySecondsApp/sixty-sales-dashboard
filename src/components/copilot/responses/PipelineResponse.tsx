@@ -165,7 +165,7 @@ const DealCard: React.FC<{
   );
 };
 
-export const PipelineResponse: React.FC<PipelineResponseProps> = ({ data, onActionClick }) => {
+export const PipelineResponse: React.FC<PipelineResponseProps> = React.memo(({ data, onActionClick }) => {
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const [emailDraft, setEmailDraft] = useState<{ subject: string; body: string } | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
@@ -306,7 +306,9 @@ export const PipelineResponse: React.FC<PipelineResponseProps> = ({ data, onActi
       <ActionButtons actions={data.actions} onActionClick={onActionClick} />
     </div>
   );
-};
+});
+
+PipelineResponse.displayName = 'PipelineResponse';
 
 export default PipelineResponse;
 

@@ -4,7 +4,7 @@
  */
 
 import React, { useRef, useEffect } from 'react';
-import { Send } from 'lucide-react';
+import { Send, Square, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -12,7 +12,9 @@ interface ChatInputProps {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
+  onCancel?: () => void;
   disabled?: boolean;
+  isLoading?: boolean;
   placeholder?: string;
   suggestedPrompts?: string[];
   onPromptClick?: (prompt: string) => void;
@@ -22,7 +24,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   value,
   onChange,
   onSend,
+  onCancel,
   disabled = false,
+  isLoading = false,
   placeholder = 'Ask Copilot anything about your pipeline, contacts, or next actions...',
   suggestedPrompts = [],
   onPromptClick
@@ -67,13 +71,24 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             )}
           />
         </div>
-        <Button
-          onClick={onSend}
-          disabled={!value.trim() || disabled}
-          className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-blue-500/20"
-        >
-          <Send className="w-5 h-5" />
-        </Button>
+        {isLoading && onCancel ? (
+          <Button
+            onClick={onCancel}
+            className="px-8 py-4 bg-red-500 hover:bg-red-600 text-white rounded-xl flex-shrink-0 transition-all duration-200 shadow-lg gap-2"
+            title="Cancel request"
+          >
+            <Square className="w-4 h-4 fill-current" />
+            <span className="hidden sm:inline text-sm">Stop</span>
+          </Button>
+        ) : (
+          <Button
+            onClick={onSend}
+            disabled={!value.trim() || disabled}
+            className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-blue-500/20"
+          >
+            <Send className="w-5 h-5" />
+          </Button>
+        )}
       </div>
 
       {/* Suggested Prompts */}

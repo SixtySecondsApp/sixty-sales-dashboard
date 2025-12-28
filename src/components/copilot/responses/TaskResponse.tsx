@@ -369,7 +369,7 @@ const TaskCard: React.FC<{
   );
 };
 
-export const TaskResponse: React.FC<TaskResponseProps> = ({ data, onActionClick }) => {
+export const TaskResponse: React.FC<TaskResponseProps> = React.memo(({ data, onActionClick }) => {
   const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(new Set());
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   const [showAllResults, setShowAllResults] = useState(false);
@@ -535,5 +535,8 @@ export const TaskResponse: React.FC<TaskResponseProps> = ({ data, onActionClick 
       <ActionButtons actions={data.actions} onActionClick={onActionClick} />
     </div>
   );
-};
+});
 
+TaskResponse.displayName = 'TaskResponse';
+
+export default TaskResponse;
