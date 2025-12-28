@@ -18,6 +18,8 @@ import { Badge } from './Badge';
 import { format } from 'date-fns';
 import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
 import { DealHealthBadge } from '@/components/DealHealthBadge';
+import { DealSentimentIndicator, type DealSentimentData } from '@/components/sentiment';
+import { RiskBadge, type RiskLevel } from '@/components/health';
 import { extractDomainFromDeal } from '@/lib/utils/domainUtils';
 import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
 
@@ -33,7 +35,11 @@ interface DealCardProps {
   healthScore?: {
     overall_health_score: number;
     health_status: 'healthy' | 'warning' | 'critical' | 'stalled';
+    risk_level?: RiskLevel;
+    risk_factors?: string[];
   } | null;
+  /** Sentiment trend data from meetings */
+  sentimentData?: DealSentimentData | null;
 }
 
 export function DealCard({
@@ -44,7 +50,8 @@ export function DealCard({
   // Default to 0 if not provided (batched data loading or unavailable)
   nextActionsPendingCount = 0,
   highUrgencyCount = 0,
-  healthScore = null
+  healthScore = null,
+  sentimentData = null
 }: DealCardProps) {
   const [logoError, setLogoError] = useState(false);
 
@@ -331,27 +338,38 @@ export function DealCard({
           </div>
 
           <div className="ml-3 flex-shrink-0 text-right flex flex-col items-end gap-2">
-            {/* Compact Health Score */}
-            {healthScore && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.location.href = `/crm/health`;
-                }}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group/health"
-                title={`Health Score: ${healthScore.overall_health_score} (${healthScore.health_status})`}
-              >
-                <div className={`w-2 h-2 rounded-full ${
-                  healthScore.health_status === 'healthy' ? 'bg-green-500' :
-                  healthScore.health_status === 'warning' ? 'bg-yellow-500' :
-                  healthScore.health_status === 'critical' ? 'bg-red-500' :
-                  'bg-gray-500'
-                }`} />
-                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 group-hover/health:text-gray-900 dark:group-hover/health:text-white">
-                  {healthScore.overall_health_score}
-                </span>
-              </button>
-            )}
+            {/* Sentiment Trend and Health Score Row */}
+            <div className="flex items-center gap-1">
+              {/* Sentiment Trend Indicator */}
+              {sentimentData && sentimentData.meeting_count > 0 && (
+                <DealSentimentIndicator
+                  sentiment={sentimentData}
+                  compact
+                />
+              )}
+
+              {/* Compact Health Score */}
+              {healthScore && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.location.href = `/crm/health`;
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group/health"
+                  title={`Health Score: ${healthScore.overall_health_score} (${healthScore.health_status})`}
+                >
+                  <div className={`w-2 h-2 rounded-full ${
+                    healthScore.health_status === 'healthy' ? 'bg-green-500' :
+                    healthScore.health_status === 'warning' ? 'bg-yellow-500' :
+                    healthScore.health_status === 'critical' ? 'bg-red-500' :
+                    'bg-gray-500'
+                  }`} />
+                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 group-hover/health:text-gray-900 dark:group-hover/health:text-white">
+                    {healthScore.overall_health_score}
+                  </span>
+                </button>
+              )}
+            </div>
 
             <div>
               {splitInfo.hasSplits ? (
@@ -406,6 +424,16 @@ export function DealCard({
 
         {/* Badges row */}
         <div className="flex flex-wrap gap-1.5 mb-3">
+          {/* Risk Badge - Show prominently for at-risk deals */}
+          {healthScore?.risk_level && healthScore.risk_level !== 'low' && (
+            <RiskBadge
+              riskLevel={healthScore.risk_level}
+              riskFactors={healthScore.risk_factors}
+              compact
+              interactive
+            />
+          )}
+
           {/* Due date badge if exists */}
           {deal.expected_close_date && (
             <span className={`

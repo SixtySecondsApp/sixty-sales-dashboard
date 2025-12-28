@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
 import { DealHealthBadge } from '@/components/DealHealthBadge';
 import { useDealHealthScore } from '@/lib/hooks/useDealHealth';
+import { HealthScoreGauge } from '@/components/health';
 import EditDealModal from '@/components/EditDealModal/EditDealModal';
 import { NotesSection } from '@/components/NotesSection';
 import { PipelineProvider } from '@/lib/contexts/PipelineContext';
@@ -688,29 +689,48 @@ const DealRecord: React.FC = () => {
               </div>
             )}
 
+            {/* Deal Health Score */}
+            {healthScore && (
+              <div className="section-card">
+                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Target className="w-5 h-5 text-emerald-400" />
+                  Deal Health
+                </h2>
+
+                <div className="flex flex-col items-center">
+                  <HealthScoreGauge
+                    healthScore={healthScore}
+                    size={80}
+                    showLabel
+                    interactive
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Quick Stats */}
             <div className="section-card bg-gradient-to-br from-purple-500/5 to-blue-500/5 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-500/10 dark:border-purple-500/20">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-purple-400" />
                 Quick Stats
               </h2>
-              
+
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="theme-text-tertiary">Stage</span>
                   <span className="theme-text-primary font-medium">{deal.stage_name || 'Unknown'}</span>
                 </div>
-                
+
                 <div className="flex justify-between items-center">
                   <span className="theme-text-tertiary">Status</span>
                   <span className="theme-text-primary font-medium">{deal.status || 'Active'}</span>
                 </div>
-                
+
                 <div className="flex justify-between items-center">
                   <span className="theme-text-tertiary">Value</span>
                   <span className="theme-text-primary font-medium">{formatCurrency(deal.value || 0)}</span>
                 </div>
-                
+
                 <div className="flex justify-between items-center">
                   <span className="theme-text-tertiary">Win Probability</span>
                   <span className="theme-text-primary font-medium">{deal.default_probability || 0}%</span>

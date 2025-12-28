@@ -1,19 +1,21 @@
 /**
  * useBatchedDealMetadata Hook
  *
- * Efficiently fetches next actions and health scores for multiple deals in batched queries
- * to prevent N+1 query problems and resource exhaustion.
+ * Efficiently fetches next actions, health scores, and sentiment data for multiple deals
+ * in batched queries to prevent N+1 query problems and resource exhaustion.
  *
  * Instead of making individual API calls per deal card, this hook:
  * 1. Fetches all next actions for all deals in ONE query
  * 2. Fetches all health scores for all deals in ONE query
- * 3. Indexes the results by deal_id for O(1) lookups
- * 4. Caches results with React Query
+ * 3. Fetches all sentiment trends for all deals in ONE query
+ * 4. Indexes the results by deal_id for O(1) lookups
+ * 5. Caches results with React Query
  */
 
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/clientV2';
+import type { TrendDirection, DealSentimentTrend } from '@/lib/hooks/useDealSentimentTrend';
 
 interface NextActionMetadata {
   pendingCount: number;
@@ -23,11 +25,22 @@ interface NextActionMetadata {
 interface HealthScoreMetadata {
   overall_health_score: number;
   health_status: 'healthy' | 'warning' | 'critical' | 'stalled';
+  risk_level?: 'low' | 'medium' | 'high' | 'critical';
+  risk_factors?: string[];
+}
+
+interface SentimentMetadata {
+  avg_sentiment: number | null;
+  sentiment_history: number[];
+  trend_direction: TrendDirection;
+  trend_delta: number;
+  meeting_count: number;
 }
 
 interface BatchedDealMetadata {
   nextActions: Record<string, NextActionMetadata>;
   healthScores: Record<string, HealthScoreMetadata>;
+  sentimentData: Record<string, SentimentMetadata>;
 }
 
 /**
@@ -97,7 +110,7 @@ async function fetchBatchedHealthScores(
     // Fetch all health scores for these deals in ONE query
     const { data, error } = await supabase
       .from('deal_health_scores')
-      .select('deal_id, overall_health_score, health_status')
+      .select('deal_id, overall_health_score, health_status, risk_level, risk_factors')
       .in('deal_id', dealIds);
 
     if (error) {
@@ -111,6 +124,49 @@ async function fetchBatchedHealthScores(
       indexed[score.deal_id] = {
         overall_health_score: score.overall_health_score,
         health_status: score.health_status,
+        risk_level: score.risk_level,
+        risk_factors: score.risk_factors,
+      };
+    });
+
+    return indexed;
+  } catch (error) {
+    return {};
+  }
+}
+
+/**
+ * Fetch sentiment trends for all deals in a single query
+ */
+async function fetchBatchedSentimentData(
+  dealIds: string[]
+): Promise<Record<string, SentimentMetadata>> {
+  if (dealIds.length === 0) {
+    return {};
+  }
+
+  try {
+    // Fetch all sentiment trends for these deals in ONE query
+    const { data, error } = await supabase
+      .from('deal_sentiment_trends')
+      .select('deal_id, avg_sentiment, sentiment_history, trend_direction, trend_delta, meeting_count')
+      .in('deal_id', dealIds);
+
+    if (error) {
+      // View might not exist yet - gracefully return empty
+      return {};
+    }
+
+    // Index by deal_id for O(1) lookups
+    const indexed: Record<string, SentimentMetadata> = {};
+
+    (data || []).forEach((sentiment: DealSentimentTrend) => {
+      indexed[sentiment.deal_id] = {
+        avg_sentiment: sentiment.avg_sentiment,
+        sentiment_history: sentiment.sentiment_history || [],
+        trend_direction: sentiment.trend_direction,
+        trend_delta: sentiment.trend_delta,
+        meeting_count: sentiment.meeting_count,
       };
     });
 
@@ -130,16 +186,17 @@ export function useBatchedDealMetadata(dealIds: string[]) {
     queryKey: ['batchedDealMetadata', dealIds.sort().join(','), user?.id],
     queryFn: async () => {
       if (!user) {
-        return { nextActions: {}, healthScores: {} };
+        return { nextActions: {}, healthScores: {}, sentimentData: {} };
       }
 
-      // Batch both queries in parallel
-      const [nextActions, healthScores] = await Promise.all([
+      // Batch all queries in parallel
+      const [nextActions, healthScores, sentimentData] = await Promise.all([
         fetchBatchedNextActions(user.id, dealIds),
         fetchBatchedHealthScores(dealIds),
+        fetchBatchedSentimentData(dealIds),
       ]);
 
-      return { nextActions, healthScores };
+      return { nextActions, healthScores, sentimentData };
     },
     enabled: !!user && dealIds.length > 0,
     staleTime: 30000, // Cache for 30 seconds
@@ -148,7 +205,7 @@ export function useBatchedDealMetadata(dealIds: string[]) {
   });
 
   return {
-    data: data || { nextActions: {}, healthScores: {} },
+    data: data || { nextActions: {}, healthScores: {}, sentimentData: {} },
     isLoading,
     error,
     refetch,
