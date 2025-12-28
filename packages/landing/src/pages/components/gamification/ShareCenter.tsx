@@ -24,6 +24,8 @@ interface ShareCenterProps {
   emailBoostClaimed?: boolean;
   totalPoints?: number;
   signupPosition?: number;
+  onBoostClaimed?: (data: { total_points: number; effective_position: number }) => void;
+  onEntryUpdate?: () => Promise<void>;
 }
 
 export function ShareCenter({
@@ -37,7 +39,9 @@ export function ShareCenter({
   twitterBoostClaimed: propTwitterBoostClaimed = false,
   emailBoostClaimed: propEmailBoostClaimed = false,
   totalPoints = 0,
-  signupPosition = 0
+  signupPosition = 0,
+  onBoostClaimed,
+  onEntryUpdate
 }: ShareCenterProps) {
   const [copied, setCopied] = useState(false);
   const [messageCopied, setMessageCopied] = useState(false);

@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase/clientV2';
 import type { Activity } from './useActivities';
 import logger from '@/lib/utils/logger';
 import { useViewMode } from '@/contexts/ViewModeContext';
-import { useAuth } from '@/lib/contexts/AuthContext';
+import { useAuthUser } from './useAuthUser';
 
 interface LazyActivitiesConfig {
   // Essential: Only fetch data when this is true
@@ -90,7 +90,8 @@ async function fetchLimitedActivities(config: LazyActivitiesConfig) {
 
 export function useLazyActivities(config: LazyActivitiesConfig = { enabled: false }) {
   const { isViewMode, viewedUser } = useViewMode();
-  const { userId } = useAuth();
+  const { data: authUser } = useAuthUser(); // Get cached auth user from React Query
+  const userId = authUser?.id;
 
   // Add viewedUserId and authUserId to config
   const effectiveConfig = {

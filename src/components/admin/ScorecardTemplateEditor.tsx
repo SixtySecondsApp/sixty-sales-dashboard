@@ -600,6 +600,7 @@ function ScriptFlowEditor({
       expected_topics: [],
       key_questions: [],
       duration_guidance: '',
+      required: false,
     };
     onChange([...steps, newStep]);
   };

@@ -25,12 +25,22 @@ import { toast } from 'sonner';
 
 // Placeholder type until googleEmailService is implemented
 interface SendEmailRequest {
-  to: string;
+  to: string | string[];
   subject: string;
   body: string;
   cc?: string[];
   bcc?: string[];
+  isHtml?: boolean;
 }
+
+// Stub service until googleEmailService is implemented
+const googleEmailService = {
+  sendEmail: async (_request: SendEmailRequest): Promise<{ success: boolean; messageId?: string; error?: string }> => {
+    // Stub: In production, this would send via Gmail API
+    console.warn('googleEmailService.sendEmail is not implemented');
+    return { success: false, error: 'Email service not yet implemented' };
+  }
+};
 
 interface EmailComposerModalProps {
   isOpen: boolean;

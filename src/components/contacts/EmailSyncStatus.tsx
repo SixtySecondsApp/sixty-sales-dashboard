@@ -18,16 +18,36 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-// TODO: Tooltip component not implemented yet
-// import {
-//   Tooltip,
-//   TooltipContent,
-//   TooltipProvider,
-//   TooltipTrigger
-// } from '@/components/ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 // TODO: googleEmailService not implemented yet
 // import { googleEmailService } from '@/lib/services/googleEmailService';
+
+// Stub service until googleEmailService is implemented
+const googleEmailService = {
+  getSyncStatus: async (): Promise<{
+    syncEnabled: boolean;
+    lastSync: string | null;
+    nextSync: string | null;
+    totalSynced: number;
+  }> => {
+    console.warn('googleEmailService.getSyncStatus is not implemented');
+    return { syncEnabled: false, lastSync: null, nextSync: null, totalSynced: 0 };
+  },
+  syncEmailsToContacts: async (): Promise<{ success: boolean; syncedCount: number; error?: string }> => {
+    console.warn('googleEmailService.syncEmailsToContacts is not implemented');
+    return { success: false, syncedCount: 0, error: 'Email sync service not yet implemented' };
+  },
+  toggleEmailSync: async (_enabled: boolean): Promise<{ success: boolean; error?: string }> => {
+    console.warn('googleEmailService.toggleEmailSync is not implemented');
+    return { success: false, error: 'Email sync service not yet implemented' };
+  }
+};
 import { formatDistanceToNow, format } from 'date-fns';
 
 interface EmailSyncStatusProps {

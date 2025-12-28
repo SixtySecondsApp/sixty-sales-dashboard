@@ -49,6 +49,7 @@ interface ContactEmail {
   body_plain?: string;
   to_emails?: string[];
   sent_at?: string;
+  labels?: string[];
 }
 
 // Stub service until googleEmailService is implemented

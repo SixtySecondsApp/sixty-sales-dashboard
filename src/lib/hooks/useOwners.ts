@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/clientV2';
-import { useAuth } from '@/lib/contexts/AuthContext';
+import { useAuthUser } from './useAuthUser';
 import logger from '@/lib/utils/logger';
 
 export interface Owner {
@@ -76,7 +76,8 @@ async function fetchOwners(userId: string): Promise<Owner[]> {
 }
 
 export function useOwners() {
-  const { userId } = useAuth();
+  const { data: authUser } = useAuthUser();
+  const userId = authUser?.id;
 
   const queryResult = useQuery({
     queryKey: ['owners', userId],

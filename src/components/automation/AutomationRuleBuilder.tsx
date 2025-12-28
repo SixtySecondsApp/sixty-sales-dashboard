@@ -197,15 +197,16 @@ export function AutomationRuleBuilder({ rule, onSave, onCancel }: AutomationRule
         }))
       };
 
+      // Cast to any - user_automation_rules table schema may differ from types
       if (formData.id) {
-        await (supabase
+        await (supabase as any)
           .from('user_automation_rules')
-          .update(ruleData) as any)
+          .update(ruleData)
           .eq('id', formData.id);
       } else {
-        await (supabase
+        await (supabase as any)
           .from('user_automation_rules')
-          .insert([ruleData]) as any);
+          .insert([ruleData]);
       }
 
       onSave(formData);

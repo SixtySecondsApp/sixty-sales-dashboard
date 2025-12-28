@@ -33,19 +33,26 @@ interface CustomAPIResponse {
 }
 
 /**
- * Helper: Normalize Fathom share URL to working format
+ * Helper: Normalize Fathom URL to format that works with the thumbnail API
+ * The AWS Lambda thumbnail API can resolve fathom.video but NOT app.fathom.video
+ * So we convert all URLs to use fathom.video (without the app subdomain)
  */
 function normalizeFathomShareUrl(shareUrl: string): string {
   try {
     const url = new URL(shareUrl)
-    
-    // If it's share.fathom.video (broken DNS), convert to app.fathom.video/share
+
+    // Convert app.fathom.video to fathom.video (Lambda can't resolve app subdomain)
+    if (url.hostname === 'app.fathom.video') {
+      return `https://fathom.video${url.pathname}${url.search}`
+    }
+
+    // Convert share.fathom.video (old broken DNS) to fathom.video/share
     if (url.hostname === 'share.fathom.video') {
       const parts = url.pathname.split('/').filter(Boolean)
       const token = parts[parts.length - 1]
-      return `https://app.fathom.video/share/${token}`
+      return `https://fathom.video/share/${token}`
     }
-    
+
     return shareUrl
   } catch {
     return shareUrl

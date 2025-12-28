@@ -10,7 +10,7 @@ import { ConfettiService } from '@/lib/services/confettiService';
 import { IdentifierType } from '@/components/IdentifierField';
 import logger from '@/lib/utils/logger';
 import { useViewMode } from '@/contexts/ViewModeContext';
-import { useAuth } from '@/lib/contexts/AuthContext';
+import { useAuthUser } from './useAuthUser';
 
 export interface Activity {
   id: string;
@@ -158,7 +158,7 @@ async function fetchActivities(dateRange?: { start: Date; end: Date }, viewedUse
   } else {
     // In normal mode, ensure we only see our own activities (extra safety)
     logger.log('[fetchActivities] Normal Mode - filtering by current user');
-    return data?.filter(activity => activity.user_id === user.id) || [];
+    return data?.filter(activity => activity.user_id === userId) || [];
   }
 }
 
@@ -445,7 +445,8 @@ async function deleteActivity(id: string) {
 export function useActivities(dateRange?: { start: Date; end: Date }) {
   const { isViewMode, viewedUser } = useViewMode();
   const queryClient = useQueryClient();
-  const { userId: authUserId } = useAuth(); // Get cached auth user ID
+  const { data: authUser } = useAuthUser(); // Get cached auth user from React Query
+  const authUserId = authUser?.id;
 
   // Set up real-time subscription for live updates (only once)
   useEffect(() => {

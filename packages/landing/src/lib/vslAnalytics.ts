@@ -99,7 +99,8 @@ interface AnalyticsEvent {
  */
 async function trackEvent(event: AnalyticsEvent): Promise<void> {
   try {
-    const { error } = await supabase
+    // Cast to any since vsl_video_analytics table is not in generated types
+    const { error } = await (supabase as any)
       .from('vsl_video_analytics')
       .insert(event);
 

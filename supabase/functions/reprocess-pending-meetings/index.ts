@@ -22,8 +22,8 @@ interface ReprocessRequest {
 interface MeetingStatus {
   id: string
   title: string
-  recording_start_time: string
-  recording_end_time: string | null
+  meeting_start: string
+  meeting_end: string | null
   duration_seconds: number | null
   fathom_recording_id: string | null
   owner_user_id: string
@@ -167,7 +167,10 @@ async function generateThumbnail(
   supabase: any
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const shareUrl = meeting.fathom_share_url || `https://app.fathom.video/share/${meeting.fathom_recording_id}`
+    // Use share_url if available, otherwise fall back to recording URL format
+    // Note: Use fathom.video (not app.fathom.video) as the AWS Lambda thumbnail API
+    // can't resolve the app subdomain
+    const shareUrl = meeting.fathom_share_url || `https://fathom.video/recording/${meeting.fathom_recording_id}`
 
     const response = await fetch(
       `${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-video-thumbnail-v2`,
@@ -230,7 +233,7 @@ async function queueForAIIndex(
         attempts: 0,
         max_attempts: 3,
         created_at: new Date().toISOString(),
-      }, { onConflict: 'meeting_id,user_id' })
+      }, { onConflict: 'meeting_id' })
 
     if (error) {
       return { success: false, message: error.message }
@@ -291,10 +294,10 @@ serve(async (req) => {
       .select(`
         id,
         title,
-        recording_start_time,
-        recording_end_time,
+        meeting_start,
+        meeting_end,
         fathom_recording_id,
-        fathom_share_url,
+        share_url,
         owner_user_id,
         thumbnail_status,
         transcript_status,
@@ -306,7 +309,7 @@ serve(async (req) => {
       `)
       .eq('owner_user_id', user.id)
       .not('fathom_recording_id', 'is', null)
-      .order('recording_start_time', { ascending: false })
+      .order('meeting_start', { ascending: false })
 
     if (meeting_ids && meeting_ids.length > 0) {
       query = query.in('id', meeting_ids)
@@ -331,13 +334,13 @@ serve(async (req) => {
     // DIAGNOSE MODE - Just return status
     if (mode === 'diagnose') {
       const statuses: MeetingStatus[] = (meetings || []).map((m: any) => {
-        const durationSeconds = calculateDurationSeconds(m.recording_start_time, m.recording_end_time)
+        const durationSeconds = calculateDurationSeconds(m.meeting_start, m.meeting_end)
         const isShort = isShortMeeting(durationSeconds)
         return {
           id: m.id,
           title: m.title || 'Untitled',
-          recording_start_time: m.recording_start_time,
-          recording_end_time: m.recording_end_time,
+          meeting_start: m.meeting_start,
+          meeting_end: m.meeting_end,
           duration_seconds: durationSeconds,
           fathom_recording_id: m.fathom_recording_id,
           owner_user_id: m.owner_user_id,
@@ -407,7 +410,7 @@ serve(async (req) => {
     const results: ReprocessResult[] = []
 
     for (const meeting of meetings || []) {
-      const durationSeconds = calculateDurationSeconds(meeting.recording_start_time, meeting.recording_end_time)
+      const durationSeconds = calculateDurationSeconds(meeting.meeting_start, meeting.meeting_end)
       const isShort = isShortMeeting(durationSeconds)
       const shortReason = getShortMeetingReason(durationSeconds)
 
@@ -613,7 +616,7 @@ serve(async (req) => {
           (meeting.thumbnail_status === 'pending' || meeting.thumbnail_status === 'failed' ||
            !meeting.thumbnail_url || meeting.thumbnail_url.includes('dummyimage.com'))) {
         result.thumbnail = await generateThumbnail(
-          { id: meeting.id, fathom_recording_id: meeting.fathom_recording_id, fathom_share_url: meeting.fathom_share_url },
+          { id: meeting.id, fathom_recording_id: meeting.fathom_recording_id, fathom_share_url: meeting.share_url },
           adminClient
         )
       }

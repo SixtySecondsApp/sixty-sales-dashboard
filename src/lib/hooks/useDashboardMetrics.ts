@@ -8,7 +8,7 @@ import { useProgressiveDashboardData } from './useLazyActivities';
 import { supabase } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
 import { useViewMode } from '@/contexts/ViewModeContext';
-import { useAuth } from '@/lib/contexts/AuthContext';
+import { useAuthUser } from './useAuthUser';
 
 interface DashboardMetrics {
   revenue: number;
@@ -77,7 +77,8 @@ function calculateTrend(current: number, previous: number): number {
 export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true) {
   const queryClient = useQueryClient();
   const { isViewMode, viewedUser } = useViewMode();
-  const { userId: authUserId } = useAuth(); // Get cached auth user ID
+  const { data: authUser } = useAuthUser(); // Get cached auth user from React Query
+  const authUserId = authUser?.id;
   
   // Progressive data loading
   const { 

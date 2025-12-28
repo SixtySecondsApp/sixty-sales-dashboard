@@ -7,13 +7,14 @@ import { useCallback } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { emailAnalysisService, type EmailAnalysis, type SmartReply, type EmailSummary } from '../services/emailAnalysisService';
 import type { GmailMessage } from '../types/gmail';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthUser } from './useAuthUser';
 import { toast } from 'sonner';
 import logger from '../utils/logger';
 
 export function useEmailAnalysis(email: GmailMessage | null) {
-  // Use cached auth context instead of separate query
-  const { userId } = useAuth();
+  // Use cached auth user from React Query
+  const { data: authUser } = useAuthUser();
+  const userId = authUser?.id;
 
   // Analyze email
   const { data: analysis, isLoading: isAnalyzing, refetch: analyzeEmail } = useQuery({

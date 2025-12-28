@@ -112,11 +112,12 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
     else setLoading(true);
 
     try {
-      const { data, error } = await supabase
+      // Cast to any - contact_documents table not yet in database types
+      const { data, error } = await (supabase as any)
         .from('contact_documents')
         .select('*')
         .eq('contact_id', contactId)
-        .order('updated_at', { ascending: false });
+        .order('updated_at', { ascending: false }) as { data: ContactDocument[] | null; error: any };
 
       if (error) {
         toast.error('Failed to load documents');
