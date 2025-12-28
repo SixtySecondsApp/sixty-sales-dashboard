@@ -7,7 +7,7 @@ import { getSiteUrl } from '@/lib/utils/siteUrl';
 import logger from '@/lib/utils/logger';
 import { ViewModeContext } from '@/contexts/ViewModeContext';
 import { useAuthUser } from './useAuthUser';
-import { useUserProfile, useUserProfileById } from './useUserProfile';
+import { useUserProfileById } from './useUserProfile';
 
 type UserProfile = Database['public']['Tables']['profiles']['Row'];
 
@@ -185,8 +185,8 @@ export function useUser() {
   // Use React Query for auth user - cached and deduplicated across all components
   const { data: authUser, isLoading: isAuthLoading, error: authError } = useAuthUser();
 
-  // Use React Query for profile - cached by email, deduplicated
-  const { data: profile, isLoading: isProfileLoading } = useUserProfile(authUser?.email);
+  // Use React Query for profile - cached by ID, deduplicated
+  const { data: profile, isLoading: isProfileLoading } = useUserProfileById(authUser?.id);
 
   // Try to get View Mode context - but make it optional
   let viewModeContext = null;

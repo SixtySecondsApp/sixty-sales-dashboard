@@ -32,7 +32,7 @@ async function fetchUserProfileByEmail(email: string): Promise<UserProfile | nul
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('id, email, first_name, last_name, full_name, avatar_url, role, department, stage, is_admin, created_at, updated_at')
+    .select('id, email, first_name, last_name, avatar_url, is_admin, created_at, updated_at')
     .eq('email', email)
     .maybeSingle();
 
@@ -56,7 +56,7 @@ async function fetchUserProfileById(userId: string): Promise<UserProfile | null>
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('id, email, first_name, last_name, full_name, avatar_url, role, department, stage, is_admin, created_at, updated_at')
+    .select('id, email, first_name, last_name, avatar_url, is_admin, created_at, updated_at')
     .eq('id', userId)
     .maybeSingle();
 
