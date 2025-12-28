@@ -1908,63 +1908,53 @@ async function syncSingleCall(
 
             if (isNaN(meetingDateOnly.getTime()) || isNaN(fromDateOnly.getTime())) {
             } else if (meetingDateOnly >= fromDateOnly) {
-              // Check if activity already exists for this meeting
-              const { data: existingActivity } = await supabase
-                .from('activities')
-                .select('id')
-                .eq('meeting_id', meeting.id)
-                .eq('user_id', ownerUserId)
-                .eq('type', 'meeting')
-                .single()
+              // Get sales rep email - use ownerEmailCandidate or lookup from profile
+              let salesRepEmail = ownerEmailCandidate
+              if (!salesRepEmail) {
+                // Fallback: lookup email from profiles table
+                const { data: ownerProfile } = await supabase
+                  .from('profiles')
+                  .select('email')
+                  .eq('id', ownerUserId)
+                  .single()
+                salesRepEmail = ownerProfile?.email || ownerUserId
+              }
 
-              if (existingActivity) {
+              // Get company name from meetingCompanyId (extracted from attendee emails)
+              let companyName = meetingData.title || 'Fathom Meeting' // Fallback to meeting title
+              if (meetingCompanyId) {
+                const { data: companyData, error: companyError } = await supabase
+                  .from('companies')
+                  .select('name')
+                  .eq('id', meetingCompanyId)
+                  .single()
+
+                if (!companyError && companyData?.name) {
+                  companyName = companyData.name
+                } else if (companyError) {
+                }
               } else {
-                // Get sales rep email - use ownerEmailCandidate or lookup from profile
-                let salesRepEmail = ownerEmailCandidate
-                if (!salesRepEmail) {
-                  // Fallback: lookup email from profiles table
-                  const { data: ownerProfile } = await supabase
-                    .from('profiles')
-                    .select('email')
-                    .eq('id', ownerUserId)
-                    .single()
-                  salesRepEmail = ownerProfile?.email || ownerUserId
-                }
+              }
 
-                // Get company name from meetingCompanyId (extracted from attendee emails)
-                let companyName = meetingData.title || 'Fathom Meeting' // Fallback to meeting title
-                if (meetingCompanyId) {
-                  const { data: companyData, error: companyError } = await supabase
-                    .from('companies')
-                    .select('name')
-                    .eq('id', meetingCompanyId)
-                    .single()
+              // Insert activity - unique constraint on (meeting_id, user_id, type) prevents duplicates
+              // If a race condition occurs, the constraint will reject the duplicate
+              const { error: activityError } = await supabase.from('activities').insert({
+                user_id: ownerUserId,
+                sales_rep: salesRepEmail,  // Use email instead of UUID
+                meeting_id: meeting.id,
+                contact_id: primaryContactId,
+                company_id: meetingCompanyId,
+                type: 'meeting',
+                status: 'completed',
+                client_name: companyName, // FIXED: Use company name instead of meeting title
+                details: extractAndTruncateSummary(meetingData.summary),
+                date: meetingData.meeting_start,
+                created_at: new Date().toISOString()
+              })
 
-                  if (!companyError && companyData?.name) {
-                    companyName = companyData.name
-                  } else if (companyError) {
-                  }
-                } else {
-                }
-
-                // Use the imported extractAndTruncateSummary from services
-                const { error: activityError } = await supabase.from('activities').insert({
-                  user_id: ownerUserId,
-                  sales_rep: salesRepEmail,  // Use email instead of UUID
-                  meeting_id: meeting.id,
-                  contact_id: primaryContactId,
-                  company_id: meetingCompanyId,
-                  type: 'meeting',
-                  status: 'completed',
-                  client_name: companyName, // FIXED: Use company name instead of meeting title
-                  details: extractAndTruncateSummary(meetingData.summary),
-                  date: meetingData.meeting_start,
-                  created_at: new Date().toISOString()
-                })
-
-                if (activityError) {
-                } else {
-                }
+              // Ignore duplicate key errors (23505) - activity already exists
+              if (activityError && activityError.code !== '23505') {
+                console.error(`[fathom-sync] Error creating activity for meeting ${meeting.id}:`, activityError)
               }
             } else {
             }
