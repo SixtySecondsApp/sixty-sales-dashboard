@@ -31,6 +31,7 @@ import { MermaidRenderer } from '@/components/process-maps/MermaidRenderer';
 import type { StepStatus, ProcessStructure } from '@/lib/types/processMapTesting';
 import { ProcessMapButton, ProcessType, ProcessName } from '@/components/process-maps/ProcessMapButton';
 import { WorkflowTestPanel } from '@/components/process-maps/WorkflowTestPanel';
+import { ExpandableDescription } from '@/components/process-maps/ExpandableDescription';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import {
   Dialog,
@@ -86,6 +87,8 @@ interface ProcessMap {
   process_name: string;
   title: string;
   description: string | null;
+  /** Extended description with full workflow details, shown via View More */
+  description_long: string | null;
   /** Structured JSON - source of truth for content (Phase 1 output) */
   process_structure: ProcessStructure | null;
   mermaid_code: string;
@@ -648,6 +651,16 @@ export default function ProcessMaps() {
                     />
                   </div>
                 </div>
+                {/* Description with View More */}
+                {map.description && (
+                  <div className="mt-3 pt-3 border-t">
+                    <ExpandableDescription
+                      short={map.description}
+                      long={map.description_long}
+                      maxLines={2}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -661,9 +674,9 @@ export default function ProcessMaps() {
                   <div className="p-2 rounded-md bg-gray-100 dark:bg-gray-800">
                     <GitBranch className="h-5 w-5 text-emerald-500" />
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium truncate">{map.title}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <Badge variant="outline" className="text-xs">
                         {map.process_type}
                       </Badge>
@@ -674,6 +687,22 @@ export default function ProcessMaps() {
                         &middot; {formatDate(map.updated_at)}
                       </span>
                     </div>
+                    {map.description && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                        {map.description}
+                        {map.description_long && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewMap(map);
+                            }}
+                            className="ml-1 text-emerald-600 dark:text-emerald-400 hover:underline"
+                          >
+                            View more
+                          </button>
+                        )}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -735,9 +764,15 @@ export default function ProcessMaps() {
                   <GitBranch className="h-5 w-5 text-emerald-500" />
                   {selectedMap?.title}
                 </DialogTitle>
-                <DialogDescription>
-                  {selectedMap?.description || 'Process visualization diagram'}
-                </DialogDescription>
+                {selectedMap && (
+                  <div className="mt-1">
+                    <ExpandableDescription
+                      short={selectedMap.description}
+                      long={selectedMap.description_long}
+                      maxLines={2}
+                    />
+                  </div>
+                )}
               </div>
               {/* View Direction Toggle */}
               {selectedMap && (

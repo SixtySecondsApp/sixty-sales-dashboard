@@ -101,22 +101,326 @@ interface ProcessMapRecord {
   updated_at: string
 }
 
-// Process descriptions for AI context - ultra concise, one line each
-const PROCESS_DESCRIPTIONS: Record<string, Record<string, string>> = {
+// Process descriptions - short for cards, long for View More expansion (supports markdown)
+interface ProcessDescriptionData {
+  short: string;  // One-line summary for cards
+  long: string;   // Detailed description for "View More" expansion
+}
+
+const PROCESS_DESCRIPTIONS: Record<string, Record<string, ProcessDescriptionData>> = {
   integration: {
-    hubspot: `Two-way sync of contacts, deals, and tasks with HubSpot CRM via OAuth and webhooks.`,
-    google: `Sync Gmail, Calendar, and Tasks via OAuth. Match attendees to CRM contacts.`,
-    fathom: `Import meeting recordings via OAuth. Generate thumbnails, transcripts, and AI summaries.`,
-    slack: `Send deal alerts and meeting summaries to Slack channels via bot integration.`,
-    justcall: `Sync call recordings via API. Fetch transcripts and run AI analysis.`,
-    savvycal: `Sync bookings via webhook. Auto-create contacts and log activities.`,
+    hubspot: {
+      short: `Two-way sync of contacts, deals, and tasks with HubSpot CRM via OAuth and webhooks.`,
+      long: `**HubSpot CRM Integration** provides bidirectional synchronization between use60 and HubSpot.
+
+**Authentication**: OAuth 2.0 flow with secure token refresh
+
+**Sync Capabilities**:
+- Contacts: Two-way sync with field mapping and duplicate detection
+- Deals: Pipeline and stage synchronization with activity logging
+- Tasks: Bi-directional task sync with due date and priority mapping
+
+**Data Flow**:
+1. OAuth grant establishes secure connection
+2. Initial full sync pulls existing HubSpot data
+3. Webhooks trigger real-time updates for changes
+4. Background sync ensures consistency every 15 minutes
+
+**Features**: Field mapping customization, conflict resolution, activity history preservation`
+    },
+    google: {
+      short: `Sync Gmail, Calendar, and Tasks via OAuth. Match attendees to CRM contacts.`,
+      long: `**Google Workspace Integration** connects Gmail, Calendar, and Tasks to your CRM workflow.
+
+**Authentication**: OAuth 2.0 with granular scope permissions
+
+**Calendar Sync**:
+- Bi-directional event synchronization
+- Attendee matching to CRM contacts by email
+- Meeting prep data attached to calendar events
+- Automatic activity logging for meetings
+
+**Gmail Integration**:
+- Email tracking and logging to contact timeline
+- Thread detection and conversation grouping
+- Attachment handling and storage
+
+**Tasks Sync**:
+- Two-way task synchronization
+- Priority and due date mapping
+- List-based organization
+
+**Features**: Working hours awareness, timezone handling, conflict detection`
+    },
+    fathom: {
+      short: `Import meeting recordings via OAuth. Generate thumbnails, transcripts, and AI summaries.`,
+      long: `**Fathom Integration** imports meeting recordings for AI-powered analysis.
+
+**Authentication**: OAuth 2.0 with Fathom API
+
+**Import Flow**:
+1. OAuth connection established per user
+2. Automatic discovery of new recordings
+3. Parallel import of video, transcript, and summary
+4. Thumbnail generation from video keyframes
+
+**Data Captured**:
+- Full video recording with playback support
+- AI-generated transcript with speaker diarization
+- Meeting summary with key topics
+- Action items extracted by Fathom AI
+- Attendee list matched to CRM contacts
+
+**Processing**:
+- Background thumbnail generation
+- Transcript indexing for search
+- Automatic activity creation
+- Meeting Intelligence indexing queue
+
+**Features**: Incremental sync, duplicate detection, per-user isolation`
+    },
+    slack: {
+      short: `Send deal alerts and meeting summaries to Slack channels via bot integration.`,
+      long: `**Slack Integration** sends real-time notifications and enables deal room collaboration.
+
+**Authentication**: OAuth 2.0 with Slack Bot scopes
+
+**Notification Types**:
+- Deal stage changes and pipeline alerts
+- Meeting summary shares
+- Task reminders and assignments
+- Relationship health warnings
+- Win/loss announcements
+
+**Deal Rooms**:
+- Automatic channel creation per deal
+- Stakeholder invitations
+- Activity feed integration
+- Document sharing
+
+**Message Formatting**:
+- Rich Block Kit layouts
+- Interactive buttons for quick actions
+- Threaded conversations
+- Emoji and mention support
+
+**Features**: Channel mapping, notification preferences, message templates`
+    },
+    justcall: {
+      short: `Sync call recordings via API. Fetch transcripts and run AI analysis.`,
+      long: `**JustCall Integration** syncs call recordings for AI-powered analysis.
+
+**Authentication**: API key-based authentication
+
+**Sync Flow**:
+1. Periodic polling for new call recordings
+2. Fetch recording audio and metadata
+3. Retrieve or generate transcript
+4. Run AI analysis for insights
+
+**Data Captured**:
+- Call recording audio files
+- Transcript with timestamps
+- Call duration and direction
+- Caller/recipient identification
+- AI-generated call summary
+
+**AI Analysis**:
+- Sentiment detection
+- Key topic extraction
+- Action item identification
+- Follow-up suggestions
+
+**Features**: Incremental sync, contact matching, activity logging`
+    },
+    savvycal: {
+      short: `Sync bookings via webhook. Auto-create contacts and log activities.`,
+      long: `**SavvyCal Integration** captures bookings and creates CRM records automatically.
+
+**Authentication**: Webhook-based with API key validation
+
+**Booking Flow**:
+1. Webhook received on new booking
+2. Contact lookup or creation
+3. Activity record creation
+4. Calendar event sync
+
+**Data Captured**:
+- Booking date, time, and duration
+- Attendee name and email
+- Meeting type and link
+- Booking form responses
+- Lead source tracking
+
+**Automation**:
+- Auto-create contacts from new bookings
+- Lead source attribution by scheduling link
+- Pipeline stage assignment
+- Notification triggers
+
+**Features**: Link-based lead source mapping, custom field mapping, duplicate prevention`
+    },
   },
   workflow: {
-    meeting_intelligence: `AI analyzes transcripts to generate summaries, action items, and next step suggestions.`,
-    task_extraction: `Auto-create tasks from meetings and calls using AI extraction and smart templates.`,
-    vsl_analytics: `Track video engagement anonymously for A/B testing across landing page variants.`,
-    sentry_bridge: `Convert Sentry error alerts into AI Dev Hub tasks automatically via MCP.`,
-    api_optimization: `Reduce API calls 95% with smart polling, batching, and working hours awareness.`,
+    meeting_intelligence: {
+      short: `AI-powered search across team meetings using semantic understanding and structured filtering.`,
+      long: `**Meeting Intelligence** transforms conversation data into searchable knowledge through a multi-phase AI pipeline.
+
+**Setup Phase**:
+1. Connect Fathom account via OAuth integration
+2. Navigate to /meetings/intelligence to access the search interface
+3. Team members with connected accounts contribute to shared index
+
+**Indexing Engine**:
+- Meetings with transcripts queued in \`meeting_index_queue\`
+- Async processing via \`meeting-intelligence-process-queue\` edge function
+- Per-organization File Search Store created in Google Gemini API
+- Content hashing prevents duplicate processing
+- Index status tracked in \`meeting_file_search_index\` table
+
+**Search Flow**:
+1. User enters natural language query
+2. Claude parses query to extract semantic intent + structured filters
+3. Filters include: sentiment, date range, company, action items, team member
+4. Gemini File Search API performs semantic search across indexed transcripts
+5. PostgreSQL enriches results with meeting metadata
+6. AI generates synthesized answer with source citations
+
+**Key Features**:
+- Team-wide search across all members' conversations
+- Sentiment filtering (positive/negative/neutral)
+- Smart date parsing ("last week" → date range)
+- Action item awareness filtering
+- Fallback keyword search when semantic index unavailable
+- Source citations with click-through to original recordings`
+    },
+    task_extraction: {
+      short: `Auto-create tasks from meetings and calls using AI extraction and smart templates.`,
+      long: `**Task Extraction Workflow** automatically creates tasks from meetings and calls using AI.
+
+**Trigger Points**:
+- New Fathom meeting imported with action items
+- New JustCall recording processed
+- Manual trigger from meeting detail page
+
+**Extraction Process**:
+1. AI analyzes transcript for action items
+2. Each action item evaluated for task-worthiness
+3. Template matching based on action type
+4. Task created with appropriate due date
+
+**Smart Templates**:
+- Follow-up email templates
+- Proposal preparation tasks
+- Contract/document requests
+- Meeting scheduling tasks
+- Internal review tasks
+
+**Task Properties**:
+- Auto-assigned to meeting owner
+- Due date inferred from context
+- Priority based on urgency keywords
+- Linked to source meeting/call
+- Contact/deal association
+
+**Features**: Duplicate prevention, template customization, notification triggers`
+    },
+    vsl_analytics: {
+      short: `Track video engagement anonymously for A/B testing across landing page variants.`,
+      long: `**VSL Analytics Workflow** tracks video sales letter engagement for A/B testing.
+
+**Tracking Setup**:
+- Embed tracking script on landing pages
+- Configure video player events
+- Set up variant identification
+
+**Data Collection**:
+- Anonymous visitor identification
+- Video play/pause/seek events
+- Watch time and completion rate
+- Variant assignment (A/B)
+- Conversion events
+
+**Analysis Pipeline**:
+1. Raw events collected via edge function
+2. Session aggregation and deduplication
+3. Variant performance calculation
+4. Statistical significance testing
+
+**Metrics Tracked**:
+- Play rate (impressions to plays)
+- Average watch time
+- Completion rate
+- Drop-off points
+- Conversion correlation
+
+**Features**: Privacy-first design, real-time dashboards, automated winner detection`
+    },
+    sentry_bridge: {
+      short: `Convert Sentry error alerts into AI Dev Hub tasks automatically via MCP.`,
+      long: `**Sentry Bridge Workflow** converts error alerts into development tasks automatically.
+
+**Integration Flow**:
+1. Sentry webhook receives error event
+2. Error classified by severity and type
+3. AI Dev Hub task created via MCP
+4. Slack notification sent to dev channel
+
+**Error Classification**:
+- Critical: Immediate task creation
+- High: Task with high priority
+- Medium: Task with normal priority
+- Low: Grouped/batched task creation
+
+**Task Content**:
+- Error title and message
+- Stack trace summary
+- Affected users count
+- First/last occurrence
+- Reproduction context
+
+**AI Enhancement**:
+- Root cause suggestions
+- Similar issue detection
+- Fix recommendation
+- Estimated complexity
+
+**Features**: Deduplication, auto-assignment, priority escalation, resolution tracking`
+    },
+    api_optimization: {
+      short: `Reduce API calls 95% with smart polling, batching, and working hours awareness.`,
+      long: `**API Call Optimization Workflow** dramatically reduces external API consumption.
+
+**Optimization Strategies**:
+
+1. **Smart Polling**:
+   - Adaptive polling intervals based on activity
+   - Working hours awareness (no polling at night)
+   - Event-driven sync when webhooks available
+
+2. **Request Batching**:
+   - Combine multiple operations into single requests
+   - Batch size optimization per API
+   - Queue-based batch processing
+
+3. **Intelligent Caching**:
+   - Response caching with TTL
+   - Conditional requests (ETags)
+   - Stale-while-revalidate patterns
+
+4. **Rate Limit Management**:
+   - Token bucket implementation
+   - Automatic backoff and retry
+   - Fair queuing across users
+
+**Results**:
+- 95% reduction in API calls
+- Faster response times from cache
+- Zero rate limit errors
+- Lower infrastructure costs
+
+**Features**: Per-integration configuration, monitoring dashboard, alert thresholds`
+    },
   },
 }
 
@@ -333,7 +637,7 @@ serve(async (req) => {
     // Phase 1: Generate ProcessStructure with Opus
     let processStructure: ProcessStructure | null = null
     try {
-      processStructure = await generateProcessStructure(processType, processName, processDescription, title)
+      processStructure = await generateProcessStructure(processType, processName, processDescription.long, title)
       console.log(`[Phase 1] Structure generated: ${processStructure?.nodes?.length || 0} nodes, ${processStructure?.connections?.length || 0} connections`)
     } catch (structureError) {
       console.error('[Phase 1] Failed to generate structure:', structureError)
@@ -387,7 +691,8 @@ serve(async (req) => {
         process_type: processType,
         process_name: processName,
         title,
-        description: processDescription.trim(),
+        description: processDescription.short.trim(),
+        description_long: processDescription.long.trim(),
         process_structure: processStructure, // Store the source of truth JSON
         mermaid_code: verticalCode || horizontalCode, // Keep legacy column populated
         mermaid_code_horizontal: horizontalCode,
