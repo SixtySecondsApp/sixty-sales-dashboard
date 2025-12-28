@@ -81,52 +81,115 @@ function getDateRange(preset: string): { date_from?: string; date_to?: string } 
   }
 }
 
+// Helper to get sentiment display info
+function getSentimentDisplay(score: number | null | undefined) {
+  if (score == null) return null;
+  if (score > 0.25) return { label: 'Positive', variant: 'success' as const, emoji: '😊', className: 'bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-500/30' };
+  if (score < -0.25) return { label: 'Negative', variant: 'destructive' as const, emoji: '😟', className: 'bg-red-100/80 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200/50 dark:border-red-500/30' };
+  return { label: 'Neutral', variant: 'secondary' as const, emoji: '😐', className: 'bg-gray-100/80 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 border-gray-200/50 dark:border-gray-700/30' };
+}
+
+// Helper to format seconds as MM:SS
+function formatTimestamp(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
 const SourceCard: React.FC<{ source: SearchSource; onClick: () => void }> = ({
   source,
   onClick,
-}) => (
-  <motion.div
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    whileHover={{ scale: 1.01 }}
-    className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-xl p-4 cursor-pointer border border-gray-200/50 dark:border-gray-700/30 hover:border-emerald-500/40 dark:hover:border-emerald-500/30 shadow-sm dark:shadow-lg dark:shadow-black/10 transition-all duration-300 group"
-    onClick={onClick}
-  >
-    <div className="flex items-start justify-between gap-3">
-      <div className="flex-1 min-w-0">
-        <h4 className="font-medium text-gray-900 dark:text-white truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors duration-300">
-          {source.title}
-        </h4>
-        <div className="flex items-center gap-2 mt-1.5 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
-          <Calendar className="h-3.5 w-3.5" />
-          <span>{source.date}</span>
-          {source.owner_name && (
-            <>
-              <span className="text-gray-300 dark:text-gray-600">|</span>
-              <User className="h-3.5 w-3.5" />
-              <span className="truncate">{source.owner_name}</span>
-            </>
-          )}
-          {source.company_name && (
-            <>
-              <span className="text-gray-300 dark:text-gray-600">|</span>
-              <Building2 className="h-3.5 w-3.5" />
-              <span className="truncate">{source.company_name}</span>
-            </>
+}) => {
+  const sentiment = getSentimentDisplay(source.sentiment_score);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ scale: 1.01 }}
+      className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-xl p-4 cursor-pointer border border-gray-200/50 dark:border-gray-700/30 hover:border-emerald-500/40 dark:hover:border-emerald-500/30 shadow-sm dark:shadow-lg dark:shadow-black/10 transition-all duration-300 group"
+      onClick={onClick}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          {/* Title row with sentiment badge */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <h4 className="font-medium text-gray-900 dark:text-white truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors duration-300">
+              {source.title}
+            </h4>
+            {sentiment && (
+              <Badge className={cn('text-xs py-0 px-1.5 font-normal', sentiment.className)}>
+                {sentiment.emoji} {sentiment.label}
+              </Badge>
+            )}
+          </div>
+
+          {/* Metadata row */}
+          <div className="flex items-center gap-2 mt-1.5 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
+            <Calendar className="h-3.5 w-3.5" />
+            <span>{source.date}</span>
+            {source.timestamp_seconds != null && (
+              <>
+                <span className="text-gray-300 dark:text-gray-600">|</span>
+                <Badge variant="outline" className="text-xs py-0 px-1.5 font-mono bg-blue-50/80 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200/50 dark:border-blue-500/30">
+                  <Clock className="h-3 w-3 mr-1" />
+                  {formatTimestamp(source.timestamp_seconds)}
+                </Badge>
+              </>
+            )}
+            {source.owner_name && (
+              <>
+                <span className="text-gray-300 dark:text-gray-600">|</span>
+                <User className="h-3.5 w-3.5" />
+                <span className="truncate">{source.owner_name}</span>
+              </>
+            )}
+            {source.company_name && (
+              <>
+                <span className="text-gray-300 dark:text-gray-600">|</span>
+                <Building2 className="h-3.5 w-3.5" />
+                <span className="truncate">{source.company_name}</span>
+              </>
+            )}
+          </div>
+
+          {/* Snippet with speaker attribution */}
+          {source.relevance_snippet && (
+            <p className="mt-2.5 text-sm text-gray-600 dark:text-gray-300 line-clamp-2 bg-gray-50/50 dark:bg-gray-800/30 rounded-lg p-2 border border-gray-100 dark:border-gray-700/20">
+              {source.speaker_name && (
+                <span className="font-medium text-emerald-600 dark:text-emerald-400 mr-1">
+                  {source.speaker_name}:
+                </span>
+              )}
+              {source.relevance_snippet}
+            </p>
           )}
         </div>
-        {source.relevance_snippet && (
-          <p className="mt-2.5 text-sm text-gray-600 dark:text-gray-300 line-clamp-2 bg-gray-50/50 dark:bg-gray-800/30 rounded-lg p-2 border border-gray-100 dark:border-gray-700/20">
-            {source.relevance_snippet}
-          </p>
-        )}
+
+        {/* Action buttons */}
+        <div className="flex flex-col gap-2">
+          {/* Fathom link button */}
+          {source.fathom_share_url && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(source.fathom_share_url!, '_blank');
+              }}
+              className="p-1.5 rounded-lg bg-purple-100/80 dark:bg-purple-900/30 border border-purple-200/50 dark:border-purple-500/30 hover:bg-purple-200/80 dark:hover:bg-purple-900/50 transition-all duration-300"
+              title="Watch in Fathom"
+            >
+              <ExternalLink className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            </button>
+          )}
+          {/* View in app button */}
+          <div className="p-1.5 rounded-lg bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30 group-hover:border-emerald-300/50 dark:group-hover:border-emerald-500/30 transition-all duration-300">
+            <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-emerald-500 dark:group-hover:text-emerald-400 transition-colors duration-300 flex-shrink-0" />
+          </div>
+        </div>
       </div>
-      <div className="p-1.5 rounded-lg bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30 group-hover:border-emerald-300/50 dark:group-hover:border-emerald-500/30 transition-all duration-300">
-        <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-emerald-500 dark:group-hover:text-emerald-400 transition-colors duration-300 flex-shrink-0" />
-      </div>
-    </div>
-  </motion.div>
-);
+    </motion.div>
+  );
+};
 
 const StatusIndicator: React.FC<{
   indexed: number;

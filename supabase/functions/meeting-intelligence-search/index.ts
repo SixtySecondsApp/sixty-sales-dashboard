@@ -62,6 +62,10 @@ interface SearchResult {
     company_name: string | null
     owner_name?: string | null
     relevance_snippet: string
+    sentiment_score?: number | null
+    speaker_name?: string | null
+    fathom_share_url?: string | null
+    timestamp_seconds?: number | null
   }>
   query_metadata: {
     semantic_query: string | null
@@ -69,6 +73,29 @@ interface SearchResult {
     meetings_searched: number
     response_time_ms: number
   }
+}
+
+/**
+ * Extract speaker name from transcript snippet
+ * Transcript format: "Speaker Name: text content here"
+ */
+function extractSpeakerFromSnippet(snippet: string): { speaker: string | null; text: string } {
+  if (!snippet) return { speaker: null, text: snippet }
+
+  // Match "Speaker Name: text" pattern (first line only)
+  const firstLine = snippet.split('\n')[0]
+  const match = firstLine.match(/^([^:]{2,50}):\s*(.+)$/s)
+
+  if (match) {
+    const speaker = match[1].trim()
+    // Avoid false positives like "Note:" or "Summary:"
+    const excludePatterns = /^(note|summary|action|item|key|point|next|step|follow)s?$/i
+    if (!excludePatterns.test(speaker)) {
+      return { speaker, text: match[2].trim() + (snippet.includes('\n') ? '...' : '') }
+    }
+  }
+
+  return { speaker: null, text: snippet }
 }
 
 /**
@@ -313,7 +340,9 @@ async function enrichResultsWithMetadata(
         title,
         meeting_start,
         owner_user_id,
-        company_id
+        company_id,
+        sentiment_score,
+        share_url
       `)
       .in('id', Array.from(meetingIds))
 
@@ -408,17 +437,26 @@ async function enrichResultsWithMetadata(
     }
   }
 
-  const meetingSources = meetings.map((m: any) => ({
-    source_type: 'meeting' as const,
-    source_id: m.id,
-    title: m.title || 'Untitled Meeting',
-    date: m.meeting_start ? new Date(m.meeting_start).toISOString().split('T')[0] : '',
-    company_name: m.company_id ? (companyNames.get(m.company_id) || null) : null,
-    owner_name: effectiveOwnerUserId === null
-      ? (ownerNames.get(m.owner_user_id) || 'Team Member')
-      : null,
-    relevance_snippet: snippetMap.get(`meeting:${m.id}`) || ''
-  }))
+  const meetingSources = meetings.map((m: any) => {
+    const rawSnippet = snippetMap.get(`meeting:${m.id}`) || ''
+    const { speaker, text } = extractSpeakerFromSnippet(rawSnippet)
+
+    return {
+      source_type: 'meeting' as const,
+      source_id: m.id,
+      title: m.title || 'Untitled Meeting',
+      date: m.meeting_start ? new Date(m.meeting_start).toISOString().split('T')[0] : '',
+      company_name: m.company_id ? (companyNames.get(m.company_id) || null) : null,
+      owner_name: effectiveOwnerUserId === null
+        ? (ownerNames.get(m.owner_user_id) || 'Team Member')
+        : null,
+      relevance_snippet: text,
+      sentiment_score: m.sentiment_score ?? null,
+      speaker_name: speaker,
+      fathom_share_url: m.share_url || null,
+      timestamp_seconds: null, // TODO: Extract from Gemini grounding chunks if available
+    }
+  })
 
   const callSources = calls.map((c: any) => {
     const dir = String(c.direction || 'call')
@@ -436,6 +474,9 @@ async function enrichResultsWithMetadata(
       ? (c.owner_user_id === currentUserId ? 'Me' : (c.owner_email.split('@')[0] || 'Team Member'))
       : (c.owner_user_id === currentUserId ? 'Me' : null)
 
+    const rawSnippet = snippetMap.get(`call:${c.id}`) || ''
+    const { speaker, text } = extractSpeakerFromSnippet(rawSnippet)
+
     return {
       source_type: 'call' as const,
       source_id: c.id,
@@ -443,7 +484,11 @@ async function enrichResultsWithMetadata(
       date: c.started_at ? new Date(c.started_at).toISOString().split('T')[0] : '',
       company_name: c.company_id ? (companyNames.get(c.company_id) || null) : null,
       owner_name: effectiveOwnerUserId === null ? (ownerLabel || 'Team Member') : null,
-      relevance_snippet: snippetMap.get(`call:${c.id}`) || ''
+      relevance_snippet: text,
+      sentiment_score: null, // Calls don't have sentiment scores yet
+      speaker_name: speaker,
+      fathom_share_url: null, // Calls don't have Fathom URLs
+      timestamp_seconds: null,
     }
   })
 
@@ -480,6 +525,7 @@ async function fallbackSearch(
       summary,
       transcript_text,
       sentiment_score,
+      share_url,
       owner_user_id,
       company_id,
       primary_contact_id
@@ -606,17 +652,25 @@ async function fallbackSearch(
     }
   }
 
-  const meetingSources = relevantMeetings.slice(0, 5).map((m: any) => ({
-    source_type: 'meeting' as const,
-    source_id: m.id,
-    title: m.title || 'Untitled Meeting',
-    date: m.meeting_start ? new Date(m.meeting_start).toISOString().split('T')[0] : '',
-    company_name: m.company_id ? (companyNames.get(m.company_id) || null) : null,
-    owner_name: effectiveOwnerUserId === null
-      ? (ownerNames.get(m.owner_user_id) || 'Team Member')
-      : null,
-    relevance_snippet: m.summary?.substring(0, 200) || m.transcript_text?.substring(0, 200) || ''
-  }))
+  const meetingSources = relevantMeetings.slice(0, 5).map((m: any) => {
+    const rawSnippet = m.summary?.substring(0, 200) || m.transcript_text?.substring(0, 200) || ''
+    const { speaker, text } = extractSpeakerFromSnippet(rawSnippet)
+    return {
+      source_type: 'meeting' as const,
+      source_id: m.id,
+      title: m.title || 'Untitled Meeting',
+      date: m.meeting_start ? new Date(m.meeting_start).toISOString().split('T')[0] : '',
+      company_name: m.company_id ? (companyNames.get(m.company_id) || null) : null,
+      owner_name: effectiveOwnerUserId === null
+        ? (ownerNames.get(m.owner_user_id) || 'Team Member')
+        : null,
+      relevance_snippet: text,
+      sentiment_score: m.sentiment_score ?? null,
+      speaker_name: speaker,
+      fathom_share_url: m.share_url || null,
+      timestamp_seconds: null,
+    }
+  })
 
   const callSources = relevantCalls.slice(0, 5).map((c: any) => {
     const dir = String(c.direction || 'call')
@@ -626,6 +680,9 @@ async function fallbackSearch(
       ? (c.owner_user_id === currentUserId ? 'Me' : (c.owner_email.split('@')[0] || 'Team Member'))
       : (c.owner_user_id === currentUserId ? 'Me' : null)
 
+    const rawSnippet = c.summary?.substring(0, 200) || c.transcript_text?.substring(0, 200) || ''
+    const { speaker, text } = extractSpeakerFromSnippet(rawSnippet)
+
     return {
       source_type: 'call' as const,
       source_id: c.id,
@@ -633,7 +690,11 @@ async function fallbackSearch(
       date: c.started_at ? new Date(c.started_at).toISOString().split('T')[0] : '',
       company_name: c.company_id ? (companyNames.get(c.company_id) || null) : null,
       owner_name: effectiveOwnerUserId === null ? (ownerLabel || 'Team Member') : null,
-      relevance_snippet: c.summary?.substring(0, 200) || c.transcript_text?.substring(0, 200) || ''
+      relevance_snippet: text,
+      sentiment_score: null, // Calls don't have sentiment scores
+      speaker_name: speaker,
+      fathom_share_url: null, // Calls don't have Fathom links
+      timestamp_seconds: null,
     }
   })
 

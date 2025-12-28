@@ -47,6 +47,11 @@ export interface SearchSource {
   company_name: string | null;
   owner_name?: string | null;
   relevance_snippet: string;
+  // Enhanced fields for meeting intelligence
+  sentiment_score?: number | null;      // -1.0 to +1.0
+  speaker_name?: string | null;         // Extracted from transcript
+  fathom_share_url?: string | null;     // Direct link to Fathom recording
+  timestamp_seconds?: number | null;    // Position in recording (seconds)
 }
 
 export interface SearchResult {
