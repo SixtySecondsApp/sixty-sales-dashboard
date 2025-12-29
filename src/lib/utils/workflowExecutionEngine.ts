@@ -36,6 +36,7 @@ export class WorkflowExecutionEngine {
   private executionQueue: WorkflowExecution[] = [];
   private isProcessing = false;
   private performanceMetrics = new Map<string, number[]>();
+  private queueProcessorInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(userId: string) {
     this.userId = userId;
@@ -259,11 +260,16 @@ export class WorkflowExecutionEngine {
 
   // Process queued executions
   private async startQueueProcessor() {
-    setInterval(async () => {
+    // Clear any existing interval to prevent duplicates
+    if (this.queueProcessorInterval) {
+      clearInterval(this.queueProcessorInterval);
+    }
+
+    this.queueProcessorInterval = setInterval(async () => {
       if (this.isProcessing || this.executionQueue.length === 0) return;
 
       this.isProcessing = true;
-      
+
       try {
         const execution = this.executionQueue.shift();
         if (execution) {
@@ -699,11 +705,18 @@ export class WorkflowExecutionEngine {
 
   // Clean up resources
   async cleanup() {
+    // Clear the queue processor interval
+    if (this.queueProcessorInterval) {
+      clearInterval(this.queueProcessorInterval);
+      this.queueProcessorInterval = null;
+    }
+
     // Unsubscribe from all channels
     this.realtimeChannels.forEach(channel => {
       supabase.removeChannel(channel);
     });
-    
+    this.realtimeChannels = [];
+
     this.activeWorkflows.clear();
     this.executionQueue = [];
     this.performanceMetrics.clear();

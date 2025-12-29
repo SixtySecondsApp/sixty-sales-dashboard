@@ -25,6 +25,12 @@ export const VSL_VARIANTS = {
     publicId: '60 VSL - Waitlist/Videos for waitlist launch/VSL_Drues_Version_jlhqog',
     color: '#14B8A6', // teal
   },
+  'waitlist': {
+    name: 'Direct Waitlist',
+    route: '/waitlist',
+    publicId: null, // No video for direct waitlist
+    color: '#F59E0B', // amber
+  },
 } as const;
 
 export type VSLVariantId = keyof typeof VSL_VARIANTS;
@@ -38,6 +44,7 @@ export interface TrendData {
   plays: number;
   completions: number;
   watchTime: number;
+  conversions: number;
 }
 
 export interface RetentionData {
@@ -67,6 +74,9 @@ export interface VSLMetrics {
   reached25: number;
   reached50: number;
   reached75: number;
+  // Conversions
+  conversions: number;
+  conversionRate: number; // percentage of views that converted to waitlist signups
   // Trend data
   trend: TrendData[];
   retention: RetentionData[];
@@ -76,8 +86,11 @@ export interface VSLAnalyticsComparison {
   bestByViews: VSLVariantId | null;
   bestByCompletionRate: VSLVariantId | null;
   bestByWatchTime: VSLVariantId | null;
+  bestByConversions: VSLVariantId | null;
   totalViewsAcrossAll: number;
+  totalConversions: number;
   avgCompletionRate: number;
+  avgConversionRate: number;
 }
 
 export interface DateRange {
@@ -174,6 +187,7 @@ export function useVSLAnalytics(initialDateRange?: DateRange) {
       const dailyData = variantDataMap.get(variantId as VSLVariantId) || [];
 
       // Aggregate totals
+      // Note: conversions is the TOTAL for the variant (same on every row), so we use MAX
       const totals = dailyData.reduce(
         (acc, day) => ({
           uniqueViews: acc.uniqueViews + (day.unique_views || 0),
@@ -184,6 +198,10 @@ export function useVSLAnalytics(initialDateRange?: DateRange) {
           reached25: acc.reached25 + (day.reached_25 || 0),
           reached50: acc.reached50 + (day.reached_50 || 0),
           reached75: acc.reached75 + (day.reached_75 || 0),
+          // conversions is the total for the variant (not daily sum), so take MAX
+          conversions: Math.max(acc.conversions, day.conversions || 0),
+          // daily_conversions is the per-day count for trend data
+          dailyConversions: acc.dailyConversions + (day.daily_conversions || 0),
           watchTimeSum: acc.watchTimeSum + (day.avg_watch_time || 0),
           completionPercentSum: acc.completionPercentSum + (day.avg_completion_percent || 0),
           daysWithData: acc.daysWithData + (day.avg_watch_time !== null ? 1 : 0),
@@ -197,6 +215,8 @@ export function useVSLAnalytics(initialDateRange?: DateRange) {
           reached25: 0,
           reached50: 0,
           reached75: 0,
+          conversions: 0,
+          dailyConversions: 0,
           watchTimeSum: 0,
           completionPercentSum: 0,
           daysWithData: 0,
@@ -212,14 +232,17 @@ export function useVSLAnalytics(initialDateRange?: DateRange) {
         totals.uniqueViews > 0 ? (totals.uniquePlays / totals.uniqueViews) * 100 : 0;
       const completionRate =
         totals.uniquePlays > 0 ? (totals.completions / totals.uniquePlays) * 100 : 0;
+      const conversionRate =
+        totals.uniqueViews > 0 ? (totals.conversions / totals.uniqueViews) * 100 : 0;
 
-      // Build trend data
+      // Build trend data - use daily_conversions for per-day trends
       const trend: TrendData[] = dailyData.map((day) => ({
         date: day.date,
         views: day.unique_views || 0,
         plays: day.unique_plays || 0,
         completions: day.completions || 0,
         watchTime: day.avg_watch_time || 0,
+        conversions: day.daily_conversions || 0,
       }));
 
       // Build retention curve
@@ -250,6 +273,8 @@ export function useVSLAnalytics(initialDateRange?: DateRange) {
         reached25: totals.reached25,
         reached50: totals.reached50,
         reached75: totals.reached75,
+        conversions: totals.conversions,
+        conversionRate: Math.round(conversionRate * 10) / 10,
         trend,
         retention,
       };
@@ -261,11 +286,17 @@ export function useVSLAnalytics(initialDateRange?: DateRange) {
    */
   const comparison = useMemo<VSLAnalyticsComparison>(() => {
     const variantsWithData = variants.filter((v) => v.uniqueViews > 0);
+    const variantsWithConversions = variants.filter((v) => v.conversions > 0);
 
     const totalViewsAcrossAll = variants.reduce((sum, v) => sum + v.uniqueViews, 0);
+    const totalConversions = variants.reduce((sum, v) => sum + v.conversions, 0);
     const avgCompletionRate =
       variantsWithData.length > 0
         ? variantsWithData.reduce((sum, v) => sum + v.completionRate, 0) / variantsWithData.length
+        : 0;
+    const avgConversionRate =
+      variantsWithData.length > 0
+        ? variantsWithData.reduce((sum, v) => sum + v.conversionRate, 0) / variantsWithData.length
         : 0;
 
     return {
@@ -284,8 +315,15 @@ export function useVSLAnalytics(initialDateRange?: DateRange) {
             v.avgWatchTime > best.avgWatchTime ? v : best
           ).variantId
         : null,
+      bestByConversions: variantsWithConversions.length > 0
+        ? variantsWithConversions.reduce((best, v) =>
+            v.conversions > best.conversions ? v : best
+          ).variantId
+        : null,
       totalViewsAcrossAll,
+      totalConversions,
       avgCompletionRate: Math.round(avgCompletionRate * 10) / 10,
+      avgConversionRate: Math.round(avgConversionRate * 10) / 10,
     };
   }, [variants]);
 
@@ -407,6 +445,7 @@ export function getVariantColorClasses(variantId: string): string {
     'intro-vsl': 'bg-violet-500/10 text-violet-400 border-violet-500/20',
     'introducing-vsl': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
     'introduction-vsl': 'bg-teal-500/10 text-teal-400 border-teal-500/20',
+    'waitlist': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
   };
   return classes[variantId] || 'bg-gray-500/10 text-gray-400 border-gray-500/20';
 }

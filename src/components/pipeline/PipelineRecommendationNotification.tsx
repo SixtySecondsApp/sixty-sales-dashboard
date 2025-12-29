@@ -36,29 +36,48 @@ export const PipelineRecommendationNotification: React.FC = () => {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Fetch pending recommendations
+  // Fetch pending recommendations and subscribe to user-specific updates
   useEffect(() => {
-    fetchRecommendations();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
-    // Subscribe to new recommendations
-    const channel = supabase
-      .channel('pipeline_recommendations')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'pipeline_stage_recommendations',
-          filter: `status=eq.pending`,
-        },
-        (payload) => {
-          fetchRecommendations();
-        }
-      )
-      .subscribe();
+    const setupSubscription = async () => {
+      // Get current user for filtering
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
+
+      // Fetch initial data
+      await fetchRecommendations();
+
+      // Only subscribe if we have a user ID
+      if (!userId) return;
+
+      // Subscribe to new recommendations - FILTER BY USER to avoid receiving all users' events
+      channel = supabase
+        .channel(`pipeline_recommendations_${userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'pipeline_stage_recommendations',
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            // Only refetch if the new record is pending
+            if (payload.new && (payload.new as any).status === 'pending') {
+              fetchRecommendations();
+            }
+          }
+        )
+        .subscribe();
+    };
+
+    setupSubscription();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
 

@@ -811,6 +811,7 @@ function PipelineContent() {
                   nextActionsPendingCount={batchedMetadata.nextActions[String(activeDeal.id)]?.pendingCount || 0}
                   highUrgencyCount={batchedMetadata.nextActions[String(activeDeal.id)]?.highUrgencyCount || 0}
                   healthScore={batchedMetadata.healthScores[String(activeDeal.id)] || null}
+                  sentimentData={batchedMetadata.sentimentData[String(activeDeal.id)] || null}
                 />
               )}
             </DragOverlay>

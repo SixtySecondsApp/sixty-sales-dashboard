@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Play, Clock, Users, TrendingUp, ExternalLink, Crown } from 'lucide-react';
+import { Play, Clock, Users, TrendingUp, ExternalLink, Crown, UserPlus } from 'lucide-react';
 import { VSLMetrics, formatWatchTime, formatPercentage, getVariantColorClasses } from '@/lib/hooks/useVSLAnalytics';
 
 interface VSLComparisonCardsProps {
@@ -69,14 +69,19 @@ function MetricCard({ variant, isBestPerformer, index }: MetricCardProps) {
           </p>
         </div>
 
-        {/* Unique Viewers */}
+        {/* Conversions */}
         <div className="space-y-1">
           <div className="flex items-center gap-1.5 text-gray-400 text-xs">
-            <Users className="w-3.5 h-3.5" />
-            Unique Viewers
+            <UserPlus className="w-3.5 h-3.5" />
+            Conversions
           </div>
           <p className="text-2xl font-bold text-white">
-            {(variant.uniqueViews ?? 0).toLocaleString()}
+            {(variant.conversions ?? 0).toLocaleString()}
+            {variant.uniqueViews > 0 && (
+              <span className="text-sm font-normal text-gray-400 ml-1">
+                ({formatPercentage(variant.conversionRate ?? 0)})
+              </span>
+            )}
           </p>
         </div>
 

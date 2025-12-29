@@ -6021,6 +6021,7 @@ export type Database = {
           hubspot_account_name: string | null
           hubspot_hub_id: string | null
           hubspot_portal_id: string | null
+          hubspot_region: string | null
           id: string
           is_active: boolean
           is_connected: boolean
@@ -6040,6 +6041,7 @@ export type Database = {
           hubspot_account_name?: string | null
           hubspot_hub_id?: string | null
           hubspot_portal_id?: string | null
+          hubspot_region?: string | null
           id?: string
           is_active?: boolean
           is_connected?: boolean
@@ -6059,6 +6061,7 @@ export type Database = {
           hubspot_account_name?: string | null
           hubspot_hub_id?: string | null
           hubspot_portal_id?: string | null
+          hubspot_region?: string | null
           id?: string
           is_active?: boolean
           is_connected?: boolean

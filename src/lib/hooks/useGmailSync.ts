@@ -85,13 +85,20 @@ export function useSyncGmail() {
 
 /**
  * Hook to get Gmail sync status
+ * Only polls frequently when a sync is actively running
  */
 export function useGmailSyncStatus(enabled = true) {
   return useQuery({
     queryKey: GMAIL_DB_QUERY_KEYS.syncStatus,
     queryFn: () => gmailService.getSyncStatus(),
     enabled,
-    refetchInterval: 10000, // Refetch every 10 seconds when sync is running
+    staleTime: 30 * 1000, // Consider fresh for 30 seconds
+    // Only poll when sync is actually in progress, otherwise rely on cache
+    refetchInterval: (query) => {
+      const status = query.state.data as EmailSyncStatus | undefined;
+      // Poll every 5s during active sync, otherwise stop polling
+      return status?.status === 'syncing' ? 5000 : false;
+    },
     refetchIntervalInBackground: false,
   });
 }

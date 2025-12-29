@@ -9,6 +9,10 @@ import {
   Clock,
   TrendingUp,
   AlertCircle,
+  UserPlus,
+  Video,
+  FileText,
+  Mail,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -26,6 +30,10 @@ import {
   formatWatchTime,
   formatPercentage,
 } from '@/lib/hooks/useVSLAnalytics';
+import {
+  useLandingPageAnalytics,
+  formatLandingPageName,
+} from '@/lib/hooks/useLandingPageAnalytics';
 
 type DateRangePreset = '7d' | '30d' | '90d' | 'thisMonth' | 'lastMonth';
 
@@ -49,6 +57,13 @@ export function VSLAnalytics() {
     setThisMonth,
     setLastMonth,
   } = useVSLAnalytics();
+
+  // Landing page analytics for video vs non-video comparison
+  const {
+    loading: landingLoading,
+    stats: landingStats,
+    refresh: refreshLanding,
+  } = useLandingPageAnalytics();
 
   const handlePresetChange = (value: DateRangePreset) => {
     setDatePreset(value);
@@ -205,7 +220,7 @@ export function VSLAnalytics() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8"
+            className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8"
           >
             <div className="bg-gray-800/30 rounded-lg p-4 flex items-center gap-4">
               <div className="p-3 rounded-lg bg-brand-violet/10">
@@ -215,6 +230,21 @@ export function VSLAnalytics() {
                 <p className="text-gray-400 text-sm">Total Views</p>
                 <p className="text-2xl font-bold text-white">
                   {comparison.totalViewsAcrossAll.toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-gray-800/30 rounded-lg p-4 flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-green-500/10">
+                <UserPlus className="w-5 h-5 text-green-400" />
+              </div>
+              <div>
+                <p className="text-gray-400 text-sm">Total Conversions</p>
+                <p className="text-2xl font-bold text-white">
+                  {comparison.totalConversions.toLocaleString()}
+                  <span className="text-sm font-normal text-gray-400 ml-1">
+                    ({formatPercentage(comparison.avgConversionRate)})
+                  </span>
                 </p>
               </div>
             </div>
@@ -236,9 +266,9 @@ export function VSLAnalytics() {
                 <Clock className="w-5 h-5 text-brand-teal" />
               </div>
               <div>
-                <p className="text-gray-400 text-sm">Best Performer</p>
+                <p className="text-gray-400 text-sm">Best by Conversions</p>
                 <p className="text-2xl font-bold text-white">
-                  {variants.find((v) => v.variantId === comparison.bestPerformer)?.name ||
+                  {variants.find((v) => v.variantId === comparison.bestByConversions)?.name ||
                     'N/A'}
                 </p>
               </div>
@@ -251,9 +281,198 @@ export function VSLAnalytics() {
           <h2 className="text-lg font-semibold text-white mb-4">Variant Comparison</h2>
           <VSLComparisonCards
             variants={variants}
-            bestPerformer={comparison?.bestPerformer}
+            bestPerformer={comparison?.bestByConversions || comparison?.bestByCompletionRate || null}
             isLoading={loading}
           />
+        </div>
+
+        {/* Video vs Non-Video Landing Page Comparison */}
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <FileText className="w-5 h-5 text-brand-teal" />
+            Landing Page Comparison (Video vs Non-Video)
+          </h2>
+
+          {landingLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="w-6 h-6 text-brand-violet animate-spin" />
+            </div>
+          ) : Object.keys(landingStats.byLandingPage).length === 0 ? (
+            <div className="bg-gray-800/30 rounded-lg p-6 text-center">
+              <p className="text-gray-400">No landing page data available yet.</p>
+              <p className="text-gray-500 text-sm mt-1">
+                Page views are tracked automatically on landing pages.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Video Pages */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-gray-800/30 rounded-lg p-5 border border-gray-700/50"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-2 rounded-lg bg-brand-violet/10">
+                    <Video className="w-5 h-5 text-brand-violet" />
+                  </div>
+                  <h3 className="text-white font-medium">With Video (VSL)</h3>
+                </div>
+                <div className="space-y-3">
+                  {Object.entries(landingStats.byLandingPage)
+                    .filter(([_, stats]) => stats.has_video)
+                    .map(([page, stats]) => (
+                      <div key={page} className="bg-gray-900/50 rounded-lg p-3">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-gray-300 font-medium">
+                            {formatLandingPageName(page)}
+                          </span>
+                          <span className="text-xs text-gray-500">{page}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-sm">
+                          <div>
+                            <span className="text-gray-500 block text-xs">Views</span>
+                            <span className="text-white font-medium">
+                              {stats.page_views.toLocaleString()}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 block text-xs">Conversions</span>
+                            <span className="text-green-400 font-medium">
+                              {stats.conversions.toLocaleString()}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 block text-xs">Conv. Rate</span>
+                            <span className="text-brand-violet font-medium">
+                              {stats.conversion_rate}%
+                            </span>
+                          </div>
+                        </div>
+                        {stats.partial_signups > 0 && (
+                          <div className="mt-2 pt-2 border-t border-gray-700/50 flex items-center gap-2">
+                            <Mail className="w-3 h-3 text-amber-400" />
+                            <span className="text-xs text-gray-400">
+                              {stats.partial_signups} leads captured ({stats.lead_capture_rate}%)
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  {Object.entries(landingStats.byLandingPage).filter(([_, s]) => s.has_video).length === 0 && (
+                    <p className="text-gray-500 text-sm text-center py-4">
+                      No video page data available
+                    </p>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* Non-Video Pages */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-gray-800/30 rounded-lg p-5 border border-gray-700/50"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-2 rounded-lg bg-brand-teal/10">
+                    <FileText className="w-5 h-5 text-brand-teal" />
+                  </div>
+                  <h3 className="text-white font-medium">Without Video</h3>
+                </div>
+                <div className="space-y-3">
+                  {Object.entries(landingStats.byLandingPage)
+                    .filter(([_, stats]) => !stats.has_video)
+                    .map(([page, stats]) => (
+                      <div key={page} className="bg-gray-900/50 rounded-lg p-3">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-gray-300 font-medium">
+                            {formatLandingPageName(page)}
+                          </span>
+                          <span className="text-xs text-gray-500">{page}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-sm">
+                          <div>
+                            <span className="text-gray-500 block text-xs">Views</span>
+                            <span className="text-white font-medium">
+                              {stats.page_views.toLocaleString()}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 block text-xs">Conversions</span>
+                            <span className="text-green-400 font-medium">
+                              {stats.conversions.toLocaleString()}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 block text-xs">Conv. Rate</span>
+                            <span className="text-brand-teal font-medium">
+                              {stats.conversion_rate}%
+                            </span>
+                          </div>
+                        </div>
+                        {stats.partial_signups > 0 && (
+                          <div className="mt-2 pt-2 border-t border-gray-700/50 flex items-center gap-2">
+                            <Mail className="w-3 h-3 text-amber-400" />
+                            <span className="text-xs text-gray-400">
+                              {stats.partial_signups} leads captured ({stats.lead_capture_rate}%)
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  {Object.entries(landingStats.byLandingPage).filter(([_, s]) => !s.has_video).length === 0 && (
+                    <p className="text-gray-500 text-sm text-center py-4">
+                      No non-video page data available
+                    </p>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {/* Summary Comparison */}
+          {Object.keys(landingStats.byLandingPage).length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="mt-4 bg-gray-800/20 rounded-lg p-4 border border-gray-700/30"
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                <div>
+                  <p className="text-gray-500 text-xs mb-1">Total Page Views</p>
+                  <p className="text-xl font-bold text-white">
+                    {landingStats.totalPageViews.toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs mb-1">Unique Visitors</p>
+                  <p className="text-xl font-bold text-white">
+                    {landingStats.totalUniqueVisitors.toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs mb-1">Leads Captured</p>
+                  <p className="text-xl font-bold text-amber-400">
+                    {landingStats.totalPartialSignups.toLocaleString()}
+                    <span className="text-sm font-normal text-gray-500 ml-1">
+                      ({landingStats.overallLeadCaptureRate}%)
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs mb-1">Full Conversions</p>
+                  <p className="text-xl font-bold text-green-400">
+                    {landingStats.totalConversions.toLocaleString()}
+                    <span className="text-sm font-normal text-gray-500 ml-1">
+                      ({landingStats.overallConversionRate}%)
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
         </div>
 
         {/* Charts Grid */}

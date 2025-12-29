@@ -4717,7 +4717,27 @@ async function detectAndStructureResponse(
     }
   }
   
+  // FIRST: Detect email draft requests (check BEFORE task creation to avoid "follow-up email" triggering task creation)
+  const isEmailDraftRequest =
+    (messageLower.includes('draft') && messageLower.includes('email')) ||
+    (messageLower.includes('write') && messageLower.includes('email')) ||
+    (messageLower.includes('follow-up') && messageLower.includes('email')) ||
+    (messageLower.includes('follow up') && messageLower.includes('email')) ||
+    (messageLower.includes('followup') && messageLower.includes('email')) ||
+    messageLower.includes('email to') ||
+    messageLower.includes('compose email') ||
+    (messageLower.includes('send') && messageLower.includes('email'))
+
+  if (isEmailDraftRequest) {
+    console.log('[EMAIL-DRAFT] Detected email draft request:', userMessage)
+    const structured = await structureEmailDraftResponse(client, userId, userMessage, aiContent, context)
+    if (structured) {
+      return structured
+    }
+  }
+
   // Detect task creation requests (check before activity creation)
+  // IMPORTANT: Exclude requests that mention "email" to prevent "follow-up email" from creating a task
   const taskCreationKeywords = [
     'create a task', 'add a task', 'new task', 'create task', 'add task',
     'remind me to', 'remind me', 'remind to', 'remind',
@@ -4725,14 +4745,19 @@ async function detectAndStructureResponse(
     'todo to', 'to-do to', 'follow up with', 'follow-up with',
     'follow up', 'follow-up', 'followup'
   ]
-  
-  const isTaskCreationRequest = 
-    taskCreationKeywords.some(keyword => messageLower.includes(keyword)) ||
-    (messageLower.includes('task') && (messageLower.includes('create') || messageLower.includes('add') || messageLower.includes('for') || messageLower.includes('to'))) ||
-    (messageLower.includes('remind') && (messageLower.includes('to') || messageLower.includes('me') || messageLower.includes('about'))) ||
-    (messageLower.includes('follow') && (messageLower.includes('up') || messageLower.includes('with'))) ||
-    (messageLower.includes('reminder') && (messageLower.includes('for') || messageLower.includes('about')))
-  
+
+  // Exclude if the message is about email (e.g., "follow-up email")
+  const isAboutEmail = messageLower.includes('email')
+
+  const isTaskCreationRequest =
+    !isAboutEmail && (
+      taskCreationKeywords.some(keyword => messageLower.includes(keyword)) ||
+      (messageLower.includes('task') && (messageLower.includes('create') || messageLower.includes('add') || messageLower.includes('for') || messageLower.includes('to'))) ||
+      (messageLower.includes('remind') && (messageLower.includes('to') || messageLower.includes('me') || messageLower.includes('about'))) ||
+      (messageLower.includes('follow') && (messageLower.includes('up') || messageLower.includes('with'))) ||
+      (messageLower.includes('reminder') && (messageLower.includes('for') || messageLower.includes('about')))
+    )
+
   if (isTaskCreationRequest) {
     const structured = await structureTaskCreationResponse(client, userId, userMessage)
     return structured
@@ -4776,18 +4801,8 @@ async function detectAndStructureResponse(
     return structured
   }
   
-  // Detect email-related queries
-  const isEmailDraftRequest =
-    (messageLower.includes('draft') && messageLower.includes('email')) ||
-    (messageLower.includes('write') && messageLower.includes('email')) ||
-    (messageLower.includes('follow-up') && messageLower.includes('email')) ||
-    messageLower.includes('email to') ||
-    messageLower.includes('compose email')
-
-  if (isEmailDraftRequest) {
-    // Let Claude handle drafting for now
-    return null
-  }
+  // NOTE: Email draft detection moved to top of function (before task creation detection)
+  // to ensure "follow-up email" triggers email drafting, not task creation
 
   const emailHistoryKeywords = [
     'last email',
@@ -5208,6 +5223,498 @@ async function structureActivityCreationResponse(
         requiresContactSelection: true,
         prefilledName: '',
         prefilledEmail: ''
+      },
+      actions: [],
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: ['error_fallback']
+      }
+    }
+  }
+}
+
+/**
+ * Structure email draft response with AI-generated content
+ * Generates a complete email draft with context, suggestions, and actions
+ */
+async function structureEmailDraftResponse(
+  client: any,
+  userId: string,
+  userMessage: string,
+  aiContent: string,
+  context: any
+): Promise<any> {
+  try {
+    console.log('[EMAIL-DRAFT] Structuring email draft response for:', userMessage)
+
+    // Detect if user wants email based on their last meeting
+    const hasLastMeetingReference =
+      /last meeting|recent meeting|recent call|today'?s meeting|our meeting|our call|the meeting|my meeting/i.test(userMessage)
+
+    console.log('[EMAIL-DRAFT] Has last meeting reference:', hasLastMeetingReference)
+
+    // Extract contact/recipient information from message
+    const namePatterns = [
+      /(?:email|write|draft|send).*(?:to|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+      /follow[- ]?up.*(?:with|to)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+      /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s*(?:'s|about|regarding)/i
+    ]
+
+    let recipientName: string | null = null
+    for (const pattern of namePatterns) {
+      const match = userMessage.match(pattern)
+      if (match && match[1]) {
+        recipientName = match[1].trim()
+        break
+      }
+    }
+
+    // Search for matching contact
+    let contact: any = null
+    let contactEmail: string | null = null
+    let companyName: string | null = null
+
+    if (recipientName) {
+      const nameParts = recipientName.split(/\s+/)
+      const firstName = nameParts[0] || ''
+      const lastName = nameParts.slice(1).join(' ') || ''
+
+      let contactsQuery = client
+        .from('contacts')
+        .select('id, first_name, last_name, full_name, email, company_id, companies:company_id(id, name)')
+        .eq('owner_id', userId)
+
+      if (firstName && lastName) {
+        contactsQuery = contactsQuery.or(`first_name.ilike.%${firstName}%,last_name.ilike.%${lastName}%,full_name.ilike.%${recipientName}%`)
+      } else if (firstName) {
+        contactsQuery = contactsQuery.or(`first_name.ilike.%${firstName}%,full_name.ilike.%${firstName}%`)
+      }
+
+      const { data: contacts } = await contactsQuery.limit(1)
+
+      if (contacts && contacts.length > 0) {
+        contact = contacts[0]
+        contactEmail = contact.email
+        companyName = contact.companies?.name || null
+        recipientName = contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim()
+      }
+    }
+
+    // If user references "last meeting", fetch it with transcript/summary
+    let lastMeeting: any = null
+    if (hasLastMeetingReference) {
+      console.log('[EMAIL-DRAFT] Fetching last meeting with transcript for user:', userId)
+
+      // Only look at meetings from the last 14 days
+      const fourteenDaysAgo = new Date()
+      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
+      const dateFilter = fourteenDaysAgo.toISOString()
+
+      console.log('[EMAIL-DRAFT] Looking for meetings after:', dateFilter)
+
+      const { data: meetings, error: meetingError } = await client
+        .from('meetings')
+        .select(`
+          id, title, summary, transcript_text, meeting_start,
+          meeting_action_items(id, title, completed),
+          meeting_attendees(name, email, is_external)
+        `)
+        .eq('owner_user_id', userId)
+        .gte('meeting_start', dateFilter)
+        .or('transcript_text.not.is.null,summary.not.is.null')
+        .order('meeting_start', { ascending: false })
+        .limit(1)
+
+      if (meetingError) {
+        console.error('[EMAIL-DRAFT] Error fetching last meeting:', meetingError)
+      } else if (meetings && meetings.length > 0) {
+        lastMeeting = meetings[0]
+        console.log('[EMAIL-DRAFT] Found last meeting:', lastMeeting.title, '- Has summary:', !!lastMeeting.summary, '- Has transcript:', !!lastMeeting.transcript_text)
+        console.log('[EMAIL-DRAFT] Meeting attendees:', JSON.stringify(lastMeeting.meeting_attendees))
+
+        // For "last meeting" requests, ALWAYS use meeting attendee as recipient (overwrite any previous)
+        if (lastMeeting.meeting_attendees?.length > 0) {
+          // First try to find explicitly marked external attendee
+          let targetAttendee = lastMeeting.meeting_attendees.find((a: any) => a.is_external === true)
+
+          // If no external flag, find any attendee with an email that looks external
+          if (!targetAttendee) {
+            // Get user's email to exclude them
+            const { data: userProfile } = await client
+              .from('profiles')
+              .select('email')
+              .eq('id', userId)
+              .maybeSingle()
+
+            const userEmail = userProfile?.email?.toLowerCase() || ''
+
+            // Find first attendee that isn't the user
+            targetAttendee = lastMeeting.meeting_attendees.find((a: any) =>
+              a.email && a.email.toLowerCase() !== userEmail
+            )
+
+            console.log('[EMAIL-DRAFT] No is_external flag, searching for non-user attendee. User email:', userEmail)
+          }
+
+          if (targetAttendee && targetAttendee.email) {
+            recipientName = targetAttendee.name || recipientName
+            contactEmail = targetAttendee.email
+            console.log('[EMAIL-DRAFT] Using meeting attendee as recipient:', recipientName, contactEmail)
+          } else {
+            console.log('[EMAIL-DRAFT] No suitable attendee found with email')
+          }
+        }
+      } else {
+        console.log('[EMAIL-DRAFT] No meetings found with transcript or summary')
+      }
+    }
+
+    // Get last interaction with this contact if we found one
+    let lastInteraction = 'No previous interaction recorded'
+    let lastInteractionDate = ''
+
+    // If we found a meeting via "last meeting" reference, use that as last interaction
+    if (lastMeeting) {
+      const meetingTitle = lastMeeting.title || 'Recent meeting'
+      const meetingDate = lastMeeting.meeting_start
+        ? new Date(lastMeeting.meeting_start).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+        : 'recently'
+      lastInteraction = `Meeting: ${meetingTitle} (${meetingDate})`
+      lastInteractionDate = lastMeeting.meeting_start
+    }
+
+    if (contact?.id) {
+      // Check for recent meetings
+      const { data: recentMeetings } = await client
+        .from('meetings')
+        .select('id, title, start_time')
+        .eq('owner_user_id', userId)
+        .contains('attendee_emails', contact.email ? [contact.email] : [])
+        .order('start_time', { ascending: false })
+        .limit(1)
+
+      if (recentMeetings && recentMeetings.length > 0) {
+        const meeting = recentMeetings[0]
+        lastInteraction = `Meeting: ${meeting.title}`
+        lastInteractionDate = meeting.start_time
+      }
+
+      // Check for recent activities/communications
+      const { data: recentActivities } = await client
+        .from('activities')
+        .select('id, type, notes, created_at')
+        .eq('user_id', userId)
+        .eq('contact_id', contact.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (recentActivities && recentActivities.length > 0) {
+        const activity = recentActivities[0]
+        if (!lastInteractionDate || new Date(activity.created_at) > new Date(lastInteractionDate)) {
+          lastInteraction = `${activity.type}: ${activity.notes?.substring(0, 50) || 'No details'}...`
+          lastInteractionDate = activity.created_at
+        }
+      }
+    }
+
+    // Determine email tone
+    let tone: 'professional' | 'friendly' | 'concise' = 'professional'
+    if (/casual|friendly|informal/i.test(userMessage)) {
+      tone = 'friendly'
+    } else if (/brief|short|quick|concise/i.test(userMessage)) {
+      tone = 'concise'
+    }
+
+    // Determine email purpose and generate subject/body
+    let subject = 'Following up'
+    let body = ''
+    let keyPoints: string[] = []
+
+    const isFollowUp = /follow[- ]?up/i.test(userMessage)
+    const isMeetingRelated = /meeting|call|chat|discuss/i.test(userMessage)
+    const isProposalRelated = /proposal|quote|pricing|offer/i.test(userMessage)
+
+    // Helper function to extract key points from meeting
+    const extractMeetingKeyPoints = (meeting: any): string[] => {
+      const points: string[] = []
+
+      // From summary - handle JSON format with markdown_formatted field
+      if (meeting.summary) {
+        let summaryText = meeting.summary
+
+        // Try to parse as JSON if it looks like JSON
+        if (typeof summaryText === 'string' && (summaryText.startsWith('{') || summaryText.startsWith('{'))) {
+          try {
+            const parsed = JSON.parse(summaryText)
+            summaryText = parsed.markdown_formatted || parsed.summary || summaryText
+          } catch (e) {
+            // Not JSON, use as-is
+            console.log('[EMAIL-DRAFT] Summary is not JSON, using raw text')
+          }
+        } else if (typeof summaryText === 'object' && summaryText.markdown_formatted) {
+          summaryText = summaryText.markdown_formatted
+        }
+
+        // Extract key takeaways section if present
+        const keyTakeawaysMatch = summaryText.match(/##\s*Key\s*Takeaways?\s*\n([\s\S]*?)(?=\n##|$)/i)
+        if (keyTakeawaysMatch) {
+          const takeawaysSection = keyTakeawaysMatch[1]
+          // Extract bullet points, clean markdown links and formatting
+          const bulletPoints = takeawaysSection
+            .split('\n')
+            .filter((l: string) => l.trim().match(/^[-*]\s+/))
+            .map((l: string) => {
+              // Remove bullet, links [text](url), and bold **text**
+              return l
+                .replace(/^[-*]\s+/, '')
+                .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                .replace(/\*\*([^*]+)\*\*/g, '$1')
+                .replace(/^\*\*([^:]+):\*\*\s*/, '')
+                .trim()
+            })
+            .filter((l: string) => l.length > 10 && l.length < 200)
+            .slice(0, 4)
+          points.push(...bulletPoints)
+        }
+
+        // Fallback: extract from Next Steps section
+        if (points.length === 0) {
+          const nextStepsMatch = summaryText.match(/##\s*Next\s*Steps?\s*\n([\s\S]*?)(?=\n##|$)/i)
+          if (nextStepsMatch) {
+            const stepsSection = nextStepsMatch[1]
+            const stepPoints = stepsSection
+              .split('\n')
+              .filter((l: string) => l.trim().match(/^[-*]\s+/))
+              .map((l: string) => l.replace(/^[-*]\s+/, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').trim())
+              .filter((l: string) => l.length > 10 && l.length < 200)
+              .slice(0, 3)
+            points.push(...stepPoints)
+          }
+        }
+
+        // Last fallback: extract Meeting Purpose
+        if (points.length === 0) {
+          const purposeMatch = summaryText.match(/##\s*Meeting\s*Purpose\s*\n([\s\S]*?)(?=\n##|$)/i)
+          if (purposeMatch) {
+            const purpose = purposeMatch[1]
+              .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+              .replace(/\*\*([^*]+)\*\*/g, '$1')
+              .trim()
+            if (purpose.length > 10 && purpose.length < 200) {
+              points.push(purpose)
+            }
+          }
+        }
+
+        console.log('[EMAIL-DRAFT] Extracted key points from summary:', points.length)
+      }
+
+      // From action items - include uncompleted ones
+      if (meeting.meeting_action_items?.length > 0) {
+        const actionItems = meeting.meeting_action_items
+          .filter((item: any) => !item.completed)
+          .slice(0, 3)
+          .map((item: any) => item.title)
+        points.push(...actionItems)
+      }
+
+      return points.length > 0 ? points : ['Discuss next steps', 'Review key decisions']
+    }
+
+    // Generate email based on meeting context if available
+    if ((isFollowUp || hasLastMeetingReference) && lastMeeting) {
+      // Use actual meeting content for the email
+      const meetingTitle = lastMeeting.title || 'our recent conversation'
+      const meetingDate = lastMeeting.meeting_start
+        ? new Date(lastMeeting.meeting_start).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+        : 'recently'
+
+      subject = `Following up on ${meetingTitle}`
+      keyPoints = extractMeetingKeyPoints(lastMeeting)
+
+      // Build contextual body from meeting content
+      let discussionPoints = ''
+      if (keyPoints.length > 0 && (lastMeeting.summary || lastMeeting.meeting_action_items?.length > 0)) {
+        discussionPoints = `\n\nKey points from our discussion:\n${keyPoints.map(p => `• ${p}`).join('\n')}`
+      }
+
+      // Check for action items to mention
+      let actionItemsSection = ''
+      const uncompletedActions = lastMeeting.meeting_action_items?.filter((a: any) => !a.completed) || []
+      if (uncompletedActions.length > 0) {
+        actionItemsSection = `\n\nAs discussed, here are the action items we agreed on:\n${uncompletedActions.slice(0, 4).map((a: any) => `• ${a.title}`).join('\n')}`
+      }
+
+      body = `Hi ${recipientName || '[Name]'},
+
+Thank you for taking the time to meet with me on ${meetingDate}. I wanted to follow up on our conversation about ${meetingTitle.replace(/^Meeting with /i, '').replace(/^Call with /i, '')}.${discussionPoints}${actionItemsSection}
+
+Please let me know if you have any questions or if there's anything else I can help with.
+
+Best regards`
+
+      console.log('[EMAIL-DRAFT] Generated email from meeting context:', { meetingTitle, keyPointsCount: keyPoints.length, hasActionItems: uncompletedActions.length > 0 })
+    } else if (isFollowUp && isMeetingRelated) {
+      // Fallback if no meeting found but user mentioned meeting
+      subject = `Following up on our recent conversation`
+      keyPoints = ['Thank them for their time', 'Recap key discussion points', 'Outline next steps']
+      body = `Hi ${recipientName || '[Name]'},
+
+Thank you for taking the time to speak with me recently. I wanted to follow up on our conversation and ensure we're aligned on the next steps.
+
+[Add key discussion points from the meeting]
+
+Please let me know if you have any questions or if there's anything else I can help with.
+
+Best regards`
+    } else if (isFollowUp && isProposalRelated) {
+      subject = `Following up on our proposal`
+      keyPoints = ['Reference the proposal', 'Ask if they have questions', 'Offer to discuss further']
+      body = `Hi ${recipientName || '[Name]'},
+
+I wanted to follow up on the proposal I sent over. I hope you've had a chance to review it.
+
+Please let me know if you have any questions or would like to discuss any aspect of the proposal in more detail.
+
+Looking forward to hearing from you.
+
+Best regards`
+    } else if (isFollowUp) {
+      subject = `Following up`
+      keyPoints = ['Reference last interaction', 'State purpose clearly', 'Include call to action']
+      body = `Hi ${recipientName || '[Name]'},
+
+I hope this message finds you well. I wanted to follow up on our previous conversation.
+
+[Add context from your last interaction]
+
+Would you have time for a quick call this week to discuss further?
+
+Best regards`
+    } else {
+      subject = 'Reaching out'
+      keyPoints = ['Introduce yourself/purpose', 'Provide value proposition', 'Clear call to action']
+      body = `Hi ${recipientName || '[Name]'},
+
+I hope this email finds you well.
+
+[State your purpose for reaching out]
+
+I'd love to schedule a brief call to discuss how we might be able to help.
+
+Best regards`
+    }
+
+    // Calculate best send time (business hours, avoid Monday morning and Friday afternoon)
+    const now = new Date()
+    let sendTime = new Date()
+    const hour = now.getHours()
+    const day = now.getDay()
+
+    // If it's outside business hours, suggest next business day at 9am
+    if (hour < 9 || hour > 17 || day === 0 || day === 6) {
+      sendTime.setDate(sendTime.getDate() + (day === 6 ? 2 : day === 0 ? 1 : 0))
+      sendTime.setHours(9, 0, 0, 0)
+    } else {
+      // Suggest sending in 30 minutes
+      sendTime.setMinutes(sendTime.getMinutes() + 30)
+    }
+
+    const response = {
+      type: 'email',
+      summary: recipientName
+        ? `Here's a draft email for ${recipientName}. Review and customize before sending.`
+        : `Here's a draft email. Add recipient details and customize before sending.`,
+      data: {
+        email: {
+          to: contactEmail ? [contactEmail] : [],
+          cc: [],
+          subject,
+          body,
+          tone,
+          sendTime: sendTime.toISOString()
+        },
+        context: {
+          contactName: recipientName || 'Unknown',
+          lastInteraction,
+          lastInteractionDate: lastInteractionDate || new Date().toISOString(),
+          dealValue: undefined,
+          keyPoints,
+          warnings: recipientName ? undefined : ['No recipient specified - please add email address']
+        },
+        suggestions: [
+          {
+            label: 'Make it shorter',
+            action: 'shorten' as const,
+            description: 'Condense the email to key points only'
+          },
+          {
+            label: 'Change tone to friendly',
+            action: 'change_tone' as const,
+            description: 'Make the email more casual and approachable'
+          },
+          {
+            label: 'Add calendar link',
+            action: 'add_calendar_link' as const,
+            description: 'Include a scheduling link for easy booking'
+          }
+        ]
+      },
+      actions: [
+        {
+          label: 'Send Email',
+          type: 'send_email',
+          primary: true,
+          disabled: !contactEmail
+        },
+        {
+          label: 'Edit in Gmail',
+          type: 'edit_in_gmail',
+          href: contactEmail ? `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(contactEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}` : undefined
+        },
+        {
+          label: 'Copy to Clipboard',
+          type: 'copy_email'
+        }
+      ],
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: contact ? ['contacts', 'meetings', 'activities'] : ['user_message'],
+        contactId: contact?.id,
+        recipientEmail: contactEmail
+      }
+    }
+
+    console.log('[EMAIL-DRAFT] Generated email response for:', recipientName || 'unknown recipient')
+    return response
+
+  } catch (error) {
+    console.error('[EMAIL-DRAFT] Error structuring email draft:', error)
+    // Return a basic email template on error
+    return {
+      type: 'email',
+      summary: 'Here\'s a draft email template. Customize it for your needs.',
+      data: {
+        email: {
+          to: [],
+          subject: 'Following up',
+          body: `Hi [Name],
+
+I hope this message finds you well. I wanted to follow up on our previous conversation.
+
+[Add your message here]
+
+Best regards`,
+          tone: 'professional' as const
+        },
+        context: {
+          contactName: 'Unknown',
+          lastInteraction: 'Unable to retrieve',
+          lastInteractionDate: new Date().toISOString(),
+          keyPoints: ['Add recipient', 'Customize message', 'Review before sending'],
+          warnings: ['Could not load contact information']
+        },
+        suggestions: []
       },
       actions: [],
       metadata: {

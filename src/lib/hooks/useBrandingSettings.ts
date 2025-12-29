@@ -144,7 +144,20 @@ export function useBrandingSettings() {
     };
   }, [loadSettings]);
 
-  return { settings, loading, refetch: loadSettings };
+  // Return logo URLs with fallbacks
+  const logoLight = settings?.logo_light_url || FALLBACK_LOGO;
+  const logoDark = settings?.logo_dark_url || FALLBACK_LOGO;
+  const icon = settings?.icon_url || FALLBACK_LOGO;
+
+  return {
+    settings,
+    loading,
+    refetch: loadSettings,
+    logoLight,
+    logoDark,
+    icon,
+    fallbackLogo: FALLBACK_LOGO
+  };
 }
 
 /**

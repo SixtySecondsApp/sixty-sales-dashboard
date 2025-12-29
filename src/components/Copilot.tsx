@@ -416,14 +416,14 @@ export const Copilot: React.FC<CopilotProps> = ({
 
   return (
     <CopilotLayout>
-      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 flex flex-col min-h-[calc(100vh-4rem)]">
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 flex flex-col h-[calc(100vh-4rem)]">
         {/* Empty State or Active Conversation */}
         {isEmpty ? (
           <CopilotEmpty onPromptClick={handlePromptClick} />
         ) : (
           <>
-            {/* Chat Messages Area */}
-            <div className="flex-1 space-y-6 mb-6 overflow-y-auto">
+            {/* Chat Messages Area - scrollable */}
+            <div className="flex-1 overflow-y-auto space-y-6 py-8">
               {messages.map(message => {
                 // Stable key based on message ID only - prevents unnecessary re-renders
                 return (
@@ -438,17 +438,19 @@ export const Copilot: React.FC<CopilotProps> = ({
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Chat Input */}
-            <ChatInput
-              value={inputValue}
-              onChange={setInputValue}
-              onSend={handleSend}
-              onCancel={cancelRequest}
-              disabled={isLoading}
-              isLoading={isLoading}
-              suggestedPrompts={suggestedPrompts}
-              onPromptClick={handlePromptClick}
-            />
+            {/* Chat Input - fixed at bottom */}
+            <div className="flex-shrink-0 pb-6 pt-4">
+              <ChatInput
+                value={inputValue}
+                onChange={setInputValue}
+                onSend={handleSend}
+                onCancel={cancelRequest}
+                disabled={isLoading}
+                isLoading={isLoading}
+                suggestedPrompts={[]}
+                onPromptClick={undefined}
+              />
+            </div>
           </>
         )}
 

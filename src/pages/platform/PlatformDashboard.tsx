@@ -95,6 +95,14 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: Play,
       href: '/platform/vsl-analytics',
       color: 'text-rose-600 bg-rose-100 dark:bg-rose-900/30',
+    },
+    {
+      id: 'meta-ads',
+      title: 'Meta Ads Analytics',
+      description: 'Track Facebook & Instagram ad conversions',
+      icon: Target,
+      href: '/platform/meta-ads',
+      color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30',
       badge: 'New',
     },
     {

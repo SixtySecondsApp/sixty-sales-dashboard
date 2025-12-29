@@ -112,8 +112,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isSmartSearchOpen, setIsSmartSearchOpen] = useState(false);
   const navigate = useNavigate();
   const { openCopilot } = useCopilot();
-  const { settings: brandingSettings } = useBrandingSettings();
+  const { logoLight, logoDark, icon } = useBrandingSettings();
   const { resolvedTheme } = useTheme();
+
+  // Select logo based on current theme
+  const currentLogo = resolvedTheme === 'light' ? logoLight : logoDark;
 
   // User permissions for dynamic navigation
   const { effectiveUserType, isAdmin, isInternal, isPlatformAdmin, isOrgAdmin } = useUserPermissions();
@@ -633,15 +636,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             )}>
               {isCollapsed ? (
                 <img
-                  key="icon-collapsed"
-                  src="https://ygdpgliavpxeugaajgrb.supabase.co/storage/v1/object/public/Logos/ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459/Icon.png"
+                  key={`icon-collapsed-${resolvedTheme}`}
+                  src={icon}
                   alt="Logo"
                   className="w-12 h-12 object-contain rounded-xl"
                 />
               ) : (
                 <img
-                  key="logo-expanded"
-                  src="https://ygdpgliavpxeugaajgrb.supabase.co/storage/v1/object/public/Logos/ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459/Dark%20Mode%20Logo.png"
+                  key={`logo-expanded-${resolvedTheme}`}
+                  src={currentLogo}
                   alt="Logo"
                   className="h-12 w-full object-contain"
                 />

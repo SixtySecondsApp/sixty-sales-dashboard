@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { MeetingsLandingV4 } from './pages/MeetingsLandingV4';
 import  WaitlistLanding  from './pages/WaitlistLanding';
@@ -15,13 +15,27 @@ import { IntroPage } from './pages/IntroPage';
 import { IntroducingPage } from './pages/IntroducingPage';
 import { LearnMore } from './pages/LearnMore';
 import { getAppUrl } from './lib/utils/siteUrl';
+import { trackPageView } from './lib/pageViewTracker';
 
 // Initialize i18next for internationalization
 import './lib/i18n/config';
 
+// Component to track page views on route changes
+function PageViewTracker() {
+  const location = useLocation();
+
+  useEffect(() => {
+    // Track page view on route change
+    trackPageView();
+  }, [location.pathname, location.search]);
+
+  return null;
+}
+
 function App() {
   return (
     <BrowserRouter>
+      <PageViewTracker />
       <Toaster position="top-center" richColors closeButton />
       <Routes>
         <Route path="/landing" element={<MeetingsLandingV4 />} />

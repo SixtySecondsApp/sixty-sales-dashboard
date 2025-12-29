@@ -188,6 +188,7 @@ async function fetchSalesDialerCalls(args: {
   return { calls, pages, error: err };
 }
 
+// Single-call version for backwards compatibility
 async function resolveOwnerUserId(
   supabase: ReturnType<typeof createClient>,
   orgId: string,
@@ -208,6 +209,59 @@ async function resolveOwnerUserId(
 
   if (!membership?.user_id) return { owner_user_id: null, owner_email: agentEmail };
   return { owner_user_id: profile.id, owner_email: profile.email || agentEmail };
+}
+
+// Batch version - pre-loads all owner mappings in 2 queries instead of 2*N
+async function batchResolveOwnerUserIds(
+  supabase: ReturnType<typeof createClient>,
+  orgId: string,
+  agentEmails: (string | null)[]
+): Promise<Map<string, { owner_user_id: string | null; owner_email: string | null }>> {
+  const result = new Map<string, { owner_user_id: string | null; owner_email: string | null }>();
+
+  // Filter out nulls and get unique emails
+  const uniqueEmails = [...new Set(agentEmails.filter((e): e is string => !!e))];
+  if (uniqueEmails.length === 0) return result;
+
+  // Batch query 1: Get all profiles by email
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, email')
+    .in('email', uniqueEmails);
+
+  if (!profiles || profiles.length === 0) {
+    // No profiles found - return emails without user IDs
+    for (const email of uniqueEmails) {
+      result.set(email, { owner_user_id: null, owner_email: email });
+    }
+    return result;
+  }
+
+  const profilesByEmail = new Map(profiles.map((p) => [p.email, p]));
+  const profileUserIds = profiles.map((p) => p.id);
+
+  // Batch query 2: Get all org memberships for these users
+  const { data: memberships } = await supabase
+    .from('organization_memberships')
+    .select('user_id')
+    .eq('org_id', orgId)
+    .in('user_id', profileUserIds);
+
+  const memberUserIds = new Set(memberships?.map((m) => m.user_id) ?? []);
+
+  // Build the result map
+  for (const email of uniqueEmails) {
+    const profile = profilesByEmail.get(email);
+    if (!profile) {
+      result.set(email, { owner_user_id: null, owner_email: email });
+    } else if (!memberUserIds.has(profile.id)) {
+      result.set(email, { owner_user_id: null, owner_email: email });
+    } else {
+      result.set(email, { owner_user_id: profile.id, owner_email: profile.email || email });
+    }
+  }
+
+  return result;
 }
 
 async function ensureCommunicationEvent(
@@ -422,11 +476,18 @@ serve(async (req) => {
     let eventsLogged = 0;
     let transcriptsQueued = 0;
 
-    for (const c of calls) {
-      const mapped = mapCall(c);
-      if (!mapped.external_id || mapped.external_id === 'undefined') continue;
+    // OPTIMIZATION: Batch load all owner mappings in 2 queries instead of 2*N queries
+    const mappedCalls = calls
+      .map((c) => mapCall(c))
+      .filter((m) => m.external_id && m.external_id !== 'undefined');
+    const agentEmails = mappedCalls.map((m) => m.agent_email);
+    const ownerMap = await batchResolveOwnerUserIds(sb, orgId, agentEmails);
 
-      const owner = await resolveOwnerUserId(sb, orgId, mapped.agent_email);
+    for (const mapped of mappedCalls) {
+      // Use pre-loaded owner map instead of individual queries
+      const owner = mapped.agent_email
+        ? ownerMap.get(mapped.agent_email) ?? { owner_user_id: null, owner_email: mapped.agent_email }
+        : { owner_user_id: null, owner_email: null };
       const hasRecording = Boolean(mapped.recording_url);
 
       const { data: callRow, error: upsertErr } = await sb
@@ -652,6 +713,7 @@ serve(async (req) => {
     });
   }
 });
+
 
 
 

@@ -24,12 +24,13 @@ export const HUBSPOT_CAPABILITY: IntegrationCapability = {
   supportsUpdate: true,
   supportsDelete: true,
   resourceTypes: ['contact', 'deal', 'task', 'activity'],
-  // Portal ID needs to be substituted at runtime
-  // Format: https://app.hubspot.com/contacts/{portalId}/record/0-1/{contactId}
-  // Contact: 0-1, Deal: 0-3, Task: 0-27
-  viewUrlPattern: 'https://app.hubspot.com/contacts/{portalId}/record/{objectType}/{id}',
+  // Portal ID and region need to be substituted at runtime
+  // Contact/Deal: /record/0-1/{id} or /record/0-3/{id}
+  // Task: Uses /task/{id} format (different from other objects!)
+  // Region: eu1 for EU, na1 for US (defaults to EU if not specified)
+  viewUrlPattern: 'https://{subdomain}.hubspot.com/contacts/{portalId}/{objectPath}/{id}',
   deleteEndpoint: '/functions/v1/hubspot-delete-resource',
-  notes: 'Full CRUD support. Object types: 0-1 (contact), 0-3 (deal), 0-27 (task)',
+  notes: 'Full CRUD support. Contacts use /record/0-1/, Deals use /record/0-3/, Tasks use /task/',
 };
 
 /**
@@ -211,6 +212,7 @@ export function buildViewUrl(
   externalId: string,
   context?: {
     portalId?: string;
+    hubspotRegion?: 'eu1' | 'na1' | string;
     workspace?: string;
     channel?: string;
     timestamp?: string;
@@ -236,16 +238,30 @@ export function buildViewUrl(
       // Portal ID is required for HubSpot URLs
       return null;
     }
-    url = url.replace('{portalId}', context.portalId);
 
-    // Map resource type to HubSpot object type
-    const objectTypeMap: Partial<Record<ResourceType, string>> = {
-      contact: '0-1',
-      deal: '0-3',
-      task: '0-27',
-      activity: '0-4',
+    // Determine the subdomain based on region (default to EU)
+    // Regions: 'eu1' for EU, 'na1' for US, or just 'app' for default US
+    const region = context.hubspotRegion || 'eu1';
+    const subdomain = region === 'na1' ? 'app' : `app-${region}`;
+
+    // IMPORTANT: Tasks use a completely different URL structure!
+    // Tasks: https://app-eu1.hubspot.com/tasks/{portalId}/view/all/{taskId}
+    // Other objects: https://app-eu1.hubspot.com/contacts/{portalId}/record/{objectType}/{id}
+    if (resourceType === 'task') {
+      return `https://${subdomain}.hubspot.com/tasks/${context.portalId}/view/all/${externalId}`;
+    }
+
+    // For non-task objects, use the standard /contacts/ URL pattern
+    url = url.replace('{portalId}', context.portalId);
+    url = url.replace('{subdomain}', subdomain);
+
+    // Map resource type to HubSpot object path
+    const objectPathMap: Partial<Record<ResourceType, string>> = {
+      contact: 'record/0-1',
+      deal: 'record/0-3',
+      activity: 'record/0-4',
     };
-    url = url.replace('{objectType}', objectTypeMap[resourceType] || '0-1');
+    url = url.replace('{objectPath}', objectPathMap[resourceType] || 'record/0-1');
   }
 
   // Slack-specific replacements

@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase/clientV2';
 import { usePublicBrandingSettings } from '../lib/hooks/useBrandingSettings';
 import { captureRegistrationUrl } from '../lib/utils/registrationUrl';
 import { useForceDarkMode } from '../lib/hooks/useForceDarkMode';
+import { trackPartialSignup, markPartialSignupConverted } from '../lib/pageViewTracker';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -125,12 +126,17 @@ export default function EarlyAccessLanding() {
     setFormData(prev => ({ ...prev, [field]: sanitized }));
   };
 
-  // Validate email on blur
+  // Validate email on blur and track partial signup
   const handleEmailBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    if (e.target.value && !isValidEmail(e.target.value)) {
+    const email = e.target.value;
+    if (email && !isValidEmail(email)) {
       e.target.setCustomValidity('Please enter a valid email address');
     } else {
       e.target.setCustomValidity('');
+      // Track as partial signup when valid email is entered
+      if (email && isValidEmail(email)) {
+        trackPartialSignup(email, 'email');
+      }
     }
   };
 
@@ -277,6 +283,9 @@ export default function EarlyAccessLanding() {
       } catch (err) {
         console.error('[Waitlist] Welcome email exception:', err);
       }
+
+      // Mark partial signup as converted (fire and forget)
+      markPartialSignupConverted(formData.email.trim().toLowerCase());
 
       // Navigate to thank you page with user data (using state to avoid URL exposure)
       const email = formData.email.trim().toLowerCase();

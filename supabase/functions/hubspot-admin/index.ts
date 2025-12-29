@@ -635,6 +635,8 @@ serve(async (req) => {
   // Create a task in HubSpot
   if (action === 'create_task') {
     const properties = body.properties || {}
+    const contactId = body.contact_id || body.contactId || null
+    const dealId = body.deal_id || body.dealId || null
 
     // Validate required fields - tasks require hs_task_subject
     if (!properties.hs_task_subject) {
@@ -668,18 +670,144 @@ serve(async (req) => {
 
       console.log('[hubspot-admin] Task created:', task.id)
 
+      // Associate task with contact if contact_id provided
+      // Association type 204 = Task to Contact
+      if (contactId) {
+        try {
+          console.log(`[hubspot-admin] Associating task ${task.id} with contact ${contactId}`)
+          await client.request({
+            method: 'PUT',
+            path: `/crm/v3/objects/tasks/${task.id}/associations/contacts/${contactId}/204`,
+          })
+          console.log('[hubspot-admin] Task associated with contact successfully')
+        } catch (assocError: any) {
+          console.error('[hubspot-admin] Failed to associate task with contact:', assocError)
+          // Don't fail the whole request, just log the warning
+        }
+      }
+
+      // Associate task with deal if deal_id provided
+      // Association type 216 = Task to Deal
+      if (dealId) {
+        try {
+          console.log(`[hubspot-admin] Associating task ${task.id} with deal ${dealId}`)
+          await client.request({
+            method: 'PUT',
+            path: `/crm/v3/objects/tasks/${task.id}/associations/deals/${dealId}/216`,
+          })
+          console.log('[hubspot-admin] Task associated with deal successfully')
+        } catch (assocError: any) {
+          console.error('[hubspot-admin] Failed to associate task with deal:', assocError)
+          // Don't fail the whole request, just log the warning
+        }
+      }
+
       return new Response(
         JSON.stringify({
           success: true,
           id: task.id,
           properties: task.properties,
           objectType: 'task',
+          associations: {
+            contact: contactId || null,
+            deal: dealId || null,
+          },
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     } catch (e: any) {
       console.error('[hubspot-admin] Failed to create task:', e)
       return new Response(JSON.stringify({ success: false, error: e.message || 'Failed to create task' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
+  // Create a timeline activity (note) in HubSpot
+  // Notes appear on the contact/deal timeline as activities
+  if (action === 'create_activity') {
+    const properties = body.properties || {}
+    const contactId = body.contact_id || body.contactId || null
+    const dealId = body.deal_id || body.dealId || null
+
+    // Build note body from properties
+    const noteBody = properties.hs_note_body || properties.body || properties.content ||
+      properties.message || properties.note || `Activity logged at ${new Date().toISOString()}`
+
+    const { accessToken, error: tokenError } = await getValidAccessToken(svc, orgId)
+    if (!accessToken) {
+      return new Response(JSON.stringify({ success: false, error: tokenError || 'HubSpot not connected' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const client = new HubSpotClient({ accessToken })
+
+    try {
+      console.log('[hubspot-admin] Creating activity/note with body:', noteBody.substring(0, 100))
+
+      // Create a note object
+      const note = await client.request<{ id: string; properties: any }>({
+        method: 'POST',
+        path: '/crm/v3/objects/notes',
+        body: {
+          properties: {
+            hs_note_body: noteBody,
+            hs_timestamp: properties.hs_timestamp || new Date().toISOString(),
+          },
+        },
+      })
+
+      console.log('[hubspot-admin] Note created:', note.id)
+
+      // Associate note with contact if contact_id provided
+      // Association type 202 = Note to Contact
+      if (contactId) {
+        try {
+          console.log(`[hubspot-admin] Associating note ${note.id} with contact ${contactId}`)
+          await client.request({
+            method: 'PUT',
+            path: `/crm/v3/objects/notes/${note.id}/associations/contacts/${contactId}/202`,
+          })
+          console.log('[hubspot-admin] Note associated with contact successfully')
+        } catch (assocError: any) {
+          console.error('[hubspot-admin] Failed to associate note with contact:', assocError)
+        }
+      }
+
+      // Associate note with deal if deal_id provided
+      // Association type 214 = Note to Deal
+      if (dealId) {
+        try {
+          console.log(`[hubspot-admin] Associating note ${note.id} with deal ${dealId}`)
+          await client.request({
+            method: 'PUT',
+            path: `/crm/v3/objects/notes/${note.id}/associations/deals/${dealId}/214`,
+          })
+          console.log('[hubspot-admin] Note associated with deal successfully')
+        } catch (assocError: any) {
+          console.error('[hubspot-admin] Failed to associate note with deal:', assocError)
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          id: note.id,
+          properties: note.properties,
+          objectType: 'note',
+          associations: {
+            contact: contactId || null,
+            deal: dealId || null,
+          },
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } catch (e: any) {
+      console.error('[hubspot-admin] Failed to create activity/note:', e)
+      return new Response(JSON.stringify({ success: false, error: e.message || 'Failed to create activity' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })

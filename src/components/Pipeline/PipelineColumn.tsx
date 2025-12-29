@@ -20,6 +20,7 @@ interface PipelineColumnProps {
   batchedMetadata?: {
     nextActions: Record<string, { pendingCount: number; highUrgencyCount: number }>;
     healthScores: Record<string, { overall_health_score: number; health_status: string }>;
+    sentimentData: Record<string, { avg_sentiment: number | null; sentiment_history: number[]; trend_direction: string; trend_delta: number; meeting_count: number }>;
   };
 }
 
@@ -29,7 +30,7 @@ export function PipelineColumn({
   onDealClick,
   onAddDealClick,
   onConvertToSubscription,
-  batchedMetadata = { nextActions: {}, healthScores: {} }
+  batchedMetadata = { nextActions: {}, healthScores: {}, sentimentData: {} }
 }: PipelineColumnProps) {
   // Set up droppable behavior
   const { setNodeRef, isOver } = useDroppable({
@@ -150,6 +151,7 @@ export function PipelineColumn({
                 nextActionsPendingCount={batchedMetadata.nextActions[dealId]?.pendingCount || 0}
                 highUrgencyCount={batchedMetadata.nextActions[dealId]?.highUrgencyCount || 0}
                 healthScore={batchedMetadata.healthScores[dealId] || null}
+                sentimentData={batchedMetadata.sentimentData[dealId] || null}
               />
             );
           })}

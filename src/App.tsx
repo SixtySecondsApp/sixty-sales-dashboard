@@ -56,7 +56,7 @@ const FathomCallbackWrapper = () => <FathomCallback />;
 import {
   // Platform Admin
   MeetingsWaitlist, WaitlistSlackSettings, OnboardingSimulator, PricingControl, CostAnalysis, LaunchChecklist,
-  ActivationDashboard, PlatformDashboard, IntegrationRoadmap, VSLAnalytics, ErrorMonitoring, SentryBridge, Users, PipelineSettings,
+  ActivationDashboard, PlatformDashboard, IntegrationRoadmap, VSLAnalytics, MetaAdsAnalytics, ErrorMonitoring, SentryBridge, Users, PipelineSettings,
   AuditLogs, SmartTasksAdmin, PipelineAutomationAdmin, EmailTemplates, FunctionTesting,
   AIProviderSettings, GoogleIntegrationTestsLegacy, GoogleIntegrationTests, SettingsSavvyCal,
   SettingsBookingSources, HealthRules, EmailCategorizationSettings, AdminModelSettings,
@@ -376,6 +376,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/launch-checklist" element={<PlatformAdminRouteGuard><AppLayout><LaunchChecklist /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/activation" element={<PlatformAdminRouteGuard><AppLayout><ActivationDashboard /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/vsl-analytics" element={<PlatformAdminRouteGuard><AppLayout><VSLAnalytics /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/meta-ads" element={<PlatformAdminRouteGuard><AppLayout><MetaAdsAnalytics /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/error-monitoring" element={<PlatformAdminRouteGuard><AppLayout><ErrorMonitoring /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/sentry-bridge" element={<PlatformAdminRouteGuard><AppLayout><SentryBridge /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/slack-demo" element={<PlatformAdminRouteGuard><AppLayout><SlackDemo /></AppLayout></PlatformAdminRouteGuard>} />

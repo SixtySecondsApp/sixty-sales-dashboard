@@ -68,6 +68,7 @@ export interface IntegrationContext {
   orgId?: string;
   // HubSpot
   hubspotPortalId?: string;
+  hubspotRegion?: 'eu1' | 'na1' | string; // eu1 for EU, na1 for US (defaults to eu1)
   // Slack
   slackWorkspace?: string;
   slackChannel?: string;
@@ -222,6 +223,30 @@ export class IntegrationExecutor {
     if (operation === 'create') {
       // For create operations, pass properties
       body.properties = data.properties || this.buildHubSpotProperties(resourceType, data);
+
+      // For tasks and activities, pass contact_id and/or deal_id for association
+      // These come from dependencies (previously created contact/deal in the workflow)
+      if (resourceType === 'task' || resourceType === 'activity') {
+        // Look for contact external ID from dependencies or direct data
+        const contactId = data.contact_id || data.contactId ||
+          data.contact_external_id || data.contactExternalId ||
+          (data.contact as Record<string, unknown>)?.externalId ||
+          (data.contact as Record<string, unknown>)?.id;
+        if (contactId) {
+          body.contact_id = contactId;
+          console.log('[IntegrationExecutor] Task will be associated with contact:', contactId);
+        }
+
+        // Look for deal external ID from dependencies or direct data
+        const dealId = data.deal_id || data.dealId ||
+          data.deal_external_id || data.dealExternalId ||
+          (data.deal as Record<string, unknown>)?.externalId ||
+          (data.deal as Record<string, unknown>)?.id;
+        if (dealId) {
+          body.deal_id = dealId;
+          console.log('[IntegrationExecutor] Task will be associated with deal:', dealId);
+        }
+      }
     } else if (operation === 'update') {
       // For update operations, pass record_id and properties
       body.record_id = data.record_id || data.externalId || data.id;
@@ -265,9 +290,22 @@ export class IntegrationExecutor {
 
     // Track created resources
     if (operation === 'create' && response?.id) {
-      const viewUrl = buildViewUrl('hubspot', resourceType, response.id, {
-        portalId: this.integrationContext.hubspotPortalId,
-      });
+      let viewUrl: string | null;
+
+      // For tasks and activities associated with a contact, link to the contact record
+      // where they will appear on the timeline (better UX than direct object URLs)
+      if ((resourceType === 'task' || resourceType === 'activity') && response.associations?.contact) {
+        viewUrl = buildViewUrl('hubspot', 'contact', response.associations.contact, {
+          portalId: this.integrationContext.hubspotPortalId,
+          hubspotRegion: this.integrationContext.hubspotRegion,
+        });
+        console.log(`[IntegrationExecutor] ${resourceType} linked to contact record:`, viewUrl);
+      } else {
+        viewUrl = buildViewUrl('hubspot', resourceType, response.id, {
+          portalId: this.integrationContext.hubspotPortalId,
+          hubspotRegion: this.integrationContext.hubspotRegion,
+        });
+      }
 
       const resource = this.resourceTracker.addResource({
         integration: 'hubspot',
@@ -294,6 +332,7 @@ export class IntegrationExecutor {
       'create-contact': 'create_contact',
       'create-deal': 'create_deal',
       'create-task': 'create_task',
+      'create-activity': 'create_activity',
       'update-contact': 'update_contact',
       'update-deal': 'update_deal',
       'update-task': 'update_task',
@@ -353,6 +392,13 @@ export class IntegrationExecutor {
         hs_task_status: data.hs_task_status || data.status || 'NOT_STARTED',
         hs_task_priority: data.hs_task_priority || data.priority || 'NONE',
         hs_timestamp: data.hs_timestamp || data.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        ...(data.properties as Record<string, unknown> || {}),
+      };
+    }
+    if (resourceType === 'activity') {
+      return {
+        hs_note_body: data.hs_note_body || data.body || data.content || data.message || data.note || `Activity logged at ${new Date().toISOString()}`,
+        hs_timestamp: data.hs_timestamp || new Date().toISOString(),
         ...(data.properties as Record<string, unknown> || {}),
       };
     }

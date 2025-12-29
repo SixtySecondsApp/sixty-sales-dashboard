@@ -472,39 +472,43 @@ export function WorkflowTestPanel({
     }
   }, [processMapId, isOpen, storeGetTestRun]);
 
-  // HubSpot portal ID for view URLs
+  // HubSpot portal ID and region for view URLs
   const [hubspotPortalId, setHubspotPortalId] = useState<string | null>(null);
+  const [hubspotRegion, setHubspotRegion] = useState<string>('eu1'); // Default to EU
 
-  // Fetch HubSpot portal ID when org changes
+  // Fetch HubSpot portal ID and region when org changes
   useEffect(() => {
     if (!activeOrgId) {
       setHubspotPortalId(null);
+      setHubspotRegion('eu1');
       return;
     }
 
-    const fetchHubspotPortalId = async () => {
+    const fetchHubspotConfig = async () => {
       try {
         const { data, error } = await supabase
           .from('hubspot_org_integrations')
-          .select('hubspot_portal_id, hubspot_hub_id')
+          .select('hubspot_portal_id, hubspot_hub_id, hubspot_region')
           .eq('org_id', activeOrgId)
           .maybeSingle();
 
         if (error) {
-          console.warn('[WorkflowTestPanel] Failed to fetch HubSpot portal ID:', error);
+          console.warn('[WorkflowTestPanel] Failed to fetch HubSpot config:', error);
           return;
         }
 
         if (data) {
           // Use portal_id or hub_id
           setHubspotPortalId(data.hubspot_portal_id || data.hubspot_hub_id || null);
+          // Use stored region or default to EU (most common for this project)
+          setHubspotRegion((data as { hubspot_region?: string }).hubspot_region || 'eu1');
         }
       } catch (err) {
-        console.warn('[WorkflowTestPanel] Error fetching HubSpot portal ID:', err);
+        console.warn('[WorkflowTestPanel] Error fetching HubSpot config:', err);
       }
     };
 
-    fetchHubspotPortalId();
+    fetchHubspotConfig();
   }, [activeOrgId]);
 
   // Load saved scenarios and coverage from database
@@ -733,6 +737,7 @@ export function WorkflowTestPanel({
           integrationContext: {
             orgId: activeOrgId || undefined,
             hubspotPortalId: hubspotPortalId || undefined,
+            hubspotRegion: hubspotRegion || 'eu1',
           },
           config: {
             continueOnFailure,
@@ -938,7 +943,7 @@ export function WorkflowTestPanel({
       setIsRunning(false);
       setIsCleaningUp(false);
     }
-  }, [runMode, continueOnFailure, workflowSteps, processStructure, processMapId, processMapTitle, mermaidCode, activeOrgId, hubspotPortalId, storeSetTestRun]);
+  }, [runMode, continueOnFailure, workflowSteps, processStructure, processMapId, processMapTitle, mermaidCode, activeOrgId, hubspotPortalId, hubspotRegion, storeSetTestRun]);
 
   // Reset test state
   const handleReset = useCallback(() => {

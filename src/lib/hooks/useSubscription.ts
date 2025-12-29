@@ -265,27 +265,32 @@ export function useBillingHistory(
 
 /**
  * Get user notifications
+ * NOTE: Realtime updates are handled via useRealtimeHub which subscribes to user_notifications.
+ * Polling is disabled since realtime pushes updates. Only refetch on window focus for stale data.
  */
 export function useNotifications(userId: string | undefined, limit = 10) {
   return useQuery({
     queryKey: subscriptionKeys.notifications(userId || ''),
     queryFn: () => getUserNotifications(userId!, limit),
     enabled: !!userId,
-    staleTime: 1000 * 60 * 1, // 1 minute
-    refetchInterval: 1000 * 60 * 5, // Refetch every 5 minutes
+    staleTime: 1000 * 60 * 5, // 5 minutes - realtime handles live updates
+    // Removed aggressive polling - realtime subscriptions handle updates
+    // refetchInterval: false means we rely on cache invalidation + realtime
   });
 }
 
 /**
  * Get unread notification count
+ * NOTE: Shares cache invalidation with useNotifications - no separate polling needed.
+ * When notifications change (via realtime), the count is invalidated too.
  */
 export function useUnreadNotificationCount(userId: string | undefined) {
   return useQuery({
     queryKey: subscriptionKeys.notificationCount(userId || ''),
     queryFn: () => getUnreadNotificationCount(userId!),
     enabled: !!userId,
-    staleTime: 1000 * 60 * 1,
-    refetchInterval: 1000 * 60 * 2, // Refetch every 2 minutes
+    staleTime: 1000 * 60 * 5, // 5 minutes - same as notifications
+    // Removed polling - count is invalidated when notifications change
   });
 }
 

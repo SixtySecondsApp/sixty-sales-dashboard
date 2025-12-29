@@ -56,4 +56,3 @@ declare var encodeURIComponent: typeof globalThis.encodeURIComponent;
 declare var decodeURIComponent: typeof globalThis.decodeURIComponent;
 declare var isFinite: typeof globalThis.isFinite;
 declare var Record: typeof globalThis.Record;
-

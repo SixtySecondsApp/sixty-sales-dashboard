@@ -300,45 +300,41 @@ async function getWeekStats(
   weekAgo.setDate(weekAgo.getDate() - 7);
 
   try {
-    // These fields vary across deployments (some use `stage`, others `stage_id`, some use `name` vs `title`).
-    // Fail-soft: if deal queries fail, we still send the digest with zeros.
-
-    // Get closed deals this week
-    let closedDeals: any[] = [];
-    {
-      const res = await supabase
+    // OPTIMIZATION: Run all 4 queries in parallel instead of sequentially
+    // This reduces latency from ~4x to ~1x the slowest query
+    const [closedDealsRes, meetingsRes, activitiesRes, pipelineRes] = await Promise.all([
+      // Get closed deals this week
+      supabase
         .from('deals')
         .select('value')
         .eq('org_id', orgId)
         .eq('stage', 'signed')
-        .gte('updated_at', weekAgo.toISOString());
-      if (!res.error && res.data) closedDeals = res.data as any[];
-    }
+        .gte('updated_at', weekAgo.toISOString()),
 
-    // Get meeting count this week
-    const { count: meetingsCount } = await supabase
-      .from('meetings')
-      .select('id', { count: 'exact', head: true })
-      .eq('org_id', orgId)
-      .gte('created_at', weekAgo.toISOString());
+      // Get meeting count this week
+      supabase
+        .from('meetings')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId)
+        .gte('created_at', weekAgo.toISOString()),
 
-    // Get activity count this week
-    const { count: activitiesCount } = await supabase
-      .from('activities')
-      .select('id', { count: 'exact', head: true })
-      .eq('org_id', orgId)
-      .gte('created_at', weekAgo.toISOString());
+      // Get activity count this week
+      supabase
+        .from('activities')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId)
+        .gte('created_at', weekAgo.toISOString()),
 
-    // Get total pipeline value
-    let pipeline: any[] = [];
-    {
-      const res = await supabase
+      // Get total pipeline value
+      supabase
         .from('deals')
         .select('value')
         .eq('org_id', orgId)
-        .in('stage', ['sql', 'opportunity', 'verbal']);
-      if (!res.error && res.data) pipeline = res.data as any[];
-    }
+        .in('stage', ['sql', 'opportunity', 'verbal']),
+    ]);
+
+    const closedDeals = (!closedDealsRes.error && closedDealsRes.data) ? closedDealsRes.data as any[] : [];
+    const pipeline = (!pipelineRes.error && pipelineRes.data) ? pipelineRes.data as any[] : [];
 
     const dealsCount = closedDeals?.length || 0;
     const dealsValue = closedDeals?.reduce((sum, d) => sum + (d.value || 0), 0) || 0;
@@ -347,8 +343,8 @@ async function getWeekStats(
     return {
       dealsCount,
       dealsValue,
-      meetingsCount: meetingsCount || 0,
-      activitiesCount: activitiesCount || 0,
+      meetingsCount: meetingsRes.count || 0,
+      activitiesCount: activitiesRes.count || 0,
       pipelineValue,
     };
   } catch {

@@ -184,6 +184,7 @@ export async function signupForWaitlist(
     utm_campaign: data.utm_campaign || null,
     utm_medium: data.utm_medium || null,
     registration_url: data.registration_url || null,
+    signup_source: data.signup_source || null,
   };
 
   // Validate required fields are not empty after trimming
