@@ -9,7 +9,7 @@ import logger from '@/lib/utils/logger';
 
 export default function ResetPassword() {
   const [isLoading, setIsLoading] = useState(false);
-  const [isValidRecovery, setIsValidRecovery] = useState(false);
+  const [isValidRecovery, setIsValidRecovery] = useState(true);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [debugInfo, setDebugInfo] = useState('');
   const [pathOtpToken, setPathOtpToken] = useState<string | null>(null);
@@ -112,47 +112,32 @@ export default function ResetPassword() {
           setIsValidRecovery(true);
           setDebugInfo(prev => prev + '\n✅ Valid recovery token in path, showing form');
         }
-        // Handle code parameter - try PKCE first, then fall back to treating as recovery code
+        // Handle code parameter - show form for recovery
         else if (pkceCode) {
-          logger.log('✅ Code parameter detected:', pkceCode);
-          setDebugInfo(prev => prev + '\n✅ Code parameter flow detected');
+          logger.log('✅ Recovery code detected:', pkceCode);
+          setDebugInfo(prev => prev + '\n✅ Recovery code detected');
 
+          // Try PKCE exchange first (for OAuth flows)
           try {
-            // First, try standard PKCE code exchange (for OAuth flows)
             const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(pkceCode);
-
             if (!exchangeError && data?.session) {
               logger.log('✅ PKCE code exchanged successfully');
-              setDebugInfo(prev => prev + '\n✅ PKCE session established, showing form');
               setIsValidRecovery(true);
+              setIsCheckingSession(false);
               return;
             }
-
-            // If PKCE exchange failed, this might be a password recovery code
-            // For password recovery, Supabase uses verifyOtp with type='recovery'
-            logger.log('⚠️ PKCE exchange failed, attempting recovery code verification');
-            setDebugInfo(prev => prev + '\n⚠️ Trying recovery flow');
-
-            // Try to verify as a recovery OTP code
-            // Note: This is a fallback - the code might be used during password submission
-            logger.log('ℹ️ Recovery code will be verified when user submits new password');
-            setDebugInfo(prev => prev + '\n✅ Recovery code detected, ready to reset password');
-
-            // Store the code for use when user submits password form
-            setPathOtpToken(pkceCode);
-            setIsValidRecovery(true);
-          } catch (codeError) {
-            logger.error('❌ Code handling error:', codeError);
-            setDebugInfo(prev => prev + '\n❌ Code verification failed');
-            toast.error('Your reset link has expired. Please request a new one.');
-            setIsCheckingSession(false);
-            return;
+          } catch (e) {
+            // PKCE exchange failed, but that's ok - we'll verify during submission
+            logger.log('ℹ️ PKCE exchange not available, will verify on submission');
           }
+
+          // Store code for verification during password submission
+          setPathOtpToken(pkceCode);
+          setIsValidRecovery(true);
         }
         else {
-          logger.log('❌ No valid recovery parameters found');
-          setDebugInfo(prev => prev + '\n❌ No valid parameters found');
-          toast.error('Invalid password reset link');
+          logger.log('❌ No recovery parameters found');
+          setDebugInfo(prev => prev + '\n❌ No recovery parameters detected');
         }
 
         setIsCheckingSession(false);
@@ -297,49 +282,6 @@ export default function ResetPassword() {
     );
   }
 
-  // Show debug information if recovery session is invalid
-  if (!isValidRecovery) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.25),transparent)] pointer-events-none" />
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center w-full max-w-2xl"
-        >
-          <h2 className="text-2xl font-bold text-white mb-4">Password Reset Debug</h2>
-          <p className="text-gray-400 mb-6">Analyzing the password reset link...</p>
-          
-          {debugInfo && (
-            <div className="bg-gray-900/80 border border-gray-700 rounded-xl p-4 mb-6 text-left">
-              <h3 className="text-white font-medium mb-2">Debug Information:</h3>
-              <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono bg-gray-800/50 p-3 rounded overflow-auto max-h-96">
-                {debugInfo}
-              </pre>
-            </div>
-          )}
-          
-          <div className="space-y-4">
-            <button 
-              onClick={() => setIsValidRecovery(true)}
-              className="bg-[#37bd7e] text-white px-6 py-2 rounded-xl font-medium hover:bg-[#2da76c] transition-colors"
-            >
-              Force Show Password Reset Form
-            </button>
-            
-            <div>
-              <button 
-                onClick={() => navigate('/auth/forgot-password')}
-                className="bg-gray-700 text-white px-6 py-2 rounded-xl font-medium hover:bg-gray-600 transition-colors"
-              >
-                Request New Reset Link
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
