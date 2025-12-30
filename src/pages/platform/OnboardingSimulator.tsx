@@ -14,7 +14,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { TrialTimeline } from '@/components/platform/simulator/TrialTimeline';
 import { EmailPreview } from '@/components/platform/simulator/EmailPreview';
 import { LivePreview } from '@/components/platform/simulator/LivePreview';
-import { OnboardingFlowSimulator } from '@/components/platform/simulator/OnboardingFlowSimulator';
+import { OnboardingSimulatorWrapper } from '@/components/platform/simulator/OnboardingSimulatorWrapper';
+import { OnboardingVersionControl } from '@/components/platform/simulator/OnboardingVersionControl';
 import { getDefaultTemplate, type EmailTemplate } from '@/lib/services/emailTemplateService';
 import { simulateJourneyDay } from '@/lib/services/enchargeJourneyService';
 import { useAuth } from '@/lib/contexts/AuthContext';
@@ -365,8 +366,11 @@ export default function OnboardingSimulator() {
 
         {/* Interactive Walkthrough Tab */}
         {activeTab === 'walkthrough' && (
-          <div className="mb-8">
-            <OnboardingFlowSimulator />
+          <div className="space-y-6 mb-8">
+            <OnboardingSimulatorWrapper />
+
+            {/* Admin Version Control */}
+            <OnboardingVersionControl />
           </div>
         )}
 

@@ -1,0 +1,197 @@
+/**
+ * EnrichmentLoadingStep
+ *
+ * Animated loading step that shows progressive discovery of company data.
+ * Displays tasks completing as the AI scrapes and analyzes the website.
+ */
+
+import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Check } from 'lucide-react';
+import { useOnboardingV2Store } from '@/lib/stores/onboardingV2Store';
+
+interface EnrichmentLoadingStepProps {
+  domain: string;
+  organizationId: string;
+}
+
+const tasks = [
+  { label: 'Scanning website', threshold: 20 },
+  { label: 'Identifying industry', threshold: 40 },
+  { label: 'Analyzing products', threshold: 60 },
+  { label: 'Finding competitors', threshold: 80 },
+  { label: 'Building profile', threshold: 100 },
+];
+
+export function EnrichmentLoadingStep({ domain, organizationId }: EnrichmentLoadingStepProps) {
+  const [progress, setProgress] = useState(0);
+  const { startEnrichment, enrichment, isEnrichmentLoading, enrichmentError, setStep } = useOnboardingV2Store();
+
+  // Start enrichment on mount
+  useEffect(() => {
+    startEnrichment(organizationId, domain);
+  }, [organizationId, domain, startEnrichment]);
+
+  // Simulate progress while enrichment is running
+  useEffect(() => {
+    if (!isEnrichmentLoading && enrichment?.status === 'completed') {
+      setProgress(100);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        // Cap at 90% until enrichment completes
+        const max = enrichment?.status === 'completed' ? 100 : 90;
+        if (prev >= max) return prev;
+
+        // Adjust speed based on enrichment status
+        let increment = 2;
+        if (enrichment?.status === 'scraping') increment = 1.5;
+        if (enrichment?.status === 'analyzing') increment = 2.5;
+
+        return Math.min(prev + increment, max);
+      });
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [isEnrichmentLoading, enrichment?.status]);
+
+  // Auto-advance when complete
+  useEffect(() => {
+    if (progress >= 100 && enrichment?.status === 'completed') {
+      const timer = setTimeout(() => {
+        setStep('enrichment_result');
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [progress, enrichment?.status, setStep]);
+
+  if (enrichmentError) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="w-full max-w-md mx-auto px-4"
+      >
+        <div className="rounded-2xl shadow-xl border border-gray-800 bg-gray-900 p-8 text-center">
+          <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-6">
+            <span className="text-3xl">⚠️</span>
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Something went wrong</h2>
+          <p className="text-gray-400 mb-6">{enrichmentError}</p>
+          <button
+            onClick={() => startEnrichment(organizationId, domain)}
+            className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className="w-full max-w-md mx-auto px-4"
+    >
+      <div className="rounded-2xl shadow-xl border border-gray-800 bg-gray-900 p-8 sm:p-12 text-center">
+        {/* Progress Circle */}
+        <div className="relative w-24 h-24 mx-auto mb-8">
+          <svg className="w-24 h-24 transform -rotate-90">
+            <circle
+              cx="48"
+              cy="48"
+              r="44"
+              stroke="#374151"
+              strokeWidth="6"
+              fill="none"
+            />
+            <circle
+              cx="48"
+              cy="48"
+              r="44"
+              stroke="url(#gradient)"
+              strokeWidth="6"
+              fill="none"
+              strokeLinecap="round"
+              strokeDasharray={`${(progress / 100) * 276.46} 276.46`}
+              className="transition-all duration-200"
+            />
+            <defs>
+              <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#3b82f6" />
+                <stop offset="100%" stopColor="#8b5cf6" />
+              </linearGradient>
+            </defs>
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-2xl font-bold text-white">{Math.round(progress)}%</span>
+          </div>
+        </div>
+
+        {/* Title */}
+        <h2 className="text-xl font-bold text-white mb-2">
+          Analyzing {domain}
+        </h2>
+        <p className="text-gray-400 mb-8">
+          Learning about your business to customize your assistant...
+        </p>
+
+        {/* Task List */}
+        <div className="space-y-2.5 text-left">
+          {tasks.map((task, i) => {
+            const isDone = progress > task.threshold - 20;
+            return (
+              <div
+                key={i}
+                className={`flex items-center gap-3 py-2 px-3 rounded-lg transition-all ${
+                  isDone
+                    ? 'bg-emerald-900/30 text-emerald-400'
+                    : 'text-gray-500'
+                }`}
+              >
+                {isDone ? (
+                  <Check className="w-4 h-4" />
+                ) : (
+                  <div className="w-4 h-4 rounded-full border-2 border-current" />
+                )}
+                <span className="text-sm font-medium">{task.label}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Progressive Data Preview */}
+        {enrichment && (enrichment.company_name || enrichment.products?.length) && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-6 pt-6 border-t border-gray-800"
+          >
+            {enrichment.company_name && (
+              <p className="text-sm text-gray-400">
+                Found: <span className="text-white font-medium">{enrichment.company_name}</span>
+              </p>
+            )}
+            {enrichment.products && enrichment.products.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2 justify-center">
+                {enrichment.products.slice(0, 3).map((product, i) => (
+                  <span
+                    key={i}
+                    className="px-2 py-0.5 text-xs rounded-md bg-violet-900/50 text-violet-300"
+                  >
+                    {product.name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
