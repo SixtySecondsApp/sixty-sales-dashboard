@@ -18,6 +18,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/clientV2';
 import { Loader2 } from 'lucide-react';
+import { getUserTypeFromEmailAsync } from '@/lib/utils/userTypeUtils';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -371,6 +372,32 @@ export default function AuthCallback() {
         // Double-check email is verified before proceeding to onboarding
         if (!session.user.email_confirmed_at) {
           navigate(`/auth/verify-email?email=${encodeURIComponent(session.user.email || '')}`, { replace: true });
+          return;
+        }
+
+        // Check if user is an internal user (in the internal_users whitelist)
+        // Internal users skip onboarding and go directly to dashboard
+        const userType = await getUserTypeFromEmailAsync(session.user.email);
+        if (userType === 'internal') {
+          console.log('[AuthCallback] Internal user detected, skipping onboarding');
+
+          // Auto-mark onboarding as skipped for internal users
+          try {
+            await supabase
+              .from('user_onboarding_progress')
+              .upsert({
+                user_id: session.user.id,
+                skipped_onboarding: true,
+                onboarding_completed_at: new Date().toISOString(),
+                onboarding_step: 'complete',
+              }, {
+                onConflict: 'user_id',
+              });
+          } catch (skipError) {
+            console.warn('[AuthCallback] Could not mark onboarding as skipped:', skipError);
+          }
+
+          navigate(next, { replace: true });
           return;
         }
 
