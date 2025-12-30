@@ -55,24 +55,26 @@ async function retryWithBackoff<T>(
 
 /**
  * Normalize registration URL to path-only format
- * Strips domain and protocol, keeps only pathname and search params
+ * Strips domain, protocol, and query parameters
  * Examples:
- *   https://www.use60.com/waitlist?ref=MEET-ABC → /waitlist?ref=MEET-ABC
- *   /intro → /intro
+ *   https://www.use60.com/waitlist?ref=MEET-ABC → /waitlist
+ *   /intro?param=value → /intro
+ *   /waitlist → /waitlist
  *   null → null
  */
 function normalizeRegistrationUrl(url: string | null | undefined): string | null {
   if (!url) return null;
 
   try {
-    // If it's already a path (starts with /), return as-is
+    // If it's already a path (starts with /), extract just the pathname part
     if (url.startsWith('/')) {
-      return url;
+      const pathOnly = url.split('?')[0]; // Remove query params
+      return pathOnly || null;
     }
 
     // If it's a full URL, parse it
     const parsed = new URL(url);
-    return parsed.pathname + parsed.search;
+    return parsed.pathname; // Only return pathname, no search params
   } catch {
     // If parsing fails, assume it's already a path or invalid
     // Return null for invalid URLs
