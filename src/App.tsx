@@ -253,7 +253,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/auth/signup" element={<Signup />} />
         <Route path="/auth/verify-email" element={<VerifyEmail />} />
         <Route path="/auth/forgot-password" element={<ForgotPassword />} />
-        <Route path="/auth/reset-password" element={<ResetPassword />} />
+        <Route path="/auth/reset-password/*" element={<ResetPassword />} />
         <Route path="/auth/set-password" element={<SetPassword />} />
         <Route path="/update-password" element={<UpdatePassword />} />
 

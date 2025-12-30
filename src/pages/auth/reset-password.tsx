@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
@@ -12,6 +12,7 @@ export default function ResetPassword() {
   const [isValidRecovery, setIsValidRecovery] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [debugInfo, setDebugInfo] = useState('');
+  const [pathOtpToken, setPathOtpToken] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     password: '',
     confirmPassword: '',
@@ -27,38 +28,45 @@ export default function ResetPassword() {
         const currentUrl = window.location.href;
         const hash = window.location.hash;
         const search = window.location.search;
-        
+        const pathname = window.location.pathname;
+
         logger.log('=== RECOVERY SESSION DEBUG ===');
         logger.log('Current URL:', currentUrl);
+        logger.log('Pathname:', pathname);
         logger.log('Hash params:', hash);
         logger.log('Search params:', search);
-        
-        setDebugInfo(`URL: ${currentUrl}\nHash: ${hash}\nSearch: ${search}`);
-        
+
+        setDebugInfo(`URL: ${currentUrl}\nPathname: ${pathname}\nHash: ${hash}\nSearch: ${search}`);
+
         // Check for both hash and search parameters (different auth flows)
         const hashParams = new URLSearchParams(hash.substring(1));
         const searchParams = new URLSearchParams(search);
-        
+
         const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token');
         const type = hashParams.get('type') || searchParams.get('type');
         const tokenHash = searchParams.get('token_hash');
-        
-        const debugParams = { 
-          accessToken: !!accessToken, 
-          refreshToken: !!refreshToken, 
-          type, 
-          tokenHash: !!tokenHash 
+
+        // Extract potential OTP/token from pathname (Supabase might append it to path)
+        const pathSegments = pathname.split('/').filter(seg => seg && seg !== 'auth' && seg !== 'reset-password');
+        const pathOtpToken = pathSegments.length > 0 ? pathSegments[0] : null;
+
+        const debugParams = {
+          accessToken: !!accessToken,
+          refreshToken: !!refreshToken,
+          type,
+          tokenHash: !!tokenHash,
+          pathOtpToken: !!pathOtpToken
         };
-        
+
         logger.log('Parsed parameters:', debugParams);
         setDebugInfo(prev => prev + '\nParsed: ' + JSON.stringify(debugParams));
-        
+
         // Handle modern Supabase recovery flow with token_hash
         if (type === 'recovery' && tokenHash) {
           logger.log('✅ Modern recovery flow detected with token_hash');
           setDebugInfo(prev => prev + '\n✅ Modern recovery flow detected');
-          
+
           // For recovery links, we just need to verify the token exists
           // We DON'T want to establish the session yet - that happens when password is reset
           logger.log('✅ Valid recovery token detected, showing password reset form');
@@ -69,15 +77,15 @@ export default function ResetPassword() {
         else if (type === 'recovery' && accessToken) {
           logger.log('✅ Legacy recovery flow detected with access_token');
           setDebugInfo(prev => prev + '\n✅ Legacy recovery flow detected');
-          
+
           // Set the session manually for legacy flow
           const { data: { session }, error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken || ''
           });
-          
+
           logger.log('Legacy recovery session:', { session: !!session, error });
-          
+
           if (error || !session) {
             logger.error('❌ Legacy recovery error:', error);
             setDebugInfo(prev => prev + '\n❌ Legacy session failed');
@@ -85,15 +93,27 @@ export default function ResetPassword() {
             setIsCheckingSession(false);
             return;
           }
-          
+
           setIsValidRecovery(true);
           setDebugInfo(prev => prev + '\n✅ Legacy session established');
-        } else {
+        }
+        // Handle Supabase path-based OTP (appended to path)
+        else if (pathOtpToken) {
+          logger.log('✅ Path-based OTP detected:', pathOtpToken);
+          setDebugInfo(prev => prev + '\n✅ Path-based OTP flow detected');
+
+          // OTP is in the path, we can proceed with the form
+          // Store it for when the user submits the password form
+          setPathOtpToken(pathOtpToken);
+          setIsValidRecovery(true);
+          setDebugInfo(prev => prev + '\n✅ Valid recovery token in path, showing form');
+        }
+        else {
           logger.log('❌ No valid recovery parameters found');
           setDebugInfo(prev => prev + '\n❌ No valid parameters found');
           toast.error('Invalid password reset link');
         }
-        
+
         setIsCheckingSession(false);
       } catch (error) {
         logger.error('❌ Recovery check error:', error);
@@ -109,7 +129,7 @@ export default function ResetPassword() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (formData.password !== formData.confirmPassword) {
       toast.error('Passwords do not match');
       return;
@@ -128,13 +148,17 @@ export default function ResetPassword() {
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const tokenHash = searchParams.get('token_hash');
       const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
-      
-      logger.log('Password update attempt:', { tokenHash: !!tokenHash, accessToken: !!accessToken });
+
+      logger.log('Password update attempt:', {
+        tokenHash: !!tokenHash,
+        accessToken: !!accessToken,
+        pathOtpToken: !!pathOtpToken
+      });
 
       // If we have a token_hash, verify the OTP first to establish the session
       if (tokenHash) {
         logger.log('Verifying recovery token before password update...');
-        
+
         const { data, error: verifyError } = await supabase.auth.verifyOtp({
           token_hash: tokenHash,
           type: 'recovery'
@@ -154,6 +178,30 @@ export default function ResetPassword() {
         }
 
         logger.log('✅ Recovery session established, updating password...');
+      }
+      // If we have a path-based OTP token, try to verify it
+      else if (pathOtpToken) {
+        logger.log('Verifying path-based recovery token...');
+
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash: pathOtpToken,
+          type: 'recovery'
+        });
+
+        if (verifyError) {
+          logger.error('Path OTP verification failed:', verifyError);
+          toast.error('Your reset link has expired. Please request a new one.');
+          navigate('/auth/forgot-password');
+          return;
+        }
+
+        if (!data?.session) {
+          logger.error('No session established during path OTP verification');
+          toast.error('Failed to establish session. Please try again.');
+          return;
+        }
+
+        logger.log('✅ Recovery session established from path OTP, updating password...');
       }
 
       // Now update the password
