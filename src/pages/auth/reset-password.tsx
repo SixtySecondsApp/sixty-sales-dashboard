@@ -51,12 +51,16 @@ export default function ResetPassword() {
         const pathSegments = pathname.split('/').filter(seg => seg && seg !== 'auth' && seg !== 'reset-password');
         const pathOtpToken = pathSegments.length > 0 ? pathSegments[0] : null;
 
+        // Extract PKCE code (newer Supabase OAuth flow)
+        const pkceCode = searchParams.get('code');
+
         const debugParams = {
           accessToken: !!accessToken,
           refreshToken: !!refreshToken,
           type,
           tokenHash: !!tokenHash,
-          pathOtpToken: !!pathOtpToken
+          pathOtpToken: !!pathOtpToken,
+          pkceCode: !!pkceCode
         };
 
         logger.log('Parsed parameters:', debugParams);
@@ -107,6 +111,42 @@ export default function ResetPassword() {
           setPathOtpToken(pathOtpToken);
           setIsValidRecovery(true);
           setDebugInfo(prev => prev + '\n✅ Valid recovery token in path, showing form');
+        }
+        // Handle PKCE code exchange (newer Supabase OAuth flow)
+        else if (pkceCode) {
+          logger.log('✅ PKCE code detected, exchanging for session:', pkceCode);
+          setDebugInfo(prev => prev + '\n✅ PKCE code flow detected');
+
+          try {
+            // Exchange the code for a session
+            const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(pkceCode);
+
+            if (exchangeError) {
+              logger.error('❌ Code exchange failed:', exchangeError);
+              setDebugInfo(prev => prev + '\n❌ Code exchange failed');
+              toast.error('Your reset link has expired. Please request a new one.');
+              setIsCheckingSession(false);
+              return;
+            }
+
+            if (!data?.session) {
+              logger.error('❌ No session established after code exchange');
+              setDebugInfo(prev => prev + '\n❌ No session from code exchange');
+              toast.error('Failed to establish session. Please try again.');
+              setIsCheckingSession(false);
+              return;
+            }
+
+            logger.log('✅ PKCE code exchanged successfully, showing password form');
+            setDebugInfo(prev => prev + '\n✅ PKCE session established, showing form');
+            setIsValidRecovery(true);
+          } catch (codeExchangeError) {
+            logger.error('❌ PKCE code exchange error:', codeExchangeError);
+            setDebugInfo(prev => prev + '\n❌ Code exchange exception');
+            toast.error('Your reset link has expired. Please request a new one.');
+            setIsCheckingSession(false);
+            return;
+          }
         }
         else {
           logger.log('❌ No valid recovery parameters found');
@@ -202,6 +242,12 @@ export default function ResetPassword() {
         }
 
         logger.log('✅ Recovery session established from path OTP, updating password...');
+      }
+      // PKCE code was already exchanged during initialization, session is established
+      // No need to re-verify, just update the password
+      else if (window.location.search.includes('code=')) {
+        logger.log('PKCE session already established during initialization');
+        // Session is ready, proceed to password update
       }
 
       // Now update the password
