@@ -42,6 +42,9 @@ export default function AuthCallback() {
         // Get waitlist entry ID from URL or localStorage (URL params might be lost in redirects)
         const waitlistEntryId = searchParams.get('waitlist_entry') || localStorage.getItem('waitlist_entry_id');
         const next = searchParams.get('next') || '/dashboard';
+        // Get invited user's name if provided in URL (from admin invite)
+        const invitedFirstName = searchParams.get('first_name');
+        const invitedLastName = searchParams.get('last_name');
 
         console.log('[AuthCallback] Starting callback processing:', {
           hasCode: !!code,
@@ -192,6 +195,29 @@ export default function AuthCallback() {
         }
 
         if (session?.user) {
+          // If invited user has names in URL, save them to their profile
+          if ((invitedFirstName || invitedLastName) && session.user.id) {
+            try {
+              console.log('[AuthCallback] Saving invited user names to profile:', { invitedFirstName, invitedLastName });
+              const { error: profileError } = await supabase
+                .from('profiles')
+                .update({
+                  first_name: invitedFirstName || null,
+                  last_name: invitedLastName || null,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', session.user.id);
+
+              if (profileError) {
+                console.warn('[AuthCallback] Failed to update profile with names:', profileError);
+              } else {
+                console.log('[AuthCallback] Successfully saved names to profile');
+              }
+            } catch (err) {
+              console.error('[AuthCallback] Error updating profile names:', err);
+            }
+          }
+
           // Check if this is an invitation flow (type=invite or user has invited_at timestamp)
           const isInvitation = type === 'invite' || session.user.invited_at;
 

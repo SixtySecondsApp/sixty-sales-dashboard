@@ -452,10 +452,20 @@ export function useUsers() {
 
   const inviteUser = async (email: string, firstName?: string, lastName?: string) => {
     try {
+      // Encode names in the redirect URL so they persist through the OTP flow
+      // This ensures the names are available in AuthCallback when the user verifies
+      let redirectUrl = `${window.location.origin}/auth/callback`;
+      const params = new URLSearchParams();
+      if (firstName) params.append('first_name', firstName);
+      if (lastName) params.append('last_name', lastName);
+      if (params.toString()) {
+        redirectUrl += `?${params.toString()}`;
+      }
+
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: redirectUrl,
           data: {
             first_name: firstName,
             last_name: lastName,
