@@ -54,6 +54,33 @@ async function retryWithBackoff<T>(
 }
 
 /**
+ * Normalize registration URL to path-only format
+ * Strips domain and protocol, keeps only pathname and search params
+ * Examples:
+ *   https://www.use60.com/waitlist?ref=MEET-ABC → /waitlist?ref=MEET-ABC
+ *   /intro → /intro
+ *   null → null
+ */
+function normalizeRegistrationUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+
+  try {
+    // If it's already a path (starts with /), return as-is
+    if (url.startsWith('/')) {
+      return url;
+    }
+
+    // If it's a full URL, parse it
+    const parsed = new URL(url);
+    return parsed.pathname + parsed.search;
+  } catch {
+    // If parsing fails, assume it's already a path or invalid
+    // Return null for invalid URLs
+    return null;
+  }
+}
+
+/**
  * Format connection errors into user-friendly messages
  */
 function formatConnectionError(error: any): string {
@@ -123,7 +150,7 @@ export async function signupForWaitlist(
     utm_source: data.utm_source || null,
     utm_campaign: data.utm_campaign || null,
     utm_medium: data.utm_medium || null,
-    registration_url: data.registration_url || null,
+    registration_url: normalizeRegistrationUrl(data.registration_url),
   };
 
   // Validate required fields are not empty after trimming

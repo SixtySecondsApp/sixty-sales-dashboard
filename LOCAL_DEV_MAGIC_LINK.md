@@ -47,3 +47,4 @@ If a magic link redirects to the wrong place:
 4. Generate a new magic link from the correct environment
 
 
+

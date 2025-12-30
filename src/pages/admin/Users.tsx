@@ -664,12 +664,17 @@ export default function Users() {
                 e.preventDefault();
                 const formData = new FormData(e.target as HTMLFormElement);
                 if (editingUser.isNew) {
-                  const email = formData.get('email') as string;
-                  const firstName = formData.get('first_name') as string;
-                  const lastName = formData.get('last_name') as string;
+                  const email = (formData.get('email') as string)?.trim();
+                  const firstName = (formData.get('first_name') as string)?.trim();
+                  const lastName = (formData.get('last_name') as string)?.trim();
 
                   if (!email) {
                     toast.error('Email is required');
+                    return;
+                  }
+
+                  if (!firstName || !lastName) {
+                    toast.error('First Name and Last Name are required');
                     return;
                   }
 
@@ -696,6 +701,7 @@ export default function Users() {
                     type="text"
                     name="first_name"
                     defaultValue={editingUser.first_name || ''}
+                    required
                     className="w-full bg-gray-100 dark:bg-gray-800/30 border border-gray-300 dark:border-gray-700/30 rounded-xl px-4 py-2 text-gray-900 dark:text-white"
                   />
                 </div>
@@ -705,6 +711,7 @@ export default function Users() {
                     type="text"
                     name="last_name"
                     defaultValue={editingUser.last_name || ''}
+                    required
                     className="w-full bg-gray-100 dark:bg-gray-800/30 border border-gray-300 dark:border-gray-700/30 rounded-xl px-4 py-2 text-gray-900 dark:text-white"
                   />
                 </div>
@@ -714,6 +721,7 @@ export default function Users() {
                     type="email"
                     name="email"
                     defaultValue={editingUser.email || ''}
+                    required
                     className="w-full bg-gray-100 dark:bg-gray-800/30 border border-gray-300 dark:border-gray-700/30 rounded-xl px-4 py-2 text-gray-900 dark:text-white"
                     readOnly={!editingUser.isNew}
                   />

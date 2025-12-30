@@ -295,3 +295,4 @@ COMMENT ON TABLE encharge_email_templates IS 'Email templates used by encharge-s
 
 
 
+

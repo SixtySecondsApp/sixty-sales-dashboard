@@ -452,12 +452,16 @@ export function useUsers() {
 
   const inviteUser = async (email: string, firstName?: string, lastName?: string) => {
     try {
+      // Trim and normalize names (convert empty strings to undefined/null)
+      const trimmedFirstName = firstName?.trim() || undefined;
+      const trimmedLastName = lastName?.trim() || undefined;
+
       // Encode names in the redirect URL so they persist through the OTP flow
       // This ensures the names are available in AuthCallback when the user verifies
       let redirectUrl = `${window.location.origin}/auth/callback`;
       const params = new URLSearchParams();
-      if (firstName) params.append('first_name', firstName);
-      if (lastName) params.append('last_name', lastName);
+      if (trimmedFirstName) params.append('first_name', trimmedFirstName);
+      if (trimmedLastName) params.append('last_name', trimmedLastName);
       if (params.toString()) {
         redirectUrl += `?${params.toString()}`;
       }
@@ -467,9 +471,11 @@ export function useUsers() {
         options: {
           emailRedirectTo: redirectUrl,
           data: {
-            first_name: firstName,
-            last_name: lastName,
-            full_name: firstName && lastName ? `${firstName} ${lastName}` : undefined,
+            first_name: trimmedFirstName,
+            last_name: trimmedLastName,
+            full_name: trimmedFirstName && trimmedLastName ? `${trimmedFirstName} ${trimmedLastName}` : undefined,
+            // Pass admin ID so invited user is automatically added to admin's organization
+            invited_by_admin_id: userId,
           }
         }
       });
