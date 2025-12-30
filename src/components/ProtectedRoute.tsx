@@ -72,13 +72,19 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
   const isVerifyEmailRoute = location.pathname === '/auth/verify-email';
 
   // Check both hash AND search params for password recovery indicators
-  // Supabase uses different formats: token_hash in search params (modern) or type=recovery in hash (legacy)
+  // Supabase uses different formats:
+  // - token_hash in search params (modern)
+  // - type=recovery in hash (legacy)
+  // - code parameter (PKCE OAuth flow)
+  // - path-based OTP tokens (e.g., /auth/reset-password/oob-code-xxx)
   const searchParams = new URLSearchParams(location.search);
   const hashParams = new URLSearchParams(location.hash.slice(1));
-  const isPasswordRecovery = location.pathname === '/auth/reset-password' && (
+  const isResetPasswordPath = location.pathname === '/auth/reset-password' || location.pathname.startsWith('/auth/reset-password/');
+  const isPasswordRecovery = isResetPasswordPath && (
     location.hash.includes('type=recovery') ||
     searchParams.get('type') === 'recovery' ||
     searchParams.has('token_hash') ||
+    searchParams.has('code') ||
     hashParams.get('type') === 'recovery'
   );
   const isOAuthCallback = location.pathname.includes('/oauth/') || location.pathname.includes('/callback');
