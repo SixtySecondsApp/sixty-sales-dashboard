@@ -136,6 +136,7 @@ export const LogoSettings = lazyWithRetry(() => import('@/pages/settings/LogoSet
 export const SlackSettings = lazyWithRetry(() => import('@/pages/settings/SlackSettings'));
 export const JustCallSettings = lazyWithRetry(() => import('@/pages/settings/JustCallSettings'));
 export const HubSpotSettings = lazyWithRetry(() => import('@/pages/settings/HubSpotSettings'));
+export const BullhornSettings = lazyWithRetry(() => import('@/pages/settings/BullhornSettings'));
 
 // Org Settings (moved from /org routes)
 export const OrgBranding = lazyWithRetry(() => import('@/pages/org/OrgBranding'));

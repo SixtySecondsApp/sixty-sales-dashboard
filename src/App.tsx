@@ -79,7 +79,7 @@ import {
   AccountSettings, AppearanceSettings, AIPersonalizationPage, SalesCoachingPage,
   APIKeysPage, EmailSyncPage, TaskSyncPage, MeetingSyncPage, TeamMembersPage,
   CallTypeSettings, PipelineAutomationSettings, FollowUpSettings, OrganizationSettingsPage,
-  LogoSettings, SlackSettings, JustCallSettings, HubSpotSettings, OrgBranding, OrgBilling,
+  LogoSettings, SlackSettings, JustCallSettings, HubSpotSettings, BullhornSettings, OrgBranding, OrgBilling,
   // Insights
   Insights, Heatmap, SalesFunnel, TeamAnalytics, ContentTopics,
   // Misc
@@ -467,6 +467,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/settings/integrations/justcall" element={<AppLayout><JustCallSettings /></AppLayout>} />
                 {/* HubSpot Settings - visible only when HubSpot is connected (enforced inside page) */}
                 <Route path="/settings/integrations/hubspot" element={<AppLayout><HubSpotSettings /></AppLayout>} />
+                {/* Bullhorn Settings - visible only when Bullhorn is connected (enforced inside page) */}
+                <Route path="/settings/integrations/bullhorn" element={<AppLayout><BullhornSettings /></AppLayout>} />
                 <Route path="/settings/ai" element={<AppLayout><AISettings /></AppLayout>} />
                 <Route path="/settings/extraction-rules" element={<Navigate to="/settings/task-sync" replace />} />
                 <Route path="/settings/task-sync" element={<AppLayout><TaskSyncSettings /></AppLayout>} />

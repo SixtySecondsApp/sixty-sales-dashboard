@@ -125,6 +125,13 @@ const AVAILABLE_PROCESSES: Array<{
   },
   {
     type: 'integration',
+    name: 'bullhorn',
+    label: 'Bullhorn ATS',
+    icon: <Link2 className="h-4 w-4 text-sky-500" />,
+    description: 'Recruitment ATS sync for candidates, placements and jobs',
+  },
+  {
+    type: 'integration',
     name: 'google',
     label: 'Google Workspace',
     icon: <Calendar className="h-4 w-4 text-blue-500" />,
