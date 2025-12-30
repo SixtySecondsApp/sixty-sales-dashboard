@@ -294,3 +294,4 @@ WHERE template_type = 'magic_link_waitlist';
 COMMENT ON TABLE encharge_email_templates IS 'Email templates used by encharge-send-email Edge Function. Templates support {{variable}} replacement.';
 
 
+

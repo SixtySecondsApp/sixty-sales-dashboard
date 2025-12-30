@@ -34,3 +34,4 @@ https://YOUR_PROJECT_REF.functions.supabase.co/generate-magic-link
 If you need a quick fix before deploying, you can temporarily use `signInWithOtp` which will send Supabase's default email, but the magic link will still work. However, this will send TWO emails (Supabase default + our custom one), so it's not ideal.
 
 
+

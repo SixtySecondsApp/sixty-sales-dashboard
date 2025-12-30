@@ -80,3 +80,4 @@ If the magic link still doesn't work:
 4. Verify waitlist_entry_id is in user metadata after magic link verification
 
 
+
