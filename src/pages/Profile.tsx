@@ -120,54 +120,73 @@ export default function Profile() {
     }
   };
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const fileType = file.type.toLowerCase();
+    if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(fileType)) {
+      toast.error('Please upload a valid image file (JPEG, PNG, GIF, or WebP)');
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size must be less than 5MB');
+      return;
+    }
+
+    setUploading(true);
+
     try {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      // Validate file type
-      const fileType = file.type.toLowerCase();
-      if (!['image/jpeg', 'image/png', 'image/gif'].includes(fileType)) {
-        toast.error('Please upload a valid image file (JPEG, PNG, or GIF)');
-        return;
-      }
-
-      // Validate file size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('Image size must be less than 5MB');
-        return;
-      }
-
-      setUploading(true);
-      
-      // Create a simple file upload (you can enhance this later)
+      // Create a unique file name
       const fileExt = file.name.split('.').pop();
-      const fileName = `${user?.id}-${Math.random()}.${fileExt}`;
-      
+      const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
+
+      logger.log('[Profile] Uploading avatar:', { fileName, fileSize: file.size });
+
+      // Upload file to storage
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(fileName, file);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        logger.error('[Profile] Upload error:', uploadError);
+        throw uploadError;
+      }
 
+      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(fileName);
+
+      logger.log('[Profile] File uploaded, URL:', publicUrl);
 
       // Update user profile with new avatar URL
       if (user?.id) {
         const { error: updateError } = await supabase
           .from('profiles')
-          .update({ avatar_url: publicUrl })
+          .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
           .eq('id', user.id);
-          
-        if (updateError) throw updateError;
+
+        if (updateError) {
+          logger.error('[Profile] Profile update error:', updateError);
+          throw updateError;
+        }
       }
-      
+
+      // Invalidate cache so new avatar shows immediately
+      queryClient.invalidateQueries({ queryKey: ['user'] });
+
       toast.success('Profile picture updated successfully');
-    } catch (error) {
-      toast.error('Upload failed');
-      logger.error('[Profile]', error);
+      logger.log('[Profile] Avatar upload completed successfully');
+    } catch (error: any) {
+      logger.error('[Profile] Avatar upload failed:', error);
+      toast.error(error.message || 'Failed to upload image. Please try again.');
+    } finally {
       setUploading(false);
+      // Reset file input so same file can be uploaded again
+      e.target.value = '';
     }
   };
 
