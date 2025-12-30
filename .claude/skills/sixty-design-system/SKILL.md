@@ -134,6 +134,16 @@ export function cn(...inputs: ClassValue[]) {
 - Apply glassmorphism in light mode
 - Exceed `blur(24px)` for performance
 
+## Icons (Lucide React)
+
+**DO:**
+- Use `lucide-react` for all icons
+- Match icon stroke width to text weight context
+- Use semantic icon names that match their purpose
+
+**DON'T:**
+- Use `Sparkles` icon from Lucide - it renders poorly and doesn't match our aesthetic. Use alternatives like `Wand2`, `Stars`, or `Zap` instead
+
 ## Detailed References
 
 For complete specifications, load these as needed:
