@@ -14,20 +14,8 @@ interface CompletionStepProps {
 export function CompletionStep({ onComplete }: CompletionStepProps) {
   const navigate = useNavigate();
   const { user, isAuthenticated, session } = useAuth();
-  const { completeStep } = useOnboardingProgress();
+  const { completeStep, progress } = useOnboardingProgress();
   const [isCompleting, setIsCompleting] = useState(false);
-  const completionAttemptedRef = useRef(false);
-
-  useEffect(() => {
-    // Mark onboarding as complete (only once per mount)
-    if (!completionAttemptedRef.current && user) {
-      completionAttemptedRef.current = true;
-      completeStep('complete').catch((err) => {
-        console.error('Error completing onboarding step:', err);
-        // Don't block the user - they can still proceed
-      });
-    }
-  }, [completeStep, user]);
 
   // Verify session is valid before navigation
   const verifySessionAndNavigate = useCallback(async () => {
@@ -57,12 +45,22 @@ export function CompletionStep({ onComplete }: CompletionStepProps) {
     setIsCompleting(true);
 
     try {
-      // Small delay to allow any pending auth state updates to settle
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Ensure completion is saved to database before navigating
+      // This prevents the race condition where ProtectedRoute sees needsOnboarding=true
+      if (progress?.onboarding_completed_at === null) {
+        console.log('Saving onboarding completion...');
+        await completeStep('complete');
+        // Wait a bit for the real-time subscription to propagate
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+
       navigate('/meetings', { replace: true });
     } catch (error) {
       console.error('Error navigating to meetings:', error);
+      // Fall back to direct navigation even if completion save fails
       window.location.href = '/meetings';
+    } finally {
+      setIsCompleting(false);
     }
   };
 
