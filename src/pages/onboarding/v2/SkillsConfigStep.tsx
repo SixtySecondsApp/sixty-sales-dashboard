@@ -500,7 +500,7 @@ export function SkillsConfigStep() {
             onClick={handleSaveSkill}
             className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium transition-all"
           >
-            {currentSkillIndex === SKILLS.length - 1 ? 'Finish' : 'Save & Next'}
+            {currentSkillIndex === SKILLS.length - 1 ? 'Complete' : 'Save & Next'}
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>

@@ -14,19 +14,11 @@ import {
   ChevronRight,
   ChevronLeft,
   Clock,
-  X,
   Target,
-  Plus,
-  Trash2,
   Database,
   MessageSquare,
   GitBranch,
   UserCheck,
-  Settings,
-  LayoutDashboard,
-  FileText,
-  Mail,
-  Calendar,
   Sparkles,
   Globe,
 } from 'lucide-react';
@@ -34,7 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { EditableItem, EditableTag, AddItemButton } from '@/components/onboarding';
 
-type SimulationStep = 'idle' | 'signup' | 'loading' | 'result' | 'skills' | 'complete';
+type SimulationStep = 'idle' | 'loading' | 'result' | 'skills' | 'complete';
 type SkillId = 'lead_qualification' | 'lead_enrichment' | 'brand_voice' | 'objection_handling' | 'icp';
 type SkillStatus = 'pending' | 'configured' | 'skipped';
 
@@ -46,15 +38,18 @@ const SKILLS = [
   { id: 'icp' as SkillId, name: 'ICP', icon: UserCheck, description: 'Describe your perfect customers' },
 ];
 
-const MOCK_ENRICHMENT = {
-  company_name: 'Acme Corporation',
-  domain: 'acme.com',
+// Mock enrichment data generator based on domain
+const generateMockEnrichment = (domain: string) => ({
+  company_name: domain.replace(/\.(com|io|co|net|org)$/, '').split('.').pop()?.replace(/-/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'Company',
+  domain,
   industry: 'B2B SaaS / Enterprise Software',
   company_size: '50-200 employees',
   products: ['CRM Platform', 'Sales Automation', 'Analytics Dashboard'],
   competitors: ['Salesforce', 'HubSpot', 'Pipedrive'],
   target_market: 'Enterprise sales teams',
-};
+});
+
+const DEFAULT_DOMAIN = 'acme.com';
 
 const MOCK_SKILL_DATA: Record<SkillId, Record<string, unknown>> = {
   lead_qualification: {
@@ -105,29 +100,30 @@ const loadingTasks = [
 
 export function OnboardingFlowSimulatorV2() {
   const [currentStep, setCurrentStep] = useState<SimulationStep>('idle');
-  const [email, setEmail] = useState('demo@acme.com');
+  const [domain, setDomain] = useState(DEFAULT_DOMAIN);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [currentSkillIndex, setCurrentSkillIndex] = useState(0);
   const [skillStatuses, setSkillStatuses] = useState<Record<SkillId, SkillStatus>>(() =>
     Object.fromEntries(SKILLS.map((s) => [s.id, 'pending'])) as Record<SkillId, SkillStatus>
   );
   const [skillData, setSkillData] = useState(MOCK_SKILL_DATA);
+  const [enrichmentData, setEnrichmentData] = useState(() => generateMockEnrichment(DEFAULT_DOMAIN));
 
-  const domain = email.match(/@([^@]+)$/)?.[1] || '';
   const activeSkill = SKILLS[currentSkillIndex];
   const activeConfig = skillData[activeSkill?.id];
 
   const startSimulation = () => {
-    setCurrentStep('signup');
-    resetFormState();
+    setEnrichmentData(generateMockEnrichment(domain));
+    setCurrentStep('loading');
   };
 
   const resetFormState = () => {
-    setEmail('demo@acme.com');
+    setDomain(DEFAULT_DOMAIN);
     setLoadingProgress(0);
     setCurrentSkillIndex(0);
     setSkillStatuses(Object.fromEntries(SKILLS.map((s) => [s.id, 'pending'])) as Record<SkillId, SkillStatus>);
     setSkillData(MOCK_SKILL_DATA);
+    setEnrichmentData(generateMockEnrichment(DEFAULT_DOMAIN));
   };
 
   const resetSimulation = () => {
@@ -152,10 +148,6 @@ export function OnboardingFlowSimulatorV2() {
 
     return () => clearInterval(interval);
   }, [currentStep]);
-
-  const handleSignupContinue = () => {
-    setCurrentStep('loading');
-  };
 
   const handleResultContinue = () => {
     setCurrentStep('skills');
@@ -209,11 +201,33 @@ export function OnboardingFlowSimulatorV2() {
               <Sparkles className="w-10 h-10 text-violet-500" />
             </div>
             <h3 className="text-lg font-semibold mb-2">Start V2 Simulation</h3>
-            <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-              Walk through the new skills-based onboarding that uses AI to analyze your company
-              and generate customized skill configurations.
+            <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+              Enter a company website to test how the AI analyzes different companies
+              and generates customized skill configurations.
             </p>
-            <Button onClick={startSimulation} className="bg-violet-600 hover:bg-violet-700">
+
+            {/* Website Input */}
+            <div className="max-w-sm mx-auto mb-6">
+              <div className="relative">
+                <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0])}
+                  placeholder="company.com"
+                  className="w-full pl-10 pr-4 py-3 rounded-lg border bg-background text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Enter any company domain to simulate the enrichment experience
+              </p>
+            </div>
+
+            <Button
+              onClick={startSimulation}
+              className="bg-violet-600 hover:bg-violet-700"
+              disabled={!domain || domain.length < 3}
+            >
               <Play className="w-4 h-4 mr-2" />
               Start Walkthrough
             </Button>
@@ -231,10 +245,9 @@ export function OnboardingFlowSimulatorV2() {
           <div>
             <CardTitle className="text-lg">V2 Skills Onboarding Simulation</CardTitle>
             <CardDescription>
-              {currentStep === 'signup' && 'Step 1 - Enter your email'}
-              {currentStep === 'loading' && 'Step 2 - AI analyzing your company'}
-              {currentStep === 'result' && 'Step 3 - Review discovered information'}
-              {currentStep === 'skills' && `Step 4 - Configure skills (${currentSkillIndex + 1}/${SKILLS.length})`}
+              {currentStep === 'loading' && 'Step 1 - AI analyzing your company'}
+              {currentStep === 'result' && 'Step 2 - Review discovered information'}
+              {currentStep === 'skills' && `Step 3 - Configure skills (${currentSkillIndex + 1}/${SKILLS.length})`}
               {currentStep === 'complete' && 'Complete!'}
             </CardDescription>
           </div>
@@ -248,61 +261,6 @@ export function OnboardingFlowSimulatorV2() {
       <CardContent>
         <div className="bg-gray-950 rounded-xl p-6 min-h-[500px] relative overflow-hidden">
           <AnimatePresence mode="wait">
-            {/* Signup Step */}
-            {currentStep === 'signup' && (
-              <motion.div
-                key="signup"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="w-full max-w-md mx-auto px-4"
-              >
-                <div className="rounded-2xl border border-gray-800 bg-gray-900 p-6 sm:p-8">
-                  <div className="text-center mb-8">
-                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/25">
-                      <Sparkles className="w-7 h-7 text-white" />
-                    </div>
-                    <h1 className="text-2xl font-bold text-white">Get started with use60</h1>
-                    <p className="mt-2 text-gray-400">Enter your work email to begin</p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-2 text-gray-300">Work email</label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                        <input
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="w-full pl-10 pr-4 py-3.5 rounded-xl bg-gray-800 border-gray-700 text-white placeholder-gray-500 border focus:ring-2 focus:ring-blue-500"
-                          placeholder="you@company.com"
-                        />
-                      </div>
-                    </div>
-
-                    {domain && (
-                      <div className="flex items-center gap-2 p-3.5 rounded-xl border bg-blue-900/20 border-blue-800 text-blue-300">
-                        <Globe className="w-4 h-4" />
-                        <span className="text-sm">
-                          We'll use <span className="font-semibold">{domain}</span> to customize your assistant
-                        </span>
-                      </div>
-                    )}
-
-                    <Button
-                      onClick={handleSignupContinue}
-                      disabled={!email.includes('@')}
-                      className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700"
-                    >
-                      Continue
-                      <ChevronRight className="w-4 h-4 ml-2" />
-                    </Button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
             {/* Loading Step */}
             {currentStep === 'loading' && (
               <motion.div
@@ -377,7 +335,7 @@ export function OnboardingFlowSimulatorV2() {
                         <Check className="w-4 h-4 text-white" />
                       </div>
                       <div>
-                        <h2 className="font-bold text-white">We found {MOCK_ENRICHMENT.company_name}</h2>
+                        <h2 className="font-bold text-white">We found {enrichmentData.company_name}</h2>
                         <p className="text-violet-100 text-sm">Here's what we learned</p>
                       </div>
                     </div>
@@ -388,18 +346,18 @@ export function OnboardingFlowSimulatorV2() {
                       <div className="space-y-3">
                         <div>
                           <p className="text-xs font-medium uppercase tracking-wide mb-0.5 text-gray-500">Company</p>
-                          <p className="font-medium text-white">{MOCK_ENRICHMENT.company_name}</p>
+                          <p className="font-medium text-white">{enrichmentData.company_name}</p>
                         </div>
                         <div>
                           <p className="text-xs font-medium uppercase tracking-wide mb-0.5 text-gray-500">Industry</p>
-                          <p className="font-medium text-sm text-white">{MOCK_ENRICHMENT.industry}</p>
+                          <p className="font-medium text-sm text-white">{enrichmentData.industry}</p>
                         </div>
                       </div>
                       <div className="space-y-3">
                         <div>
                           <p className="text-xs font-medium uppercase tracking-wide mb-0.5 text-gray-500">Products</p>
                           <div className="flex flex-wrap gap-1">
-                            {MOCK_ENRICHMENT.products.map((p, i) => (
+                            {enrichmentData.products.map((p, i) => (
                               <span key={i} className="px-2 py-0.5 text-xs rounded-md bg-violet-900/50 text-violet-300">{p}</span>
                             ))}
                           </div>
@@ -407,7 +365,7 @@ export function OnboardingFlowSimulatorV2() {
                         <div>
                           <p className="text-xs font-medium uppercase tracking-wide mb-0.5 text-gray-500">Competitors</p>
                           <div className="flex flex-wrap gap-1">
-                            {MOCK_ENRICHMENT.competitors.map((c, i) => (
+                            {enrichmentData.competitors.map((c, i) => (
                               <span key={i} className="px-2 py-0.5 text-xs rounded-md bg-gray-800 text-gray-300">{c}</span>
                             ))}
                           </div>
@@ -574,7 +532,7 @@ export function OnboardingFlowSimulatorV2() {
                       </button>
                     </div>
                     <Button onClick={handleSaveSkill} className="bg-violet-600 hover:bg-violet-700">
-                      {currentSkillIndex === SKILLS.length - 1 ? 'Finish' : 'Save & Next'}
+                      {currentSkillIndex === SKILLS.length - 1 ? 'Complete' : 'Save & Next'}
                       <ChevronRight className="w-4 h-4 ml-2" />
                     </Button>
                   </div>
@@ -602,7 +560,7 @@ export function OnboardingFlowSimulatorV2() {
 
                   <h2 className="text-2xl font-bold mb-3 text-white">Your Sales Assistant is Ready</h2>
                   <p className="mb-8 text-gray-400">
-                    We've trained your AI on <span className="font-semibold text-white">{MOCK_ENRICHMENT.company_name}</span>'s way of selling.
+                    We've trained your AI on <span className="font-semibold text-white">{enrichmentData.company_name}</span>'s way of selling.
                   </p>
 
                   <div className="rounded-xl p-5 mb-8 bg-gray-800">

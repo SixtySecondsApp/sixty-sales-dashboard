@@ -12,16 +12,23 @@ import {
   Settings,
   LayoutDashboard,
   FileText,
-  Mail,
   Calendar,
+  Video,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useOnboardingV2Store, SKILLS, SkillId } from '@/lib/stores/onboardingV2Store';
 
-const nextSteps = [
-  { icon: FileText, text: 'Connect your CRM to sync contacts' },
-  { icon: Mail, text: 'Import your email templates' },
-  { icon: Calendar, text: 'Set up your meeting calendar' },
+interface NextStepItem {
+  icon: typeof FileText;
+  text: string;
+  route: string;
+}
+
+const nextSteps: NextStepItem[] = [
+  { icon: FileText, text: 'Connect your CRM to sync contacts', route: '/integrations' },
+  { icon: Calendar, text: 'Connect your calendar', route: '/integrations' },
+  { icon: Video, text: 'Connect your meetings', route: '/integrations' },
+  { icon: LayoutDashboard, text: 'View dashboard', route: '/dashboard' },
 ];
 
 export function CompletionStep() {
@@ -127,16 +134,17 @@ export function CompletionStep() {
           {nextSteps.map((item, i) => {
             const Icon = item.icon;
             return (
-              <div
+              <button
                 key={i}
-                className="flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer text-gray-400 hover:bg-gray-800"
+                onClick={() => navigate(item.route)}
+                className="w-full flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer text-gray-400 hover:bg-gray-800 hover:text-white"
               >
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-gray-800">
                   <Icon className="w-4 h-4 text-gray-400" />
                 </div>
                 <span className="text-sm font-medium">{item.text}</span>
                 <ChevronRight className="w-4 h-4 ml-auto text-gray-600" />
-              </div>
+              </button>
             );
           })}
         </div>
