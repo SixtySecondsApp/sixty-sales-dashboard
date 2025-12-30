@@ -14,11 +14,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { TrialTimeline } from '@/components/platform/simulator/TrialTimeline';
 import { EmailPreview } from '@/components/platform/simulator/EmailPreview';
 import { LivePreview } from '@/components/platform/simulator/LivePreview';
+import { OnboardingFlowSimulator } from '@/components/platform/simulator/OnboardingFlowSimulator';
 import { getDefaultTemplate, type EmailTemplate } from '@/lib/services/emailTemplateService';
 import { simulateJourneyDay } from '@/lib/services/enchargeJourneyService';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import type { TrialTimelineData, TrialStatus } from '@/components/platform/simulator/types';
-import { RotateCcw, Calendar, Mail, Eye, Send, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { RotateCcw, Calendar, Mail, Eye, Send, Loader2, CheckCircle2, AlertCircle, Play, Clock } from 'lucide-react';
 
 // Sample subscription data for simulation
 const TRIAL_DAYS = 14;
@@ -199,6 +200,7 @@ function generateTimelineData(): TrialTimelineData {
 
 export default function OnboardingSimulator() {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'walkthrough' | 'timeline'>('walkthrough');
   const [currentDay, setCurrentDay] = useState<number>(0);
   const [timelineData] = useState<TrialTimelineData>(() => generateTimelineData());
   const [selectedEmailTemplate, setSelectedEmailTemplate] = useState<EmailTemplate | null>(null);
@@ -326,60 +328,98 @@ export default function OnboardingSimulator() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Onboarding Timeline Simulator
+                Onboarding Simulator
               </h1>
               <p className="text-gray-600 dark:text-gray-400 mt-2">
-                Simulate and visualize the complete free trial journey for new users
+                Test and visualize the complete onboarding and trial journey
               </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => resetToDay(0)}
-                className="flex items-center gap-2"
-              >
-                <RotateCcw className="w-4 h-4" />
-                Reset to Day 0
-              </Button>
             </div>
           </div>
 
-          {/* Day Selector */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
-                Simulate Trial Day
-              </CardTitle>
-              <CardDescription>
-                Drag the slider to simulate different days in the trial period
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <Slider
-                  value={[currentDay]}
-                  onValueChange={handleDayChange}
-                  min={0}
-                  max={15}
-                  step={1}
-                  className="w-full"
-                />
-                <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                  <span>Day 0 (Signup)</span>
-                  <span className="font-semibold text-blue-600 dark:text-blue-400">
-                    Day {currentDay} (Current)
-                  </span>
-                  <span>Day 15+ (Expired)</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Top-level Mode Tabs */}
+          <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
+            <button
+              onClick={() => setActiveTab('walkthrough')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'walkthrough'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Play className="w-4 h-4" />
+              Interactive Walkthrough
+            </button>
+            <button
+              onClick={() => setActiveTab('timeline')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'timeline'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              Trial Timeline
+            </button>
+          </div>
         </div>
 
-        {/* Main Content - Two-column layout on desktop - Use lg: breakpoint for better desktop experience */}
-        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mb-8 w-full min-w-0">
+        {/* Interactive Walkthrough Tab */}
+        {activeTab === 'walkthrough' && (
+          <div className="mb-8">
+            <OnboardingFlowSimulator />
+          </div>
+        )}
+
+        {/* Timeline Tab */}
+        {activeTab === 'timeline' && (
+          <>
+            {/* Day Selector */}
+            <div className="mb-8">
+              <div className="flex items-center justify-end mb-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => resetToDay(0)}
+                  className="flex items-center gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Reset to Day 0
+                </Button>
+              </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5" />
+                    Simulate Trial Day
+                  </CardTitle>
+                  <CardDescription>
+                    Drag the slider to simulate different days in the trial period
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <Slider
+                      value={[currentDay]}
+                      onValueChange={handleDayChange}
+                      min={0}
+                      max={15}
+                      step={1}
+                      className="w-full"
+                    />
+                    <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                      <span>Day 0 (Signup)</span>
+                      <span className="font-semibold text-blue-600 dark:text-blue-400">
+                        Day {currentDay} (Current)
+                      </span>
+                      <span>Day 15+ (Expired)</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Main Content - Two-column layout on desktop - Use lg: breakpoint for better desktop experience */}
+            <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mb-8 w-full min-w-0">
           {/* Left Column - Timeline (2/3 width) */}
           <div className="min-w-0 w-full">
             <TrialTimeline
@@ -519,18 +559,20 @@ export default function OnboardingSimulator() {
           </div>
         </div>
 
-        {/* Trial Status JSON Debug Panel */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Trial Status (Debug)</CardTitle>
-            <CardDescription>Current trial status calculation for Day {currentDay}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-auto text-xs">
-              {JSON.stringify(currentTrialStatus, null, 2)}
-            </pre>
-          </CardContent>
-        </Card>
+            {/* Trial Status JSON Debug Panel */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Trial Status (Debug)</CardTitle>
+                <CardDescription>Current trial status calculation for Day {currentDay}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-auto text-xs">
+                  {JSON.stringify(currentTrialStatus, null, 2)}
+                </pre>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     </div>
   );

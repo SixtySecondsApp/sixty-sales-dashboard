@@ -192,7 +192,7 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
 
   const handleJoinOrg = async () => {
     if (!selectedOrgId) {
-      setError('Please select an organization to join');
+      setError('Please select a team to join');
       return;
     }
 
@@ -200,7 +200,7 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
     setError(null);
 
     try {
-      // Request to join the organization
+      // Request to join the team
       const { error: joinError } = await supabase
         .from('organization_memberships')
         .insert({
@@ -212,21 +212,21 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
       if (joinError) {
         if (joinError.code === '23505') {
           // Already a member
-          toast.info('You are already a member of this organization');
+          toast.info('You are already a member of this team');
         } else {
           throw joinError;
         }
       } else {
-        toast.success('Joined organization successfully!');
+        toast.success('Joined team successfully!');
       }
 
       // Refresh organizations to get the new membership
       await refreshOrgs();
       onNext();
     } catch (err: any) {
-      console.error('Error joining organization:', err);
-      setError(err.message || 'Failed to join organization');
-      toast.error('Failed to join organization');
+      console.error('Error joining team:', err);
+      setError(err.message || 'Failed to join team');
+      toast.error('Failed to join team');
     } finally {
       setIsUpdating(false);
     }
@@ -234,12 +234,12 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
 
   const handleCreateOrg = async () => {
     if (!orgName.trim()) {
-      setError('Organization name is required');
+      setError('Team name is required');
       return;
     }
 
     if (orgName.trim().length > 100) {
-      setError('Organization name must be 100 characters or less');
+      setError('Team name must be 100 characters or less');
       return;
     }
 
@@ -250,15 +250,21 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
       const newOrg = await createOrg(orgName.trim());
 
       if (!newOrg) {
-        throw new Error('Failed to create organization');
+        throw new Error('Failed to create team');
       }
 
-      toast.success('Organization created!');
+      toast.success('Team created!');
       onNext();
     } catch (err: any) {
-      console.error('Error creating organization:', err);
-      setError(err.message || 'Failed to create organization');
-      toast.error('Failed to create organization');
+      console.error('Error creating team:', err);
+      // Handle duplicate name error (PostgreSQL unique constraint violation)
+      if (err.code === '23505' || err.message?.includes('duplicate') || err.message?.includes('unique')) {
+        setError('This team name is already taken. Please choose a different name.');
+        toast.error('Team name already exists');
+      } else {
+        setError(err.message || 'Failed to create team');
+        toast.error('Failed to create team');
+      }
     } finally {
       setIsUpdating(false);
     }
@@ -266,12 +272,12 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
 
   const handleUpdateOrgName = async () => {
     if (!orgName.trim()) {
-      setError('Organization name is required');
+      setError('Team name is required');
       return;
     }
 
     if (orgName.trim().length > 100) {
-      setError('Organization name must be 100 characters or less');
+      setError('Team name must be 100 characters or less');
       return;
     }
 
@@ -297,16 +303,22 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
           throw response.error;
         }
       } else if (response.data && response.data.length > 0 && !response.data[0].success) {
-        throw new Error(response.data[0].error_message || 'Failed to update organization');
+        throw new Error(response.data[0].error_message || 'Failed to update team');
       }
 
       await refreshOrgs();
-      toast.success('Organization updated!');
+      toast.success('Team updated!');
       onNext();
     } catch (err: any) {
-      console.error('Error updating organization:', err);
-      setError(err.message || 'Failed to update organization name');
-      toast.error('Failed to update organization name');
+      console.error('Error updating team:', err);
+      // Handle duplicate name error (PostgreSQL unique constraint violation)
+      if (err.code === '23505' || err.message?.includes('duplicate') || err.message?.includes('unique')) {
+        setError('This team name is already taken. Please choose a different name.');
+        toast.error('Team name already exists');
+      } else {
+        setError(err.message || 'Failed to update team name');
+        toast.error('Failed to update team name');
+      }
     } finally {
       setIsUpdating(false);
     }
@@ -316,11 +328,13 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
     if (selectedOption === 'join' && selectedOrgId) {
       await handleJoinOrg();
     } else if (!activeOrg) {
-      // Organization should already be created by trigger, but if not, create it
+      // Team should already be created by trigger, but if not, create it
       await handleCreateOrg();
+    } else if (activeOrg.name !== orgName.trim()) {
+      // User changed the team name, update it
+      await handleUpdateOrgName();
     } else {
-      // Organization already exists (created by trigger with waitlist company_name)
-      // Just continue to next step
+      // Team already exists with same name, just continue
       onNext();
     }
   };
@@ -364,19 +378,19 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
           {showChoiceUI
             ? 'Join Your Team'
             : showJoinUI
-            ? 'Select Organization'
+            ? 'Select Team'
             : isCreatingNew
-            ? 'Create Your Organization'
-            : 'Set Up Your Organization'}
+            ? 'Pick your team name'
+            : 'Pick your team name'}
         </h1>
         <p className="text-lg text-gray-400">
           {showChoiceUI
-            ? `We found existing organizations from ${userDomain}`
+            ? `We found existing teams from ${userDomain}`
             : showJoinUI
-            ? 'Choose the organization you want to join'
+            ? 'Choose the team you want to join'
             : isCreatingNew
-            ? 'Name your workspace where your team will collaborate'
-            : 'Your workspace where your team collaborates and shares data'}
+            ? 'This is where your team will collaborate'
+            : 'This will be visible to everyone you invite'}
         </p>
       </div>
 
@@ -400,10 +414,10 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
                 </div>
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-white group-hover:text-[#37bd7e] transition-colors">
-                    Join Existing Organization
+                    Join Existing Team
                   </h3>
                   <p className="text-sm text-gray-400 mt-1">
-                    {matchingOrgs.length} organization{matchingOrgs.length > 1 ? 's' : ''} found with @{userDomain} members
+                    {matchingOrgs.length} team{matchingOrgs.length > 1 ? 's' : ''} found with @{userDomain} members
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {matchingOrgs.slice(0, 3).map((org) => (
@@ -434,7 +448,7 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
                 </div>
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-white group-hover:text-[#37bd7e] transition-colors">
-                    Create New Organization
+                    Create New Team
                   </h3>
                   <p className="text-sm text-gray-400 mt-1">
                     Start fresh with your own workspace and invite your team later
@@ -488,7 +502,7 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
               onClick={() => setSelectedOption('create')}
               className="text-sm text-gray-400 hover:text-white transition-colors"
             >
-              Or create a new organization instead
+              Or create a new team instead
             </button>
           </motion.div>
         )}
@@ -505,14 +519,20 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-2">
-                    Organization Name
+                    Team name
                   </label>
-                  <div className="w-full bg-gray-700/30 border border-gray-600 rounded-lg px-4 py-3 text-white">
-                    {orgName || 'Loading...'}
-                  </div>
-                  <p className="mt-2 text-xs text-gray-500">
-                    Your organization name was set from your waitlist registration. This will be visible to all team members you invite.
-                  </p>
+                  <input
+                    type="text"
+                    value={orgName}
+                    onChange={(e) => {
+                      setOrgName(e.target.value);
+                      setError(null);
+                    }}
+                    placeholder="e.g., Acme Sales Team"
+                    className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-700/70"
+                    disabled={isUpdating}
+                    maxLength={100}
+                  />
                 </div>
 
                 {error && (
@@ -536,13 +556,13 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
                 }}
                 className="text-sm text-gray-400 hover:text-white transition-colors mb-6 block mx-auto"
               >
-                Or join an existing organization instead
+                Or join an existing team instead
               </button>
             )}
 
             <div className="bg-gray-900/30 backdrop-blur-sm rounded-xl border border-gray-800/30 p-6 mb-8">
               <h3 className="text-sm font-medium text-gray-300 mb-4">
-                What you'll get with your organization:
+                What you'll get with your team:
               </h3>
               <ul className="space-y-3">
                 {[
@@ -615,9 +635,9 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
                 {showJoinUI ? 'Joining...' : isCreatingNew ? 'Creating...' : 'Saving...'}
               </>
             ) : showJoinUI ? (
-              'Join Organization'
+              'Join Team'
             ) : isCreatingNew ? (
-              'Create Organization'
+              'Create Team'
             ) : (
               'Continue'
             )}

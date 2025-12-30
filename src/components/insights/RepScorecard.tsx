@@ -179,17 +179,17 @@ export function RepScorecard({ userId, repUserId }: RepScorecardProps) {
               <div className="flex items-center gap-2">
                 {getComparisonIcon(rep.avg_coach_rating, teamAverage.avgCoachRating)}
                 <span className={`text-sm font-semibold ${getComparisonColor(rep.avg_coach_rating, teamAverage.avgCoachRating)}`}>
-                  {rep.avg_coach_rating.toFixed(1)}/5
+                  {rep.avg_coach_rating.toFixed(1)}/10
                 </span>
               </div>
             </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
                 <span>You</span>
-                <span>Team Avg: {teamAverage.avgCoachRating.toFixed(1)}/5</span>
+                <span>Team Avg: {teamAverage.avgCoachRating.toFixed(1)}/10</span>
               </div>
-              <Progress 
-                value={(rep.avg_coach_rating / 5) * 100} 
+              <Progress
+                value={(rep.avg_coach_rating / 10) * 100}
                 className="h-2"
               />
             </div>

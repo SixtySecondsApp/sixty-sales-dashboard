@@ -104,12 +104,12 @@ export default function Login() {
             </motion.a>
 
             <div className="flex items-center gap-3 sm:gap-4">
-              <Link
-                to="/learnmore"
+              <a
+                href="https://use60.com/learnmore"
                 className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-200 hidden sm:block"
               >
                 Learn More
-              </Link>
+              </a>
             </div>
           </div>
         </div>

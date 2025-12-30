@@ -5,6 +5,10 @@
 
 import { supabase } from '@/lib/supabase/clientV2';
 
+// =============================================================================
+// Existing Types (backwards compatible)
+// =============================================================================
+
 export interface TeamMemberMetrics {
   user_id: string;
   full_name: string;
@@ -35,6 +39,125 @@ export interface LeaderboardEntry {
   value: number;
   rank: number;
   trend?: 'up' | 'down' | 'stable';
+}
+
+// =============================================================================
+// New Types for Enhanced Analytics
+// =============================================================================
+
+export type TimePeriod = 7 | 30 | 90;
+export type Granularity = 'day' | 'week';
+
+/** Team aggregates with period-over-period comparison */
+export interface TeamAggregatesWithComparison {
+  current: {
+    totalMeetings: number;
+    avgSentiment: number | null;
+    avgTalkTime: number | null;
+    avgCoachRating: number | null;
+    positiveCount: number;
+    negativeCount: number;
+    totalDuration: number | null;
+    teamMembers: number;
+    forwardMovementCount: number;
+    objectionCount: number;
+    positiveOutcomeCount: number;
+  };
+  previous: {
+    totalMeetings: number;
+    avgSentiment: number | null;
+    avgTalkTime: number | null;
+    avgCoachRating: number | null;
+    positiveCount: number;
+    forwardMovementCount: number;
+    positiveOutcomeCount: number;
+  };
+  changes: {
+    meetingsChangePct: number | null;
+    sentimentChangePct: number | null;
+    talkTimeChangePct: number | null;
+    coachRatingChangePct: number | null;
+    forwardMovementChangePct: number | null;
+    positiveOutcomeChangePct: number | null;
+  };
+}
+
+/** Time series data point for charts */
+export interface TimeSeriesDataPoint {
+  periodStart: string;
+  userId: string;
+  userName: string;
+  meetingCount: number;
+  avgSentiment: number | null;
+  avgTalkTime: number | null;
+  avgCoachRating: number | null;
+  positiveCount: number;
+  negativeCount: number;
+  forwardMovementCount: number;
+  totalDuration: number | null;
+}
+
+/** Quality signals per rep */
+export interface RepQualitySignals {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  totalMeetings: number;
+  classifiedMeetings: number;
+  forwardMovementCount: number;
+  forwardMovementRate: number | null;
+  objectionCount: number;
+  objectionRate: number | null;
+  competitorMentionCount: number;
+  pricingDiscussionCount: number;
+  positiveOutcomeCount: number;
+  negativeOutcomeCount: number;
+  neutralOutcomeCount: number;
+  positiveOutcomeRate: number | null;
+  avgSentiment: number | null;
+  avgTalkTime: number | null;
+  avgCoachRating: number | null;
+}
+
+/** Meeting summary for drill-down */
+export interface MeetingSummary {
+  meetingId: string;
+  title: string | null;
+  meetingDate: string;
+  ownerUserId: string;
+  ownerName: string;
+  companyName: string | null;
+  sentimentScore: number | null;
+  talkTimePct: number | null;
+  outcome: string | null;
+  hasForwardMovement: boolean | null;
+  hasObjection: boolean | null;
+  durationMinutes: number | null;
+}
+
+/** Drill-down metric types */
+export type DrillDownMetricType =
+  | 'all'
+  | 'positive_sentiment'
+  | 'negative_sentiment'
+  | 'forward_movement'
+  | 'objection'
+  | 'positive_outcome'
+  | 'negative_outcome';
+
+/** Rep comparison data for matrix */
+export interface RepComparisonData {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  avatarUrl: string | null;
+  totalMeetings: number;
+  avgSentiment: number | null;
+  avgTalkTime: number | null;
+  avgCoachRating: number | null;
+  forwardMovementRate: number | null;
+  positiveOutcomeRate: number | null;
+  trendData: Array<{ date: string; count: number; sentiment: number | null }>;
 }
 
 export class TeamAnalyticsService {
@@ -231,7 +354,7 @@ export class TeamAnalyticsService {
     try {
       const metrics = await this.getTeamMetrics(userId, orgId);
       const aggregates = await this.getTeamAggregates(userId, orgId);
-      
+
       const rep = metrics.find(m => m.user_id === repUserId) || null;
 
       return {
@@ -245,6 +368,324 @@ export class TeamAnalyticsService {
       };
     } catch (error) {
       console.error('Error fetching rep comparison:', error);
+      throw error;
+    }
+  }
+
+  // =============================================================================
+  // NEW: Enhanced Analytics Methods
+  // =============================================================================
+
+  /**
+   * Get team aggregates with period-over-period comparison
+   */
+  static async getTeamAggregatesWithComparison(
+    orgId: string,
+    periodDays: TimePeriod = 30
+  ): Promise<TeamAggregatesWithComparison> {
+    try {
+      const { data, error } = await supabase.rpc('get_team_aggregates_with_comparison', {
+        p_org_id: orgId,
+        p_period_days: periodDays,
+      });
+
+      if (error) throw error;
+
+      const row = data?.[0];
+      if (!row) {
+        // Return empty data structure if no results
+        return {
+          current: {
+            totalMeetings: 0,
+            avgSentiment: null,
+            avgTalkTime: null,
+            avgCoachRating: null,
+            positiveCount: 0,
+            negativeCount: 0,
+            totalDuration: null,
+            teamMembers: 0,
+            forwardMovementCount: 0,
+            objectionCount: 0,
+            positiveOutcomeCount: 0,
+          },
+          previous: {
+            totalMeetings: 0,
+            avgSentiment: null,
+            avgTalkTime: null,
+            avgCoachRating: null,
+            positiveCount: 0,
+            forwardMovementCount: 0,
+            positiveOutcomeCount: 0,
+          },
+          changes: {
+            meetingsChangePct: null,
+            sentimentChangePct: null,
+            talkTimeChangePct: null,
+            coachRatingChangePct: null,
+            forwardMovementChangePct: null,
+            positiveOutcomeChangePct: null,
+          },
+        };
+      }
+
+      return {
+        current: {
+          totalMeetings: Number(row.current_total_meetings) || 0,
+          avgSentiment: row.current_avg_sentiment,
+          avgTalkTime: row.current_avg_talk_time,
+          avgCoachRating: row.current_avg_coach_rating,
+          positiveCount: Number(row.current_positive_count) || 0,
+          negativeCount: Number(row.current_negative_count) || 0,
+          totalDuration: row.current_total_duration,
+          teamMembers: Number(row.current_team_members) || 0,
+          forwardMovementCount: Number(row.current_forward_movement_count) || 0,
+          objectionCount: Number(row.current_objection_count) || 0,
+          positiveOutcomeCount: Number(row.current_positive_outcome_count) || 0,
+        },
+        previous: {
+          totalMeetings: Number(row.previous_total_meetings) || 0,
+          avgSentiment: row.previous_avg_sentiment,
+          avgTalkTime: row.previous_avg_talk_time,
+          avgCoachRating: row.previous_avg_coach_rating,
+          positiveCount: Number(row.previous_positive_count) || 0,
+          forwardMovementCount: Number(row.previous_forward_movement_count) || 0,
+          positiveOutcomeCount: Number(row.previous_positive_outcome_count) || 0,
+        },
+        changes: {
+          meetingsChangePct: row.meetings_change_pct,
+          sentimentChangePct: row.sentiment_change_pct,
+          talkTimeChangePct: row.talk_time_change_pct,
+          coachRatingChangePct: row.coach_rating_change_pct,
+          forwardMovementChangePct: row.forward_movement_change_pct,
+          positiveOutcomeChangePct: row.positive_outcome_change_pct,
+        },
+      };
+    } catch (error) {
+      console.error('Error fetching team aggregates with comparison:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get time series metrics for trend charts
+   */
+  static async getTimeSeriesMetrics(params: {
+    orgId: string;
+    periodDays: TimePeriod;
+    granularity: Granularity;
+    userId?: string;
+  }): Promise<TimeSeriesDataPoint[]> {
+    try {
+      const { data, error } = await supabase.rpc('get_team_time_series_metrics', {
+        p_org_id: params.orgId,
+        p_period_days: params.periodDays,
+        p_granularity: params.granularity,
+        p_user_id: params.userId || null,
+      });
+
+      if (error) throw error;
+
+      return (data || []).map((row: Record<string, unknown>) => ({
+        periodStart: row.period_start as string,
+        userId: row.user_id as string,
+        userName: row.user_name as string,
+        meetingCount: Number(row.meeting_count) || 0,
+        avgSentiment: row.avg_sentiment as number | null,
+        avgTalkTime: row.avg_talk_time as number | null,
+        avgCoachRating: row.avg_coach_rating as number | null,
+        positiveCount: Number(row.positive_count) || 0,
+        negativeCount: Number(row.negative_count) || 0,
+        forwardMovementCount: Number(row.forward_movement_count) || 0,
+        totalDuration: row.total_duration as number | null,
+      }));
+    } catch (error) {
+      console.error('Error fetching time series metrics:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get meeting quality signals per rep
+   */
+  static async getTeamQualitySignals(
+    orgId: string,
+    periodDays: TimePeriod = 30,
+    userId?: string
+  ): Promise<RepQualitySignals[]> {
+    try {
+      const { data, error } = await supabase.rpc('get_team_quality_signals', {
+        p_org_id: orgId,
+        p_period_days: periodDays,
+        p_user_id: userId || null,
+      });
+
+      if (error) throw error;
+
+      return (data || []).map((row: Record<string, unknown>) => ({
+        userId: row.user_id as string,
+        userName: row.user_name as string,
+        userEmail: row.user_email as string,
+        totalMeetings: Number(row.total_meetings) || 0,
+        classifiedMeetings: Number(row.classified_meetings) || 0,
+        forwardMovementCount: Number(row.forward_movement_count) || 0,
+        forwardMovementRate: row.forward_movement_rate as number | null,
+        objectionCount: Number(row.objection_count) || 0,
+        objectionRate: row.objection_rate as number | null,
+        competitorMentionCount: Number(row.competitor_mention_count) || 0,
+        pricingDiscussionCount: Number(row.pricing_discussion_count) || 0,
+        positiveOutcomeCount: Number(row.positive_outcome_count) || 0,
+        negativeOutcomeCount: Number(row.negative_outcome_count) || 0,
+        neutralOutcomeCount: Number(row.neutral_outcome_count) || 0,
+        positiveOutcomeRate: row.positive_outcome_rate as number | null,
+        avgSentiment: row.avg_sentiment as number | null,
+        avgTalkTime: row.avg_talk_time as number | null,
+        avgCoachRating: row.avg_coach_rating as number | null,
+      }));
+    } catch (error) {
+      console.error('Error fetching team quality signals:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get meetings for drill-down modal
+   */
+  static async getMeetingsForDrillDown(
+    orgId: string,
+    metricType: DrillDownMetricType = 'all',
+    periodDays: TimePeriod = 30,
+    userId?: string,
+    limit: number = 50
+  ): Promise<MeetingSummary[]> {
+    try {
+      const { data, error } = await supabase.rpc('get_meetings_for_drill_down', {
+        p_org_id: orgId,
+        p_metric_type: metricType,
+        p_period_days: periodDays,
+        p_user_id: userId || null,
+        p_limit: limit,
+      });
+
+      if (error) throw error;
+
+      return (data || []).map((row: Record<string, unknown>) => ({
+        meetingId: row.meeting_id as string,
+        title: row.title as string | null,
+        meetingDate: row.meeting_date as string,
+        ownerUserId: row.owner_user_id as string,
+        ownerName: row.owner_name as string,
+        companyName: row.company_name as string | null,
+        sentimentScore: row.sentiment_score as number | null,
+        talkTimePct: row.talk_time_pct as number | null,
+        outcome: row.outcome as string | null,
+        hasForwardMovement: row.has_forward_movement as boolean | null,
+        hasObjection: row.has_objection as boolean | null,
+        durationMinutes: row.duration_minutes as number | null,
+      }));
+    } catch (error) {
+      console.error('Error fetching meetings for drill-down:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get team comparison matrix for all reps
+   */
+  static async getTeamComparisonMatrix(
+    orgId: string,
+    periodDays: TimePeriod = 30
+  ): Promise<RepComparisonData[]> {
+    try {
+      const { data, error } = await supabase.rpc('get_team_comparison_matrix', {
+        p_org_id: orgId,
+        p_period_days: periodDays,
+      });
+
+      if (error) throw error;
+
+      return (data || []).map((row: Record<string, unknown>) => ({
+        userId: row.user_id as string,
+        userName: row.user_name as string,
+        userEmail: row.user_email as string,
+        avatarUrl: row.avatar_url as string | null,
+        totalMeetings: Number(row.total_meetings) || 0,
+        avgSentiment: row.avg_sentiment as number | null,
+        avgTalkTime: row.avg_talk_time as number | null,
+        avgCoachRating: row.avg_coach_rating as number | null,
+        forwardMovementRate: row.forward_movement_rate as number | null,
+        positiveOutcomeRate: row.positive_outcome_rate as number | null,
+        trendData: Array.isArray(row.trend_data)
+          ? (row.trend_data as Array<{ date: string; count: number; sentiment: number | null }>)
+          : [],
+      }));
+    } catch (error) {
+      console.error('Error fetching team comparison matrix:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get aggregated team trends for charts (meeting volume, sentiment over time)
+   */
+  static async getTeamTrends(
+    orgId: string,
+    periodDays: TimePeriod = 30
+  ): Promise<{
+    meetingVolume: Array<{ date: string; count: number }>;
+    sentimentTrend: Array<{ date: string; avg: number | null }>;
+    talkTimeTrend: Array<{ date: string; avg: number | null }>;
+  }> {
+    try {
+      const timeSeriesData = await this.getTimeSeriesMetrics({
+        orgId,
+        periodDays,
+        granularity: 'day',
+      });
+
+      // Aggregate by date (across all users)
+      const byDate = new Map<string, { count: number; sentimentSum: number; sentimentCount: number; talkTimeSum: number; talkTimeCount: number }>();
+
+      for (const point of timeSeriesData) {
+        const date = point.periodStart.split('T')[0];
+        const existing = byDate.get(date) || { count: 0, sentimentSum: 0, sentimentCount: 0, talkTimeSum: 0, talkTimeCount: 0 };
+
+        existing.count += point.meetingCount;
+        if (point.avgSentiment !== null) {
+          existing.sentimentSum += point.avgSentiment * point.meetingCount;
+          existing.sentimentCount += point.meetingCount;
+        }
+        if (point.avgTalkTime !== null) {
+          existing.talkTimeSum += point.avgTalkTime * point.meetingCount;
+          existing.talkTimeCount += point.meetingCount;
+        }
+
+        byDate.set(date, existing);
+      }
+
+      const sortedDates = Array.from(byDate.keys()).sort();
+
+      return {
+        meetingVolume: sortedDates.map(date => ({
+          date,
+          count: byDate.get(date)!.count,
+        })),
+        sentimentTrend: sortedDates.map(date => {
+          const data = byDate.get(date)!;
+          return {
+            date,
+            avg: data.sentimentCount > 0 ? data.sentimentSum / data.sentimentCount : null,
+          };
+        }),
+        talkTimeTrend: sortedDates.map(date => {
+          const data = byDate.get(date)!;
+          return {
+            date,
+            avg: data.talkTimeCount > 0 ? data.talkTimeSum / data.talkTimeCount : null,
+          };
+        }),
+      };
+    } catch (error) {
+      console.error('Error fetching team trends:', error);
       throw error;
     }
   }
