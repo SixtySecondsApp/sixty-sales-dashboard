@@ -1,0 +1,119 @@
+# CodeRabbit Configuration
+# https://docs.coderabbit.ai/guides/configure-coderabbit
+
+language: en-US
+
+# Review settings
+reviews:
+  # Enable high-level summary
+  high_level_summary: true
+  
+  # Enable poem in summary (fun touch)
+  poem: true
+  
+  # Review status tracking
+  review_status: true
+  
+  # Collapse walkthrough for cleaner PRs
+  collapse_walkthrough: true
+  
+  # Auto-review settings
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+      - develop
+  
+  # Path-specific instructions
+  path_instructions:
+    - path: "src/**/*.{ts,tsx}"
+      instructions: |
+        Review for:
+        - XSS vulnerabilities (dangerouslySetInnerHTML usage)
+        - Proper error handling with user feedback
+        - React best practices and hooks usage
+        - TypeScript strict typing (no 'any')
+        - Proper Supabase query patterns (maybeSingle vs single)
+    
+    - path: "supabase/functions/**/*.ts"
+      instructions: |
+        Review for:
+        - Authentication checks (getAuthContext usage)
+        - Service role key protection
+        - CORS headers configuration
+        - Error handling and logging
+        - RLS policy compliance
+    
+    - path: "supabase/migrations/**/*.sql"
+      instructions: |
+        Review for:
+        - RLS policies on new tables
+        - SECURITY DEFINER vs SECURITY INVOKER usage
+        - Proper org_id filtering for multi-tenancy
+        - Index creation for performance
+        - Backward compatibility
+    
+    - path: "src/lib/services/**/*.ts"
+      instructions: |
+        Review for:
+        - Service layer patterns
+        - Error handling with try/catch
+        - Proper typing of parameters and returns
+        - No direct database calls (should use repository layer)
+
+# Chat settings
+chat:
+  auto_reply: true
+
+# Knowledge base for context
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: auto
+
+# Pre-merge checks
+pre_merge_checks:
+  # Title must be descriptive
+  title_check:
+    enabled: true
+    rules:
+      - pattern: "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\(.+\\))?: .{10,}"
+        message: "PR title should follow conventional commits format with descriptive message"
+  
+  # Description required
+  description_check:
+    enabled: true
+    required_sections:
+      - "## Summary"
+      - "## Test plan"
+  
+  # Docstring coverage
+  docstring_coverage:
+    enabled: true
+    threshold: 80
+
+# Tone settings
+tone_instructions: |
+  Be constructive and educational. When suggesting improvements:
+  1. Explain WHY the change is beneficial
+  2. Provide code examples when helpful
+  3. Prioritize security issues over style
+  4. Be encouraging about good patterns found
+
+# Early access features
+early_access: true
+
+# Tools integration
+tools:
+  # Enable AST-based analysis
+  ast_grep:
+    enabled: true
+  
+  # Enable security scanning
+  security:
+    enabled: true
+    
+  # Enable performance analysis
+  performance:
+    enabled: true
