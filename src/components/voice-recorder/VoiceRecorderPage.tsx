@@ -1,15 +1,13 @@
-import { useState, useCallback } from 'react';
-import { Mic } from 'lucide-react';
+import { useState, useCallback, useMemo } from 'react';
+import { Mic, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useVoiceRecorder } from './useVoiceRecorder';
-import { VoiceRecorderHome, SAMPLE_RECENT_RECORDINGS } from './VoiceRecorderHome';
+import { VoiceRecorderHome } from './VoiceRecorderHome';
 import { VoiceRecorderRecording } from './VoiceRecorderRecording';
-import {
-  VoiceRecorderMeetingDetail,
-  SAMPLE_MEETING,
-} from './VoiceRecorderMeetingDetail';
-import type { RecordingScreen, VoiceRecording, ActionItem } from './types';
+import { VoiceRecorderMeetingDetail } from './VoiceRecorderMeetingDetail';
+import { useVoiceRecordings } from '@/lib/hooks/useVoiceRecordings';
+import type { RecordingScreen, VoiceRecording, ActionItem, RecentRecording, Speaker } from './types';
 
 interface VoiceRecorderPageProps {
   className?: string;
@@ -19,9 +17,37 @@ interface VoiceRecorderPageProps {
  * VoiceRecorderPage - Main container for the voice recorder feature
  * Manages screen state and coordinates between home, recording, and detail views
  */
+// Helper to format duration from seconds for display
+function formatDurationDisplay(seconds: number | null | undefined): string {
+  if (!seconds) return '0:00';
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Speaker colors for display
+const SPEAKER_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+
 export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
   const [screen, setScreen] = useState<RecordingScreen>('home');
   const [currentMeeting, setCurrentMeeting] = useState<VoiceRecording | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Backend integration
+  const {
+    recordings,
+    isLoading: isLoadingRecordings,
+    uploadAndTranscribe,
+    deleteRecording,
+    toggleActionItem,
+    getRecording,
+    refetch,
+  } = useVoiceRecordings();
 
   const {
     isRecording,
@@ -35,6 +61,22 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
     resumeRecording,
   } = useVoiceRecorder();
 
+  // Transform backend recordings to RecentRecording format for the home screen
+  const recentRecordings: RecentRecording[] = useMemo(() => {
+    return recordings.map((rec) => ({
+      id: rec.id,
+      title: rec.title,
+      time: new Date(rec.created_at).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      }),
+      duration: formatDurationDisplay(rec.duration_seconds),
+      actionsCount: rec.action_items?.length || 0,
+    }));
+  }, [recordings]);
+
   // Handle start recording
   const handleStartRecording = useCallback(async () => {
     try {
@@ -45,43 +87,110 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
     }
   }, [startRecording]);
 
-  // Handle stop recording
-  const handleStopRecording = useCallback(() => {
-    stopRecording();
-    // In a real app, we would process the recording and create a meeting object
-    // For now, we use sample data
-    setCurrentMeeting({
-      ...SAMPLE_MEETING,
-      id: `recording-${Date.now()}`,
-      date: new Date().toLocaleString('en-US', {
+  // Helper to transform backend recording to VoiceRecording format
+  const transformRecording = useCallback((rec: Awaited<ReturnType<typeof getRecording>>): VoiceRecording | null => {
+    if (!rec) return null;
+
+    const speakers: Speaker[] = (rec.speakers || []).map((s: { id: number; name: string; initials?: string }, idx: number) => ({
+      id: s.id,
+      name: s.name,
+      initials: s.initials || s.name.substring(0, 2).toUpperCase(),
+      duration: '', // Will be calculated from segments if needed
+      color: SPEAKER_COLORS[idx % SPEAKER_COLORS.length],
+    }));
+
+    const actions: ActionItem[] = (rec.action_items || []).map((a: { id: string; text: string; owner?: string; deadline?: string; done?: boolean }) => ({
+      id: a.id,
+      text: a.text,
+      owner: a.owner || 'Unassigned',
+      deadline: a.deadline || '',
+      done: a.done || false,
+    }));
+
+    return {
+      id: rec.id,
+      title: rec.title,
+      date: new Date(rec.created_at).toLocaleString('en-US', {
         month: 'short',
         day: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
       }),
-      duration: formatDuration(duration),
-      createdAt: new Date(),
-    });
-    setScreen('meeting');
-    toast.success('Recording saved! Processing with AI...');
-  }, [stopRecording, duration]);
+      duration: formatDurationDisplay(rec.duration_seconds),
+      speakers,
+      actions,
+      summary: rec.summary || 'Processing transcription...',
+      transcript: (rec.transcript_segments || []).map((seg: { speaker: string; start_time: number; text: string }) => ({
+        speaker: seg.speaker,
+        time: formatDurationDisplay(Math.floor(seg.start_time)),
+        text: seg.text,
+      })),
+      createdAt: new Date(rec.created_at),
+      audioUrl: rec.audio_url,
+    };
+  }, []);
+
+  // Handle stop recording
+  const handleStopRecording = useCallback(async () => {
+    setIsProcessing(true);
+    try {
+      const audioBlob = await stopRecording();
+      if (!audioBlob) {
+        toast.error('No audio recorded');
+        setIsProcessing(false);
+        return;
+      }
+
+      // Upload and start transcription
+      const recording = await uploadAndTranscribe(audioBlob);
+
+      if (recording) {
+        const transformed = transformRecording(recording);
+        if (transformed) {
+          setCurrentMeeting(transformed);
+          setScreen('meeting');
+        }
+      } else {
+        // If upload failed, go back to home
+        setScreen('home');
+      }
+    } catch (err) {
+      console.error('Stop recording error:', err);
+      toast.error('Failed to process recording');
+      setScreen('home');
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [stopRecording, uploadAndTranscribe, transformRecording]);
 
   // Handle selecting a recent recording
-  const handleSelectRecording = useCallback((id: string) => {
-    // In a real app, we would fetch the recording data
-    // For now, we use sample data
-    setCurrentMeeting({
-      ...SAMPLE_MEETING,
-      id,
-    });
-    setScreen('meeting');
-  }, []);
+  const handleSelectRecording = useCallback(async (id: string) => {
+    setIsProcessing(true);
+    try {
+      const recording = await getRecording(id);
+      if (recording) {
+        const transformed = transformRecording(recording);
+        if (transformed) {
+          setCurrentMeeting(transformed);
+          setScreen('meeting');
+        }
+      } else {
+        toast.error('Recording not found');
+      }
+    } catch (err) {
+      console.error('Error fetching recording:', err);
+      toast.error('Failed to load recording');
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [getRecording, transformRecording]);
 
   // Handle going back to home
   const handleBack = useCallback(() => {
     setScreen('home');
     setCurrentMeeting(null);
-  }, []);
+    refetch(); // Refresh the recordings list
+  }, [refetch]);
 
   // Handle sharing
   const handleShare = useCallback(() => {
@@ -104,9 +213,10 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
   }, []);
 
   // Handle toggle action item
-  const handleToggleActionItem = useCallback((actionId: string) => {
+  const handleToggleActionItem = useCallback(async (actionId: string) => {
     if (!currentMeeting) return;
 
+    // Optimistically update local state
     setCurrentMeeting((prev) => {
       if (!prev) return prev;
       return {
@@ -116,7 +226,22 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
         ),
       };
     });
-  }, [currentMeeting]);
+
+    // Sync with backend
+    const success = await toggleActionItem(currentMeeting.id, actionId);
+    if (!success) {
+      // Revert on failure
+      setCurrentMeeting((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          actions: prev.actions.map((action: ActionItem) =>
+            action.id === actionId ? { ...action, done: !action.done } : action
+          ),
+        };
+      });
+    }
+  }, [currentMeeting, toggleActionItem]);
 
   // Show error if recording failed
   if (error) {
@@ -146,11 +271,21 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
 
       {/* Voice Recorder Container - responsive width */}
       <div className="max-w-lg mx-auto lg:mx-0">
-        <div className="bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none overflow-hidden min-h-[600px]">
+        <div className="relative bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none overflow-hidden min-h-[600px]">
+          {/* Loading Overlay */}
+          {(isProcessing || isLoadingRecordings) && screen === 'home' && (
+            <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 flex items-center justify-center z-10">
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                <span className="text-sm text-gray-600 dark:text-gray-400">Loading...</span>
+              </div>
+            </div>
+          )}
+
           {/* Home Screen */}
           {screen === 'home' && (
             <VoiceRecorderHome
-              recentRecordings={SAMPLE_RECENT_RECORDINGS}
+              recentRecordings={recentRecordings}
               onStartRecording={handleStartRecording}
               onSelectRecording={handleSelectRecording}
             />
@@ -184,21 +319,6 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
       </div>
     </div>
   );
-}
-
-// Helper to format duration from seconds
-function formatDuration(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs
-      .toString()
-      .padStart(2, '0')}`;
-  }
-
-  return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 
 export default VoiceRecorderPage;
