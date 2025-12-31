@@ -38,7 +38,7 @@ export const VoiceRecorderRecording = memo(function VoiceRecorderRecording({
             'absolute top-1/3 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full blur-3xl transition-opacity duration-500',
             isPaused
               ? 'bg-amber-500/10 opacity-50'
-              : 'bg-blue-500/20 opacity-100 animate-pulse'
+              : 'bg-emerald-500/20 opacity-100 animate-pulse'
           )}
         />
       </div>
@@ -101,14 +101,14 @@ export const VoiceRecorderRecording = memo(function VoiceRecorderRecording({
             className={cn(
               'relative rounded-2xl p-4 flex items-center justify-center gap-3 border transition-all',
               isPaused
-                ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/15'
+                ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/15'
                 : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/15'
             )}
           >
             <div
               className={cn(
                 'w-10 h-10 rounded-xl flex items-center justify-center',
-                isPaused ? 'bg-blue-500' : 'bg-amber-500'
+                isPaused ? 'bg-[#37bd7e]' : 'bg-amber-500'
               )}
             >
               {isPaused ? (
@@ -122,7 +122,7 @@ export const VoiceRecorderRecording = memo(function VoiceRecorderRecording({
                 className={cn(
                   'font-medium',
                   isPaused
-                    ? 'text-blue-700 dark:text-blue-400'
+                    ? 'text-emerald-700 dark:text-emerald-400'
                     : 'text-amber-700 dark:text-amber-400'
                 )}
               >

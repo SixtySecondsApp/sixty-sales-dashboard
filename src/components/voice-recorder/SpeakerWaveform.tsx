@@ -36,7 +36,7 @@ export const SpeakerWaveform = memo(function SpeakerWaveform({
       className={cn(
         'w-full p-4 rounded-2xl transition-all duration-300 text-left shadow-sm dark:shadow-none border',
         isActive
-          ? 'bg-gray-100 dark:bg-gray-800/80 dark:backdrop-blur-sm scale-[1.02] ring-2 ring-blue-500/20 border-gray-200 dark:border-gray-700/50'
+          ? 'bg-gray-100 dark:bg-gray-800/80 dark:backdrop-blur-sm scale-[1.02] ring-2 ring-emerald-500/20 border-gray-200 dark:border-gray-700/50'
           : 'bg-gray-50 dark:bg-gray-900/80 dark:backdrop-blur-sm hover:bg-gray-100 dark:hover:bg-gray-800/50 border-gray-200 dark:border-gray-700/50',
         className
       )}
@@ -58,7 +58,7 @@ export const SpeakerWaveform = memo(function SpeakerWaveform({
           </p>
         </div>
         {isActive && (
-          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+          <div className="w-2 h-2 rounded-full bg-[#37bd7e] animate-pulse shrink-0" />
         )}
       </div>
 
