@@ -11,7 +11,7 @@
  *
  * Supported process types:
  * - integration: HubSpot, Google, Fathom, Slack, JustCall, SavvyCal
- * - workflow: Meeting Intelligence, Task Extraction, VSL Analytics, Sentry Bridge, API Optimization
+ * - workflow: Meeting Intelligence, Task Extraction, VSL Analytics, Sentry Bridge, API Optimization, Onboarding V2
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -420,6 +420,52 @@ const PROCESS_DESCRIPTIONS: Record<string, Record<string, ProcessDescriptionData
 - Lower infrastructure costs
 
 **Features**: Per-integration configuration, monitoring dashboard, alert thresholds`
+    },
+    onboarding_v2: {
+      short: `Skills-based AI onboarding with 3 paths: corporate email, personal email + website, and Q&A fallback.`,
+      long: `**Onboarding V2 Flow** provides intelligent skills-based AI assistant configuration through three distinct paths based on user email type.
+
+**Flow Paths**:
+
+1. **Corporate Email Path** (e.g., user@acme.com):
+   - Email domain detected as corporate
+   - Automatic website enrichment from domain
+   - AI scrapes website for company context
+   - Gemini 2-prompt pipeline generates skills config
+   - Direct to skills configuration review
+
+2. **Personal Email + Website Path** (e.g., user@gmail.com with website):
+   - Personal email domain detected
+   - User prompted for company website
+   - Website enrichment via same AI pipeline
+   - Proceed to skills configuration
+
+3. **Personal Email + Q&A Path** (no website):
+   - User selects "I don't have a website"
+   - 6-question progressive Q&A flow
+   - Questions collect: company name, description, industry, target customers, products, competitors
+   - AI generates skills from Q&A answers
+   - Lower confidence score (0.70) vs website enrichment (0.85)
+
+**Enrichment Pipeline**:
+1. Deep website scraping via Jina Reader API
+2. Google Search for supplementary data (competitors, news, team size)
+3. Gemini 3 Flash analysis (company profile, products, target market)
+4. Second Gemini pass generates skill configurations
+5. Confidence scoring based on data completeness
+
+**Skill Configuration**:
+- Each skill has: name, description, example prompts, enabled toggle
+- User can customize which skills to enable
+- Skills stored in organization_configs table
+- Powers AI assistant behavior and suggested prompts
+
+**Data Model**:
+- \`organization_enrichment\` stores raw enrichment data
+- \`enrichment_skills_config\` stores generated skills
+- Zustand store manages client-side flow state
+
+**Features**: Personal email detection, progressive disclosure UI, confidence scoring, manual data fallback`
     },
   },
 }

@@ -193,6 +193,13 @@ const AVAILABLE_PROCESSES: Array<{
     icon: <Zap className="h-4 w-4 text-amber-500" />,
     description: 'Reduce API calls with smart batching',
   },
+  {
+    type: 'workflow',
+    name: 'onboarding_v2',
+    label: 'Onboarding V2 Flow',
+    icon: <Workflow className="h-4 w-4 text-violet-500" />,
+    description: 'Skills-based AI onboarding with 3 paths: corporate, personal+website, Q&A',
+  },
 ];
 
 export default function ProcessMaps() {

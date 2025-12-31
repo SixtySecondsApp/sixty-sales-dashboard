@@ -50,6 +50,7 @@ import {
   CheckCircle,
   Info,
   Shield,
+  Building2,
 } from 'lucide-react';
 import { usePromptTemplates, type PromptTemplateInfo } from '@/lib/hooks/usePromptTemplates';
 import { getDefaultTemplate } from '@/lib/services/promptService';
@@ -104,6 +105,12 @@ const PROMPT_CATEGORIES = {
     description: 'Prompts for generating Mermaid diagrams',
     features: ['process_map_generation'],
   },
+  onboarding: {
+    label: 'Onboarding Enrichment',
+    icon: Building2,
+    description: 'Prompts for organization enrichment and AI skill generation',
+    features: ['organization_data_collection', 'organization_skill_generation'],
+  },
 };
 
 const FEATURE_LABELS: Record<string, string> = {
@@ -128,6 +135,8 @@ const FEATURE_LABELS: Record<string, string> = {
   workflow_few_shot: 'Few-Shot Learning',
   search_query_parse: 'Search Query Parser',
   process_map_generation: 'Mermaid Diagram Generation',
+  organization_data_collection: 'Organization Data Collection',
+  organization_skill_generation: 'AI Skill Generation',
 };
 
 const MODEL_OPTIONS = [
@@ -138,6 +147,8 @@ const MODEL_OPTIONS = [
   { value: 'anthropic/claude-3-5-sonnet-20241022', label: 'Claude Sonnet 3.5 (OpenRouter)' },
   { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
   { value: 'gpt-4o', label: 'GPT-4o' },
+  { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash (Google)' },
+  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Google)' },
 ];
 
 // ============================================================================
@@ -167,6 +178,7 @@ export default function PromptSettings() {
     workflow: false,
     search: false,
     processMaps: false,
+    onboarding: false,
   });
 
   const [selectedFeature, setSelectedFeature] = useState<string | null>(null);

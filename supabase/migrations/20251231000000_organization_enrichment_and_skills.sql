@@ -136,14 +136,24 @@ END $$;
 CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value JSONB NOT NULL,
-  description TEXT,
   updated_at TIMESTAMPTZ DEFAULT now(),
   updated_by UUID REFERENCES auth.users(id)
 );
 
+-- Add description column if it doesn't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'app_settings' AND column_name = 'description'
+  ) THEN
+    ALTER TABLE app_settings ADD COLUMN description TEXT;
+  END IF;
+END $$;
+
 -- Insert default onboarding version setting
-INSERT INTO app_settings (key, value, description)
-VALUES ('live_onboarding_version', '"v1"', 'Which onboarding version is shown to new signups (v1 or v2)')
+INSERT INTO app_settings (key, value)
+VALUES ('live_onboarding_version', '"v1"')
 ON CONFLICT (key) DO NOTHING;
 
 -- =============================================================================

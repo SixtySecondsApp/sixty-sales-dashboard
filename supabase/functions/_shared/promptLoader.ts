@@ -286,6 +286,210 @@ Return JSON with semantic_query and structured_filters (date_range, company_name
     maxTokens: 500,
     source: 'default',
   },
+
+  // ============================================================================
+  // Onboarding - Organization Enrichment
+  // ============================================================================
+
+  organization_data_collection: {
+    systemPrompt: `You are an expert business intelligence analyst. Your task is to extract structured company information from website content.
+
+CRITICAL REQUIREMENTS:
+1. Extract EXACT product names as written on the website (e.g., "Stripe Payments", "Stripe Billing", "Stripe Connect" - NOT "payment processing", "billing system", "marketplace payments")
+2. Use VERBATIM quotes from their marketing copy for taglines and value propositions
+3. Extract ACTUAL customer names if visible (e.g., "Amazon, Shopify, Zoom" - NOT "major tech companies")
+4. Be specific about pricing tiers and feature names as they appear on the site
+5. Only include information you can directly observe in the provided content`,
+    userPrompt: `Analyze the following website content for \${domain} and extract structured company data.
+
+**Raw Website Content:**
+\${websiteContent}
+
+**Extract this information in JSON format:**
+{
+  "company": {
+    "name": "Official company name",
+    "tagline": "Main value proposition or tagline",
+    "description": "2-3 sentence company description",
+    "founded_year": null,
+    "headquarters": "City, Country if mentioned",
+    "employee_count": "Range like '10-50' or '100-500' if mentioned"
+  },
+  "classification": {
+    "industry": "Primary industry",
+    "sub_industry": "Specific niche",
+    "business_model": "B2B, B2C, B2B2C, etc.",
+    "company_stage": "startup, scaleup, enterprise, etc."
+  },
+  "offering": {
+    "products": [
+      {"name": "Product name", "description": "Brief description", "pricing_tier": "free/starter/pro/enterprise if mentioned"}
+    ],
+    "services": ["List of services offered"],
+    "key_features": ["Top 5-10 features mentioned"],
+    "integrations": ["Any integrations mentioned"]
+  },
+  "market": {
+    "target_industries": ["Industries they serve"],
+    "target_company_sizes": ["SMB, Mid-market, Enterprise, etc."],
+    "target_roles": ["Job titles they target"],
+    "use_cases": ["Primary use cases mentioned"],
+    "customer_logos": ["Any customer names/logos visible"],
+    "case_study_customers": ["Customers mentioned in case studies"]
+  },
+  "positioning": {
+    "competitors": ["Any competitors mentioned or implied"],
+    "differentiators": ["What makes them unique"],
+    "pain_points_addressed": ["Problems they solve"]
+  },
+  "voice": {
+    "tone": ["professional", "casual", "technical", "friendly", etc.],
+    "key_phrases": ["Distinctive phrases they use repeatedly"],
+    "content_samples": ["2-3 representative sentences from their copy"]
+  },
+  "salesContext": {
+    "pricing_model": "subscription, usage-based, one-time, etc.",
+    "sales_motion": "self-serve, sales-led, product-led, etc.",
+    "buying_signals": ["Signals that indicate purchase readiness"],
+    "common_objections": ["Likely objections based on offering"]
+  }
+}
+
+**Important:**
+- Only include fields where you found actual evidence
+- Use null for fields with no information
+- Be specific - use actual product names, customer names, and terms from their content
+- Extract actual quotes for content_samples and key_phrases
+
+Return ONLY valid JSON, no markdown formatting.`,
+    model: 'gemini-3-flash-preview',
+    temperature: 0.3,
+    maxTokens: 4096,
+    source: 'default',
+  },
+
+  organization_skill_generation: {
+    systemPrompt: `You are an expert sales AI trainer. Your task is to generate personalized skill configurations for a sales AI assistant based on company intelligence.
+
+CRITICAL: Use SPECIFIC product names and terminology from the company intelligence:
+- BAD: "Are you interested in our payment solution?"
+- GOOD: "Are you looking at Stripe Payments for online transactions, or Stripe Terminal for in-person?"
+
+- BAD: "Our platform helps with billing"
+- GOOD: "Stripe Billing automates recurring revenue with usage-based pricing, invoicing, and revenue recovery"
+
+- BAD: "We compete with other payment providers"
+- GOOD: "Unlike PayPal or Square, Stripe Connect handles complex marketplace payouts to thousands of sellers"
+
+Every discovery question, objection response, and example message MUST reference ACTUAL product names from the provided intelligence.`,
+    userPrompt: `Using the following company intelligence for \${domain}, generate personalized sales AI skill configurations.
+
+**Company Intelligence:**
+\${companyIntelligence}
+
+**Generate configurations for these 6 skills:**
+
+1. **lead_qualification** - Discovery questions and scoring criteria specific to their products
+2. **lead_enrichment** - What information to gather about prospects in their market
+3. **brand_voice** - How the AI should communicate to match their brand
+4. **objection_handling** - Responses to common objections in their space
+5. **icp** - Ideal Customer Profile criteria for their target market
+6. **handoff_rules** - When and how to escalate to human sales reps
+
+**Output Format:**
+{
+  "lead_qualification": {
+    "discovery_questions": [
+      "Specific question using their product/service names...",
+      "Question about pain points they solve...",
+      "Budget/timeline qualification question..."
+    ],
+    "qualification_criteria": [
+      {"criterion": "Has budget over $X", "weight": "high"},
+      {"criterion": "In target industry", "weight": "medium"}
+    ],
+    "disqualifiers": ["Red flags that indicate not a fit"]
+  },
+  "lead_enrichment": {
+    "priority_fields": [
+      {"field": "company_size", "why": "They target mid-market"},
+      {"field": "tech_stack", "why": "Important for integration fit"}
+    ],
+    "discovery_questions": [
+      "What does your current workflow look like?",
+      "Question specific to their use cases..."
+    ],
+    "enrichment_sources": ["linkedin", "crunchbase", "company_website"]
+  },
+  "brand_voice": {
+    "tone": ["professional", "innovative", etc. from their content],
+    "personality_traits": ["helpful", "expert", "friendly"],
+    "key_phrases_to_use": ["Phrases from their actual content"],
+    "phrases_to_avoid": ["Competitor terminology", "Industry jargon they don't use"],
+    "example_messages": [
+      "Hi {name}, I noticed you're looking at [product]. Companies like [customer] use it to...",
+      "Great question! Our [feature] helps teams..."
+    ]
+  },
+  "objection_handling": {
+    "objections": [
+      {
+        "trigger_phrases": ["too expensive", "budget concerns"],
+        "objection_type": "price",
+        "response": "Specific response mentioning their value props and ROI...",
+        "follow_up": "What's your current spend on [problem they solve]?"
+      },
+      {
+        "trigger_phrases": ["why not [competitor]"],
+        "objection_type": "competition",
+        "response": "Response highlighting their specific differentiators...",
+        "follow_up": "What's most important to you in a solution?"
+      }
+    ]
+  },
+  "icp": {
+    "company_profile": {
+      "industries": ["From their target market"],
+      "company_sizes": ["From their customer base"],
+      "geographies": ["Regions they serve"],
+      "technologies": ["Tech stack indicators"]
+    },
+    "buyer_persona": {
+      "titles": ["Job titles they target"],
+      "responsibilities": ["What these people care about"],
+      "pain_points": ["From their marketing"],
+      "goals": ["What success looks like for them"]
+    },
+    "buying_signals": [
+      "Specific signals indicating purchase readiness...",
+      "Events or triggers that indicate need..."
+    ],
+    "negative_signals": ["Signals indicating not a fit"]
+  },
+  "handoff_rules": {
+    "escalation_triggers": [
+      {"trigger": "Mentions enterprise deal over $50k", "priority": "high", "reason": "Large deal needs sales involvement"},
+      {"trigger": "Asks for custom pricing", "priority": "medium", "reason": "Needs human negotiation"},
+      {"trigger": "Technical integration questions", "priority": "medium", "reason": "Needs SE support"}
+    ],
+    "handoff_message_template": "I'd love to connect you with our team who can help with [specific need]. They'll reach out within [timeframe].",
+    "information_to_capture": ["Budget range", "Timeline", "Decision maker status", "Specific requirements"]
+  }
+}
+
+**Requirements:**
+- Use SPECIFIC information from the company intelligence
+- Include actual product names, customer names, competitor names
+- Make discovery questions relevant to their specific offerings
+- Objection responses should reference their actual differentiators
+- All content should feel customized to this specific company
+
+Return ONLY valid JSON, no markdown formatting.`,
+    model: 'gemini-3-flash-preview',
+    temperature: 0.4,
+    maxTokens: 6000,
+    source: 'default',
+  },
 };
 
 // ============================================================================
