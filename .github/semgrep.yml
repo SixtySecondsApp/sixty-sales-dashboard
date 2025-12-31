@@ -1,0 +1,192 @@
+# Semgrep Configuration for Sixty Sales Dashboard
+# Custom security rules for React/TypeScript/Supabase applications
+
+rules:
+  # ============================================
+  # XSS Prevention
+  # ============================================
+  - id: react-dangerouslysetinnerhtml-without-sanitize
+    patterns:
+      - pattern: dangerouslySetInnerHTML={{ __html: $VAR }}
+      - pattern-not-inside: |
+          DOMPurify.sanitize(...)
+    message: "dangerouslySetInnerHTML used without DOMPurify sanitization. This may lead to XSS vulnerabilities."
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-79: Improper Neutralization of Input During Web Page Generation"
+      owasp: "A7:2017 Cross-Site Scripting (XSS)"
+
+  - id: innerHTML-assignment
+    pattern: $EL.innerHTML = $VAL
+    message: "Direct innerHTML assignment detected. Use textContent or sanitize with DOMPurify."
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-79: XSS"
+
+  # ============================================
+  # Supabase Security
+  # ============================================
+  - id: supabase-service-role-in-frontend
+    patterns:
+      - pattern-either:
+          - pattern: VITE_SUPABASE_SERVICE_ROLE_KEY
+          - pattern: SUPABASE_SERVICE_ROLE_KEY
+          - pattern: service_role
+    paths:
+      include:
+        - src/**
+    message: "Service role key reference in frontend code. Never expose service role keys to the browser."
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-798: Hard-coded Credentials"
+
+  - id: supabase-rls-bypass-warning
+    pattern: .from($TABLE).select($COLS).eq('id', $ID)
+    message: "Ensure RLS policies are enabled for this table. Direct queries without RLS can expose sensitive data."
+    languages: [typescript, javascript]
+    severity: INFO
+    metadata:
+      category: security
+
+  # ============================================
+  # Authentication & Authorization
+  # ============================================
+  - id: missing-auth-check
+    patterns:
+      - pattern: |
+          async function $FUNC(...) {
+            ...
+            supabase.from($TABLE).$METHOD(...)
+            ...
+          }
+      - pattern-not-inside: |
+          ... auth.getUser(...) ...
+      - pattern-not-inside: |
+          ... getSession(...) ...
+    message: "Database operation without visible auth check. Ensure authentication is verified."
+    languages: [typescript, javascript]
+    severity: WARNING
+    paths:
+      include:
+        - supabase/functions/**
+
+  # ============================================
+  # Secret Detection
+  # ============================================
+  - id: hardcoded-api-key
+    patterns:
+      - pattern-regex: '(api[_-]?key|apikey|secret|password|token)\s*[=:]\s*["\'][a-zA-Z0-9_\-]{20,}["\']'
+    message: "Potential hardcoded API key or secret detected. Use environment variables instead."
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-798: Hard-coded Credentials"
+
+  - id: jwt-in-code
+    pattern-regex: 'eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*'
+    message: "Hardcoded JWT token detected. Never commit tokens to source control."
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-798: Hard-coded Credentials"
+
+  # ============================================
+  # SQL Injection Prevention
+  # ============================================
+  - id: raw-sql-query
+    patterns:
+      - pattern-either:
+          - pattern: supabase.rpc($FUNC, { ...`${$VAR}` })
+          - pattern: .textSearch($COL, `${$VAR}`)
+    message: "Potential SQL injection via string interpolation. Use parameterized queries."
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-89: SQL Injection"
+
+  # ============================================
+  # Insecure Randomness
+  # ============================================
+  - id: insecure-random-for-security
+    patterns:
+      - pattern: Math.random()
+      - pattern-inside: |
+          function $FUNC(...) { ... token ... }
+      - pattern-inside: |
+          function $FUNC(...) { ... secret ... }
+      - pattern-inside: |
+          function $FUNC(...) { ... password ... }
+    message: "Math.random() used for security-sensitive operation. Use crypto.randomUUID() or crypto.getRandomValues() instead."
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-330: Use of Insufficiently Random Values"
+
+  # ============================================
+  # Logging Sensitive Data
+  # ============================================
+  - id: logging-sensitive-data
+    patterns:
+      - pattern-either:
+          - pattern: console.log(..., $TOKEN, ...)
+          - pattern: console.log(..., $PASSWORD, ...)
+          - pattern: console.log(..., $SECRET, ...)
+          - pattern: console.log(..., $API_KEY, ...)
+    message: "Potentially logging sensitive data. Avoid logging tokens, passwords, or secrets."
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-532: Insertion of Sensitive Information into Log File"
+
+  # ============================================
+  # React Security Best Practices
+  # ============================================
+  - id: eval-usage
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+    message: "eval() or Function() constructor detected. This can lead to code injection vulnerabilities."
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code"
+
+  - id: document-write
+    pattern: document.write(...)
+    message: "document.write() is deprecated and can be exploited for XSS. Use DOM manipulation methods instead."
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-79: XSS"
+
+  # ============================================
+  # CORS & Fetch Security
+  # ============================================
+  - id: cors-wildcard
+    pattern-regex: 'Access-Control-Allow-Origin["\']?\s*:\s*["\']?\*'
+    message: "Wildcard CORS origin detected. Consider restricting to specific domains."
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: security
+
+  - id: fetch-without-credentials
+    patterns:
+      - pattern: fetch($URL, { ... })
+      - pattern-not: fetch($URL, { ..., credentials: $CREDS, ... })
+    message: "fetch() call without explicit credentials option. Consider setting credentials policy."
+    languages: [typescript, javascript]
+    severity: INFO
