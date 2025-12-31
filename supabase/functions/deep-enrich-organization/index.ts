@@ -407,6 +407,9 @@ async function runManualEnrichmentPipeline(
     // Save to organization_context for platform skills interpolation
     await saveOrganizationContext(supabase, organizationId, enrichmentData, 'manual', 0.70);
 
+    // Save skill-derived context (brand_tone, words_to_avoid, etc.)
+    await saveSkillDerivedContext(supabase, organizationId, skills, 'manual', 0.70);
+
     console.log(`[ManualPipeline] Enrichment complete for ${manualData.company_name}`);
 
   } catch (error) {
@@ -574,6 +577,9 @@ async function runEnrichmentPipeline(
 
     // Save to organization_context for platform skills interpolation
     await saveOrganizationContext(supabase, organizationId, enrichmentData, 'enrichment', 0.85);
+
+    // Save skill-derived context (brand_tone, words_to_avoid, etc.)
+    await saveSkillDerivedContext(supabase, organizationId, skills, 'enrichment', 0.85);
 
     console.log(`[Pipeline] Enrichment complete for ${domain}`);
 
@@ -997,6 +1003,101 @@ async function saveOrganizationContext(
   }
 
   console.log(`[saveOrganizationContext] Saved ${savedCount}/${contextMappings.length} context values`);
+}
+
+// ============================================================================
+// Save Skill-Derived Context (for platform skills interpolation)
+// ============================================================================
+
+/**
+ * Extracts context variables from generated skill configs and saves them to organization_context.
+ * This enables platform skills to interpolate values like ${brand_tone}, ${words_to_avoid}, etc.
+ */
+async function saveSkillDerivedContext(
+  supabase: any,
+  organizationId: string,
+  skills: SkillConfig,
+  source: 'scrape' | 'manual' | 'enrichment' = 'enrichment',
+  confidence: number = 0.85
+): Promise<void> {
+  console.log(`[saveSkillDerivedContext] Saving skill-derived context for org ${organizationId}`);
+
+  const contextMappings: Array<{
+    key: string;
+    value: unknown;
+    valueType: 'string' | 'array' | 'object';
+  }> = [];
+
+  // Brand Voice context
+  if (skills.brand_voice) {
+    if (skills.brand_voice.tone) {
+      contextMappings.push({ key: 'brand_tone', value: skills.brand_voice.tone, valueType: 'string' });
+    }
+    if (skills.brand_voice.avoid && skills.brand_voice.avoid.length > 0) {
+      contextMappings.push({ key: 'words_to_avoid', value: skills.brand_voice.avoid, valueType: 'array' });
+    }
+  }
+
+  // Writing Style context
+  if (skills.writing_style) {
+    contextMappings.push({ key: 'writing_style_name', value: skills.writing_style.name || 'Professional', valueType: 'string' });
+    contextMappings.push({ key: 'writing_style_tone', value: skills.writing_style.tone_description || '', valueType: 'string' });
+    if (skills.writing_style.examples && skills.writing_style.examples.length > 0) {
+      contextMappings.push({ key: 'writing_style_examples', value: skills.writing_style.examples, valueType: 'array' });
+    }
+  }
+
+  // ICP context
+  if (skills.icp) {
+    if (skills.icp.companyProfile) {
+      contextMappings.push({ key: 'icp_company_profile', value: skills.icp.companyProfile, valueType: 'string' });
+    }
+    if (skills.icp.buyerPersona) {
+      contextMappings.push({ key: 'icp_buyer_persona', value: skills.icp.buyerPersona, valueType: 'string' });
+    }
+    if (skills.icp.buyingSignals && skills.icp.buyingSignals.length > 0) {
+      contextMappings.push({ key: 'buying_signals', value: skills.icp.buyingSignals, valueType: 'array' });
+    }
+  }
+
+  // Lead Qualification context
+  if (skills.lead_qualification) {
+    if (skills.lead_qualification.criteria && skills.lead_qualification.criteria.length > 0) {
+      contextMappings.push({ key: 'qualification_criteria', value: skills.lead_qualification.criteria, valueType: 'array' });
+    }
+    if (skills.lead_qualification.disqualifiers && skills.lead_qualification.disqualifiers.length > 0) {
+      contextMappings.push({ key: 'disqualification_criteria', value: skills.lead_qualification.disqualifiers, valueType: 'array' });
+    }
+  }
+
+  // Copilot Personality context
+  if (skills.copilot_personality) {
+    if (skills.copilot_personality.personality) {
+      contextMappings.push({ key: 'copilot_personality', value: skills.copilot_personality.personality, valueType: 'string' });
+    }
+    if (skills.copilot_personality.greeting) {
+      contextMappings.push({ key: 'copilot_greeting', value: skills.copilot_personality.greeting, valueType: 'string' });
+    }
+  }
+
+  // Save each context value
+  let savedCount = 0;
+  for (const ctx of contextMappings) {
+    try {
+      await supabase.rpc('upsert_organization_context', {
+        p_org_id: organizationId,
+        p_key: ctx.key,
+        p_value: JSON.stringify(ctx.value),
+        p_source: source,
+        p_confidence: confidence,
+      });
+      savedCount++;
+    } catch (err) {
+      console.error(`[saveSkillDerivedContext] Failed to save ${ctx.key}:`, err);
+    }
+  }
+
+  console.log(`[saveSkillDerivedContext] Saved ${savedCount}/${contextMappings.length} skill-derived context values`);
 }
 
 // ============================================================================

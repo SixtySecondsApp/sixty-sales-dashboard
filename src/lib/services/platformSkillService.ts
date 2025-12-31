@@ -456,6 +456,24 @@ export function getAvailableContextVariables(): { key: string; description: stri
     { key: 'pain_points', description: 'Customer pain points', type: 'array' },
     { key: 'buying_signals', description: 'Purchase intent signals', type: 'array' },
     { key: 'customer_logos', description: 'Notable customer names', type: 'array' },
+
+    // Brand Voice & Writing Style
+    { key: 'brand_tone', description: 'Brand communication tone (e.g., professional, friendly)', type: 'string' },
+    { key: 'words_to_avoid', description: 'Words/phrases to avoid in communication', type: 'array' },
+    { key: 'key_phrases', description: 'Key brand phrases and messaging', type: 'array' },
+    { key: 'writing_style_name', description: 'Name of the writing style', type: 'string' },
+    { key: 'writing_style_tone', description: 'Writing tone description', type: 'string' },
+    { key: 'writing_style_examples', description: 'Example writing samples', type: 'array' },
+
+    // ICP & Lead Qualification
+    { key: 'icp_company_profile', description: 'Ideal company profile description', type: 'string' },
+    { key: 'icp_buyer_persona', description: 'Buyer persona description', type: 'string' },
+    { key: 'qualification_criteria', description: 'Lead qualification criteria', type: 'array' },
+    { key: 'disqualification_criteria', description: 'Lead disqualification criteria', type: 'array' },
+
+    // Copilot Personality
+    { key: 'copilot_personality', description: 'AI assistant personality description', type: 'string' },
+    { key: 'copilot_greeting', description: 'AI assistant greeting message', type: 'string' },
   ];
 }
 

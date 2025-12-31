@@ -86,7 +86,9 @@ export function ContextVariablePicker({ onInsert }: ContextVariablePickerProps) 
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const allVariables = getAvailableContextVariables();
+  // getAvailableContextVariables returns {key, description, type}[]
+  // Extract just the keys for categorization
+  const allVariables = getAvailableContextVariables().map((v) => v.key);
   const categorizedVariables = categorizeVariables(allVariables);
 
   // Filter variables based on search
