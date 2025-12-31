@@ -139,7 +139,7 @@ export const SPEAKER_COLORS = [
   '#F59E0B', // Amber
   '#EF4444', // Red
   '#EC4899', // Pink
-  '#06B6D4', // Cyan
+  '#6366F1', // Indigo
   '#84CC16', // Lime
 ] as const;
 
