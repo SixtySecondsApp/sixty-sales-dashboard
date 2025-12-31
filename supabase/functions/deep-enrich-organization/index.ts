@@ -143,13 +143,13 @@ serve(async (req) => {
     }
 
     const requestBody = await req.json();
-    const { action, organization_id, domain, manual_data } = requestBody;
+    const { action, organization_id, domain, manual_data, force } = requestBody;
 
     let response;
 
     switch (action) {
       case 'start':
-        response = await startEnrichment(supabase, user.id, organization_id, domain);
+        response = await startEnrichment(supabase, user.id, organization_id, domain, force);
         break;
 
       case 'manual':
@@ -194,29 +194,53 @@ async function startEnrichment(
   supabase: any,
   userId: string,
   organizationId: string,
-  domain: string
+  domain: string,
+  force?: boolean
 ): Promise<{ success: boolean; enrichment_id?: string; error?: string }> {
   try {
     // Check if enrichment already exists
     const { data: existing } = await supabase
       .from('organization_enrichment')
-      .select('id, status')
+      .select('id, status, domain')
       .eq('organization_id', organizationId)
       .maybeSingle();
 
-    if (existing && existing.status === 'completed') {
-      return { success: true, enrichment_id: existing.id };
+    // Only return cached if:
+    // - NOT forcing re-enrichment AND
+    // - Status is completed AND
+    // - Domain matches (same company being enriched)
+    if (existing && existing.status === 'completed' && !force) {
+      if (existing.domain === domain) {
+        console.log('[startEnrichment] Returning cached enrichment for domain:', domain);
+        return { success: true, enrichment_id: existing.id };
+      }
+      // Domain mismatch means we need to re-enrich for the new domain
+      console.log('[startEnrichment] Domain mismatch, re-enriching. Old:', existing.domain, 'New:', domain);
     }
 
-    // Create or update enrichment record
+    // If force flag is set or domain changed, log it
+    if (force) {
+      console.log('[startEnrichment] Force re-enrichment requested for domain:', domain);
+    }
+
+    // If existing record, delete it to start fresh (for force or domain change)
+    if (existing) {
+      console.log('[startEnrichment] Deleting existing enrichment to start fresh');
+      await supabase
+        .from('organization_enrichment')
+        .delete()
+        .eq('id', existing.id);
+    }
+
+    // Create new enrichment record
     const { data: enrichment, error: insertError } = await supabase
       .from('organization_enrichment')
-      .upsert({
+      .insert({
         organization_id: organizationId,
         domain: domain,
         status: 'scraping',
         error_message: null,
-      }, { onConflict: 'organization_id' })
+      })
       .select('id')
       .single();
 

@@ -242,7 +242,8 @@ export function OnboardingFlowSimulatorV2() {
       if (useRealApi) {
         const orgId = activeOrgId || FALLBACK_ORG_ID;
         setCurrentStep('loading');
-        await startEnrichment(orgId, emailDomain);
+        // Always force re-enrichment in simulator (it's a testing tool)
+        await startEnrichment(orgId, emailDomain, true);
       } else {
         const mockData = generateMockEnrichment(emailDomain);
         setEnrichmentData(mockData);
@@ -261,7 +262,8 @@ export function OnboardingFlowSimulatorV2() {
     if (useRealApi) {
       const orgId = activeOrgId || FALLBACK_ORG_ID;
       setCurrentStep('loading');
-      await startEnrichment(orgId, cleanDomain);
+      // Always force re-enrichment in simulator (it's a testing tool)
+      await startEnrichment(orgId, cleanDomain, true);
     } else {
       const mockData = generateMockEnrichment(cleanDomain);
       setEnrichmentData(mockData);

@@ -10,9 +10,11 @@ import { Switch } from '@/components/ui/switch';
 import { AIProviderService } from '@/lib/services/aiProvider';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
-import { Key, Sparkles, Settings, Save, CheckCircle, AlertCircle, Info, FileText, Download, Upload, Eye, Copy, RotateCcw, HelpCircle } from 'lucide-react';
+import { Key, Sparkles, Settings, Save, CheckCircle, AlertCircle, Info, FileText, Download, Upload, Eye, Copy, RotateCcw, HelpCircle, Brain, RefreshCw, Building2, Globe, Package, Users } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { useActiveOrgId } from '@/lib/stores/orgStore';
 import AIProviderSettings from '@/components/settings/AIProviderSettings';
 import { 
   getProposalModelSettings, 
@@ -84,11 +86,139 @@ export default function AISettings() {
     design_system: false,
   });
 
+  // Sales Assistant tab state
+  const activeOrgId = useActiveOrgId();
+  const [enrichmentData, setEnrichmentData] = useState<{
+    id: string;
+    domain: string;
+    status: string;
+    company_name: string | null;
+    industry: string | null;
+    products: string[] | null;
+    competitors: string[] | null;
+    updated_at: string;
+  } | null>(null);
+  const [loadingEnrichment, setLoadingEnrichment] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
+  const [reanalyzeProgress, setReanalyzeProgress] = useState<string>('');
+
   const aiProviderService = AIProviderService.getInstance();
 
   useEffect(() => {
     initializeSettings();
   }, []);
+
+  // Fetch enrichment data when Sales Assistant tab is selected
+  useEffect(() => {
+    if (activeTab === 'sales-assistant' && activeOrgId) {
+      fetchEnrichmentData();
+    }
+  }, [activeTab, activeOrgId]);
+
+  const fetchEnrichmentData = async () => {
+    if (!activeOrgId) return;
+
+    setLoadingEnrichment(true);
+    try {
+      const { data, error } = await supabase
+        .from('organization_enrichment')
+        .select('id, domain, status, company_name, industry, products, competitors, updated_at')
+        .eq('organization_id', activeOrgId)
+        .maybeSingle();
+
+      if (error) throw error;
+      setEnrichmentData(data);
+    } catch (error) {
+      console.error('Error fetching enrichment data:', error);
+    } finally {
+      setLoadingEnrichment(false);
+    }
+  };
+
+  const handleReanalyze = async () => {
+    if (!activeOrgId || !enrichmentData?.domain) {
+      toast.error('No company data to re-analyze');
+      return;
+    }
+
+    setReanalyzing(true);
+    setReanalyzeProgress('Starting re-analysis...');
+
+    try {
+      // Call the edge function with force flag
+      const response = await supabase.functions.invoke('deep-enrich-organization', {
+        body: {
+          action: 'start',
+          organization_id: activeOrgId,
+          domain: enrichmentData.domain,
+          force: true,
+        },
+      });
+
+      if (response.error) throw response.error;
+      if (!response.data?.success) throw new Error(response.data?.error || 'Failed to start re-analysis');
+
+      // Start polling for status
+      pollReanalyzeStatus();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to re-analyze';
+      toast.error(message);
+      setReanalyzing(false);
+      setReanalyzeProgress('');
+    }
+  };
+
+  const pollReanalyzeStatus = async () => {
+    const poll = async () => {
+      if (!activeOrgId) return;
+
+      try {
+        const response = await supabase.functions.invoke('deep-enrich-organization', {
+          body: {
+            action: 'status',
+            organization_id: activeOrgId,
+          },
+        });
+
+        if (response.error) throw response.error;
+
+        const { status, enrichment } = response.data;
+
+        if (status === 'scraping') {
+          setReanalyzeProgress('Scraping website data...');
+          setTimeout(poll, 2000);
+        } else if (status === 'analyzing') {
+          setReanalyzeProgress('Analyzing company data...');
+          setTimeout(poll, 2000);
+        } else if (status === 'completed' && enrichment) {
+          setEnrichmentData({
+            id: enrichment.id,
+            domain: enrichment.domain,
+            status: enrichment.status,
+            company_name: enrichment.company_name,
+            industry: enrichment.industry,
+            products: enrichment.products,
+            competitors: enrichment.competitors,
+            updated_at: enrichment.updated_at,
+          });
+          setReanalyzing(false);
+          setReanalyzeProgress('');
+          toast.success('Company data re-analyzed successfully!');
+        } else if (status === 'failed') {
+          throw new Error(enrichment?.error_message || 'Re-analysis failed');
+        } else {
+          setTimeout(poll, 2000);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to check status';
+        toast.error(message);
+        setReanalyzing(false);
+        setReanalyzeProgress('');
+      }
+    };
+
+    poll();
+  };
 
   const initializeSettings = async () => {
     try {
@@ -583,6 +713,10 @@ This Statement of Work outlines the scope, deliverables, and terms for [Project 
           <TabsTrigger value="task-sync" className="flex items-center gap-2">
             <Sparkles className="w-4 h-4" />
             Task Auto-Sync
+          </TabsTrigger>
+          <TabsTrigger value="sales-assistant" className="flex items-center gap-2">
+            <Brain className="w-4 h-4" />
+            Sales Assistant
           </TabsTrigger>
         </TabsList>
 
@@ -1203,6 +1337,189 @@ This Statement of Work outlines the scope, deliverables, and terms for [Project 
                   Go to Task Auto-Sync Settings
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="sales-assistant" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Sales Assistant Training</CardTitle>
+              <CardDescription>
+                Your Sales Assistant is trained on your company's website data. Re-analyze to update the AI with your latest company information.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingEnrichment ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-6 h-6 animate-spin text-purple-500" />
+                  <span className="ml-2 text-gray-500">Loading company data...</span>
+                </div>
+              ) : !activeOrgId ? (
+                <div className="text-center py-12">
+                  <Building2 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                  <p className="text-lg font-medium mb-2">No Organization Selected</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Please select an organization to manage Sales Assistant training.
+                  </p>
+                </div>
+              ) : !enrichmentData ? (
+                <div className="text-center py-12">
+                  <Brain className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                  <p className="text-lg font-medium mb-2">No Training Data Found</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                    Complete the onboarding process to train your Sales Assistant on your company data.
+                  </p>
+                  <Button onClick={() => navigate('/onboarding')}>
+                    Start Onboarding
+                  </Button>
+                </div>
+              ) : reanalyzing ? (
+                <div className="text-center py-12">
+                  <RefreshCw className="w-12 h-12 mx-auto mb-4 text-purple-500 animate-spin" />
+                  <p className="text-lg font-medium mb-2">Re-analyzing Company Data</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {reanalyzeProgress || 'Processing...'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Current Training Data */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+                        <Globe className="w-4 h-4" />
+                        Domain
+                      </div>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">
+                        {enrichmentData.domain || 'Not set'}
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+                        <Building2 className="w-4 h-4" />
+                        Company Name
+                      </div>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">
+                        {enrichmentData.company_name || 'Unknown'}
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+                        <Package className="w-4 h-4" />
+                        Industry
+                      </div>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">
+                        {enrichmentData.industry || 'Unknown'}
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
+                        <CheckCircle className="w-4 h-4" />
+                        Last Updated
+                      </div>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">
+                        {enrichmentData.updated_at
+                          ? new Date(enrichmentData.updated_at).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : 'Unknown'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Products */}
+                  {enrichmentData.products && enrichmentData.products.length > 0 && (
+                    <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-2">
+                        <Package className="w-4 h-4" />
+                        Products & Services
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {enrichmentData.products.slice(0, 10).map((product, i) => (
+                          <span
+                            key={i}
+                            className="px-2 py-1 text-sm rounded-md bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                          >
+                            {product}
+                          </span>
+                        ))}
+                        {enrichmentData.products.length > 10 && (
+                          <span className="px-2 py-1 text-sm text-gray-500">
+                            +{enrichmentData.products.length - 10} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Competitors */}
+                  {enrichmentData.competitors && enrichmentData.competitors.length > 0 && (
+                    <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-2">
+                        <Users className="w-4 h-4" />
+                        Competitors
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {enrichmentData.competitors.slice(0, 10).map((competitor, i) => (
+                          <span
+                            key={i}
+                            className="px-2 py-1 text-sm rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                          >
+                            {competitor}
+                          </span>
+                        ))}
+                        {enrichmentData.competitors.length > 10 && (
+                          <span className="px-2 py-1 text-sm text-gray-500">
+                            +{enrichmentData.competitors.length - 10} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Re-analyze Button */}
+                  <div className="pt-4 border-t dark:border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-gray-100">Re-analyze Company Data</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Re-scrape your website and update the AI training with latest company information.
+                        </p>
+                      </div>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" className="flex items-center gap-2">
+                            <RefreshCw className="w-4 h-4" />
+                            Re-analyze
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Re-analyze Company Data?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will re-scrape your website ({enrichmentData.domain}) and update your Sales Assistant's training data. This process typically takes 30-60 seconds.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleReanalyze}>
+                              Continue
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

@@ -186,7 +186,7 @@ interface OnboardingV2State {
   submitManualEnrichment: (organizationId: string) => Promise<void>;
 
   // Enrichment actions
-  startEnrichment: (organizationId: string, domain: string) => Promise<void>;
+  startEnrichment: (organizationId: string, domain: string, force?: boolean) => Promise<void>;
   pollEnrichmentStatus: (organizationId: string) => Promise<void>;
   setEnrichment: (data: EnrichmentData) => void;
 
@@ -369,7 +369,7 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
   },
 
   // Start enrichment (website-based)
-  startEnrichment: async (organizationId, domain) => {
+  startEnrichment: async (organizationId, domain, force = false) => {
     set({ isEnrichmentLoading: true, enrichmentError: null, enrichmentSource: 'website' });
 
     try {
@@ -381,6 +381,7 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
           action: 'start',
           organization_id: organizationId,
           domain: domain,
+          force: force,
         },
       });
 
