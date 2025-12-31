@@ -106,7 +106,7 @@ export interface SkillConfigs {
 export interface CompiledSkill {
   id: string;
   skill_key: string;
-  category: 'sales-ai' | 'writing' | 'enrichment' | 'workflows';
+  category: 'sales-ai' | 'writing' | 'enrichment' | 'workflows' | 'data-access' | 'output-format';
   frontmatter: {
     name: string;
     description: string;

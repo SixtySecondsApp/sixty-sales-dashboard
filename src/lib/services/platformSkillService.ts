@@ -25,7 +25,7 @@ export interface PlatformSkillFrontmatter {
 export interface PlatformSkill {
   id: string;
   skill_key: string;
-  category: 'sales-ai' | 'writing' | 'enrichment' | 'workflows';
+  category: 'sales-ai' | 'writing' | 'enrichment' | 'workflows' | 'data-access' | 'output-format';
   frontmatter: PlatformSkillFrontmatter;
   content_template: string;
   version: number;
@@ -64,13 +64,21 @@ export interface ServiceResult<T = unknown> {
   error?: string;
 }
 
-export type SkillCategory = 'sales-ai' | 'writing' | 'enrichment' | 'workflows';
+export type SkillCategory =
+  | 'sales-ai'
+  | 'writing'
+  | 'enrichment'
+  | 'workflows'
+  | 'data-access'
+  | 'output-format';
 
 export const SKILL_CATEGORIES: { value: SkillCategory; label: string; description: string }[] = [
   { value: 'sales-ai', label: 'Sales AI', description: 'AI-powered sales intelligence and automation' },
   { value: 'writing', label: 'Writing', description: 'Email and communication templates' },
   { value: 'enrichment', label: 'Enrichment', description: 'Lead and company research' },
   { value: 'workflows', label: 'Workflows', description: 'Automated process triggers' },
+  { value: 'data-access', label: 'Data Access', description: 'How Copilot fetches contacts, deals, meetings, and emails' },
+  { value: 'output-format', label: 'Output Format', description: 'How Copilot formats responses for Slack, email, and other channels' },
 ];
 
 // ============================================================================

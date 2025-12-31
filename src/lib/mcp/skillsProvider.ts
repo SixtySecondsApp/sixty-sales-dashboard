@@ -26,7 +26,7 @@ import { MCPServer, MCPTool, MCPResource, MCPPrompt } from './mcpServer';
 export interface SkillFrontmatter {
   name: string;
   description: string;
-  category: 'sales-ai' | 'writing' | 'enrichment' | 'workflows';
+  category: 'sales-ai' | 'writing' | 'enrichment' | 'workflows' | 'data-access' | 'output-format';
   version: number;
   triggers?: string[];
   requires_context?: string[];
@@ -95,7 +95,7 @@ export class SkillsProvider {
    * @returns Array of skills
    */
   async listSkills(
-    category?: 'sales-ai' | 'writing' | 'enrichment' | 'workflows',
+    category?: 'sales-ai' | 'writing' | 'enrichment' | 'workflows' | 'data-access' | 'output-format',
     enabledOnly = true
   ): Promise<Skill[]> {
     try {
@@ -208,7 +208,7 @@ export class SkillsProvider {
    */
   async searchSkills(
     query: string,
-    category?: 'sales-ai' | 'writing' | 'enrichment' | 'workflows',
+    category?: 'sales-ai' | 'writing' | 'enrichment' | 'workflows' | 'data-access' | 'output-format',
     enabledOnly = true
   ): Promise<Skill[]> {
     try {
@@ -249,7 +249,7 @@ export class SkillsProvider {
    * @returns Array of skills in that category
    */
   async getSkillsByCategory(
-    category: 'sales-ai' | 'writing' | 'enrichment' | 'workflows'
+    category: 'sales-ai' | 'writing' | 'enrichment' | 'workflows' | 'data-access' | 'output-format'
   ): Promise<Skill[]> {
     return this.listSkills(category);
   }
@@ -346,8 +346,8 @@ export class SkillsMCPServer extends MCPServer {
           properties: {
             category: {
               type: 'string',
-              description: 'Filter by category: sales-ai, writing, enrichment, workflows',
-              enum: ['sales-ai', 'writing', 'enrichment', 'workflows'],
+              description: 'Filter by category: sales-ai, writing, enrichment, workflows, data-access, output-format',
+              enum: ['sales-ai', 'writing', 'enrichment', 'workflows', 'data-access', 'output-format'],
             },
             enabled_only: {
               type: 'boolean',
@@ -384,7 +384,7 @@ export class SkillsMCPServer extends MCPServer {
             category: {
               type: 'string',
               description: 'Optional category filter',
-              enum: ['sales-ai', 'writing', 'enrichment', 'workflows'],
+              enum: ['sales-ai', 'writing', 'enrichment', 'workflows', 'data-access', 'output-format'],
             },
           },
           required: ['query'],
@@ -425,7 +425,14 @@ export class SkillsMCPServer extends MCPServer {
     switch (name) {
       case 'list_skills':
         return this.provider.listSkills(
-          args.category as 'sales-ai' | 'writing' | 'enrichment' | 'workflows' | undefined,
+          args.category as
+            | 'sales-ai'
+            | 'writing'
+            | 'enrichment'
+            | 'workflows'
+            | 'data-access'
+            | 'output-format'
+            | undefined,
           args.enabled_only !== false
         );
 
@@ -435,7 +442,14 @@ export class SkillsMCPServer extends MCPServer {
       case 'search_skills':
         return this.provider.searchSkills(
           args.query as string,
-          args.category as 'sales-ai' | 'writing' | 'enrichment' | 'workflows' | undefined
+          args.category as
+            | 'sales-ai'
+            | 'writing'
+            | 'enrichment'
+            | 'workflows'
+            | 'data-access'
+            | 'output-format'
+            | undefined
         );
 
       case 'get_skills_by_trigger':

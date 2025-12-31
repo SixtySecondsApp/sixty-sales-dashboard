@@ -23,6 +23,8 @@ import {
   RATE_LIMIT_CONFIGS
 } from '../_shared/rateLimiter.ts'
 import { logAICostEvent, extractAnthropicUsage } from '../_shared/costTracking.ts'
+import { executeAction } from '../_shared/copilot_adapters/executeAction.ts'
+import type { ExecuteActionName } from '../_shared/copilot_adapters/types.ts'
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
 const ANTHROPIC_VERSION = '2023-06-01' // API version for tool calling
@@ -234,6 +236,7 @@ serve(async (req) => {
       method: req.method,
       matchesChat: req.method === 'POST' && endpoint === 'chat',
       matchesDraftEmail: req.method === 'POST' && endpoint === 'actions' && resourceId === 'draft-email',
+      matchesTestSkill: req.method === 'POST' && endpoint === 'actions' && resourceId === 'test-skill',
       matchesGenerateEmail: req.method === 'POST' && endpoint === 'actions' && resourceId === 'generate-deal-email',
       matchesConversations: req.method === 'GET' && endpoint === 'conversations' && resourceId
     })
@@ -242,6 +245,8 @@ serve(async (req) => {
       return await handleChat(client, req, user_id)
     } else if (req.method === 'POST' && endpoint === 'actions' && resourceId === 'draft-email') {
       return await handleDraftEmail(client, req, user_id)
+    } else if (req.method === 'POST' && endpoint === 'actions' && resourceId === 'test-skill') {
+      return await handleTestSkill(client, req, user_id)
     } else if (req.method === 'POST' && endpoint === 'actions' && resourceId === 'generate-deal-email') {
       console.log('[API-COPILOT] ✅ Routing to handleGenerateDealEmail')
       return await handleGenerateDealEmail(client, req, user_id)
@@ -821,6 +826,52 @@ async function handleDraftEmail(
 
   } catch (error) {
     return createErrorResponse('Failed to draft email', 500, 'EMAIL_DRAFT_ERROR')
+  }
+}
+
+/**
+ * Handle skill testing requests (admin/dev console)
+ *
+ * POST /api-copilot/actions/test-skill
+ */
+async function handleTestSkill(
+  client: any,
+  req: Request,
+  userId: string
+): Promise<Response> {
+  try {
+    const body = await req.json()
+    const skillKey = body?.skill_key ? String(body.skill_key).trim() : ''
+    const testInput = body?.test_input ? String(body.test_input) : ''
+    const mode = body?.mode ? String(body.mode) : 'readonly'
+
+    if (!skillKey) {
+      return createErrorResponse('skill_key is required', 400, 'INVALID_SKILL_KEY')
+    }
+
+    const message = [
+      `Skill test mode: ${mode}.`,
+      `First call get_skill({ "skill_key": "${skillKey}" }) and follow that skill's instructions.`,
+      testInput ? `User request to run through the skill: ${testInput}` : 'User request: run the skill with best-effort defaults.',
+    ].join('\n')
+
+    const aiResponse = await callClaudeAPI(message, [], '', client, userId)
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        skill_key: skillKey,
+        output: aiResponse.content,
+        tools_used: aiResponse.tools_used || [],
+        tool_iterations: aiResponse.tool_iterations || 0,
+        tool_executions: aiResponse.tool_executions || [],
+        usage: aiResponse.usage || undefined,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to test skill'
+    return createErrorResponse(message, 500, 'TEST_SKILL_ERROR')
   }
 }
 
@@ -1963,6 +2014,71 @@ const AVAILABLE_TOOLS = [
 ]
 
 /**
+ * Skills Router Tools (3-tool surface)
+ *
+ * Copilot is intentionally limited to:
+ * - list_skills: discover skills
+ * - get_skill: load a skill document (compiled per org)
+ * - execute_action: fetch data / perform actions through adapters
+ */
+const SKILLS_ROUTER_TOOLS = [
+  {
+    name: 'list_skills',
+    description: 'List available compiled skills for the user’s organization (optionally filtered by category).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        category: {
+          type: 'string',
+          enum: ['sales-ai', 'writing', 'enrichment', 'workflows', 'data-access', 'output-format'],
+          description: 'Optional skill category filter.',
+        },
+        enabled_only: {
+          type: 'boolean',
+          default: true,
+          description: 'Only return enabled skills (default true).',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_skill',
+    description: 'Retrieve a compiled skill document by skill_key for the user’s organization.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        skill_key: { type: 'string', description: 'Skill identifier (e.g., lead-qualification, get-contact-context)' },
+      },
+      required: ['skill_key'],
+    },
+  },
+  {
+    name: 'execute_action',
+    description:
+      'Execute an action needed to complete a skill (fetch CRM data, meetings, emails, send notifications). Write actions require params.confirm=true.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: [
+            'get_contact',
+            'get_deal',
+            'get_meetings',
+            'search_emails',
+            'draft_email',
+            'update_crm',
+            'send_notification',
+          ],
+        },
+        params: { type: 'object', description: 'Action-specific parameters' },
+      },
+      required: ['action', 'params'],
+    },
+  },
+]
+
+/**
  * Call Claude API for chat response with tool support
  */
 async function callClaudeAPI(
@@ -1988,73 +2104,69 @@ async function callClaudeAPI(
   }
 
   // Build messages array for Claude
-  const messages: any[] = [
-    {
-      role: 'user',
-      content: `You are an AI sales assistant helping a sales professional manage their pipeline, contacts, and deals.
+  // Resolve org + company name for minimal system prompt
+  let orgId: string | null = null
+  let companyName = 'your company'
+  try {
+    const { data: membership } = await client
+      .from('organization_memberships')
+      .select('org_id')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    orgId = membership?.org_id ? String(membership.org_id) : null
 
-${context ? `Context:\n${context}\n` : ''}
+    if (orgId) {
+      const { data: orgCompanyName } = await client
+        .from('organization_context')
+        .select('value')
+        .eq('organization_id', orgId)
+        .eq('context_key', 'company_name')
+        .maybeSingle()
 
-IMPORTANT: If the context includes a "Current task", use ALL the task information (title, description, related contact, company, deal, due date, priority) when helping the user. For example:
-- If the user asks to "write an email" and there's a task context, use the task's contact information, description, and details to craft a relevant email
-- If the task mentions a specific person (like "Jean Marc" or "Jean-Marc"), use the contact information from the task
-- Use the task description and context to understand what the email should be about
-- Reference the task's due date and priority when relevant
-- If the task has a description that mentions scheduling a meeting or review, use that information to draft the email
-
-You have access to CRUD (Create, Read, Update, Delete) operations for all major entities in the sales dashboard:
-
-**Meetings**: Full CRUD access including transcripts, summaries, action items, and attendees
-**Activities**: Create and manage sales activities (sales, outbound, meetings, proposals)
-**Pipeline (Deals)**: Manage deals with stages, values, probabilities, and status
-**Leads (Contacts)**: Manage contacts with companies, emails, and relationships
-**Clients**: Manage client subscriptions with monthly recurring revenue (MRR) tracking
-**Roadmap**: Create and manage roadmap items (features, bugs, improvements)
-**Calendar**: Full calendar management with search and update capabilities.
-  - Use calendar_availability to check what's on calendar or find free time slots
-  - Use calendar_read with title parameter to search events (e.g., title: "gym" finds "Gym Session")
-  - When users want to move/reschedule an event, use this workflow:
-    1. Search for the event using calendar_read with title and date filters
-    2. Update the event using calendar_update with new start_time and end_time
-    3. Confirm the change to the user
-  - ALWAYS search for events first before asking user for event IDs
-  - Parse relative dates using current date/time from context (e.g., "Monday next week")
-**Tasks**: Create and manage tasks linked to contacts, deals, or companies
-
-**CRITICAL: When users request actions that modify data (marking deals as won, updating client subscriptions, creating tasks, etc.), you MUST use the appropriate write operations (create, update). Do not just read data - actively perform the requested changes using the available tools.**
-
-**Key Capabilities**:
-- When reading meetings, you get full Fathom transcripts (transcript_text), AI summaries, action items, and sentiment analysis
-- All operations respect user ownership and permissions
-- You can filter, sort, and search across all entities
-- Related data is automatically included (e.g., meeting action items, deal stages)
-- When updating deals, you can change status to 'won', 'lost', or 'cancelled'
-- When updating clients, you can modify subscription_amount (MRR) and other client fields
-
-**Examples of what you can do**:
-- "Show me all meetings from last week with their transcripts and action items"
-- "What's on my calendar on Monday?" → Use calendar_availability tool with startDate/endDate for that Monday (use current date from context)
-- "When am I free next week?" → Use calendar_availability tool with startDate/endDate for next week (use current date from context)
-- "Create a new deal for Acme Corp worth $50,000 in the Opportunity stage"
-- "Mark the deal for Anuncia as closed won and set the client subscription to £5000 per month"
-- "Update the status of deal XYZ to 'won'"
-- "Create a task to follow up with John Smith tomorrow"
-- "Find all contacts at TechCorp"
-- "Create a roadmap item for adding email templates"
-- "Update the client subscription amount for Company ABC to $10,000 per month"
-
-**Action Execution Guidelines**:
-- When a user asks you to mark a deal as won, use pipeline_update with status='won'
-- When a user asks you to update a client subscription amount, use clients_update with subscription_amount
-- When a user asks you to create a task, use tasks_create
-- **When a user asks about their calendar (e.g., "what's on my calendar on Monday", "what meetings do I have", "when am I free"), ALWAYS use calendar_availability tool. Use the current date/time from context to parse relative dates - NEVER ask the user for today's date or a specific date.**
-- Always use the appropriate write operations to complete user requests - don't just read and report
-
-Use the appropriate CRUD operations to complete user requests. Be intelligent about which operations to use and provide helpful summaries of what you did.
-
-Be helpful, proactive, and action-oriented.`
+      const ctxName = orgCompanyName?.value
+      if (typeof ctxName === 'string' && ctxName.trim()) {
+        companyName = ctxName.trim()
+      } else if (ctxName && typeof ctxName === 'object' && typeof (ctxName as any).name === 'string') {
+        const nestedName = String((ctxName as any).name).trim()
+        if (nestedName) companyName = nestedName
+      } else {
+        const { data: org } = await client
+          .from('organizations')
+          .select('name')
+          .eq('id', orgId)
+          .maybeSingle()
+        if (org?.name) companyName = String(org.name)
+      }
     }
-  ]
+  } catch {
+    // fail open: keep default companyName
+  }
+
+  const systemPrompt = `You are a sales assistant for ${companyName}. You help sales reps prepare for calls, follow up after meetings, and manage their pipeline.
+
+## How You Work
+You have access to skills - documents that contain instructions, context, and best practices specific to ${companyName}. Always retrieve the relevant skill before taking action.
+
+### Your Tools
+1. list_skills - See available skills by category
+2. get_skill - Retrieve a skill document for guidance
+3. execute_action - Perform actions (query CRM, fetch meetings, search emails, etc.)
+
+### Workflow Pattern
+1. Understand what the user needs
+2. Retrieve the relevant skill(s) with get_skill
+3. Follow the skill's instructions
+4. Use execute_action to gather data or perform tasks
+5. Deliver results in the user's preferred channel
+
+## Core Rules
+- Confirm before any CRM updates, notifications, or sends (execute_action write actions require params.confirm=true)
+- Do not make up information; prefer tool results
+- If data is missing, state what you couldn't find and proceed with what you have`
+
+  const messages: any[] = []
 
   // Add conversation history (last 10 messages for context)
   const recentHistory = history.slice(-10)
@@ -2064,6 +2176,14 @@ Be helpful, proactive, and action-oriented.`
       content: msg.content
     })
   })
+
+  // Add runtime context (short, high-signal) as a separate user message
+  if (context && context.trim()) {
+    messages.push({
+      role: 'user',
+      content: `Context:\n${context}`.trim(),
+    })
+  }
 
   // Add current message
   messages.push({
@@ -2085,7 +2205,8 @@ Be helpful, proactive, and action-oriented.`
     body: JSON.stringify({
       model: 'claude-haiku-4-5', // Claude Haiku 4.5 for fast, cost-effective MCP tool execution
       max_tokens: 4096,
-      tools: AVAILABLE_TOOLS,
+      system: systemPrompt,
+      tools: SKILLS_ROUTER_TOOLS,
       messages
     })
   })
@@ -2229,7 +2350,8 @@ Be helpful, proactive, and action-oriented.`
         body: JSON.stringify({
           model: 'claude-haiku-4-5', // Claude Haiku 4.5 for fast, cost-effective MCP tool execution
           max_tokens: 4096,
-          tools: AVAILABLE_TOOLS,
+          system: systemPrompt,
+          tools: SKILLS_ROUTER_TOOLS,
           messages
         })
       })
@@ -2293,6 +2415,163 @@ async function executeToolCall(
   client: any,
   userId: string
 ): Promise<any> {
+  // ---------------------------------------------------------------------------
+  // Skills Router (3-tool surface)
+  // ---------------------------------------------------------------------------
+  if (toolName === 'list_skills' || toolName === 'get_skill' || toolName === 'execute_action') {
+    // Resolve org_id (first org membership)
+    const { data: membership, error: membershipError } = await client
+      .from('organization_memberships')
+      .select('org_id')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (membershipError) {
+      throw new Error(`Failed to resolve organization: ${membershipError.message}`)
+    }
+
+    const orgId = membership?.org_id ? String(membership.org_id) : null
+    if (!orgId) {
+      throw new Error('No organization found for user')
+    }
+
+    if (toolName === 'list_skills') {
+      const category = args?.category ? String(args.category) : null
+      const enabledOnly = args?.enabled_only !== false
+
+      if (enabledOnly) {
+        const { data: skills, error } = await client.rpc('get_organization_skills_for_agent', {
+          p_org_id: orgId,
+        })
+        if (error) throw new Error(`Failed to list skills: ${error.message}`)
+
+        const filtered = (skills || []).filter((s: any) => (!category ? true : s.category === category))
+        return {
+          success: true,
+          count: filtered.length,
+          skills: filtered.map((s: any) => ({
+            skill_key: s.skill_key,
+            category: s.category,
+            name: s.frontmatter?.name,
+            description: s.frontmatter?.description,
+            triggers: s.frontmatter?.triggers || [],
+            is_enabled: s.is_enabled ?? true,
+          })),
+        }
+      }
+
+      // enabled_only=false: include disabled org skills via join on platform_skill_id
+      const { data: rows, error } = await client
+        .from('organization_skills')
+        .select(
+          `
+          skill_id,
+          is_enabled,
+          compiled_frontmatter,
+          compiled_content,
+          platform_skill_version,
+          platform_skills:platform_skill_id(category, frontmatter, content_template, is_active)
+        `
+        )
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+
+      if (error) throw new Error(`Failed to list skills: ${error.message}`)
+
+      const all = (rows || [])
+        .filter((r: any) => (r.platform_skills?.is_active ?? true) === true)
+        .map((r: any) => ({
+          skill_key: r.skill_id,
+          category: r.platform_skills?.category || 'uncategorized',
+          frontmatter: r.compiled_frontmatter || r.platform_skills?.frontmatter || {},
+          content: r.compiled_content || r.platform_skills?.content_template || '',
+          is_enabled: r.is_enabled ?? true,
+          version: r.platform_skill_version ?? 1,
+        }))
+        .filter((s: any) => (!category ? true : s.category === category))
+
+      return {
+        success: true,
+        count: all.length,
+        skills: all.map((s: any) => ({
+          skill_key: s.skill_key,
+          category: s.category,
+          name: s.frontmatter?.name,
+          description: s.frontmatter?.description,
+          triggers: s.frontmatter?.triggers || [],
+          is_enabled: s.is_enabled ?? true,
+        })),
+      }
+    }
+
+    if (toolName === 'get_skill') {
+      const skillKey = args?.skill_key ? String(args.skill_key) : null
+      if (!skillKey) throw new Error('skill_key is required')
+
+      // Prefer enabled compiled skills first
+      const { data: skills, error } = await client.rpc('get_organization_skills_for_agent', {
+        p_org_id: orgId,
+      })
+      if (error) throw new Error(`Failed to get skill: ${error.message}`)
+
+      const found = (skills || []).find((s: any) => s.skill_key === skillKey)
+      if (found) {
+        return {
+          success: true,
+          skill: {
+            skill_key: found.skill_key,
+            category: found.category,
+            frontmatter: found.frontmatter || {},
+            content: found.content || '',
+            is_enabled: found.is_enabled ?? true,
+          },
+        }
+      }
+
+      // Fallback: allow fetching disabled skill by joining organization_skills -> platform_skills
+      const { data: row, error: rowError } = await client
+        .from('organization_skills')
+        .select(
+          `
+          skill_id,
+          is_enabled,
+          compiled_frontmatter,
+          compiled_content,
+          platform_skill_version,
+          platform_skills:platform_skill_id(category, frontmatter, content_template, is_active)
+        `
+        )
+        .eq('organization_id', orgId)
+        .eq('skill_id', skillKey)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (rowError) throw new Error(`Failed to get skill: ${rowError.message}`)
+      if (!row || (row.platform_skills?.is_active ?? true) !== true) {
+        return { success: true, skill: null }
+      }
+
+      return {
+        success: true,
+        skill: {
+          skill_key: row.skill_id,
+          category: row.platform_skills?.category || 'uncategorized',
+          frontmatter: row.compiled_frontmatter || row.platform_skills?.frontmatter || {},
+          content: row.compiled_content || row.platform_skills?.content_template || '',
+          is_enabled: row.is_enabled ?? true,
+        },
+      }
+    }
+
+    if (toolName === 'execute_action') {
+      const action = args?.action as ExecuteActionName
+      const params = (args?.params || {}) as Record<string, unknown>
+      return await executeAction(client, userId, orgId, action, params)
+    }
+  }
+
   // Parse entity and operation from tool name (e.g., "meetings_create" -> entity: "meetings", operation: "create")
   const parts = toolName.split('_')
   if (parts.length < 2) {

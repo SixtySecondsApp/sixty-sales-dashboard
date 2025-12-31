@@ -20,6 +20,8 @@ import {
   Sparkles,
   FileText,
   Database,
+  Server,
+  LayoutTemplate,
   Workflow,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -46,6 +48,7 @@ import {
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { SkillDocumentEditor } from '@/components/platform/SkillDocumentEditor';
 import { SkillPreview } from '@/components/platform/SkillPreview';
+import { SkillTestConsole } from '@/components/platform/SkillTestConsole';
 import { toast } from 'sonner';
 
 const CATEGORY_ICONS: Record<SkillCategory, React.ElementType> = {
@@ -53,6 +56,8 @@ const CATEGORY_ICONS: Record<SkillCategory, React.ElementType> = {
   writing: FileText,
   enrichment: Database,
   workflows: Workflow,
+  'data-access': Server,
+  'output-format': LayoutTemplate,
 };
 
 export default function SkillsAdmin() {
@@ -61,6 +66,7 @@ export default function SkillsAdmin() {
   const [searchQuery, setSearchQuery] = useState('');
   const [editingSkill, setEditingSkill] = useState<PlatformSkill | null>(null);
   const [previewSkill, setPreviewSkill] = useState<PlatformSkill | null>(null);
+  const [previewTab, setPreviewTab] = useState<'preview' | 'test'>('preview');
   const [isCreating, setIsCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<PlatformSkill | null>(null);
 
@@ -286,7 +292,15 @@ export default function SkillsAdmin() {
       </Dialog>
 
       {/* Preview Dialog */}
-      <Dialog open={!!previewSkill} onOpenChange={() => setPreviewSkill(null)}>
+      <Dialog
+        open={!!previewSkill}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPreviewSkill(null);
+            setPreviewTab('preview');
+          }
+        }}
+      >
         <DialogContent className="max-w-4xl h-[80vh] p-0 bg-white dark:bg-gray-900">
           <DialogHeader className="px-6 py-4 border-b border-gray-200 dark:border-gray-700/50">
             <DialogTitle className="text-gray-900 dark:text-gray-100">
@@ -297,7 +311,23 @@ export default function SkillsAdmin() {
             </DialogDescription>
           </DialogHeader>
           {previewSkill && (
-            <SkillPreview skill={previewSkill} onClose={() => setPreviewSkill(null)} />
+            <div className="h-full flex flex-col">
+              <div className="px-6 pt-4">
+                <Tabs value={previewTab} onValueChange={(v) => setPreviewTab(v as 'preview' | 'test')}>
+                  <TabsList>
+                    <TabsTrigger value="preview">Preview</TabsTrigger>
+                    <TabsTrigger value="test">Test</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+              <div className="flex-1 min-h-0">
+                {previewTab === 'preview' ? (
+                  <SkillPreview skill={previewSkill} onClose={() => setPreviewSkill(null)} />
+                ) : (
+                  <SkillTestConsole skillKey={previewSkill.skill_key} />
+                )}
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

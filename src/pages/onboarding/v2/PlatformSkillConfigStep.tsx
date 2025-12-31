@@ -19,6 +19,8 @@ import {
   FileText,
   Target,
   Mail,
+  Database,
+  LayoutTemplate,
   RefreshCw,
 } from 'lucide-react';
 import { useOnboardingV2Store, type CompiledSkill } from '@/lib/stores/onboardingV2Store';
@@ -52,6 +54,16 @@ const CATEGORY_CONFIG: Record<
     label: 'Workflows',
     icon: FileText,
     color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  },
+  'data-access': {
+    label: 'Data Access',
+    icon: Database,
+    color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
+  },
+  'output-format': {
+    label: 'Output Format',
+    icon: LayoutTemplate,
+    color: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-400',
   },
 };
 

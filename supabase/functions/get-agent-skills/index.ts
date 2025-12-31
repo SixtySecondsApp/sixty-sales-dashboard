@@ -27,7 +27,7 @@ import {
 interface AgentSkillsRequest {
   action: 'list' | 'get' | 'search';
   organization_id: string;
-  category?: 'sales-ai' | 'writing' | 'enrichment' | 'workflows';
+  category?: 'sales-ai' | 'writing' | 'enrichment' | 'workflows' | 'data-access' | 'output-format';
   enabled_only?: boolean;
   skill_key?: string;
   query?: string;
