@@ -55,7 +55,7 @@ export const LiveWaveform = memo(function LiveWaveform({
           className={cn(
             'w-1 rounded-full transition-all duration-100',
             isRecording
-              ? 'bg-gradient-to-t from-blue-500 to-cyan-400 dark:from-blue-400 dark:to-cyan-300'
+              ? 'bg-blue-600 dark:bg-blue-500'
               : 'bg-gray-300 dark:bg-gray-700'
           )}
           style={{
@@ -104,7 +104,7 @@ export const MiniWaveform = memo(function MiniWaveform({
           className={cn(
             'w-[2px] rounded-full transition-all duration-300',
             isActive
-              ? 'bg-gradient-to-t from-blue-500/80 to-cyan-400/80'
+              ? 'bg-blue-600 dark:bg-blue-500'
               : 'bg-gray-300 dark:bg-gray-600'
           )}
           style={{

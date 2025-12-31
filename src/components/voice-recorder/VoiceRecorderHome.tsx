@@ -25,7 +25,7 @@ export const VoiceRecorderHome = memo(function VoiceRecorderHome({
       {/* Header */}
       <header className="p-6 pt-8">
         <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
             <span className="text-white font-bold text-lg">60</span>
           </div>
           <div>
@@ -89,11 +89,8 @@ export const VoiceRecorderHome = memo(function VoiceRecorderHome({
           onClick={onStartRecording}
           className="w-full relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded-3xl"
         >
-          {/* Glow effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-3xl blur-xl opacity-30 group-hover:opacity-50 transition-opacity" />
-
-          <div className="relative bg-gradient-to-r from-blue-500 to-cyan-500 rounded-3xl p-6 flex items-center justify-center gap-4 shadow-lg shadow-blue-500/25 transition-transform group-hover:scale-[1.02] group-active:scale-[0.98]">
-            <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center">
+          <div className="relative bg-blue-600 hover:bg-blue-700 rounded-3xl p-6 flex items-center justify-center gap-4 transition-all group-hover:scale-[1.02] group-active:scale-[0.98]">
+            <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center">
               <Mic className="w-8 h-8 text-white" />
             </div>
             <div className="text-left">

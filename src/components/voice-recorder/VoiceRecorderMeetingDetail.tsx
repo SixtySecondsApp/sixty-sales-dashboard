@@ -118,7 +118,7 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
               <div className="flex-1">
                 <div className="h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all duration-300"
+                    className="h-full bg-blue-600 rounded-full transition-all duration-300"
                     style={{ width: `${playbackProgress * 100}%` }}
                   />
                 </div>
@@ -137,10 +137,10 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
 
         {/* AI Summary */}
         <section className="px-4 py-3">
-          <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-500/10 dark:to-cyan-500/10 rounded-2xl p-4 border border-blue-200 dark:border-blue-500/20">
+          <div className="bg-blue-50 dark:bg-blue-500/10 rounded-2xl p-4 border border-blue-200 dark:border-blue-500/20">
             <div className="flex items-center gap-2 mb-3">
-              <Wand2 className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-              <span className="text-sm font-medium text-cyan-700 dark:text-cyan-400">
+              <Wand2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
                 AI Summary
               </span>
             </div>
