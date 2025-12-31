@@ -44,6 +44,9 @@ import {
   searchQueryParseTemplate,
   // Process Maps
   processMapGenerationTemplate,
+  // Onboarding - Organization Enrichment
+  organizationDataCollectionTemplate,
+  organizationSkillGenerationTemplate,
 } from '@/lib/prompts';
 
 // ============================================================================
@@ -136,6 +139,10 @@ const DEFAULT_TEMPLATES: Record<string, PromptTemplate> = {
 
   // Process Maps
   process_map_generation: processMapGenerationTemplate,
+
+  // Onboarding - Organization Enrichment
+  organization_data_collection: organizationDataCollectionTemplate,
+  organization_skill_generation: organizationSkillGenerationTemplate,
 };
 
 // ============================================================================

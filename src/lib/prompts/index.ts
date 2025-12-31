@@ -18,6 +18,7 @@ export * from './slackNotifications';
 export * from './meetingPrompts';
 export * from './searchPrompts';
 export * from './processMapPrompts';
+export * from './onboardingPrompts';
 
 // ============================================================================
 // Model Configuration
@@ -164,6 +165,18 @@ export const FEATURE_MODEL_DEFAULTS: Record<string, ModelConfig> = {
     model: DEFAULT_MODELS.HAIKU,
     temperature: 0.3,
     maxTokens: 4096,
+  },
+
+  // Onboarding - Organization Enrichment (using Gemini 2.5 Flash)
+  organization_data_collection: {
+    model: 'gemini-3-flash-preview',
+    temperature: 0.3,
+    maxTokens: 4096,
+  },
+  organization_skill_generation: {
+    model: 'gemini-3-flash-preview',
+    temperature: 0.4,
+    maxTokens: 6000,
   },
 };
 

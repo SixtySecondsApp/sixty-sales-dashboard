@@ -25,7 +25,8 @@ export type ProcessName =
   | 'task_extraction'
   | 'vsl_analytics'
   | 'sentry_bridge'
-  | 'api_optimization';
+  | 'api_optimization'
+  | 'onboarding_v2';
 
 interface ProcessMapButtonProps {
   processType: ProcessType;

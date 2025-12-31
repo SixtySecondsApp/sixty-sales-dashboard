@@ -17,7 +17,14 @@ import {
   Clock,
   Plus,
   Pencil,
-  Trash2
+  Trash2,
+  Sparkles,
+  Globe,
+  Mail,
+  Settings,
+  LayoutDashboard,
+  FileText,
+  Calendar
 } from 'lucide-react';
 
 const skills = [
@@ -230,6 +237,7 @@ function AddItemButton({ onAdd, placeholder, darkMode }) {
 
 function SignupStep({ onContinue, darkMode }) {
   const [email, setEmail] = useState('andrew@sixtyseconds.co');
+  const domain = email.match(/@([^@]+)$/)?.[1] || '';
   
   return (
     <motion.div 
@@ -239,17 +247,17 @@ function SignupStep({ onContinue, darkMode }) {
       className="w-full max-w-md mx-auto px-4"
     >
       <div className={`rounded-2xl shadow-xl border p-6 sm:p-8 ${
-        darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'
+        darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'
       }`}>
         <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-violet-600 flex items-center justify-center mx-auto mb-4">
-            <Building2 className="w-6 h-6 text-white" />
+          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/25">
+            <Sparkles className="w-7 h-7 text-white" />
           </div>
-          <h1 className={`text-xl sm:text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            Create your account
+          <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            Get started with use60
           </h1>
-          <p className={`mt-2 text-sm sm:text-base ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-            Get started with your sales assistant
+          <p className={`mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            Enter your work email to begin
           </p>
         </div>
         
@@ -258,25 +266,40 @@ function SignupStep({ onContinue, darkMode }) {
             <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
               Work email
             </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={`w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all ${
-                darkMode 
-                  ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
-                  : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
-              } border`}
-              placeholder="you@company.com"
-            />
+            <div className="relative">
+              <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={`w-full pl-10 pr-4 py-3.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
+                  darkMode 
+                    ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
+                    : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+                } border`}
+                placeholder="you@company.com"
+              />
+            </div>
           </div>
+
+          {domain && (
+            <div className={`flex items-center gap-2 p-3.5 rounded-xl border ${
+              darkMode ? 'bg-blue-900/20 border-blue-800 text-blue-300' : 'bg-blue-50 border-blue-100 text-blue-700'
+            }`}>
+              <Globe className="w-4 h-4" />
+              <span className="text-sm">
+                We'll use <span className="font-semibold">{domain}</span> to customize your assistant
+              </span>
+            </div>
+          )}
           
           <button
             onClick={onContinue}
-            className="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium transition-all flex items-center justify-center gap-2 group"
+            disabled={!email.includes('@')}
+            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500 text-white rounded-xl font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25 disabled:shadow-none"
           >
             Continue
-            <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -286,14 +309,13 @@ function SignupStep({ onContinue, darkMode }) {
 
 function EnrichmentLoadingStep({ onComplete, darkMode }) {
   const [progress, setProgress] = useState(0);
-  const [currentTask, setCurrentTask] = useState(0);
   
   const tasks = [
-    'Scanning website...',
-    'Identifying products & services...',
-    'Analyzing target market...',
-    'Mapping competitors...',
-    'Preparing recommendations...',
+    { label: 'Scanning website', threshold: 20 },
+    { label: 'Identifying industry', threshold: 40 },
+    { label: 'Analyzing products', threshold: 60 },
+    { label: 'Finding competitors', threshold: 80 },
+    { label: 'Building profile', threshold: 100 },
   ];
   
   useEffect(() => {
@@ -304,18 +326,11 @@ function EnrichmentLoadingStep({ onComplete, darkMode }) {
           setTimeout(onComplete, 500);
           return 100;
         }
-        return prev + 2;
+        return prev + 3;
       });
-    }, 60);
+    }, 50);
     
-    const taskInterval = setInterval(() => {
-      setCurrentTask(prev => (prev + 1) % tasks.length);
-    }, 600);
-    
-    return () => {
-      clearInterval(interval);
-      clearInterval(taskInterval);
-    };
+    return () => clearInterval(interval);
   }, [onComplete]);
   
   return (
@@ -323,46 +338,67 @@ function EnrichmentLoadingStep({ onComplete, darkMode }) {
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="w-full max-w-lg mx-auto px-4"
+      className="w-full max-w-md mx-auto px-4"
     >
       <div className={`rounded-2xl shadow-xl border p-8 sm:p-12 text-center ${
-        darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'
+        darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'
       }`}>
         <div className="relative w-24 h-24 mx-auto mb-8">
-          <motion.div 
-            className="absolute inset-0 rounded-full bg-violet-500/20"
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          />
-          <div className={`absolute inset-2 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-900' : 'bg-white'}`}>
-            <Building2 className={`w-10 h-10 ${darkMode ? 'text-violet-400' : 'text-violet-600'}`} />
-          </div>
-          <svg className="absolute inset-0 w-full h-full -rotate-90">
-            <circle cx="48" cy="48" r="44" fill="none" stroke={darkMode ? '#374151' : '#e5e7eb'} strokeWidth="4" />
-            <motion.circle
-              cx="48" cy="48" r="44" fill="none" stroke="#8b5cf6" strokeWidth="4" strokeLinecap="round"
-              strokeDasharray={276} strokeDashoffset={276 - (276 * progress) / 100}
+          <svg className="w-24 h-24 transform -rotate-90">
+            <circle 
+              cx="48" cy="48" r="44" 
+              stroke={darkMode ? '#374151' : '#e2e8f0'} 
+              strokeWidth="6" 
+              fill="none" 
             />
+            <circle
+              cx="48" cy="48" r="44" 
+              stroke="url(#gradient)" 
+              strokeWidth="6" 
+              fill="none"
+              strokeLinecap="round"
+              strokeDasharray={`${(progress / 100) * 276.46} 276.46`}
+            />
+            <defs>
+              <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#3b82f6" />
+                <stop offset="100%" stopColor="#8b5cf6" />
+              </linearGradient>
+            </defs>
           </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{progress}%</span>
+          </div>
         </div>
         
         <h2 className={`text-xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-          Analyzing sixtyseconds.co
+          Analyzing {enrichmentData.domain}
         </h2>
-        <p className={`mb-6 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Learning about your business</p>
+        <p className={`mb-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+          Learning about your business to customize your assistant...
+        </p>
         
-        <div className="h-6 flex items-center justify-center">
-          <AnimatePresence mode="wait">
-            <motion.p
-              key={currentTask}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="text-sm text-violet-500 font-medium"
-            >
-              {tasks[currentTask]}
-            </motion.p>
-          </AnimatePresence>
+        <div className="space-y-2.5 text-left">
+          {tasks.map((task, i) => {
+            const isDone = progress > task.threshold - 20;
+            return (
+              <div
+                key={i}
+                className={`flex items-center gap-3 py-2 px-3 rounded-lg transition-all ${
+                  isDone 
+                    ? darkMode ? 'bg-emerald-900/30 text-emerald-400' : 'bg-emerald-50 text-emerald-700'
+                    : darkMode ? 'text-gray-500' : 'text-gray-400'
+                }`}
+              >
+                {isDone ? (
+                  <Check className="w-4 h-4" />
+                ) : (
+                  <div className="w-4 h-4 rounded-full border-2 border-current" />
+                )}
+                <span className="text-sm font-medium">{task.label}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </motion.div>
@@ -441,9 +477,8 @@ function EnrichmentResultStep({ onContinue, darkMode }) {
   );
 }
 
-function SkillConfigStep({ onComplete, darkMode }) {
+function SkillConfigStep({ onComplete, darkMode, configuredSkills, setConfiguredSkills }) {
   const [currentSkillIndex, setCurrentSkillIndex] = useState(0);
-  const [configuredSkills, setConfiguredSkills] = useState([]);
   const [skippedSkills, setSkippedSkills] = useState([]);
   const [skillData, setSkillData] = useState(initialSkillData);
   
@@ -923,7 +958,13 @@ function SkillConfigStep({ onComplete, darkMode }) {
   );
 }
 
-function CompletionStep({ onRestart, darkMode }) {
+function CompletionStep({ onRestart, darkMode, configuredSkills }) {
+  const nextSteps = [
+    { icon: FileText, text: 'Connect your CRM to sync contacts' },
+    { icon: Mail, text: 'Import your email templates' },
+    { icon: Calendar, text: 'Set up your meeting calendar' }
+  ];
+
   return (
     <motion.div 
       initial={{ opacity: 0, scale: 0.95 }}
@@ -931,38 +972,94 @@ function CompletionStep({ onRestart, darkMode }) {
       exit={{ opacity: 0, scale: 0.95 }}
       className="w-full max-w-lg mx-auto px-4"
     >
-      <div className={`rounded-2xl shadow-xl border p-8 sm:p-12 text-center ${
-        darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'
+      <div className={`rounded-2xl shadow-xl border p-8 sm:p-10 text-center ${
+        darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'
       }`}>
         <motion.div 
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ type: "spring", delay: 0.2 }}
-          className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6"
+          className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-500/25"
         >
-          <Check className="w-8 h-8 text-white" />
+          <Check className="w-10 h-10 text-white" strokeWidth={3} />
         </motion.div>
         
-        <h2 className={`text-xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-          Your Assistant is Ready
+        <h2 className={`text-2xl font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+          Your Sales Assistant is Ready
         </h2>
-        <p className={`mb-6 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-          Trained on Sixty Seconds' qualification criteria, objection handling, and brand voice.
+        <p className={`mb-8 leading-relaxed ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          We've trained your AI on <span className="font-semibold">{enrichmentData.name}</span>'s way of selling. 
+          It now knows your qualification criteria, objection handling, and brand voice.
         </p>
         
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <button 
+        {/* Skills Summary */}
+        <div className={`rounded-xl p-5 mb-8 ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
+          <p className={`text-sm font-semibold mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Skills Configured</p>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {skills.map((skill) => {
+              const Icon = skill.icon;
+              const isConfigured = configuredSkills.includes(skill.id);
+              return (
+                <div
+                  key={skill.id}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold ${
+                    isConfigured
+                      ? darkMode ? 'bg-emerald-900/50 text-emerald-400' : 'bg-emerald-100 text-emerald-700'
+                      : darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-500'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {skill.name}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
             onClick={onRestart}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-600 hover:text-gray-800'
+            className={`flex-1 rounded-xl px-4 py-3.5 font-semibold transition-all flex items-center justify-center gap-2 ${
+              darkMode 
+                ? 'bg-gray-800 hover:bg-gray-700 text-white' 
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
             }`}
           >
+            <Settings className="w-4 h-4" />
             Edit Settings
           </button>
-          <button className="w-full sm:w-auto px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium transition-all flex items-center justify-center gap-2 group">
+          <button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-4 py-3.5 font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25">
+            <LayoutDashboard className="w-4 h-4" />
             Go to Dashboard
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </button>
+        </div>
+      </div>
+
+      {/* What's Next */}
+      <div className={`mt-6 rounded-2xl border p-6 text-left shadow-xl ${
+        darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'
+      }`}>
+        <h3 className={`font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>What's next?</h3>
+        <div className="space-y-3">
+          {nextSteps.map((item, i) => {
+            const Icon = item.icon;
+            return (
+              <div 
+                key={i} 
+                className={`flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer ${
+                  darkMode ? 'text-gray-400 hover:bg-gray-800' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  darkMode ? 'bg-gray-800' : 'bg-gray-100'
+                }`}>
+                  <Icon className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                </div>
+                <span className="text-sm font-medium">{item.text}</span>
+                <ChevronRight className={`w-4 h-4 ml-auto ${darkMode ? 'text-gray-600' : 'text-gray-400'}`} />
+              </div>
+            );
+          })}
         </div>
       </div>
     </motion.div>
@@ -972,28 +1069,12 @@ function CompletionStep({ onRestart, darkMode }) {
 export default function SkillsOnboardingFlow() {
   const [step, setStep] = useState(0);
   const [darkMode, setDarkMode] = useState(false);
-  
-  const steps = [
-    <SignupStep key="signup" onContinue={() => setStep(1)} darkMode={darkMode} />,
-    <EnrichmentLoadingStep key="loading" onComplete={() => setStep(2)} darkMode={darkMode} />,
-    <EnrichmentResultStep key="result" onContinue={() => setStep(3)} darkMode={darkMode} />,
-    <SkillConfigStep key="config" onComplete={() => setStep(4)} darkMode={darkMode} />,
-    <CompletionStep key="complete" onRestart={() => setStep(3)} darkMode={darkMode} />,
-  ];
+  const [configuredSkills, setConfiguredSkills] = useState([]);
   
   return (
     <div className={`min-h-screen flex items-center justify-center p-4 sm:p-8 transition-colors duration-300 ${
-      darkMode ? 'bg-gray-950' : 'bg-gradient-to-br from-slate-50 via-violet-50 to-purple-50'
+      darkMode ? 'bg-gray-950' : 'bg-gradient-to-b from-slate-50 to-white'
     }`}>
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 ${
-          darkMode ? 'bg-violet-900/20' : 'bg-violet-200/40'
-        }`} />
-        <div className={`absolute bottom-0 left-0 w-96 h-96 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 ${
-          darkMode ? 'bg-purple-900/20' : 'bg-purple-200/40'
-        }`} />
-      </div>
-      
       <button
         onClick={() => setDarkMode(!darkMode)}
         className={`fixed top-4 right-4 sm:top-8 sm:right-8 p-3 rounded-xl transition-all z-50 ${
@@ -1005,23 +1086,33 @@ export default function SkillsOnboardingFlow() {
         {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
       </button>
       
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 sm:top-8 flex items-center gap-2 z-40">
-        {[0, 1, 2, 3, 4].map((i) => (
-          <div
-            key={i}
-            className={`h-1.5 rounded-full transition-all duration-300 ${
-              i === step 
-                ? 'w-6 sm:w-8 bg-violet-600' 
-                : i < step 
-                  ? `w-3 sm:w-4 ${darkMode ? 'bg-violet-400' : 'bg-violet-400'}`
-                  : `w-3 sm:w-4 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`
-            }`}
-          />
-        ))}
-      </div>
-      
       <AnimatePresence mode="wait">
-        {steps[step]}
+        {step === 0 && (
+          <SignupStep key="signup" onContinue={() => setStep(1)} darkMode={darkMode} />
+        )}
+        {step === 1 && (
+          <EnrichmentLoadingStep key="loading" onComplete={() => setStep(2)} darkMode={darkMode} />
+        )}
+        {step === 2 && (
+          <EnrichmentResultStep key="result" onContinue={() => setStep(3)} darkMode={darkMode} />
+        )}
+        {step === 3 && (
+          <SkillConfigStep 
+            key="config" 
+            onComplete={() => setStep(4)} 
+            darkMode={darkMode} 
+            configuredSkills={configuredSkills}
+            setConfiguredSkills={setConfiguredSkills}
+          />
+        )}
+        {step === 4 && (
+          <CompletionStep 
+            key="complete" 
+            onRestart={() => setStep(3)} 
+            darkMode={darkMode} 
+            configuredSkills={configuredSkills}
+          />
+        )}
       </AnimatePresence>
     </div>
   );

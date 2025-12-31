@@ -2,19 +2,24 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useOnboardingProgress, OnboardingStep } from '@/lib/hooks/useOnboardingProgress';
+import { useOnboardingVersionReadOnly } from '@/lib/hooks/useOnboardingVersion';
 import { WelcomeStep } from './WelcomeStep';
 import { OrgSetupStep } from './OrgSetupStep';
 import { TeamInviteStep } from './TeamInviteStep';
 import { FathomConnectionStep } from './FathomConnectionStep';
 import { CompletionStep } from './CompletionStep';
+import { OnboardingV2 } from './v2/OnboardingV2';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { isInternalUser } from '@/lib/utils/userTypeUtils';
 import { supabase } from '@/lib/supabase/clientV2';
+import { useOrgStore } from '@/lib/stores/orgStore';
 
 export default function OnboardingPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { needsOnboarding, currentStep, loading, resetOnboarding, completeStep } = useOnboardingProgress();
+  const { version: onboardingVersion, loading: versionLoading } = useOnboardingVersionReadOnly();
+  const { getActiveOrg, activeOrgId } = useOrgStore();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isResetting, setIsResetting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -116,11 +121,25 @@ export default function OnboardingPage() {
     }
   };
 
-  if (loading || isCheckingEmailVerification) {
+  if (loading || isCheckingEmailVerification || versionLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#37bd7e]"></div>
       </div>
+    );
+  }
+
+  // Render V2 onboarding if feature flag is set
+  if (onboardingVersion === 'v2') {
+    const activeOrg = getActiveOrg();
+    const domain = activeOrg?.company_domain || user?.email?.split('@')[1] || '';
+    const organizationId = activeOrgId || '';
+
+    return (
+      <OnboardingV2
+        organizationId={organizationId}
+        domain={domain}
+      />
     );
   }
 

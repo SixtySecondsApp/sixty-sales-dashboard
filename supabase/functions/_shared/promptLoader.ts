@@ -286,6 +286,237 @@ Return JSON with semantic_query and structured_filters (date_range, company_name
     maxTokens: 500,
     source: 'default',
   },
+
+  // ============================================================================
+  // Onboarding - Organization Enrichment
+  // ============================================================================
+
+  organization_data_collection: {
+    systemPrompt: `You are an expert business intelligence analyst. Your task is to extract structured company information from website content.
+
+CRITICAL REQUIREMENTS:
+1. Extract EXACT product names as written on the website (e.g., "Stripe Payments", "Stripe Billing", "Stripe Connect" - NOT "payment processing", "billing system", "marketplace payments")
+2. Use VERBATIM quotes from their marketing copy for taglines and value propositions
+3. Extract ACTUAL customer names if visible (e.g., "Amazon, Shopify, Zoom" - NOT "major tech companies")
+4. Be specific about pricing tiers and feature names as they appear on the site
+5. Only include information you can directly observe in the provided content`,
+    userPrompt: `Analyze the following website content for \${domain} and extract structured company data.
+
+**Raw Website Content:**
+\${websiteContent}
+
+**Extract this information in JSON format:**
+{
+  "company": {
+    "name": "Official company name",
+    "tagline": "Main value proposition or tagline",
+    "description": "2-3 sentence company description",
+    "founded_year": null,
+    "headquarters": "City, Country if mentioned",
+    "employee_count": "Range like '10-50' or '100-500' if mentioned"
+  },
+  "classification": {
+    "industry": "Primary industry",
+    "sub_industry": "Specific niche",
+    "business_model": "B2B, B2C, B2B2C, etc.",
+    "company_stage": "startup, scaleup, enterprise, etc."
+  },
+  "offering": {
+    "products": [
+      {"name": "Product name", "description": "Brief description", "pricing_tier": "free/starter/pro/enterprise if mentioned"}
+    ],
+    "services": ["List of services offered"],
+    "key_features": ["Top 5-10 features mentioned"],
+    "integrations": ["Any integrations mentioned"]
+  },
+  "market": {
+    "target_industries": ["Industries they serve"],
+    "target_company_sizes": ["SMB, Mid-market, Enterprise, etc."],
+    "target_roles": ["Job titles they target"],
+    "use_cases": ["Primary use cases mentioned"],
+    "customer_logos": ["Any customer names/logos visible"],
+    "case_study_customers": ["Customers mentioned in case studies"]
+  },
+  "positioning": {
+    "competitors": ["List competitors - IMPORTANT: If not explicitly mentioned on their website, use your knowledge to infer 3-5 likely competitors based on their product category and industry. For example, if they're an AI writing tool, competitors would be CopyAI, Jasper, Anyword, etc."],
+    "competitor_source": "explicit (mentioned on site) OR inferred (based on product category)",
+    "differentiators": ["What makes them unique"],
+    "pain_points_addressed": ["Problems they solve"]
+  },
+  "voice": {
+    "tone": ["professional", "casual", "technical", "friendly", etc.],
+    "key_phrases": ["Distinctive phrases they use repeatedly"],
+    "content_samples": ["2-3 representative sentences from their copy"]
+  },
+  "salesContext": {
+    "pricing_model": "subscription, usage-based, one-time, etc.",
+    "sales_motion": "self-serve, sales-led, product-led, etc.",
+    "buying_signals": ["Signals that indicate purchase readiness"],
+    "common_objections": ["Likely objections based on offering"]
+  }
+}
+
+**Important:**
+- For most fields, only include information you found in the website content
+- Use null for fields with no information
+- Be specific - use actual product names, customer names, and terms from their content
+- Extract actual quotes for content_samples and key_phrases
+- EXCEPTION for competitors: If competitors are not explicitly mentioned on the website, you MUST use your knowledge to infer 3-5 likely competitors based on the company's product category and industry. Never return an empty competitors array.
+
+Return ONLY valid JSON, no markdown formatting.`,
+    model: 'gemini-3-flash-preview',
+    temperature: 0.3,
+    maxTokens: 4096,
+    source: 'default',
+  },
+
+  organization_skill_generation: {
+    systemPrompt: `You are an expert sales AI trainer. Your task is to generate personalized skill configurations for a sales AI assistant based on company intelligence.
+
+CRITICAL: Use SPECIFIC product names and terminology from the company intelligence:
+- BAD: "Are you interested in our payment solution?"
+- GOOD: "Are you looking at Stripe Payments for online transactions, or Stripe Terminal for in-person?"
+
+- BAD: "Our platform helps with billing"
+- GOOD: "Stripe Billing automates recurring revenue with usage-based pricing, invoicing, and revenue recovery"
+
+- BAD: "We compete with other payment providers"
+- GOOD: "Unlike PayPal or Square, Stripe Connect handles complex marketplace payouts to thousands of sellers"
+
+Every discovery question, objection response, and example message MUST reference ACTUAL product names from the provided intelligence.`,
+    userPrompt: `Using the following company intelligence for \${domain}, generate personalized sales AI skill configurations.
+
+**Company Intelligence:**
+\${companyIntelligence}
+
+**Generate configurations for these 9 skills/configs:**
+
+**Core Sales Skills (5):**
+1. **lead_qualification** - Criteria that qualify a lead and red flags that disqualify
+2. **lead_enrichment** - Discovery questions to ask prospects
+3. **brand_voice** - How the AI should communicate (tone description and words to avoid)
+4. **objection_handling** - Responses to common objections with trigger phrases
+5. **icp** - Ideal Customer Profile description and buying signals
+
+**Extended AI Configurations (4):**
+6. **copilot_personality** - How the AI assistant should greet users and its personality
+7. **coaching_framework** - Sales coaching focus areas and evaluation criteria
+8. **suggested_call_types** - Types of sales calls/meetings for this company
+9. **writing_style** - A suggested writing style based on their brand voice
+
+**CRITICAL OUTPUT FORMAT - Use these EXACT field names:**
+{
+  "lead_qualification": {
+    "criteria": [
+      "Has budget over $X for [their product category]",
+      "In target industry: [specific industries they serve]",
+      "Company size of [their target range] employees",
+      "Currently evaluating [their solution type]",
+      "Has decision-making authority for [relevant area]"
+    ],
+    "disqualifiers": [
+      "Using competitor with long-term contract",
+      "Company too small for [their minimum deal size]",
+      "No budget allocated for [their category]",
+      "Not in a target geography"
+    ]
+  },
+  "lead_enrichment": {
+    "questions": [
+      "What does your current [problem they solve] workflow look like?",
+      "How many [relevant metric] do you handle monthly?",
+      "What tools are you currently using for [their solution area]?",
+      "What's driving your evaluation of [their product type] right now?",
+      "Who else is involved in this decision?"
+    ]
+  },
+  "brand_voice": {
+    "tone": "Professional yet approachable. Use clear, jargon-free language that emphasizes [their key value props]. Mirror their brand personality: [describe traits from their content]. Focus on [their main differentiators].",
+    "avoid": ["Competitor terminology they wouldn't use", "Overly technical jargon", "Pushy sales language", "Generic phrases that don't match their voice"]
+  },
+  "objection_handling": {
+    "objections": [
+      {
+        "trigger": "too expensive",
+        "response": "I understand budget is a key consideration. Companies using [their product] typically see [specific ROI or benefit]. What's your current spend on [problem area]? That helps me understand if we're in the right ballpark."
+      },
+      {
+        "trigger": "we're using [competitor]",
+        "response": "Great that you have a solution in place! Many customers switched from [competitor] because [specific differentiator]. What's working well for you with your current setup, and what made you start exploring alternatives?"
+      },
+      {
+        "trigger": "need to think about it",
+        "response": "Absolutely, this is an important decision. What specific aspects would you like to evaluate further? I can share some resources on [relevant topics] that might help."
+      },
+      {
+        "trigger": "not the right time",
+        "response": "I appreciate you being upfront. What would need to change for this to become a priority? Happy to reconnect when the timing is better."
+      }
+    ]
+  },
+  "icp": {
+    "companyProfile": "B2B companies in [target industries from their customer base] with [company size range] employees. They typically have [relevant tech stack or infrastructure] and are experiencing [growth signals or pain points their product addresses]. Annual revenue in the [revenue range] bracket.",
+    "buyerPersona": "[Primary job titles] level decision makers responsible for [functional area]. They care about [key priorities based on marketing] and are evaluated on [success metrics]. Common challenges include [pain points their product solves].",
+    "buyingSignals": [
+      "Recently raised Series [A/B/C] funding",
+      "Hiring for [relevant roles that indicate need]",
+      "Published content about [pain points they solve]",
+      "Outgrew their current [competitor or manual solution]",
+      "Mentioned [specific trigger events] in recent communications"
+    ]
+  },
+  "copilot_personality": {
+    "greeting": "A friendly, contextual greeting that references their company and product (e.g., 'Hi! I'm your [Company] sales assistant. How can I help you close more deals today?')",
+    "personality": "Description of how the AI should behave - professional but approachable, focused on [their key value props], knowledgeable about [their industry]",
+    "focus_areas": ["Primary topics the AI should focus on based on their business - e.g., 'Payment processing optimization', 'Revenue growth strategies', 'Customer success']"
+  },
+  "coaching_framework": {
+    "focus_areas": ["Key sales skills to develop based on their product complexity - e.g., 'Discovery questioning', 'Technical demo skills', 'Negotiation tactics'"],
+    "evaluation_criteria": ["What to evaluate in sales calls - e.g., 'Clear value proposition', 'Addressed customer pain points', 'Set clear next steps'"],
+    "custom_instructions": "Specific coaching guidance for their sales team - e.g., 'Focus on understanding the customer's current [problem area] before pitching [product]. Always quantify ROI.'"
+  },
+  "suggested_call_types": [
+    {
+      "name": "Discovery Call",
+      "description": "Initial conversation to understand prospect needs and fit",
+      "keywords": ["discovery", "intro", "qualification", "first call"]
+    },
+    {
+      "name": "Demo",
+      "description": "Product demonstration showing [their main product] capabilities",
+      "keywords": ["demo", "demonstration", "walkthrough", "showcase"]
+    },
+    {
+      "name": "Technical Review",
+      "description": "Deep dive into [their product] technical implementation and integration",
+      "keywords": ["technical", "implementation", "integration", "architecture"]
+    },
+    {
+      "name": "Negotiation",
+      "description": "Pricing and contract discussions",
+      "keywords": ["pricing", "contract", "negotiation", "proposal", "deal"]
+    }
+  ],
+  "writing_style": {
+    "name": "[Company] Voice",
+    "tone_description": "Based on their brand voice: [professional/casual tone], emphasis on [key value props], avoid [things to avoid from brand_voice]",
+    "examples": ["Example email opener that matches their voice", "Example closing that reflects their style"]
+  }
+}
+
+**Requirements:**
+- Use SPECIFIC information from the company intelligence
+- Include actual product names, customer names, competitor names
+- Make discovery questions relevant to their specific offerings
+- Objection responses should reference their actual differentiators
+- All content should feel customized to this specific company
+
+Return ONLY valid JSON, no markdown formatting.`,
+    model: 'gemini-3-flash-preview',
+    temperature: 0.4,
+    maxTokens: 6000,
+    source: 'default',
+  },
 };
 
 // ============================================================================

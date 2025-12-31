@@ -1,0 +1,1356 @@
+# Agent-Executable Skills Platform
+
+## Project Overview
+
+Restructure the skills system to create agent-executable skill documents that can be used by:
+1. **MCP Servers** - Provide context for AI tool calls
+2. **AI Co-Pilot** - Make autonomous decisions based on skills
+3. **Proactive AI Agents** - Create their own workflows using available skills
+
+Skills are structured like `.claude/skills/` with frontmatter metadata and markdown content.
+
+---
+
+## Process Map Integration
+
+**Process ID**: `PROC-SKILLS-PLATFORM`
+**Process Name**: Agent-Executable Skills Platform Implementation
+**Owner**: Platform Team
+**Status**: `not_started` | `in_progress` | `completed`
+
+### Process Tracking Schema
+
+```sql
+-- Add to process_map table
+INSERT INTO process_map (
+  process_id,
+  name,
+  description,
+  total_phases,
+  current_phase,
+  status
+) VALUES (
+  'PROC-SKILLS-PLATFORM',
+  'Agent-Executable Skills Platform',
+  'Implementation of platform-controlled skills with org context interpolation',
+  7,
+  0,
+  'not_started'
+);
+```
+
+---
+
+## Design Decisions (Confirmed)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Skill Format | Agent-executable markdown with frontmatter | Compatible with Claude Code skills pattern |
+| Template Updates | Auto-refresh all orgs | Variables stay the same; only recompile when template changes |
+| Skill Categories | All (Sales AI, Writing, Enrichment, Workflows) | Full suite for AI-powered agents |
+| Admin Access | Platform super-admin only | Org admins can only customize their compiled skills |
+| Context Storage | Key-value pairs | Easy to query, update, and interpolate into skills |
+
+---
+
+# Phase 1: Database Foundation
+
+**Phase Status**: ⬜ Not Started
+**Estimated Effort**: 2-3 days
+**Dependencies**: None
+
+## Stage 1.1: Platform Skills Schema
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Migration: `20250101000000_platform_skills.sql`
+- [ ] Platform skills table with frontmatter JSONB
+- [ ] Version history tracking table
+- [ ] RLS policies for super-admin access
+
+### Implementation
+
+```sql
+-- supabase/migrations/20250101000000_platform_skills.sql
+
+-- Platform-level skill documents (super-admin only)
+CREATE TABLE platform_skills (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  -- Identification
+  skill_key TEXT NOT NULL UNIQUE,  -- 'lead-qualification', 'follow-up-email'
+  category TEXT NOT NULL CHECK (category IN ('sales-ai', 'writing', 'enrichment', 'workflows')),
+
+  -- Skill Document (Markdown with frontmatter)
+  frontmatter JSONB NOT NULL,  -- {name, description, triggers, requires_context, etc.}
+  content_template TEXT NOT NULL,  -- Markdown body with ${variable} placeholders
+
+  -- Version Control
+  version INT NOT NULL DEFAULT 1,
+  is_active BOOLEAN DEFAULT true,
+
+  -- Metadata
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Track version history for rollback
+CREATE TABLE platform_skills_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  skill_id UUID REFERENCES platform_skills(id) ON DELETE CASCADE,
+  version INT NOT NULL,
+  frontmatter JSONB NOT NULL,
+  content_template TEXT NOT NULL,
+  changed_by UUID REFERENCES profiles(id),
+  changed_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- RLS: Only super-admins can manage platform skills
+ALTER TABLE platform_skills ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read active skills"
+  ON platform_skills FOR SELECT
+  USING (is_active = true);
+
+CREATE POLICY "Only platform admins can manage skills"
+  ON platform_skills FOR ALL
+  USING (EXISTS (
+    SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true
+  ));
+```
+
+### Validation Criteria
+- [ ] Migration runs without errors
+- [ ] RLS policies tested with admin and non-admin users
+- [ ] Version history captures changes correctly
+
+---
+
+## Stage 1.2: Organization Context Schema
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Migration: `20250101000001_organization_context.sql`
+- [ ] Key-value context storage table
+- [ ] Source and confidence tracking
+- [ ] RLS policies for org members
+
+### Implementation
+
+```sql
+-- supabase/migrations/20250101000001_organization_context.sql
+
+-- Organization context variables (key-value pairs)
+CREATE TABLE organization_context (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+
+  -- Context Data
+  context_key TEXT NOT NULL,
+  value JSONB NOT NULL,
+  value_type TEXT NOT NULL CHECK (value_type IN ('string', 'array', 'object')),
+
+  -- Source Tracking
+  source TEXT NOT NULL CHECK (source IN ('scrape', 'manual', 'user', 'enrichment')),
+  confidence DECIMAL(3,2) DEFAULT 1.00,
+
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+
+  UNIQUE(organization_id, context_key)
+);
+
+CREATE INDEX idx_org_context_lookup ON organization_context(organization_id);
+
+-- RLS: Org members can view, admins can edit
+ALTER TABLE organization_context ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Org members can view context"
+  ON organization_context FOR SELECT
+  USING (organization_id IN (
+    SELECT org_id FROM organization_memberships WHERE user_id = auth.uid()
+  ));
+
+CREATE POLICY "Org admins can manage context"
+  ON organization_context FOR ALL
+  USING (organization_id IN (
+    SELECT org_id FROM organization_memberships
+    WHERE user_id = auth.uid() AND role IN ('owner', 'admin')
+  ));
+```
+
+### Context Variables to Extract
+
+**Company Identity**
+- `company_name` - Company name
+- `domain` - Website domain
+- `tagline` - Company tagline
+- `description` - Company description
+- `industry` - Industry classification
+- `employee_count` - Size indicator
+- `founded_year` - Year founded
+- `headquarters` - Location
+
+**Products & Services**
+- `products` - Array of {name, description, pricing_tier}
+- `main_product` - Primary product name
+- `value_propositions` - Key value props
+- `pricing_model` - How they charge
+
+**Market Intelligence**
+- `competitors` - Array of competitor names
+- `primary_competitor` - Main competitor
+- `target_market` - Target market description
+- `target_customers` - Ideal customer description
+- `icp_summary` - Ideal customer profile
+
+**Brand & Voice**
+- `brand_tone` - Communication style
+- `words_to_avoid` - Terms to not use
+- `key_phrases` - Brand phrases to use
+
+### Validation Criteria
+- [ ] Migration runs without errors
+- [ ] UNIQUE constraint prevents duplicate keys per org
+- [ ] RLS policies tested
+
+---
+
+## Stage 1.3: Organization Skills Extension
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Migration: `20250101000002_organization_skills_v2.sql`
+- [ ] Extended organization_skills table
+- [ ] Helper function for agent skill retrieval
+- [ ] Recompile trigger on platform skill update
+
+### Implementation
+
+```sql
+-- supabase/migrations/20250101000002_organization_skills_v2.sql
+
+-- Extend organization_skills for compiled skill documents
+ALTER TABLE organization_skills
+  ADD COLUMN IF NOT EXISTS platform_skill_id UUID REFERENCES platform_skills(id),
+  ADD COLUMN IF NOT EXISTS platform_skill_version INT,
+  ADD COLUMN IF NOT EXISTS compiled_frontmatter JSONB,
+  ADD COLUMN IF NOT EXISTS compiled_content TEXT,
+  ADD COLUMN IF NOT EXISTS user_overrides JSONB DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS last_compiled_at TIMESTAMPTZ;
+
+-- Function to get all compiled skills for an organization (used by AI agents)
+CREATE OR REPLACE FUNCTION get_organization_skills_for_agent(p_org_id UUID)
+RETURNS TABLE (
+  skill_key TEXT,
+  category TEXT,
+  frontmatter JSONB,
+  content TEXT,
+  is_enabled BOOLEAN
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    os.skill_id as skill_key,
+    ps.category,
+    COALESCE(os.compiled_frontmatter, ps.frontmatter) as frontmatter,
+    COALESCE(os.compiled_content, ps.content_template) as content,
+    os.is_enabled
+  FROM organization_skills os
+  JOIN platform_skills ps ON ps.skill_key = os.skill_id
+  WHERE os.organization_id = p_org_id
+    AND os.is_active = true
+    AND ps.is_active = true
+  ORDER BY ps.category, os.skill_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to recompile skills when platform skill is updated
+CREATE OR REPLACE FUNCTION notify_skill_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE organization_skills
+  SET last_compiled_at = NULL
+  WHERE skill_id = NEW.skill_key;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER platform_skill_updated
+AFTER UPDATE ON platform_skills
+FOR EACH ROW EXECUTE FUNCTION notify_skill_update();
+```
+
+### Validation Criteria
+- [ ] Existing organization_skills data preserved
+- [ ] Helper function returns correctly formatted data
+- [ ] Trigger fires on platform skill updates
+
+---
+
+## Stage 1.4: Phase 1 Testing & Verification
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] All migrations applied to dev environment
+- [ ] Manual testing of RLS policies
+- [ ] Rollback scripts prepared
+- [ ] Phase 1 documentation updated
+
+### Validation Criteria
+- [ ] All 3 migrations applied successfully
+- [ ] Can insert/read platform skills as admin
+- [ ] Can insert/read org context as org admin
+- [ ] Non-admins blocked from write operations
+- [ ] Trigger correctly marks skills for recompile
+
+---
+
+# Phase 2: Context Extraction
+
+**Phase Status**: ⬜ Not Started
+**Estimated Effort**: 2-3 days
+**Dependencies**: Phase 1 Complete
+
+## Stage 2.1: Modify Deep Enrichment
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Update `deep-enrich-organization/index.ts`
+- [ ] Extract context to key-value pairs instead of generated_skills
+- [ ] Map existing enrichment data to context variables
+
+### Files to Modify
+- `supabase/functions/deep-enrich-organization/index.ts`
+
+### Validation Criteria
+- [ ] Enrichment creates organization_context records
+- [ ] All context variables populated correctly
+- [ ] Source tracked as 'enrichment'
+- [ ] Confidence scores applied
+
+---
+
+## Stage 2.2: Data Migration for Existing Orgs
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Migration script for existing `organization_enrichment.raw_scraped_data`
+- [ ] Transform existing data to organization_context format
+- [ ] Handle edge cases and null values
+
+### Validation Criteria
+- [ ] All existing orgs have context migrated
+- [ ] No data loss during migration
+- [ ] Source marked as 'manual' for migrated data
+
+---
+
+## Stage 2.3: Compile Skills Edge Function
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Create `supabase/functions/compile-organization-skills/index.ts`
+- [ ] Variable interpolation engine
+- [ ] Handle missing variables gracefully
+- [ ] Support all variable syntax patterns
+
+### Variable Syntax Support
+
+```
+${variable_name}              → Simple substitution
+${variable_name|'default'}    → With default value
+${products[0].name}           → Array/object access
+${competitors|join(', ')}     → Formatter: join array
+${company_name|upper}         → Formatter: uppercase
+```
+
+### Implementation
+
+```typescript
+// src/lib/utils/skillCompiler.ts
+
+export function compileSkillTemplate(
+  template: string,
+  context: Record<string, unknown>
+): string {
+  return template.replace(/\$\{([^}]+)\}/g, (match, expression) => {
+    return evaluateExpression(expression, context) ?? match;
+  });
+}
+
+function evaluateExpression(
+  expr: string,
+  context: Record<string, unknown>
+): string | null {
+  // Handle default values: ${var|'default'}
+  const [path, ...modifiers] = expr.split('|');
+
+  // Navigate object path: ${products[0].name}
+  let value = navigatePath(path.trim(), context);
+
+  // Apply modifiers
+  for (const mod of modifiers) {
+    value = applyModifier(value, mod.trim());
+  }
+
+  return value?.toString() ?? null;
+}
+```
+
+### Validation Criteria
+- [ ] All variable syntax patterns working
+- [ ] Graceful handling of missing variables
+- [ ] Performance acceptable for batch compilation
+- [ ] Edge cases handled (arrays, objects, nulls)
+
+---
+
+## Stage 2.4: Phase 2 Testing & Verification
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] End-to-end enrichment flow tested
+- [ ] Compilation verified with sample skills
+- [ ] Existing orgs migrated successfully
+
+### Validation Criteria
+- [ ] New org enrichment creates context
+- [ ] Existing orgs have migrated context
+- [ ] Skills compile correctly with context
+- [ ] Missing variables handled gracefully
+
+---
+
+# Phase 3: Platform Skills Seeding
+
+**Phase Status**: ⬜ Not Started
+**Estimated Effort**: 3-4 days
+**Dependencies**: Phase 2 Complete
+
+## Stage 3.1: Sales AI Skills
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] `lead-qualification` skill
+- [ ] `icp-matching` skill
+- [ ] `objection-handling` skill
+- [ ] `deal-scoring` skill
+- [ ] `brand-voice` skill
+
+### Example Skill Structure
+
+```yaml
+---
+name: lead-qualification
+description: Qualify leads based on company ICP, budget signals, and buying intent.
+  Use when evaluating new leads, scoring prospects, or prioritizing outreach.
+  Triggers on lead creation, enrichment completion, and manual qualification requests.
+category: sales-ai
+version: 1
+triggers:
+  - lead_created
+  - enrichment_completed
+  - manual_qualification
+requires_context:
+  - company_name
+  - industry
+  - products
+  - competitors
+  - icp_summary
+---
+
+# Lead Qualification
+
+Skill for qualifying leads against ${company_name}'s ideal customer profile.
+
+## Qualification Criteria
+
+**Must-Have Signals:**
+- Company operates in ${industry} or adjacent markets
+- Has need for ${products[0].name} or similar solutions
+- Shows buying intent signals: ${buying_signals|join(', ')}
+
+**Disqualification Signals:**
+- Already using ${competitors[0].name} or direct competitor
+- Company size below ${min_employee_count} employees
+- No budget authority identified
+
+## Scoring Model
+
+| Factor | Weight | How to Assess |
+|--------|--------|---------------|
+| Industry Match | 30% | Compare to ${industry} |
+| Product Fit | 40% | Evaluate against ${products|join(', ')} |
+| Company Size | 20% | Check against ${target_employee_count} |
+| Urgency Signals | 10% | Look for ${buying_signals} |
+
+## Actions
+
+When score >= 70:
+- Mark lead as "Qualified"
+- Trigger follow-up sequence
+- Notify sales rep
+
+When score 40-69:
+- Mark lead as "Nurture"
+- Add to nurture campaign
+
+When score < 40:
+- Mark lead as "Disqualified"
+- Log reason for disqualification
+```
+
+### Validation Criteria
+- [ ] All 5 skills created with valid frontmatter
+- [ ] Skills use correct context variable placeholders
+- [ ] Skills compile successfully with test context
+
+---
+
+## Stage 3.2: Writing Skills
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] `follow-up-email` skill
+- [ ] `proposal-intro` skill
+- [ ] `meeting-recap` skill
+- [ ] `linkedin-outreach` skill
+- [ ] `cold-email` skill
+
+### Validation Criteria
+- [ ] All 5 skills created with valid frontmatter
+- [ ] Brand voice context variables integrated
+- [ ] Skills compile successfully with test context
+
+---
+
+## Stage 3.3: Enrichment Skills
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] `lead-research` skill
+- [ ] `company-analysis` skill
+- [ ] `meeting-prep` skill
+- [ ] `competitor-intel` skill
+
+### Validation Criteria
+- [ ] All 4 skills created with valid frontmatter
+- [ ] Research context variables integrated
+- [ ] Skills compile successfully with test context
+
+---
+
+## Stage 3.4: Workflow Skills
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] `new-lead-workflow` skill
+- [ ] `deal-won-workflow` skill
+- [ ] `stale-deal-workflow` skill
+
+### Validation Criteria
+- [ ] All 3 skills created with valid frontmatter
+- [ ] Multi-step workflows documented
+- [ ] Skills reference other skills correctly
+
+---
+
+## Stage 3.5: Phase 3 Testing & Verification
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] All 17 skills seeded to platform_skills
+- [ ] Compilation verified for each category
+- [ ] Sample org skills compiled
+
+### Validation Criteria
+- [ ] All skills inserted without errors
+- [ ] Each skill compiles with sample context
+- [ ] Version history created for initial versions
+
+---
+
+# Phase 4: Platform Admin UI
+
+**Phase Status**: ⬜ Not Started
+**Estimated Effort**: 4-5 days
+**Dependencies**: Phase 3 Complete
+
+## Stage 4.1: Skills Admin Page
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Create `src/pages/platform/SkillsAdmin.tsx`
+- [ ] Category tabs (sales-ai, writing, enrichment, workflows)
+- [ ] Skills list with status indicators
+- [ ] Create/Edit/Delete actions
+
+### Design System Compliance
+
+**Page Layout**:
+```tsx
+// Use Sixty Design System patterns
+<div className="bg-white dark:bg-gray-950 min-h-screen">
+  {/* Header */}
+  <div className="border-b border-gray-200 dark:border-gray-700/50 px-6 py-4">
+    <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+      Platform Skills
+    </h1>
+    <p className="text-gray-700 dark:text-gray-300 mt-1">
+      Manage agent-executable skill documents
+    </p>
+  </div>
+
+  {/* Category Tabs */}
+  <div className="border-b border-gray-200 dark:border-gray-700/50">
+    <nav className="flex space-x-8 px-6">
+      {categories.map(cat => (
+        <button
+          key={cat}
+          className={cn(
+            "py-4 px-1 border-b-2 font-medium text-sm transition-colors",
+            active === cat
+              ? "border-blue-500 text-blue-600 dark:text-blue-400"
+              : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+          )}
+        >
+          {cat}
+        </button>
+      ))}
+    </nav>
+  </div>
+
+  {/* Skills Grid */}
+  <div className="p-6 grid gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+    {skills.map(skill => (
+      <SkillCard key={skill.id} skill={skill} />
+    ))}
+  </div>
+</div>
+```
+
+**Skill Card Component**:
+```tsx
+// Card following Sixty glassmorphic dark mode
+<div className="bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm
+                border border-gray-200 dark:border-gray-700/50
+                rounded-xl p-6 shadow-sm dark:shadow-none
+                hover:border-gray-300 dark:hover:border-gray-600/50
+                transition-colors cursor-pointer">
+  <div className="flex items-start justify-between">
+    <div>
+      <h3 className="font-medium text-gray-900 dark:text-gray-100">
+        {skill.frontmatter.name}
+      </h3>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        {skill.skill_key}
+      </p>
+    </div>
+    <span className={cn(
+      "px-2.5 py-1 text-xs font-medium rounded-full",
+      skill.is_active
+        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+        : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+    )}>
+      {skill.is_active ? 'Active' : 'Inactive'}
+    </span>
+  </div>
+  <p className="text-sm text-gray-700 dark:text-gray-300 mt-3 line-clamp-2">
+    {skill.frontmatter.description}
+  </p>
+  <div className="flex items-center gap-2 mt-4">
+    <span className="text-xs text-gray-500 dark:text-gray-400">
+      v{skill.version}
+    </span>
+    <span className="text-gray-300 dark:text-gray-600">•</span>
+    <span className="text-xs text-gray-500 dark:text-gray-400">
+      {skill.category}
+    </span>
+  </div>
+</div>
+```
+
+### Files to Create
+- `src/pages/platform/SkillsAdmin.tsx`
+- `src/lib/services/platformSkillService.ts`
+- `src/lib/hooks/usePlatformSkills.ts`
+
+### Validation Criteria
+- [ ] Page renders with category tabs
+- [ ] Skills load and display correctly
+- [ ] Create/Edit/Delete actions work
+- [ ] Design system compliance verified
+
+---
+
+## Stage 4.2: Skill Document Editor
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Create `src/components/platform/SkillDocumentEditor.tsx`
+- [ ] Frontmatter form with validation
+- [ ] Markdown editor for content template
+- [ ] Variable picker/inserter
+
+### Design System Compliance
+
+**Editor Layout**:
+```tsx
+<div className="flex h-full">
+  {/* Left: Frontmatter Form */}
+  <div className="w-1/3 border-r border-gray-200 dark:border-gray-700/50 p-6 overflow-y-auto">
+    <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-4">
+      Skill Metadata
+    </h3>
+
+    {/* Form fields */}
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          Skill Key
+        </label>
+        <input
+          type="text"
+          className="w-full bg-white dark:bg-gray-800/50
+                     border border-gray-300 dark:border-gray-700/50
+                     text-gray-900 dark:text-gray-100
+                     rounded-lg px-4 py-2.5
+                     focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+      {/* ... more fields */}
+    </div>
+  </div>
+
+  {/* Right: Markdown Editor */}
+  <div className="flex-1 flex flex-col">
+    <div className="border-b border-gray-200 dark:border-gray-700/50 px-4 py-2 flex items-center justify-between">
+      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        Content Template
+      </span>
+      <ContextVariablePicker onInsert={handleInsert} />
+    </div>
+    <div className="flex-1 p-4">
+      <textarea
+        className="w-full h-full bg-white dark:bg-gray-800/50
+                   border border-gray-300 dark:border-gray-700/50
+                   text-gray-900 dark:text-gray-100
+                   rounded-lg p-4 font-mono text-sm resize-none
+                   focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
+  </div>
+</div>
+```
+
+### Files to Create
+- `src/components/platform/SkillDocumentEditor.tsx`
+- `src/components/platform/ContextVariablePicker.tsx`
+
+### Validation Criteria
+- [ ] Frontmatter form validates correctly
+- [ ] Markdown editor supports syntax highlighting
+- [ ] Variable picker inserts at cursor position
+- [ ] Save/Cancel actions work
+
+---
+
+## Stage 4.3: Skill Preview Component
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Create `src/components/platform/SkillPreview.tsx`
+- [ ] Live compilation with sample context
+- [ ] Toggle between template and compiled view
+- [ ] Missing variable warnings
+
+### Design System Compliance
+
+**Preview Panel**:
+```tsx
+<div className="bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm
+                border border-gray-200 dark:border-gray-700/50
+                rounded-xl overflow-hidden">
+  {/* Header with toggle */}
+  <div className="border-b border-gray-200 dark:border-gray-700/50 px-4 py-3 flex items-center justify-between">
+    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+      Preview
+    </span>
+    <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+      <button className={cn(
+        "px-3 py-1 text-xs font-medium rounded-md transition-colors",
+        view === 'template'
+          ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm"
+          : "text-gray-500 dark:text-gray-400"
+      )}>
+        Template
+      </button>
+      <button className={cn(
+        "px-3 py-1 text-xs font-medium rounded-md transition-colors",
+        view === 'compiled'
+          ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm"
+          : "text-gray-500 dark:text-gray-400"
+      )}>
+        Compiled
+      </button>
+    </div>
+  </div>
+
+  {/* Content */}
+  <div className="p-4 prose dark:prose-invert max-w-none">
+    {/* Rendered markdown */}
+  </div>
+
+  {/* Missing variables warning */}
+  {missingVars.length > 0 && (
+    <div className="border-t border-gray-200 dark:border-gray-700/50 px-4 py-3
+                    bg-amber-50 dark:bg-amber-900/20">
+      <p className="text-sm text-amber-700 dark:text-amber-400">
+        Missing variables: {missingVars.join(', ')}
+      </p>
+    </div>
+  )}
+</div>
+```
+
+### Files to Create
+- `src/components/platform/SkillPreview.tsx`
+
+### Validation Criteria
+- [ ] Preview compiles with sample context
+- [ ] Toggle switches views correctly
+- [ ] Missing variables highlighted
+- [ ] Markdown renders correctly
+
+---
+
+## Stage 4.4: Platform Admin Routes
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Add route to `src/routes/lazyPages.tsx`
+- [ ] Add nav item to `src/pages/platform/PlatformLayout.tsx`
+- [ ] Super-admin access guard
+
+### Files to Modify
+- `src/routes/lazyPages.tsx`
+- `src/pages/platform/PlatformLayout.tsx`
+
+### Validation Criteria
+- [ ] Route accessible at `/platform/skills`
+- [ ] Nav item visible for super-admins only
+- [ ] Non-admins redirected
+
+---
+
+## Stage 4.5: Phase 4 Testing & Verification
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Full UI testing in dev environment
+- [ ] Create/Edit/Delete workflow tested
+- [ ] Preview compilation verified
+- [ ] Design system audit completed
+
+### Validation Criteria
+- [ ] All CRUD operations work
+- [ ] UI matches design system
+- [ ] Responsive on all screen sizes
+- [ ] Accessibility audit passed
+
+---
+
+# Phase 5: Agent Integration
+
+**Phase Status**: ⬜ Not Started
+**Estimated Effort**: 3-4 days
+**Dependencies**: Phase 4 Complete
+
+## Stage 5.1: Agent Skills Edge Function
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Create `supabase/functions/get-agent-skills/index.ts`
+- [ ] MCP-compatible response format
+- [ ] Category filtering support
+- [ ] Enabled/disabled skill filtering
+
+### Implementation
+
+```typescript
+// supabase/functions/get-agent-skills/index.ts
+
+import { createClient } from '@supabase/supabase-js';
+
+interface AgentSkillsRequest {
+  organization_id: string;
+  category?: 'sales-ai' | 'writing' | 'enrichment' | 'workflows';
+  enabled_only?: boolean;
+}
+
+Deno.serve(async (req) => {
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  );
+
+  const { organization_id, category, enabled_only = true }: AgentSkillsRequest = await req.json();
+
+  const { data: skills, error } = await supabase
+    .rpc('get_organization_skills_for_agent', { p_org_id: organization_id });
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+  }
+
+  let filteredSkills = skills;
+
+  if (category) {
+    filteredSkills = filteredSkills.filter(s => s.category === category);
+  }
+
+  if (enabled_only) {
+    filteredSkills = filteredSkills.filter(s => s.is_enabled);
+  }
+
+  return new Response(JSON.stringify({
+    skills: filteredSkills,
+    count: filteredSkills.length
+  }), {
+    headers: { 'Content-Type': 'application/json' }
+  });
+});
+```
+
+### Validation Criteria
+- [ ] Returns compiled skills correctly
+- [ ] Category filtering works
+- [ ] Enabled filtering works
+- [ ] Performance acceptable (<200ms)
+
+---
+
+## Stage 5.2: MCP Skills Provider
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Create `src/lib/mcp/skillsProvider.ts`
+- [ ] Skill discovery for AI agents
+- [ ] Skill content retrieval
+- [ ] Context injection
+
+### Files to Create
+- `src/lib/mcp/skillsProvider.ts`
+
+### Validation Criteria
+- [ ] MCP server can retrieve skills
+- [ ] Skills include frontmatter and content
+- [ ] Context variables resolved
+
+---
+
+## Stage 5.3: Skill Execution Tools
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Create `src/lib/mcp/skillsTools.ts`
+- [ ] Execute skill action tool
+- [ ] Multi-skill workflow tool
+- [ ] Skill status tracking
+
+### Files to Create
+- `src/lib/mcp/skillsTools.ts`
+
+### Validation Criteria
+- [ ] Skills can be executed via MCP
+- [ ] Workflow chains work correctly
+- [ ] Execution status tracked
+
+---
+
+## Stage 5.4: AI Co-Pilot Integration
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Integrate skills into AI Co-Pilot context
+- [ ] Skill discovery prompts
+- [ ] Skill execution in chat
+
+### Agent Workflow Example
+
+```
+Trigger: New lead created
+    ↓
+Agent reads: skills/lead-qualification
+    ↓
+Agent executes scoring logic from skill
+    ↓
+If qualified → Agent reads: skills/follow-up-email
+    ↓
+Agent generates email using brand voice skill
+    ↓
+Agent sends via email tool
+```
+
+### Validation Criteria
+- [ ] Co-Pilot can list available skills
+- [ ] Co-Pilot can execute skills
+- [ ] Skill outputs usable in conversation
+
+---
+
+## Stage 5.5: Phase 5 Testing & Verification
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] End-to-end agent workflow tested
+- [ ] MCP integration verified
+- [ ] Performance benchmarks met
+
+### Validation Criteria
+- [ ] Agent can discover skills
+- [ ] Agent can execute skills
+- [ ] Multi-skill workflows work
+- [ ] Latency <500ms for skill retrieval
+
+---
+
+# Phase 6: Auto-Refresh System
+
+**Phase Status**: ⬜ Not Started
+**Estimated Effort**: 2 days
+**Dependencies**: Phase 5 Complete
+
+## Stage 6.1: Platform Skill Update Trigger
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Enhanced trigger on platform_skills update
+- [ ] Queue system for batch recompilation
+- [ ] Version tracking in organization_skills
+
+### Validation Criteria
+- [ ] Trigger fires on platform skill update
+- [ ] All affected org skills marked for recompile
+- [ ] No performance impact on platform skill saves
+
+---
+
+## Stage 6.2: Refresh Edge Function
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Create `supabase/functions/refresh-organization-skills/index.ts`
+- [ ] Batch compilation for all orgs
+- [ ] Progress tracking
+- [ ] Error handling and retry
+
+### Files to Create
+- `supabase/functions/refresh-organization-skills/index.ts`
+
+### Validation Criteria
+- [ ] All org skills recompile successfully
+- [ ] User overrides preserved
+- [ ] Errors logged and reported
+
+---
+
+## Stage 6.3: Override Preservation
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Merge user_overrides with new compilation
+- [ ] Override conflict detection
+- [ ] Override migration on breaking changes
+
+### Validation Criteria
+- [ ] User overrides preserved after refresh
+- [ ] Conflicts detected and logged
+- [ ] Breaking changes handled gracefully
+
+---
+
+## Stage 6.4: Phase 6 Testing & Verification
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Full refresh cycle tested
+- [ ] Override preservation verified
+- [ ] Performance benchmarks met
+
+### Validation Criteria
+- [ ] Refresh completes for all orgs
+- [ ] User overrides preserved
+- [ ] Refresh time <10 minutes for 1000 orgs
+
+---
+
+# Phase 7: Onboarding Integration
+
+**Phase Status**: ⬜ Not Started
+**Estimated Effort**: 3 days
+**Dependencies**: Phase 6 Complete
+
+## Stage 7.1: Onboarding Store Update
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Modify `src/lib/stores/onboardingV2Store.ts`
+- [ ] Use compiled skills from platform templates
+- [ ] Skill preview during onboarding
+
+### Files to Modify
+- `src/lib/stores/onboardingV2Store.ts`
+
+### Validation Criteria
+- [ ] Onboarding uses platform skills
+- [ ] Skills compile with org context
+- [ ] Skill previews accurate
+
+---
+
+## Stage 7.2: Skill Configuration Step
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Modify `src/components/onboarding/SkillConfigStep.tsx`
+- [ ] Show compiled skill previews
+- [ ] Allow user overrides
+- [ ] Skill enable/disable toggles
+
+### Design System Compliance
+
+**Skill Config Card**:
+```tsx
+<div className="bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm
+                border border-gray-200 dark:border-gray-700/50
+                rounded-xl overflow-hidden">
+  <div className="p-4 flex items-start gap-4">
+    <div className="flex-1">
+      <div className="flex items-center gap-2">
+        <h4 className="font-medium text-gray-900 dark:text-gray-100">
+          {skill.name}
+        </h4>
+        <span className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30
+                        text-blue-700 dark:text-blue-400 rounded-full">
+          {skill.category}
+        </span>
+      </div>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        {skill.description}
+      </p>
+    </div>
+    <Switch
+      checked={skill.is_enabled}
+      onChange={() => toggleSkill(skill.id)}
+    />
+  </div>
+
+  {/* Preview toggle */}
+  <div className="border-t border-gray-200 dark:border-gray-700/50">
+    <button
+      onClick={() => setExpanded(!expanded)}
+      className="w-full px-4 py-2 text-sm text-gray-600 dark:text-gray-400
+                 hover:bg-gray-50 dark:hover:bg-gray-800/30
+                 flex items-center justify-between"
+    >
+      <span>Preview skill</span>
+      <ChevronDown className={cn(
+        "w-4 h-4 transition-transform",
+        expanded && "rotate-180"
+      )} />
+    </button>
+
+    {expanded && (
+      <div className="px-4 pb-4 prose dark:prose-invert prose-sm max-w-none">
+        {/* Compiled skill preview */}
+      </div>
+    )}
+  </div>
+</div>
+```
+
+### Files to Modify
+- `src/components/onboarding/SkillConfigStep.tsx`
+
+### Validation Criteria
+- [ ] Skills display correctly in onboarding
+- [ ] Enable/disable toggles work
+- [ ] Previews show compiled content
+- [ ] Overrides saved correctly
+
+---
+
+## Stage 7.3: End-to-End Testing
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Full onboarding flow tested
+- [ ] New org gets compiled skills
+- [ ] Skills work with AI Co-Pilot
+
+### Validation Criteria
+- [ ] New org onboarding completes
+- [ ] Skills compiled with org context
+- [ ] Skills accessible via MCP
+- [ ] Overrides persist
+
+---
+
+## Stage 7.4: Phase 7 Testing & Deployment
+
+**Status**: ⬜ Not Started
+
+### Deliverables
+- [ ] Staging environment testing complete
+- [ ] Production deployment plan
+- [ ] Rollback procedures documented
+- [ ] Monitoring dashboards set up
+
+### Validation Criteria
+- [ ] All phases working in staging
+- [ ] Production deployment successful
+- [ ] No regression in existing functionality
+- [ ] Monitoring active
+
+---
+
+# Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ PLATFORM LEVEL (Super-Admin Only)                           │
+├─────────────────────────────────────────────────────────────┤
+│ platform_skills                                              │
+│ - skill_key: lead-qualification, follow-up-email, etc.      │
+│ - category: sales-ai | writing | enrichment | workflows     │
+│ - content_template: Markdown with ${variable} placeholders  │
+│ - frontmatter: JSONB (name, description, triggers, etc.)    │
+│ - version: auto-increment on update                         │
+│ - is_active: boolean                                        │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              │ Compile: interpolate org context
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│ ORGANIZATION LEVEL                                          │
+├─────────────────────────────────────────────────────────────┤
+│ organization_context (KEY-VALUE PAIRS)                      │
+│ - context_key: company_name, industry, products, etc.       │
+│ - value: JSONB (string, array, or object)                   │
+│ - source: scrape | manual | user                            │
+│ - confidence: 0.00-1.00                                     │
+├─────────────────────────────────────────────────────────────┤
+│ organization_skills (compiled agent-executable skills)      │
+│ - skill_key: FK to platform_skills                          │
+│ - compiled_content: Markdown with org values interpolated   │
+│ - compiled_frontmatter: JSONB with resolved metadata        │
+│ - user_overrides: JSONB for customizations                  │
+│ - is_enabled: boolean (org can disable skills)              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+# Skill Categories
+
+| Category | Purpose | Example Skills |
+|----------|---------|----------------|
+| sales-ai | Core sales intelligence | lead-qualification, icp-matching, objection-handling, deal-scoring |
+| writing | Content generation | follow-up-email, proposal-intro, meeting-recap, linkedin-outreach |
+| enrichment | Research & analysis | lead-research, company-analysis, meeting-prep, competitor-intel |
+| workflows | Multi-step automation | new-lead-workflow, deal-won-workflow, stale-deal-workflow |
+
+---
+
+# Files Summary
+
+## New Files
+
+**Migrations**
+- `supabase/migrations/20250101000000_platform_skills.sql`
+- `supabase/migrations/20250101000001_organization_context.sql`
+- `supabase/migrations/20250101000002_organization_skills_v2.sql`
+
+**Edge Functions**
+- `supabase/functions/compile-organization-skills/index.ts`
+- `supabase/functions/get-agent-skills/index.ts`
+- `supabase/functions/manage-platform-skills/index.ts`
+- `supabase/functions/refresh-organization-skills/index.ts`
+
+**UI Components**
+- `src/pages/platform/SkillsAdmin.tsx`
+- `src/components/platform/SkillDocumentEditor.tsx`
+- `src/components/platform/SkillPreview.tsx`
+- `src/components/platform/ContextVariablePicker.tsx`
+
+**Services & Hooks**
+- `src/lib/services/platformSkillService.ts`
+- `src/lib/services/organizationContextService.ts`
+- `src/lib/hooks/usePlatformSkills.ts`
+- `src/lib/hooks/useOrganizationContext.ts`
+- `src/lib/utils/skillCompiler.ts`
+
+**MCP Integration**
+- `src/lib/mcp/skillsProvider.ts`
+- `src/lib/mcp/skillsTools.ts`
+
+## Modified Files
+
+- `supabase/functions/deep-enrich-organization/index.ts`
+- `src/lib/stores/onboardingV2Store.ts`
+- `src/components/onboarding/SkillConfigStep.tsx`
+- `src/pages/platform/PlatformLayout.tsx`
+- `src/routes/lazyPages.tsx`
+
+---
+
+# Progress Tracker
+
+| Phase | Status | Stages | Completed | Started | Notes |
+|-------|--------|--------|-----------|---------|-------|
+| Phase 1: Database | ⬜ | 4 | 0 | - | - |
+| Phase 2: Context Extraction | ⬜ | 4 | 0 | - | - |
+| Phase 3: Skills Seeding | ⬜ | 5 | 0 | - | - |
+| Phase 4: Admin UI | ⬜ | 5 | 0 | - | - |
+| Phase 5: Agent Integration | ⬜ | 5 | 0 | - | - |
+| Phase 6: Auto-Refresh | ⬜ | 4 | 0 | - | - |
+| Phase 7: Onboarding | ⬜ | 4 | 0 | - | - |
+| **TOTAL** | - | **31** | **0** | - | - |
+
+**Legend**: ⬜ Not Started | 🔄 In Progress | ✅ Complete | ❌ Blocked
