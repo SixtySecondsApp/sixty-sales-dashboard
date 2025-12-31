@@ -73,7 +73,7 @@ import {
   ContactsTable, ContactRecord, DealRecord, LeadsInbox, Clients,
   DealHealthDashboard, RelationshipHealth, HealthMonitoring,
   // Features
-  MeetingsPage, MeetingIntelligence, MeetingSentimentAnalytics, Calls, CallDetail,
+  MeetingsPage, MeetingIntelligence, MeetingSentimentAnalytics, Calls, CallDetail, VoiceRecorder,
   TasksPage, ProjectsHub, GoogleTasksSettings, Events, ActivityLog,
   ActivityProcessingPage, Workflows, FreepikFlow, Copilot,
   // Settings
@@ -515,6 +515,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* Meeting detail is handled by nested routing in /meetings/* (src/pages/MeetingsPage.tsx) */}
                 <Route path="/calls" element={<AppLayout><Calls /></AppLayout>} />
                 <Route path="/calls/:id" element={<AppLayout><CallDetail /></AppLayout>} />
+                <Route path="/voice" element={<VoiceRecorder />} />
                 <Route path="/debug-meetings" element={<AppLayout><DebugMeetings /></AppLayout>} />
                 <Route path="/test-notifications" element={<AppLayout><TestNotifications /></AppLayout>} />
                 <Route path="/freepik-flow" element={<AppLayout><div className="h-[calc(100vh-4rem)]"><FreepikFlow /></div></AppLayout>} />
