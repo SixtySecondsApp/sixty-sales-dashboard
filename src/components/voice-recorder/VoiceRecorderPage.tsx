@@ -276,7 +276,7 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
           {(isProcessing || isLoadingRecordings) && screen === 'home' && (
             <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 flex items-center justify-center z-10">
               <div className="flex flex-col items-center gap-2">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                <Loader2 className="w-8 h-8 animate-spin text-[#37bd7e]" />
                 <span className="text-sm text-gray-600 dark:text-gray-400">Loading...</span>
               </div>
             </div>

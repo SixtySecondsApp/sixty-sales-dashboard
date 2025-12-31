@@ -25,7 +25,7 @@ export const VoiceRecorderHome = memo(function VoiceRecorderHome({
       {/* Header */}
       <header className="p-6 pt-8">
         <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-[#37bd7e] flex items-center justify-center">
             <span className="text-white font-bold text-lg">60</span>
           </div>
           <div>
@@ -72,7 +72,7 @@ export const VoiceRecorderHome = memo(function VoiceRecorderHome({
                   <span className="text-gray-300 dark:text-gray-600">
                     &bull;
                   </span>
-                  <span className="text-blue-500 dark:text-blue-400">
+                  <span className="text-[#37bd7e] dark:text-emerald-400">
                     {recording.actionsCount} action
                     {recording.actionsCount !== 1 ? 's' : ''}
                   </span>
@@ -87,9 +87,9 @@ export const VoiceRecorderHome = memo(function VoiceRecorderHome({
       <div className="p-6 pb-8 mt-auto">
         <button
           onClick={onStartRecording}
-          className="w-full relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded-3xl"
+          className="w-full relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#37bd7e] focus-visible:ring-offset-2 rounded-3xl"
         >
-          <div className="relative bg-blue-600 hover:bg-blue-700 rounded-3xl p-6 flex items-center justify-center gap-4 transition-all group-hover:scale-[1.02] group-active:scale-[0.98]">
+          <div className="relative bg-[#37bd7e] hover:bg-[#2da76c] rounded-3xl p-6 flex items-center justify-center gap-4 transition-all group-hover:scale-[1.02] group-active:scale-[0.98]">
             <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center">
               <Mic className="w-8 h-8 text-white" />
             </div>

@@ -106,7 +106,7 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
             <div className="flex items-center gap-4">
               <button
                 onClick={handleTogglePlay}
-                className="w-12 h-12 rounded-xl bg-blue-500 hover:bg-blue-600 flex items-center justify-center transition-colors shrink-0 shadow-lg shadow-blue-500/20"
+                className="w-12 h-12 rounded-xl bg-[#37bd7e] hover:bg-[#2da76c] flex items-center justify-center transition-colors shrink-0 shadow-lg shadow-[#37bd7e]/20"
                 aria-label={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
@@ -118,7 +118,7 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
               <div className="flex-1">
                 <div className="h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                    className="h-full bg-[#37bd7e] rounded-full transition-all duration-300"
                     style={{ width: `${playbackProgress * 100}%` }}
                   />
                 </div>
@@ -137,10 +137,10 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
 
         {/* AI Summary */}
         <section className="px-4 py-3">
-          <div className="bg-blue-50 dark:bg-blue-500/10 rounded-2xl p-4 border border-blue-200 dark:border-blue-500/20">
+          <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl p-4 border border-emerald-200 dark:border-emerald-500/20">
             <div className="flex items-center gap-2 mb-3">
-              <Wand2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
+              <Wand2 className="w-4 h-4 text-[#37bd7e] dark:text-emerald-400" />
+              <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
                 AI Summary
               </span>
             </div>
@@ -156,7 +156,7 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
             <h2 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Action Items
             </h2>
-            <span className="text-xs text-blue-500 dark:text-blue-400">
+            <span className="text-xs text-[#37bd7e] dark:text-emerald-400">
               {recording.actions.length} item
               {recording.actions.length !== 1 ? 's' : ''}
             </span>
@@ -182,7 +182,7 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
               onClick={onDraftFollowUp}
               className="p-4 rounded-xl bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left shadow-sm dark:shadow-none"
             >
-              <Mail className="w-5 h-5 text-blue-500 dark:text-blue-400 mb-2" />
+              <Mail className="w-5 h-5 text-[#37bd7e] dark:text-emerald-400 mb-2" />
               <p className="text-sm font-medium text-gray-900 dark:text-gray-200">
                 Draft Follow-up
               </p>
