@@ -118,14 +118,24 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
     }
   }, [analyzeAudio]);
 
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      cleanup();
-      setIsRecording(false);
-      setIsPaused(false);
-      setAudioLevel(0);
-    }
+  const stopRecording = useCallback(async (): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+      if (mediaRecorderRef.current && isRecording) {
+        mediaRecorderRef.current.onstop = () => {
+          // Create blob from recorded chunks
+          const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
+          const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+          cleanup();
+          setIsRecording(false);
+          setIsPaused(false);
+          setAudioLevel(0);
+          resolve(audioBlob);
+        };
+        mediaRecorderRef.current.stop();
+      } else {
+        resolve(null);
+      }
+    });
   }, [isRecording, cleanup]);
 
   const pauseRecording = useCallback(() => {

@@ -50,7 +50,7 @@ export interface UseVoiceRecorderReturn {
   duration: number;
   audioLevel: number;
   startRecording: () => Promise<void>;
-  stopRecording: () => void;
+  stopRecording: () => Promise<Blob | null>;
   pauseRecording: () => void;
   resumeRecording: () => void;
   isPaused: boolean;
