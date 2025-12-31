@@ -99,6 +99,28 @@ export interface SkillConfigs {
   };
 }
 
+/**
+ * Compiled skill from platform templates
+ * Phase 7: Platform-controlled skills with org context
+ */
+export interface CompiledSkill {
+  id: string;
+  skill_key: string;
+  category: 'sales-ai' | 'writing' | 'enrichment' | 'workflows';
+  frontmatter: {
+    name: string;
+    description: string;
+    triggers?: string[];
+    requires_context?: string[];
+    outputs?: string[];
+    priority?: 'critical' | 'high' | 'medium' | 'low';
+    [key: string]: unknown;
+  };
+  compiled_content: string;
+  is_enabled: boolean;
+  platform_skill_version: number;
+}
+
 export type SkillId = 'lead_qualification' | 'lead_enrichment' | 'brand_voice' | 'objection_handling' | 'icp';
 
 export interface SkillMeta {
@@ -158,10 +180,15 @@ interface OnboardingV2State {
   enrichmentError: string | null;
   enrichmentSource: 'website' | 'manual' | null;
 
-  // Skill configurations
+  // Skill configurations (legacy)
   skillConfigs: SkillConfigs;
   configuredSkills: SkillId[];
   skippedSkills: SkillId[];
+
+  // Platform compiled skills (Phase 7)
+  compiledSkills: CompiledSkill[];
+  isCompiledSkillsLoading: boolean;
+  compiledSkillsError: string | null;
 
   // Saving state
   isSaving: boolean;
@@ -198,6 +225,11 @@ interface OnboardingV2State {
 
   // Save actions
   saveAllSkills: (organizationId: string) => Promise<boolean>;
+
+  // Platform skills actions (Phase 7)
+  fetchCompiledSkills: (organizationId: string) => Promise<void>;
+  toggleCompiledSkillEnabled: (skillKey: string, enabled: boolean) => void;
+  saveCompiledSkillPreferences: (organizationId: string) => Promise<boolean>;
 
   // Reset
   reset: () => void;
@@ -284,10 +316,15 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
   enrichmentError: null,
   enrichmentSource: null,
 
-  // Skill state
+  // Skill state (legacy)
   skillConfigs: defaultSkillConfigs,
   configuredSkills: [],
   skippedSkills: [],
+
+  // Platform compiled skills (Phase 7)
+  compiledSkills: [],
+  isCompiledSkillsLoading: false,
+  compiledSkillsError: null,
 
   // Saving state
   isSaving: false,
@@ -536,6 +573,116 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
     }
   },
 
+  // ============================================================================
+  // Platform Skills Actions (Phase 7)
+  // ============================================================================
+
+  // Fetch compiled skills from platform templates
+  fetchCompiledSkills: async (organizationId) => {
+    set({ isCompiledSkillsLoading: true, compiledSkillsError: null });
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('No session');
+
+      // Call compile-organization-skills to get compiled skills
+      const response = await supabase.functions.invoke('compile-organization-skills', {
+        body: {
+          action: 'compile_all',
+          organization_id: organizationId,
+        },
+      });
+
+      if (response.error) throw response.error;
+      if (!response.data?.success) throw new Error(response.data?.error || 'Failed to compile skills');
+
+      // Fetch the organization_skills to get the compiled skills with enabled status
+      const { data: orgSkills, error: orgSkillsError } = await supabase
+        .from('organization_skills')
+        .select(`
+          id,
+          skill_id,
+          is_enabled,
+          is_active,
+          platform_skill_id,
+          platform_skill_version,
+          compiled_frontmatter,
+          compiled_content,
+          platform_skills!inner (
+            skill_key,
+            category,
+            frontmatter,
+            content_template,
+            is_active
+          )
+        `)
+        .eq('organization_id', organizationId)
+        .eq('is_active', true);
+
+      if (orgSkillsError) throw orgSkillsError;
+
+      // Transform to CompiledSkill format
+      const compiledSkills: CompiledSkill[] = (orgSkills || []).map((skill) => ({
+        id: skill.id,
+        skill_key: skill.skill_id,
+        category: skill.platform_skills?.category || 'sales-ai',
+        frontmatter: skill.compiled_frontmatter || skill.platform_skills?.frontmatter || {
+          name: skill.skill_id,
+          description: '',
+        },
+        compiled_content: skill.compiled_content || skill.platform_skills?.content_template || '',
+        is_enabled: skill.is_enabled ?? true,
+        platform_skill_version: skill.platform_skill_version || 1,
+      }));
+
+      set({
+        compiledSkills,
+        isCompiledSkillsLoading: false,
+      });
+
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch compiled skills';
+      set({ isCompiledSkillsLoading: false, compiledSkillsError: message });
+    }
+  },
+
+  // Toggle skill enabled status locally
+  toggleCompiledSkillEnabled: (skillKey, enabled) => {
+    set((state) => ({
+      compiledSkills: state.compiledSkills.map((skill) =>
+        skill.skill_key === skillKey ? { ...skill, is_enabled: enabled } : skill
+      ),
+    }));
+  },
+
+  // Save compiled skill preferences (is_enabled status)
+  saveCompiledSkillPreferences: async (organizationId) => {
+    set({ isSaving: true, saveError: null });
+
+    try {
+      const { compiledSkills } = get();
+
+      // Update each skill's is_enabled status
+      for (const skill of compiledSkills) {
+        const { error } = await supabase
+          .from('organization_skills')
+          .update({ is_enabled: skill.is_enabled })
+          .eq('organization_id', organizationId)
+          .eq('skill_id', skill.skill_key);
+
+        if (error) throw error;
+      }
+
+      set({ isSaving: false, currentStep: 'complete' });
+      return true;
+
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save skill preferences';
+      set({ isSaving: false, saveError: message });
+      return false;
+    }
+  },
+
   // Reset store
   reset: () => {
     set({
@@ -557,10 +704,14 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       isEnrichmentLoading: false,
       enrichmentError: null,
       enrichmentSource: null,
-      // Skills
+      // Skills (legacy)
       skillConfigs: defaultSkillConfigs,
       configuredSkills: [],
       skippedSkills: [],
+      // Platform compiled skills (Phase 7)
+      compiledSkills: [],
+      isCompiledSkillsLoading: false,
+      compiledSkillsError: null,
       // Saving
       isSaving: false,
       saveError: null,

@@ -21,6 +21,7 @@ export const VSLAnalytics = lazyWithRetry(() => import('@/pages/platform/VSLAnal
 export const MetaAdsAnalytics = lazyWithRetry(() => import('@/pages/platform/MetaAdsAnalytics'));
 export const ErrorMonitoring = lazyWithRetry(() => import('@/pages/platform/ErrorMonitoring'));
 export const SentryBridge = lazyWithRetry(() => import('@/pages/platform/SentryBridge'));
+export const SkillsAdmin = lazyWithRetry(() => import('@/pages/platform/SkillsAdmin'));
 
 // Admin Configuration
 export const Users = lazyWithRetry(() => import('@/pages/admin/Users'));

@@ -437,6 +437,14 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     order: 32,
   },
   {
+    path: '/platform/skills',
+    access: 'platformAdmin',
+    label: 'Platform Skills',
+    showInNav: false,
+    navSection: 'platform',
+    order: 33,
+  },
+  {
     path: '/platform/ai/extraction',
     access: 'platformAdmin',
     label: 'Extraction Rules',

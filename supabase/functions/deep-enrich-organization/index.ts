@@ -404,6 +404,9 @@ async function runManualEnrichmentPipeline(
     // Also save skills to organization_skills table
     await saveGeneratedSkills(supabase, organizationId, skills);
 
+    // Save to organization_context for platform skills interpolation
+    await saveOrganizationContext(supabase, organizationId, enrichmentData, 'manual', 0.70);
+
     console.log(`[ManualPipeline] Enrichment complete for ${manualData.company_name}`);
 
   } catch (error) {
@@ -568,6 +571,9 @@ async function runEnrichmentPipeline(
 
     // Also save skills to organization_skills table
     await saveGeneratedSkills(supabase, organizationId, skills);
+
+    // Save to organization_context for platform skills interpolation
+    await saveOrganizationContext(supabase, organizationId, enrichmentData, 'enrichment', 0.85);
 
     console.log(`[Pipeline] Enrichment complete for ${domain}`);
 
@@ -883,6 +889,114 @@ async function saveGeneratedSkills(
         is_active: true,
       }, { onConflict: 'organization_id,skill_id' });
   }
+}
+
+// ============================================================================
+// Save Organization Context (for platform skills interpolation)
+// ============================================================================
+
+async function saveOrganizationContext(
+  supabase: any,
+  organizationId: string,
+  enrichmentData: EnrichmentData,
+  source: 'scrape' | 'manual' | 'enrichment' = 'enrichment',
+  confidence: number = 0.85
+): Promise<void> {
+  console.log(`[saveOrganizationContext] Saving context for org ${organizationId}`);
+
+  // Map enrichment data to context key-value pairs
+  const contextMappings: Array<{
+    key: string;
+    value: unknown;
+    valueType: 'string' | 'array' | 'object';
+  }> = [];
+
+  // Company Identity
+  if (enrichmentData.company_name) {
+    contextMappings.push({ key: 'company_name', value: enrichmentData.company_name, valueType: 'string' });
+  }
+  if (enrichmentData.tagline) {
+    contextMappings.push({ key: 'tagline', value: enrichmentData.tagline, valueType: 'string' });
+  }
+  if (enrichmentData.description) {
+    contextMappings.push({ key: 'description', value: enrichmentData.description, valueType: 'string' });
+  }
+  if (enrichmentData.industry) {
+    contextMappings.push({ key: 'industry', value: enrichmentData.industry, valueType: 'string' });
+  }
+  if (enrichmentData.employee_count) {
+    contextMappings.push({ key: 'employee_count', value: enrichmentData.employee_count, valueType: 'string' });
+  }
+
+  // Products & Services
+  if (enrichmentData.products && enrichmentData.products.length > 0) {
+    contextMappings.push({ key: 'products', value: enrichmentData.products, valueType: 'array' });
+    // Also set main_product for convenience
+    contextMappings.push({ key: 'main_product', value: enrichmentData.products[0].name, valueType: 'string' });
+  }
+  if (enrichmentData.value_propositions && enrichmentData.value_propositions.length > 0) {
+    contextMappings.push({ key: 'value_propositions', value: enrichmentData.value_propositions, valueType: 'array' });
+  }
+  if (enrichmentData.key_features && enrichmentData.key_features.length > 0) {
+    contextMappings.push({ key: 'key_features', value: enrichmentData.key_features, valueType: 'array' });
+  }
+
+  // Market Intelligence
+  if (enrichmentData.competitors && enrichmentData.competitors.length > 0) {
+    const competitorNames = enrichmentData.competitors.map(c => c.name);
+    contextMappings.push({ key: 'competitors', value: competitorNames, valueType: 'array' });
+    contextMappings.push({ key: 'primary_competitor', value: competitorNames[0], valueType: 'string' });
+  }
+  if (enrichmentData.target_market) {
+    contextMappings.push({ key: 'target_market', value: enrichmentData.target_market, valueType: 'string' });
+  }
+  if (enrichmentData.customer_types && enrichmentData.customer_types.length > 0) {
+    contextMappings.push({ key: 'target_customers', value: enrichmentData.customer_types.join(', '), valueType: 'string' });
+  }
+
+  // Technology
+  if (enrichmentData.tech_stack && enrichmentData.tech_stack.length > 0) {
+    contextMappings.push({ key: 'tech_stack', value: enrichmentData.tech_stack, valueType: 'array' });
+  }
+
+  // Pain Points & Signals
+  if (enrichmentData.pain_points_mentioned && enrichmentData.pain_points_mentioned.length > 0) {
+    contextMappings.push({ key: 'pain_points', value: enrichmentData.pain_points_mentioned, valueType: 'array' });
+  }
+
+  // Case Studies / Social Proof
+  if (enrichmentData.case_study_customers && enrichmentData.case_study_customers.length > 0) {
+    contextMappings.push({ key: 'customer_logos', value: enrichmentData.case_study_customers, valueType: 'array' });
+  }
+
+  // Key People
+  if (enrichmentData.key_people && enrichmentData.key_people.length > 0) {
+    contextMappings.push({ key: 'key_people', value: enrichmentData.key_people, valueType: 'array' });
+  }
+
+  // Content Samples (for brand voice)
+  if (enrichmentData.content_samples && enrichmentData.content_samples.length > 0) {
+    contextMappings.push({ key: 'content_samples', value: enrichmentData.content_samples, valueType: 'array' });
+  }
+
+  // Save each context value
+  let savedCount = 0;
+  for (const ctx of contextMappings) {
+    try {
+      await supabase.rpc('upsert_organization_context', {
+        p_org_id: organizationId,
+        p_key: ctx.key,
+        p_value: JSON.stringify(ctx.value),
+        p_source: source,
+        p_confidence: confidence,
+      });
+      savedCount++;
+    } catch (err) {
+      console.error(`[saveOrganizationContext] Failed to save ${ctx.key}:`, err);
+    }
+  }
+
+  console.log(`[saveOrganizationContext] Saved ${savedCount}/${contextMappings.length} context values`);
 }
 
 // ============================================================================

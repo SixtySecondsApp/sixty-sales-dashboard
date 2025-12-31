@@ -38,6 +38,7 @@ import {
   Share2,
   Play,
   Bug,
+  FileCode,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -174,6 +175,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: Layers,
       href: '/platform/ai/prompts',
       color: 'text-fuchsia-600 bg-fuchsia-100 dark:bg-fuchsia-900/30',
+    },
+    {
+      id: 'platform-skills',
+      title: 'Platform Skills',
+      description: 'Manage agent-executable skill documents for AI automation',
+      icon: FileCode,
+      href: '/platform/skills',
+      color: 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900/30',
+      badge: 'New',
     },
     {
       id: 'feature-flags',

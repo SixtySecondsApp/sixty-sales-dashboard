@@ -6,4 +6,5 @@ export { OnboardingV2 } from './OnboardingV2';
 export { EnrichmentLoadingStep } from './EnrichmentLoadingStep';
 export { EnrichmentResultStep } from './EnrichmentResultStep';
 export { SkillsConfigStep } from './SkillsConfigStep';
+export { PlatformSkillConfigStep } from './PlatformSkillConfigStep';
 export { CompletionStep } from './CompletionStep';

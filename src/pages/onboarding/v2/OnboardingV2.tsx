@@ -8,6 +8,8 @@
  * 1. Corporate email: enrichment_loading → enrichment_result → skills_config → complete
  * 2. Personal email with website: website_input → enrichment_loading → enrichment_result → skills_config → complete
  * 3. Personal email, no website: website_input → manual_enrichment → enrichment_loading → enrichment_result → skills_config → complete
+ *
+ * Phase 7 update: Added PlatformSkillConfigStep for platform-controlled skills
  */
 
 import { useEffect } from 'react';
@@ -18,7 +20,11 @@ import { ManualEnrichmentStep } from './ManualEnrichmentStep';
 import { EnrichmentLoadingStep } from './EnrichmentLoadingStep';
 import { EnrichmentResultStep } from './EnrichmentResultStep';
 import { SkillsConfigStep } from './SkillsConfigStep';
+import { PlatformSkillConfigStep } from './PlatformSkillConfigStep';
 import { CompletionStep } from './CompletionStep';
+
+// Feature flag for platform skills (Phase 7)
+const USE_PLATFORM_SKILLS = true;
 
 interface OnboardingV2Props {
   organizationId: string;
@@ -76,7 +82,12 @@ export function OnboardingV2({ organizationId, domain, userEmail }: OnboardingV2
       case 'enrichment_result':
         return <EnrichmentResultStep key="result" />;
       case 'skills_config':
-        return <SkillsConfigStep key="config" />;
+        // Phase 7: Use platform skills if feature flag is enabled
+        return USE_PLATFORM_SKILLS ? (
+          <PlatformSkillConfigStep key="platform-config" />
+        ) : (
+          <SkillsConfigStep key="config" />
+        );
       case 'complete':
         return <CompletionStep key="complete" />;
       default:
