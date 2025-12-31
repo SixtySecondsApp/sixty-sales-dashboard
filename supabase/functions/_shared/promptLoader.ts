@@ -338,7 +338,8 @@ CRITICAL REQUIREMENTS:
     "case_study_customers": ["Customers mentioned in case studies"]
   },
   "positioning": {
-    "competitors": ["Any competitors mentioned or implied"],
+    "competitors": ["List competitors - IMPORTANT: If not explicitly mentioned on their website, use your knowledge to infer 3-5 likely competitors based on their product category and industry. For example, if they're an AI writing tool, competitors would be CopyAI, Jasper, Anyword, etc."],
+    "competitor_source": "explicit (mentioned on site) OR inferred (based on product category)",
     "differentiators": ["What makes them unique"],
     "pain_points_addressed": ["Problems they solve"]
   },
@@ -356,10 +357,11 @@ CRITICAL REQUIREMENTS:
 }
 
 **Important:**
-- Only include fields where you found actual evidence
+- For most fields, only include information you found in the website content
 - Use null for fields with no information
 - Be specific - use actual product names, customer names, and terms from their content
 - Extract actual quotes for content_samples and key_phrases
+- EXCEPTION for competitors: If competitors are not explicitly mentioned on the website, you MUST use your knowledge to infer 3-5 likely competitors based on the company's product category and industry. Never return an empty competitors array.
 
 Return ONLY valid JSON, no markdown formatting.`,
     model: 'gemini-3-flash-preview',
@@ -387,93 +389,118 @@ Every discovery question, objection response, and example message MUST reference
 **Company Intelligence:**
 \${companyIntelligence}
 
-**Generate configurations for these 6 skills:**
+**Generate configurations for these 9 skills/configs:**
 
-1. **lead_qualification** - Discovery questions and scoring criteria specific to their products
-2. **lead_enrichment** - What information to gather about prospects in their market
-3. **brand_voice** - How the AI should communicate to match their brand
-4. **objection_handling** - Responses to common objections in their space
-5. **icp** - Ideal Customer Profile criteria for their target market
-6. **handoff_rules** - When and how to escalate to human sales reps
+**Core Sales Skills (5):**
+1. **lead_qualification** - Criteria that qualify a lead and red flags that disqualify
+2. **lead_enrichment** - Discovery questions to ask prospects
+3. **brand_voice** - How the AI should communicate (tone description and words to avoid)
+4. **objection_handling** - Responses to common objections with trigger phrases
+5. **icp** - Ideal Customer Profile description and buying signals
 
-**Output Format:**
+**Extended AI Configurations (4):**
+6. **copilot_personality** - How the AI assistant should greet users and its personality
+7. **coaching_framework** - Sales coaching focus areas and evaluation criteria
+8. **suggested_call_types** - Types of sales calls/meetings for this company
+9. **writing_style** - A suggested writing style based on their brand voice
+
+**CRITICAL OUTPUT FORMAT - Use these EXACT field names:**
 {
   "lead_qualification": {
-    "discovery_questions": [
-      "Specific question using their product/service names...",
-      "Question about pain points they solve...",
-      "Budget/timeline qualification question..."
+    "criteria": [
+      "Has budget over $X for [their product category]",
+      "In target industry: [specific industries they serve]",
+      "Company size of [their target range] employees",
+      "Currently evaluating [their solution type]",
+      "Has decision-making authority for [relevant area]"
     ],
-    "qualification_criteria": [
-      {"criterion": "Has budget over $X", "weight": "high"},
-      {"criterion": "In target industry", "weight": "medium"}
-    ],
-    "disqualifiers": ["Red flags that indicate not a fit"]
+    "disqualifiers": [
+      "Using competitor with long-term contract",
+      "Company too small for [their minimum deal size]",
+      "No budget allocated for [their category]",
+      "Not in a target geography"
+    ]
   },
   "lead_enrichment": {
-    "priority_fields": [
-      {"field": "company_size", "why": "They target mid-market"},
-      {"field": "tech_stack", "why": "Important for integration fit"}
-    ],
-    "discovery_questions": [
-      "What does your current workflow look like?",
-      "Question specific to their use cases..."
-    ],
-    "enrichment_sources": ["linkedin", "crunchbase", "company_website"]
+    "questions": [
+      "What does your current [problem they solve] workflow look like?",
+      "How many [relevant metric] do you handle monthly?",
+      "What tools are you currently using for [their solution area]?",
+      "What's driving your evaluation of [their product type] right now?",
+      "Who else is involved in this decision?"
+    ]
   },
   "brand_voice": {
-    "tone": ["professional", "innovative", etc. from their content],
-    "personality_traits": ["helpful", "expert", "friendly"],
-    "key_phrases_to_use": ["Phrases from their actual content"],
-    "phrases_to_avoid": ["Competitor terminology", "Industry jargon they don't use"],
-    "example_messages": [
-      "Hi {name}, I noticed you're looking at [product]. Companies like [customer] use it to...",
-      "Great question! Our [feature] helps teams..."
-    ]
+    "tone": "Professional yet approachable. Use clear, jargon-free language that emphasizes [their key value props]. Mirror their brand personality: [describe traits from their content]. Focus on [their main differentiators].",
+    "avoid": ["Competitor terminology they wouldn't use", "Overly technical jargon", "Pushy sales language", "Generic phrases that don't match their voice"]
   },
   "objection_handling": {
     "objections": [
       {
-        "trigger_phrases": ["too expensive", "budget concerns"],
-        "objection_type": "price",
-        "response": "Specific response mentioning their value props and ROI...",
-        "follow_up": "What's your current spend on [problem they solve]?"
+        "trigger": "too expensive",
+        "response": "I understand budget is a key consideration. Companies using [their product] typically see [specific ROI or benefit]. What's your current spend on [problem area]? That helps me understand if we're in the right ballpark."
       },
       {
-        "trigger_phrases": ["why not [competitor]"],
-        "objection_type": "competition",
-        "response": "Response highlighting their specific differentiators...",
-        "follow_up": "What's most important to you in a solution?"
+        "trigger": "we're using [competitor]",
+        "response": "Great that you have a solution in place! Many customers switched from [competitor] because [specific differentiator]. What's working well for you with your current setup, and what made you start exploring alternatives?"
+      },
+      {
+        "trigger": "need to think about it",
+        "response": "Absolutely, this is an important decision. What specific aspects would you like to evaluate further? I can share some resources on [relevant topics] that might help."
+      },
+      {
+        "trigger": "not the right time",
+        "response": "I appreciate you being upfront. What would need to change for this to become a priority? Happy to reconnect when the timing is better."
       }
     ]
   },
   "icp": {
-    "company_profile": {
-      "industries": ["From their target market"],
-      "company_sizes": ["From their customer base"],
-      "geographies": ["Regions they serve"],
-      "technologies": ["Tech stack indicators"]
-    },
-    "buyer_persona": {
-      "titles": ["Job titles they target"],
-      "responsibilities": ["What these people care about"],
-      "pain_points": ["From their marketing"],
-      "goals": ["What success looks like for them"]
-    },
-    "buying_signals": [
-      "Specific signals indicating purchase readiness...",
-      "Events or triggers that indicate need..."
-    ],
-    "negative_signals": ["Signals indicating not a fit"]
+    "companyProfile": "B2B companies in [target industries from their customer base] with [company size range] employees. They typically have [relevant tech stack or infrastructure] and are experiencing [growth signals or pain points their product addresses]. Annual revenue in the [revenue range] bracket.",
+    "buyerPersona": "[Primary job titles] level decision makers responsible for [functional area]. They care about [key priorities based on marketing] and are evaluated on [success metrics]. Common challenges include [pain points their product solves].",
+    "buyingSignals": [
+      "Recently raised Series [A/B/C] funding",
+      "Hiring for [relevant roles that indicate need]",
+      "Published content about [pain points they solve]",
+      "Outgrew their current [competitor or manual solution]",
+      "Mentioned [specific trigger events] in recent communications"
+    ]
   },
-  "handoff_rules": {
-    "escalation_triggers": [
-      {"trigger": "Mentions enterprise deal over $50k", "priority": "high", "reason": "Large deal needs sales involvement"},
-      {"trigger": "Asks for custom pricing", "priority": "medium", "reason": "Needs human negotiation"},
-      {"trigger": "Technical integration questions", "priority": "medium", "reason": "Needs SE support"}
-    ],
-    "handoff_message_template": "I'd love to connect you with our team who can help with [specific need]. They'll reach out within [timeframe].",
-    "information_to_capture": ["Budget range", "Timeline", "Decision maker status", "Specific requirements"]
+  "copilot_personality": {
+    "greeting": "A friendly, contextual greeting that references their company and product (e.g., 'Hi! I'm your [Company] sales assistant. How can I help you close more deals today?')",
+    "personality": "Description of how the AI should behave - professional but approachable, focused on [their key value props], knowledgeable about [their industry]",
+    "focus_areas": ["Primary topics the AI should focus on based on their business - e.g., 'Payment processing optimization', 'Revenue growth strategies', 'Customer success']"
+  },
+  "coaching_framework": {
+    "focus_areas": ["Key sales skills to develop based on their product complexity - e.g., 'Discovery questioning', 'Technical demo skills', 'Negotiation tactics'"],
+    "evaluation_criteria": ["What to evaluate in sales calls - e.g., 'Clear value proposition', 'Addressed customer pain points', 'Set clear next steps'"],
+    "custom_instructions": "Specific coaching guidance for their sales team - e.g., 'Focus on understanding the customer's current [problem area] before pitching [product]. Always quantify ROI.'"
+  },
+  "suggested_call_types": [
+    {
+      "name": "Discovery Call",
+      "description": "Initial conversation to understand prospect needs and fit",
+      "keywords": ["discovery", "intro", "qualification", "first call"]
+    },
+    {
+      "name": "Demo",
+      "description": "Product demonstration showing [their main product] capabilities",
+      "keywords": ["demo", "demonstration", "walkthrough", "showcase"]
+    },
+    {
+      "name": "Technical Review",
+      "description": "Deep dive into [their product] technical implementation and integration",
+      "keywords": ["technical", "implementation", "integration", "architecture"]
+    },
+    {
+      "name": "Negotiation",
+      "description": "Pricing and contract discussions",
+      "keywords": ["pricing", "contract", "negotiation", "proposal", "deal"]
+    }
+  ],
+  "writing_style": {
+    "name": "[Company] Voice",
+    "tone_description": "Based on their brand voice: [professional/casual tone], emphasis on [key value props], avoid [things to avoid from brand_voice]",
+    "examples": ["Example email opener that matches their voice", "Example closing that reflects their style"]
   }
 }
 

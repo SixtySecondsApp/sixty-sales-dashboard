@@ -38,6 +38,7 @@ import {
   Workflow,
   Paintbrush,
   CreditCard,
+  Brain,
 } from 'lucide-react';
 
 interface SettingsSection {
@@ -79,6 +80,14 @@ export default function Settings() {
       icon: Palette,
       description: 'Customize theme and display preferences',
       path: '/settings/appearance',
+    },
+    {
+      id: 'ai-intelligence',
+      label: 'AI Intelligence',
+      icon: Brain,
+      description: 'Company context, AI skills, and writing styles',
+      path: '/settings/ai-intelligence',
+      requiresOrgAdmin: true,
     },
     {
       id: 'ai-personalization',
@@ -228,7 +237,7 @@ export default function Settings() {
       ['account', 'appearance'].includes(s.id)
     );
     const aiSections = settingsSections.filter(s =>
-      ['ai-personalization', 'sales-coaching', 'api-keys', 'follow-ups', 'task-sync', 'call-types'].includes(s.id)
+      ['ai-intelligence', 'ai-personalization', 'sales-coaching', 'api-keys', 'follow-ups', 'task-sync', 'call-types'].includes(s.id)
     );
     // Meeting Sync is now under Integrations (only shown when Fathom is connected)
     const integrationSections = settingsSections.filter(s =>

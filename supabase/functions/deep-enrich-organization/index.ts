@@ -84,6 +84,27 @@ interface SkillConfig {
     buyerPersona: string;
     buyingSignals: string[];
   };
+  // Extended AI configurations (optional, generated when available)
+  copilot_personality?: {
+    greeting: string;
+    personality: string;
+    focus_areas: string[];
+  };
+  coaching_framework?: {
+    focus_areas: string[];
+    evaluation_criteria: string[];
+    custom_instructions: string;
+  };
+  suggested_call_types?: Array<{
+    name: string;
+    description: string;
+    keywords: string[];
+  }>;
+  writing_style?: {
+    name: string;
+    tone_description: string;
+    examples: string[];
+  };
 }
 
 // ============================================================================
@@ -711,7 +732,50 @@ async function extractCompanyData(
     throw new Error('Failed to parse AI response as JSON');
   }
 
-  return JSON.parse(jsonMatch[0]) as EnrichmentData;
+  const rawData = JSON.parse(jsonMatch[0]);
+
+  // Transform nested AI response to flat EnrichmentData structure
+  // The AI returns: { company: {...}, classification: {...}, offering: {...}, market: {...}, positioning: {...}, voice: {...} }
+  // We need: { company_name, industry, products, competitors, etc. }
+  return transformToEnrichmentData(rawData);
+}
+
+/**
+ * Transform nested AI response to flat EnrichmentData format
+ * The AI returns a deeply nested structure that needs to be flattened
+ */
+function transformToEnrichmentData(rawData: any): EnrichmentData {
+  // Handle both flat (already correct) and nested (AI response) formats
+  // If it has company_name at root level, it's already in the correct format
+  if (rawData.company_name) {
+    return rawData as EnrichmentData;
+  }
+
+  // Transform nested structure to flat structure
+  return {
+    company_name: rawData.company?.name || '',
+    tagline: rawData.company?.tagline || '',
+    description: rawData.company?.description || '',
+    industry: rawData.classification?.industry || rawData.classification?.sub_industry || '',
+    employee_count: rawData.company?.employee_count || '',
+    products: (rawData.offering?.products || []).map((p: any) => ({
+      name: p.name || '',
+      description: p.description || '',
+      pricing_tier: p.pricing_tier,
+    })),
+    value_propositions: rawData.positioning?.differentiators || [],
+    competitors: (rawData.positioning?.competitors || []).map((c: any) =>
+      typeof c === 'string' ? { name: c } : { name: c.name || c, domain: c.domain }
+    ),
+    target_market: rawData.market?.target_industries?.join(', ') || '',
+    customer_types: rawData.market?.target_company_sizes || rawData.market?.target_roles || [],
+    key_features: rawData.offering?.key_features || [],
+    content_samples: rawData.voice?.content_samples || [],
+    pain_points_mentioned: rawData.positioning?.pain_points_addressed || [],
+    case_study_customers: rawData.market?.case_study_customers || rawData.market?.customer_logos || [],
+    tech_stack: rawData.offering?.integrations || [],
+    key_people: [],
+  };
 }
 
 // ============================================================================
@@ -783,13 +847,28 @@ async function saveGeneratedSkills(
   organizationId: string,
   skills: SkillConfig
 ): Promise<void> {
-  const skillMappings = [
+  // Core sales skills - always generated
+  const skillMappings: Array<{ id: string; name: string; config: any }> = [
     { id: 'lead_qualification', name: 'Qualification', config: skills.lead_qualification },
     { id: 'lead_enrichment', name: 'Enrichment', config: skills.lead_enrichment },
     { id: 'brand_voice', name: 'Brand Voice', config: skills.brand_voice },
     { id: 'objection_handling', name: 'Objections', config: skills.objection_handling },
     { id: 'icp', name: 'ICP', config: skills.icp },
   ];
+
+  // Extended AI configurations - optional, may not be generated
+  if (skills.copilot_personality) {
+    skillMappings.push({ id: 'copilot_personality', name: 'Copilot Personality', config: skills.copilot_personality });
+  }
+  if (skills.coaching_framework) {
+    skillMappings.push({ id: 'coaching_framework', name: 'Coaching Framework', config: skills.coaching_framework });
+  }
+  if (skills.suggested_call_types) {
+    skillMappings.push({ id: 'suggested_call_types', name: 'Suggested Call Types', config: skills.suggested_call_types });
+  }
+  if (skills.writing_style) {
+    skillMappings.push({ id: 'writing_style', name: 'Writing Style', config: skills.writing_style });
+  }
 
   for (const skill of skillMappings) {
     await supabase

@@ -76,7 +76,7 @@ import {
   ActivityProcessingPage, Workflows, FreepikFlow, Copilot,
   // Settings
   SettingsPage, Preferences, Profile, AISettings, TaskSyncSettings, CoachingPreferences,
-  AccountSettings, AppearanceSettings, AIPersonalizationPage, SalesCoachingPage,
+  AccountSettings, AppearanceSettings, AIPersonalizationPage, AIIntelligencePage, SalesCoachingPage,
   APIKeysPage, EmailSyncPage, TaskSyncPage, MeetingSyncPage, TeamMembersPage,
   CallTypeSettings, PipelineAutomationSettings, FollowUpSettings, OrganizationSettingsPage,
   LogoSettings, SlackSettings, JustCallSettings, HubSpotSettings, OrgBranding, OrgBilling,
@@ -453,6 +453,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/settings/appearance" element={<AppLayout><AppearanceSettings /></AppLayout>} />
                 <Route path="/settings/proposals" element={<Navigate to="/settings/follow-ups" replace />} />
                 <Route path="/settings/ai-personalization" element={<AppLayout><AIPersonalizationPage /></AppLayout>} />
+                <Route path="/settings/ai-intelligence" element={<AppLayout><AIIntelligencePage /></AppLayout>} />
                 <Route path="/settings/sales-coaching" element={<AppLayout><SalesCoachingPage /></AppLayout>} />
                 <Route path="/settings/api-keys" element={<AppLayout><APIKeysPage /></AppLayout>} />
                 <Route path="/settings/email-sync" element={<AppLayout><EmailSyncPage /></AppLayout>} />

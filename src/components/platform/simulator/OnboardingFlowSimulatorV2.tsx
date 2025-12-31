@@ -10,7 +10,7 @@
  * Can run in mock mode (instant) or real API mode (calls actual enrichment).
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play,
@@ -36,6 +36,8 @@ import {
   Building2,
   Users,
   Package,
+  FlaskConical,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -64,7 +66,7 @@ const SKILLS = [
   },
   {
     id: 'brand_voice' as SkillId,
-    name: 'Communication Style',
+    name: 'Writing Style',
     icon: MessageSquare,
     question: 'How should your AI communicate?',
   },
@@ -145,6 +147,61 @@ const DEFAULT_DOMAIN = 'acme.com';
 // Fallback UUID for simulator - will use real org ID when available
 const FALLBACK_ORG_ID = '00000000-0000-0000-0000-000000000000';
 
+// Test output generators for each skill type
+const generateTestOutput = (
+  skillId: SkillId,
+  skillData: Record<string, unknown>,
+  enrichmentData: { company_name: string; industry: string }
+): { scenario: string; output: string } => {
+  switch (skillId) {
+    case 'lead_qualification': {
+      const criteria = skillData.criteria as string[];
+      const disqualifiers = skillData.disqualifiers as string[];
+      const sampleLead = `Tech Corp, a 75-person software company, recently raised Series A funding. They're evaluating solutions in your space.`;
+      const matchedCriteria = criteria.slice(0, 2);
+      return {
+        scenario: `Sample Lead: ${sampleLead}`,
+        output: `✅ **Qualified Lead**\n\n**Matching Signals:**\n${matchedCriteria.map(c => `• ${c}`).join('\n')}\n\n**No Disqualifiers Found**\n\n*Recommendation: Proceed to discovery call.*`,
+      };
+    }
+    case 'lead_enrichment': {
+      const questions = skillData.questions as string[];
+      return {
+        scenario: `Discovery call scheduled with prospect from tech industry.`,
+        output: `**Priority Discovery Questions:**\n\n${questions.slice(0, 3).map((q, i) => `${i + 1}. ${q}`).join('\n\n')}\n\n*Ask follow-up questions based on responses.*`,
+      };
+    }
+    case 'brand_voice': {
+      const tone = skillData.tone as string;
+      const avoid = skillData.avoid as string[];
+      return {
+        scenario: `Draft a follow-up email after initial call.`,
+        output: `**Generated Email:**\n\n"Hi [Name],\n\nThanks for taking the time to chat today. I really enjoyed learning about your team's goals for Q2.\n\nAs promised, I'm sending over some resources that might help with the challenges you mentioned around ${enrichmentData.industry.toLowerCase()} workflows.\n\nWould next Tuesday at 2pm work for a deeper dive?\n\nBest,\n[Your name]"\n\n**Voice applied:** ${tone}\n\n**Avoided:** ${avoid.join(', ')}`,
+      };
+    }
+    case 'objection_handling': {
+      const objections = skillData.objections as Array<{ trigger: string; response: string }>;
+      const firstObjection = objections[0];
+      if (!firstObjection) return { scenario: '', output: 'No objections configured.' };
+      return {
+        scenario: `Prospect says: "${firstObjection.trigger}"`,
+        output: `**Suggested Response:**\n\n"${firstObjection.response}"\n\n**Tone:** Acknowledge concern → Reframe value → Ask question`,
+      };
+    }
+    case 'icp': {
+      const companyProfile = skillData.companyProfile as string;
+      const buyerPersona = skillData.buyerPersona as string;
+      const signals = skillData.buyingSignals as string[];
+      return {
+        scenario: `Evaluating: Acme Solutions (SaaS, 120 employees, VP of Sales lead)`,
+        output: `**ICP Match Score: 87%**\n\n**Company Fit:**\n${companyProfile?.slice(0, 100)}...\n\n**Buyer Fit:**\n${buyerPersona?.slice(0, 100)}...\n\n**Detected Signals:**\n${signals?.slice(0, 2).map(s => `• ${s}`).join('\n')}`,
+      };
+    }
+    default:
+      return { scenario: '', output: 'Test output not available.' };
+  }
+};
+
 // Q&A questions for manual enrichment flow
 interface QAQuestion {
   id: string;
@@ -217,6 +274,13 @@ export function OnboardingFlowSimulatorV2() {
   });
   const [enrichmentSource, setEnrichmentSource] = useState<'website' | 'manual' | null>(null);
 
+  // Test output state
+  const [showTestOutput, setShowTestOutput] = useState(false);
+  const [testOutput, setTestOutput] = useState<{ scenario: string; output: string } | null>(null);
+
+  // Ref for scrollable skill content area
+  const skillContentRef = useRef<HTMLDivElement>(null);
+
   // Store for real API calls
   const {
     startEnrichment,
@@ -241,6 +305,8 @@ export function OnboardingFlowSimulatorV2() {
       setEnrichmentSource('website');
       if (useRealApi) {
         const orgId = activeOrgId || FALLBACK_ORG_ID;
+        // Reset store to clear any previous enrichment data
+        resetStore();
         setCurrentStep('loading');
         // Always force re-enrichment in simulator (it's a testing tool)
         await startEnrichment(orgId, emailDomain, true);
@@ -261,6 +327,8 @@ export function OnboardingFlowSimulatorV2() {
     setEnrichmentSource('website');
     if (useRealApi) {
       const orgId = activeOrgId || FALLBACK_ORG_ID;
+      // Reset store to clear any previous enrichment data
+      resetStore();
       setCurrentStep('loading');
       // Always force re-enrichment in simulator (it's a testing tool)
       await startEnrichment(orgId, cleanDomain, true);
@@ -373,6 +441,9 @@ export function OnboardingFlowSimulatorV2() {
       competitors: '',
     });
     setEnrichmentSource(null);
+    // Reset test output state
+    setShowTestOutput(false);
+    setTestOutput(null);
     resetStore();
   };
 
@@ -426,6 +497,26 @@ export function OnboardingFlowSimulatorV2() {
       [skillId]: { ...prev[skillId], ...updates },
     }));
   };
+
+  // Handle test output generation
+  const handleTestOutput = () => {
+    const output = generateTestOutput(activeSkill.id, activeConfig, {
+      company_name: enrichmentData.company_name,
+      industry: enrichmentData.industry,
+    });
+    setTestOutput(output);
+    setShowTestOutput(true);
+  };
+
+  // Reset test output and scroll to top when changing skills
+  useEffect(() => {
+    setShowTestOutput(false);
+    setTestOutput(null);
+    // Scroll content area to top
+    if (skillContentRef.current) {
+      skillContentRef.current.scrollTop = 0;
+    }
+  }, [currentSkillIndex]);
 
   const handleSaveSkill = useCallback(() => {
     setSkillStatuses((prev) => ({ ...prev, [activeSkill.id]: 'configured' }));
@@ -1046,7 +1137,7 @@ export function OnboardingFlowSimulatorV2() {
                       </div>
                     </div>
 
-                    <div className="max-h-72 overflow-y-auto pr-1 space-y-4">
+                    <div ref={skillContentRef} className="max-h-72 overflow-y-auto pr-1 space-y-4">
                       {/* Lead Qualification - Editable list */}
                       {activeSkill.id === 'lead_qualification' && (
                         <div className="space-y-4">
@@ -1058,14 +1149,15 @@ export function OnboardingFlowSimulatorV2() {
                               {(activeConfig.criteria as string[])?.map((item, i) => (
                                 <div key={i} className="group flex items-start gap-2 p-3 rounded-lg bg-gray-800 hover:bg-gray-750 transition-colors">
                                   <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                                  <input
-                                    type="text"
+                                  <textarea
                                     value={item}
                                     onChange={(e) => updateSkillData('lead_qualification', {
                                       ...activeConfig,
                                       criteria: (activeConfig.criteria as string[]).map((c, idx) => idx === i ? e.target.value : c)
                                     })}
-                                    className="flex-1 bg-transparent text-sm text-gray-200 focus:outline-none"
+                                    rows={2}
+                                    className="flex-1 bg-transparent text-sm text-gray-200 focus:outline-none resize-none"
+                                    placeholder="Enter a qualifying signal..."
                                   />
                                   <button
                                     onClick={() => updateSkillData('lead_qualification', {
@@ -1098,14 +1190,15 @@ export function OnboardingFlowSimulatorV2() {
                               {(activeConfig.disqualifiers as string[])?.map((item, i) => (
                                 <div key={i} className="group flex items-start gap-2 p-3 rounded-lg bg-gray-800 hover:bg-gray-750 transition-colors">
                                   <span className="text-red-400 mt-0.5">✗</span>
-                                  <input
-                                    type="text"
+                                  <textarea
                                     value={item}
                                     onChange={(e) => updateSkillData('lead_qualification', {
                                       ...activeConfig,
                                       disqualifiers: (activeConfig.disqualifiers as string[]).map((d, idx) => idx === i ? e.target.value : d)
                                     })}
-                                    className="flex-1 bg-transparent text-sm text-gray-200 focus:outline-none"
+                                    rows={2}
+                                    className="flex-1 bg-transparent text-sm text-gray-200 focus:outline-none resize-none"
+                                    placeholder="Enter a disqualifying signal..."
                                   />
                                   <button
                                     onClick={() => updateSkillData('lead_qualification', {
@@ -1139,14 +1232,15 @@ export function OnboardingFlowSimulatorV2() {
                           {(activeConfig.questions as string[])?.map((q, i) => (
                             <div key={i} className="group flex items-start gap-2 p-3 rounded-lg bg-gray-800 hover:bg-gray-750 transition-colors">
                               <Database className="w-4 h-4 text-violet-400 mt-0.5 flex-shrink-0" />
-                              <input
-                                type="text"
+                              <textarea
                                 value={q}
                                 onChange={(e) => updateSkillData('lead_enrichment', {
                                   ...activeConfig,
                                   questions: (activeConfig.questions as string[]).map((item, idx) => idx === i ? e.target.value : item)
                                 })}
-                                className="flex-1 bg-transparent text-sm text-gray-200 focus:outline-none"
+                                rows={2}
+                                className="flex-1 bg-transparent text-sm text-gray-200 focus:outline-none resize-none"
+                                placeholder="Enter a discovery question..."
                               />
                               <button
                                 onClick={() => updateSkillData('lead_enrichment', {
@@ -1182,7 +1276,7 @@ export function OnboardingFlowSimulatorV2() {
                             <textarea
                               value={activeConfig.tone as string}
                               onChange={(e) => updateSkillData('brand_voice', { ...activeConfig, tone: e.target.value })}
-                              rows={3}
+                              rows={5}
                               className="w-full p-3 rounded-lg bg-gray-800 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
                               placeholder="Describe how you want your AI to communicate..."
                             />
@@ -1267,7 +1361,7 @@ export function OnboardingFlowSimulatorV2() {
                                     newObjections[i] = { ...obj, response: e.target.value };
                                     updateSkillData('objection_handling', { ...activeConfig, objections: newObjections });
                                   }}
-                                  rows={2}
+                                  rows={4}
                                   className="w-full bg-gray-900/50 rounded-lg p-2 text-sm text-gray-200 focus:outline-none resize-none"
                                   placeholder="Your response strategy..."
                                 />
@@ -1297,7 +1391,7 @@ export function OnboardingFlowSimulatorV2() {
                             <textarea
                               value={activeConfig.companyProfile as string}
                               onChange={(e) => updateSkillData('icp', { ...activeConfig, companyProfile: e.target.value })}
-                              rows={2}
+                              rows={4}
                               className="w-full p-3 rounded-lg bg-gray-800 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
                               placeholder="Describe your ideal customer company..."
                             />
@@ -1309,7 +1403,7 @@ export function OnboardingFlowSimulatorV2() {
                             <textarea
                               value={activeConfig.buyerPersona as string}
                               onChange={(e) => updateSkillData('icp', { ...activeConfig, buyerPersona: e.target.value })}
-                              rows={2}
+                              rows={4}
                               className="w-full p-3 rounded-lg bg-gray-800 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
                               placeholder="Describe the person who typically buys..."
                             />
@@ -1357,6 +1451,55 @@ export function OnboardingFlowSimulatorV2() {
                         </div>
                       )}
                     </div>
+
+                    {/* Test Output Panel */}
+                    <AnimatePresence>
+                      {showTestOutput && testOutput && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-4 rounded-lg border border-violet-500/30 bg-violet-950/30 overflow-hidden"
+                        >
+                          <div className="px-4 py-3 border-b border-violet-500/20 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <FlaskConical className="w-4 h-4 text-violet-400" />
+                              <span className="text-sm font-medium text-violet-300">Test Output Preview</span>
+                            </div>
+                            <button
+                              onClick={() => setShowTestOutput(false)}
+                              className="text-gray-500 hover:text-gray-300"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <div className="p-4 space-y-3">
+                            <div>
+                              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-1">Scenario</p>
+                              <p className="text-sm text-gray-300">{testOutput.scenario}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-1">AI Output</p>
+                              <div className="text-sm text-gray-200 whitespace-pre-wrap bg-gray-900/50 rounded-lg p-3">
+                                {testOutput.output.split('\n').map((line, i) => {
+                                  // Simple markdown-like rendering
+                                  if (line.startsWith('**') && line.endsWith('**')) {
+                                    return <p key={i} className="font-semibold text-white">{line.replace(/\*\*/g, '')}</p>;
+                                  }
+                                  if (line.startsWith('• ')) {
+                                    return <p key={i} className="pl-2">{line}</p>;
+                                  }
+                                  if (line.startsWith('*') && line.endsWith('*')) {
+                                    return <p key={i} className="italic text-gray-400">{line.replace(/\*/g, '')}</p>;
+                                  }
+                                  return <p key={i}>{line}</p>;
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
 
                   {/* Footer */}
@@ -1374,10 +1517,20 @@ export function OnboardingFlowSimulatorV2() {
                         <span className="hidden sm:inline">Skip for now</span>
                       </button>
                     </div>
-                    <Button onClick={handleSaveSkill} className="bg-violet-600 hover:bg-violet-700">
-                      {currentSkillIndex === SKILLS.length - 1 ? 'Complete' : 'Save & Next'}
-                      <ChevronRight className="w-4 h-4 ml-2" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={handleTestOutput}
+                        className="border-violet-500/50 text-violet-400 hover:bg-violet-500/10"
+                      >
+                        <FlaskConical className="w-4 h-4 mr-2" />
+                        <span className="hidden sm:inline">Test</span>
+                      </Button>
+                      <Button onClick={handleSaveSkill} className="bg-violet-600 hover:bg-violet-700">
+                        {currentSkillIndex === SKILLS.length - 1 ? 'Complete' : 'Save & Next'}
+                        <ChevronRight className="w-4 h-4 ml-2" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </motion.div>

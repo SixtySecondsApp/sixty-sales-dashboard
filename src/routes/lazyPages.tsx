@@ -123,6 +123,7 @@ export const CoachingPreferences = lazyWithRetry(() => import('@/pages/settings/
 export const AccountSettings = lazyWithRetry(() => import('@/pages/settings/AccountSettings'));
 export const AppearanceSettings = lazyWithRetry(() => import('@/pages/settings/AppearanceSettings'));
 export const AIPersonalizationPage = lazyWithRetry(() => import('@/pages/settings/AIPersonalizationPage'));
+export const AIIntelligencePage = lazyWithRetry(() => import('@/pages/settings/AIIntelligencePage'));
 export const SalesCoachingPage = lazyWithRetry(() => import('@/pages/settings/SalesCoachingPage'));
 export const APIKeysPage = lazyWithRetry(() => import('@/pages/settings/APIKeysPage'));
 export const EmailSyncPage = lazyWithRetry(() => import('@/pages/settings/EmailSyncPage'));
