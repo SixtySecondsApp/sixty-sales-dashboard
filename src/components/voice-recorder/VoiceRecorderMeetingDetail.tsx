@@ -2,7 +2,7 @@ import { useState, memo } from 'react';
 import {
   ChevronLeft,
   Share2,
-  Sparkles,
+  Wand2,
   Play,
   Pause,
   Check,
@@ -102,7 +102,7 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
 
         {/* Playback Controls */}
         <section className="px-4 py-3">
-          <div className="bg-gray-50 dark:bg-gray-900/60 rounded-2xl p-4 border border-gray-200 dark:border-gray-800/50">
+          <div className="bg-gray-50 dark:bg-gray-900/80 dark:backdrop-blur-sm rounded-2xl p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
             <div className="flex items-center gap-4">
               <button
                 onClick={handleTogglePlay}
@@ -139,7 +139,7 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
         <section className="px-4 py-3">
           <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-500/10 dark:to-cyan-500/10 rounded-2xl p-4 border border-blue-200 dark:border-blue-500/20">
             <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+              <Wand2 className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
               <span className="text-sm font-medium text-cyan-700 dark:text-cyan-400">
                 AI Summary
               </span>
@@ -180,7 +180,7 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={onDraftFollowUp}
-              className="p-4 rounded-xl bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left"
+              className="p-4 rounded-xl bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left shadow-sm dark:shadow-none"
             >
               <Mail className="w-5 h-5 text-blue-500 dark:text-blue-400 mb-2" />
               <p className="text-sm font-medium text-gray-900 dark:text-gray-200">
@@ -192,7 +192,7 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
             </button>
             <button
               onClick={onBookNextCall}
-              className="p-4 rounded-xl bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left"
+              className="p-4 rounded-xl bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left shadow-sm dark:shadow-none"
             >
               <Clock className="w-5 h-5 text-purple-500 dark:text-purple-400 mb-2" />
               <p className="text-sm font-medium text-gray-900 dark:text-gray-200">
@@ -209,7 +209,7 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
         <section className="px-4 py-3">
           <button
             onClick={onViewTranscript}
-            className="w-full p-4 rounded-xl bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left"
+            className="w-full p-4 rounded-xl bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left shadow-sm dark:shadow-none"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -245,10 +245,10 @@ const ActionItemCard = memo(function ActionItemCard({
     <button
       onClick={onToggle}
       className={cn(
-        'w-full p-4 rounded-xl border transition-all text-left',
+        'w-full p-4 rounded-xl border transition-all text-left shadow-sm dark:shadow-none',
         action.done
-          ? 'bg-gray-50 dark:bg-gray-900/40 border-gray-100 dark:border-gray-800/30'
-          : 'bg-white dark:bg-gray-900/60 border-gray-200 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+          ? 'bg-gray-50 dark:bg-gray-900/40 border-gray-100 dark:border-gray-700/30'
+          : 'bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50'
       )}
     >
       <div className="flex items-start gap-3">

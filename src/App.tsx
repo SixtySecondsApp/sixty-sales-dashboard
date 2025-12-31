@@ -515,7 +515,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* Meeting detail is handled by nested routing in /meetings/* (src/pages/MeetingsPage.tsx) */}
                 <Route path="/calls" element={<AppLayout><Calls /></AppLayout>} />
                 <Route path="/calls/:id" element={<AppLayout><CallDetail /></AppLayout>} />
-                <Route path="/voice" element={<VoiceRecorder />} />
+                <Route path="/voice" element={<AppLayout><VoiceRecorder /></AppLayout>} />
                 <Route path="/debug-meetings" element={<AppLayout><DebugMeetings /></AppLayout>} />
                 <Route path="/test-notifications" element={<AppLayout><TestNotifications /></AppLayout>} />
                 <Route path="/freepik-flow" element={<AppLayout><div className="h-[calc(100vh-4rem)]"><FreepikFlow /></div></AppLayout>} />
