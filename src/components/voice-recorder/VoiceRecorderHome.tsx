@@ -44,7 +44,7 @@ export const VoiceRecorderHome = memo(function VoiceRecorderHome({
         </h2>
         <div className="space-y-3">
           {recentRecordings.length === 0 ? (
-            <div className="p-6 rounded-2xl bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800/50 text-center">
+            <div className="p-6 rounded-2xl bg-gray-50 dark:bg-gray-900/80 dark:backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 text-center shadow-sm dark:shadow-none">
               <Mic className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 No recordings yet
@@ -58,7 +58,7 @@ export const VoiceRecorderHome = memo(function VoiceRecorderHome({
               <button
                 key={recording.id}
                 onClick={() => onSelectRecording(recording.id)}
-                className="w-full p-4 rounded-2xl bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800/50 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors shadow-sm"
+                className="w-full p-4 rounded-2xl bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors shadow-sm dark:shadow-none"
               >
                 <p className="font-medium text-gray-900 dark:text-gray-200 mb-1 line-clamp-1">
                   {recording.title}

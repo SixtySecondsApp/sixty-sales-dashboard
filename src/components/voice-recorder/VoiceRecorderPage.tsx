@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { Mic } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useVoiceRecorder } from './useVoiceRecorder';
@@ -123,47 +124,63 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
   }
 
   return (
-    <div
-      className={cn(
-        'min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100',
-        className
+    <div className={cn('max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8', className)}>
+      {/* Page Header - only show on home screen */}
+      {screen === 'home' && (
+        <div className="flex items-start justify-between gap-6 mb-6">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <Mic className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Voice</h1>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Record meetings, get AI summaries and action items.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
-    >
-      {/* Mobile-first container */}
-      <div className="max-w-md mx-auto min-h-screen relative overflow-hidden shadow-2xl">
-        {/* Home Screen */}
-        {screen === 'home' && (
-          <VoiceRecorderHome
-            recentRecordings={SAMPLE_RECENT_RECORDINGS}
-            onStartRecording={handleStartRecording}
-            onSelectRecording={handleSelectRecording}
-          />
-        )}
 
-        {/* Recording Screen */}
-        {screen === 'recording' && (
-          <VoiceRecorderRecording
-            duration={duration}
-            audioLevel={audioLevel}
-            isPaused={isPaused}
-            onStop={handleStopRecording}
-            onPause={pauseRecording}
-            onResume={resumeRecording}
-          />
-        )}
+      {/* Voice Recorder Container - responsive width */}
+      <div className="max-w-lg mx-auto lg:mx-0">
+        <div className="bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none overflow-hidden min-h-[600px]">
+          {/* Home Screen */}
+          {screen === 'home' && (
+            <VoiceRecorderHome
+              recentRecordings={SAMPLE_RECENT_RECORDINGS}
+              onStartRecording={handleStartRecording}
+              onSelectRecording={handleSelectRecording}
+            />
+          )}
 
-        {/* Meeting Detail Screen */}
-        {screen === 'meeting' && currentMeeting && (
-          <VoiceRecorderMeetingDetail
-            recording={currentMeeting}
-            onBack={handleBack}
-            onShare={handleShare}
-            onDraftFollowUp={handleDraftFollowUp}
-            onBookNextCall={handleBookNextCall}
-            onViewTranscript={handleViewTranscript}
-            onToggleActionItem={handleToggleActionItem}
-          />
-        )}
+          {/* Recording Screen */}
+          {screen === 'recording' && (
+            <VoiceRecorderRecording
+              duration={duration}
+              audioLevel={audioLevel}
+              isPaused={isPaused}
+              onStop={handleStopRecording}
+              onPause={pauseRecording}
+              onResume={resumeRecording}
+            />
+          )}
+
+          {/* Meeting Detail Screen */}
+          {screen === 'meeting' && currentMeeting && (
+            <VoiceRecorderMeetingDetail
+              recording={currentMeeting}
+              onBack={handleBack}
+              onShare={handleShare}
+              onDraftFollowUp={handleDraftFollowUp}
+              onBookNextCall={handleBookNextCall}
+              onViewTranscript={handleViewTranscript}
+              onToggleActionItem={handleToggleActionItem}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
