@@ -22,12 +22,12 @@ export function EmailIcon() {
     queryKey: ['contacts', 'for-email-matching'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user?.user) return [];
-      
+      if (!user) return [];
+
       const { data, error } = await supabase
         .from('contacts')
         .select('id, email, first_name, last_name, full_name, company_id')
-        .eq('owner_id', user.user.id)
+        .eq('user_id', user.id)
         .not('email', 'is', null);
       
       if (error) return [];

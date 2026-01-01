@@ -49,9 +49,9 @@ export function ContactAutoComplete({
 
       const { data, error } = await supabase
         .from('contacts')
-        .select('id, name, email, company, title')
+        .select('id, full_name, email, company, title')
         .eq('user_id', user.id)
-        .or(`name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,company.ilike.%${searchQuery}%`)
+        .or(`full_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,company.ilike.%${searchQuery}%`)
         .limit(10);
 
       if (error) {
@@ -59,7 +59,14 @@ export function ContactAutoComplete({
         return [];
       }
 
-      return (data || []) as Contact[];
+      // Map full_name to name for the Contact interface
+      return (data || []).map(contact => ({
+        id: contact.id,
+        name: contact.full_name,
+        email: contact.email,
+        company: contact.company,
+        title: contact.title,
+      })) as Contact[];
     },
     enabled: searchQuery.length >= 2,
     gcTime: 5 * 60 * 1000, // Cache for 5 minutes

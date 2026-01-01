@@ -25,9 +25,10 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
       try {
         const limit = Math.min(Math.max(Number(params.limit ?? 5) || 5, 1), 20);
 
-        let contactEmail: string | null = params.contactEmail ? String(params.contactEmail).trim() : null;
-        const contactId: string | null = params.contactId ? String(params.contactId).trim() : null;
+        let contactEmail: string | null = params.contactEmail ? String(params.contactEmail).trim().toLowerCase() : null;
+        let contactId: string | null = params.contactId ? String(params.contactId).trim() : null;
 
+        // If we have contactId but no email, look up the email
         if (!contactEmail && contactId) {
           const { data: contact, error } = await client
             .from('contacts')
@@ -36,11 +37,79 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
             .eq('owner_id', userId)
             .maybeSingle();
           if (error) throw error;
-          contactEmail = contact?.email || null;
+          contactEmail = contact?.email?.toLowerCase() || null;
         }
 
-        // We don't have a guaranteed contact-email → meeting link in schema; we use primary_contact_id
-        let meetingsQuery = client
+        // If we have contactEmail but no contactId, try to find the contact
+        if (contactEmail && !contactId) {
+          const { data: contact, error } = await client
+            .from('contacts')
+            .select('id')
+            .eq('owner_id', userId)
+            .ilike('email', contactEmail)
+            .maybeSingle();
+          if (!error && contact) {
+            contactId = contact.id;
+          }
+        }
+
+        // Strategy 1: If we have a contactId, filter by primary_contact_id
+        if (contactId) {
+          const { data: meetings, error: meetingsError } = await client
+            .from('meetings')
+            .select(
+              'id,title,meeting_start,meeting_end,duration_minutes,summary,transcript_text,share_url,company_id,primary_contact_id'
+            )
+            .eq('owner_user_id', userId)
+            .eq('primary_contact_id', contactId)
+            .order('meeting_start', { ascending: false })
+            .limit(limit);
+
+          if (meetingsError) throw meetingsError;
+          return ok({ meetings: meetings || [], matchedOn: 'primary_contact_id' }, this.source);
+        }
+
+        // Strategy 2: If we have a contactEmail but no contactId (not in CRM), search meeting_attendees
+        if (contactEmail) {
+          // Find meeting IDs where this email is an attendee
+          const { data: attendeeRecords, error: attendeeError } = await client
+            .from('meeting_attendees')
+            .select('meeting_id')
+            .ilike('email', contactEmail)
+            .limit(limit);
+
+          if (attendeeError) throw attendeeError;
+
+          if (attendeeRecords && attendeeRecords.length > 0) {
+            const meetingIds = attendeeRecords.map((a) => a.meeting_id);
+
+            const { data: meetings, error: meetingsError } = await client
+              .from('meetings')
+              .select(
+                'id,title,meeting_start,meeting_end,duration_minutes,summary,transcript_text,share_url,company_id,primary_contact_id'
+              )
+              .eq('owner_user_id', userId)
+              .in('id', meetingIds)
+              .order('meeting_start', { ascending: false })
+              .limit(limit);
+
+            if (meetingsError) throw meetingsError;
+            return ok({ meetings: meetings || [], matchedOn: 'attendee_email' }, this.source);
+          }
+
+          // No meetings found with this attendee email
+          return ok(
+            {
+              meetings: [],
+              matchedOn: 'attendee_email',
+              note: `No meetings found with attendee email: ${contactEmail}`,
+            },
+            this.source
+          );
+        }
+
+        // Fallback: No contact identifier provided - return recent meetings
+        const { data: meetings, error: meetingsError } = await client
           .from('meetings')
           .select(
             'id,title,meeting_start,meeting_end,duration_minutes,summary,transcript_text,share_url,company_id,primary_contact_id'
@@ -49,14 +118,8 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
           .order('meeting_start', { ascending: false })
           .limit(limit);
 
-        if (contactId) {
-          meetingsQuery = meetingsQuery.eq('primary_contact_id', contactId);
-        }
-
-        const { data: meetings, error: meetingsError } = await meetingsQuery;
         if (meetingsError) throw meetingsError;
-
-        return ok({ meetings: meetings || [], matchedOn: contactId ? 'primary_contact_id' : 'recent' }, this.source);
+        return ok({ meetings: meetings || [], matchedOn: 'recent' }, this.source);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         return fail(msg, this.source);

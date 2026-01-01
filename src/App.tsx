@@ -56,7 +56,7 @@ const FathomCallbackWrapper = () => <FathomCallback />;
 import {
   // Platform Admin
   MeetingsWaitlist, WaitlistSlackSettings, OnboardingSimulator, TrialTimelineSimulator, PricingControl, CostAnalysis, LaunchChecklist,
-  ActivationDashboard, PlatformDashboard, IntegrationRoadmap, VSLAnalytics, MetaAdsAnalytics, ErrorMonitoring, SentryBridge, SkillsAdmin, SkillDetailPage, Users, PipelineSettings,
+  ActivationDashboard, PlatformDashboard, IntegrationRoadmap, VSLAnalytics, MetaAdsAnalytics, ErrorMonitoring, SentryBridge, SkillsAdmin, PlatformSkillViewPage, PlatformSkillEditPage, SkillDetailPage, Users, PipelineSettings,
   AuditLogs, SmartTasksAdmin, PipelineAutomationAdmin, EmailTemplates, FunctionTesting,
   AIProviderSettings, GoogleIntegrationTestsLegacy, GoogleIntegrationTests, SettingsSavvyCal,
   SettingsBookingSources, HealthRules, EmailCategorizationSettings, AdminModelSettings,
@@ -352,7 +352,13 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* Platform Admin - AI Configuration */}
                 <Route path="/platform/ai/settings" element={<PlatformAdminRouteGuard><AppLayout><AIProviderSettings /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/ai/prompts" element={<PlatformAdminRouteGuard><AppLayout><AdminPromptSettings /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* Platform Skills Admin - category-based routing */}
                 <Route path="/platform/skills" element={<PlatformAdminRouteGuard><AppLayout><SkillsAdmin /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/skills/:category" element={<PlatformAdminRouteGuard><AppLayout><SkillsAdmin /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* Individual skill view/edit pages - full-page experience */}
+                <Route path="/platform/skills/:category/new" element={<PlatformAdminRouteGuard><AppLayout><PlatformSkillEditPage /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/skills/:category/:skillKey" element={<PlatformAdminRouteGuard><AppLayout><PlatformSkillViewPage /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/skills/:category/:skillKey/edit" element={<PlatformAdminRouteGuard><AppLayout><PlatformSkillEditPage /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Shareable skill detail page - accessible to org members */}
                 <Route path="/skills/:skillKey" element={<AppLayout><SkillDetailPage /></AppLayout>} />
                 <Route path="/platform/features" element={<PlatformAdminRouteGuard><AppLayout><SaasAdminDashboard /></AppLayout></PlatformAdminRouteGuard>} />

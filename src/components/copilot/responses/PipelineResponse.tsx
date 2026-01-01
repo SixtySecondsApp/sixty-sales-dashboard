@@ -8,10 +8,10 @@ import { AlertCircle, AlertTriangle, Calendar, Mail } from 'lucide-react';
 import { ActionButtons } from '../ActionButtons';
 import { DealDetailsView } from './DealDetailsView';
 import { StatsFirstView } from './StatsFirstView';
-import type { PipelineResponse, Deal } from '../types';
+import type { PipelineResponse as PipelineResponseData, Deal } from '../types';
 
 interface PipelineResponseProps {
-  data: PipelineResponse;
+  data: PipelineResponseData;
   onActionClick?: (action: any) => void;
 }
 

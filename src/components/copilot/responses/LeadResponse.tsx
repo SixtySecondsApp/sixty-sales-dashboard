@@ -6,10 +6,10 @@
 import React from 'react';
 import { TrendingUp, Users, AlertCircle } from 'lucide-react';
 import { ActionButtons } from '../ActionButtons';
-import type { LeadResponse, Lead } from '../types';
+import type { LeadResponse as LeadResponseData, Lead } from '../types';
 
 interface LeadResponseProps {
-  data: LeadResponse;
+  data: LeadResponseData;
   onActionClick?: (action: any) => void;
 }
 

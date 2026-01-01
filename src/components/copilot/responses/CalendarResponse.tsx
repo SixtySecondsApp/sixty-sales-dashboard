@@ -6,10 +6,10 @@
 import React from 'react';
 import { Clock, Users } from 'lucide-react';
 import { ActionButtons } from '../ActionButtons';
-import type { CalendarResponse } from '../types';
+import type { CalendarResponse as CalendarResponseData } from '../types';
 
 interface CalendarResponseProps {
-  data: CalendarResponse;
+  data: CalendarResponseData;
   onActionClick?: (action: any) => void;
 }
 

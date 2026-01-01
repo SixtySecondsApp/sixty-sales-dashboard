@@ -6,10 +6,10 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Minus, CheckCircle2, AlertTriangle, Lightbulb, Target, BarChart3, DollarSign, Users, Activity, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { ActionButtons } from '../ActionButtons';
-import type { SalesCoachResponse, MetricComparison, Insight, Recommendation } from '../types';
+import type { SalesCoachResponse as SalesCoachResponseData, MetricComparison, Insight, Recommendation } from '../types';
 
 interface SalesCoachResponseProps {
-  data: SalesCoachResponse;
+  data: SalesCoachResponseData;
   onActionClick?: (action: any) => void;
 }
 
@@ -73,7 +73,7 @@ const MetricCard: React.FC<{
   comparison: MetricComparison;
   formatValue?: (value: number) => string;
   icon?: React.ReactNode;
-}> = ({ label, current, previous, comparison, formatValue = (v) => v.toString(), icon }) => {
+}> = ({ label, current, previous, comparison, formatValue = (v) => v?.toString() ?? '-', icon }) => {
   const changeColor = getChangeColor(comparison.changeType);
   const ChangeIcon = getChangeIcon(comparison.changeType);
 
@@ -101,9 +101,11 @@ const MetricCard: React.FC<{
         </div>
       </div>
       
-      <div className="mt-3 pt-3 border-t border-gray-800/50">
-        <p className="text-xs text-gray-400">{comparison.verdict}</p>
-      </div>
+      {(comparison as any).verdict && (
+        <div className="mt-3 pt-3 border-t border-gray-800/50">
+          <p className="text-xs text-gray-400">{(comparison as any).verdict}</p>
+        </div>
+      )}
     </div>
   );
 };
@@ -146,15 +148,23 @@ const InsightCard: React.FC<{ insight: Insight }> = ({ insight }) => {
   );
 };
 
-const RecommendationCard: React.FC<{ recommendation: Recommendation }> = ({ recommendation }) => {
-  const priorityColors = {
+interface SalesCoachRecommendation {
+  id: string;
+  title: string;
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+  actionItems?: string[];
+}
+
+const RecommendationCard: React.FC<{ recommendation: SalesCoachRecommendation }> = ({ recommendation }) => {
+  const priorityColors: Record<string, string> = {
     high: 'border-l-red-500 bg-red-500/5',
     medium: 'border-l-amber-500 bg-amber-500/5',
     low: 'border-l-blue-500 bg-blue-500/5'
   };
 
   return (
-    <div className={`bg-gray-900/80 backdrop-blur-sm border-l-4 border border-gray-800/50 rounded-lg p-4 ${priorityColors[recommendation.priority]}`}>
+    <div className={`bg-gray-900/80 backdrop-blur-sm border-l-4 border border-gray-800/50 rounded-lg p-4 ${priorityColors[recommendation.priority] || ''}`}>
       <div className="flex items-start gap-3">
         <Target className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
         <div className="flex-1">
@@ -229,8 +239,8 @@ export const SalesCoachResponse: React.FC<SalesCoachResponseProps> = ({ data, on
           />
           <MetricCard
             label="Closed Deals"
-            current={metrics.currentMonth.closedDeals}
-            previous={metrics.previousMonth.closedDeals}
+            current={metrics.currentMonth.dealsClosed}
+            previous={metrics.previousMonth.dealsClosed}
             comparison={comparison.sales}
             icon={<CheckCircle2 className="w-4 h-4 text-gray-400" />}
           />
@@ -248,48 +258,25 @@ export const SalesCoachResponse: React.FC<SalesCoachResponseProps> = ({ data, on
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-gray-900/60 backdrop-blur-sm border border-gray-800/40 rounded-lg p-3">
           <div className="text-xs text-gray-500 mb-1">Meetings</div>
-          <div className="text-lg font-semibold text-gray-100">{metrics.currentMonth.meetings}</div>
-          <div className="text-xs text-gray-500 mt-1">vs {metrics.previousMonth.meetings} previous</div>
+          <div className="text-lg font-semibold text-gray-100">{metrics.currentMonth.totalMeetings}</div>
+          <div className="text-xs text-gray-500 mt-1">vs {metrics.previousMonth.totalMeetings} previous</div>
         </div>
         <div className="bg-gray-900/60 backdrop-blur-sm border border-gray-800/40 rounded-lg p-3">
-          <div className="text-xs text-gray-500 mb-1">Outbound</div>
-          <div className="text-lg font-semibold text-gray-100">{metrics.currentMonth.outboundActivities}</div>
-          <div className="text-xs text-gray-500 mt-1">vs {metrics.previousMonth.outboundActivities} previous</div>
+          <div className="text-xs text-gray-500 mb-1">Activities</div>
+          <div className="text-lg font-semibold text-gray-100">{metrics.currentMonth.totalActivities}</div>
+          <div className="text-xs text-gray-500 mt-1">vs {metrics.previousMonth.totalActivities} previous</div>
         </div>
         <div className="bg-gray-900/60 backdrop-blur-sm border border-gray-800/40 rounded-lg p-3">
-          <div className="text-xs text-gray-500 mb-1">Avg Deal Value</div>
-          <div className="text-lg font-semibold text-gray-100">{formatCurrency(metrics.currentMonth.averageDealValue)}</div>
-          <div className="text-xs text-gray-500 mt-1">vs {formatCurrency(metrics.previousMonth.averageDealValue)} previous</div>
+          <div className="text-xs text-gray-500 mb-1">Avg Deal Size</div>
+          <div className="text-lg font-semibold text-gray-100">{formatCurrency(metrics.currentMonth.averageDealSize)}</div>
+          <div className="text-xs text-gray-500 mt-1">vs {formatCurrency(metrics.previousMonth.averageDealSize)} previous</div>
         </div>
         <div className="bg-gray-900/60 backdrop-blur-sm border border-gray-800/40 rounded-lg p-3">
-          <div className="text-xs text-gray-500 mb-1">Pipeline Value</div>
-          <div className="text-lg font-semibold text-gray-100">{formatCurrency(metrics.currentMonth.pipelineValue)}</div>
-          <div className="text-xs text-gray-500 mt-1">Active opportunities</div>
+          <div className="text-xs text-gray-500 mb-1">Win Rate</div>
+          <div className="text-lg font-semibold text-gray-100">{metrics.currentMonth.winRate}%</div>
+          <div className="text-xs text-gray-500 mt-1">vs {metrics.previousMonth.winRate}% previous</div>
         </div>
       </div>
-
-      {/* Closed Deals */}
-      {metrics.currentMonth.deals.filter(d => d.closedDate).length > 0 && (
-        <div>
-          <h4 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            Closed Deals This Month
-          </h4>
-          <div className="space-y-2">
-            {metrics.currentMonth.deals
-              .filter(d => d.closedDate)
-              .map(deal => (
-                <div key={deal.id} className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium text-gray-100">{deal.name}</div>
-                    <div className="text-xs text-gray-400">{deal.stage}</div>
-                  </div>
-                  <div className="text-sm font-semibold text-emerald-400">{formatCurrency(deal.value)}</div>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
 
       {/* Insights */}
       {insights.length > 0 && (
@@ -315,7 +302,7 @@ export const SalesCoachResponse: React.FC<SalesCoachResponseProps> = ({ data, on
           </h4>
           <div className="space-y-3">
             {recommendations.map(rec => (
-              <RecommendationCard key={rec.id} recommendation={rec} />
+              <RecommendationCard key={rec.id} recommendation={rec as unknown as SalesCoachRecommendation} />
             ))}
           </div>
         </div>

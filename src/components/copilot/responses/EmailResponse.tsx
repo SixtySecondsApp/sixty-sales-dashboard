@@ -6,10 +6,10 @@
 import React from 'react';
 import { Lightbulb, Clock } from 'lucide-react';
 import { ActionButtons } from '../ActionButtons';
-import type { EmailResponse } from '../types';
+import type { EmailResponse as EmailResponseData } from '../types';
 
 interface EmailResponseProps {
-  data: EmailResponse;
+  data: EmailResponseData;
   onActionClick?: (action: any) => void;
 }
 

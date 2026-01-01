@@ -306,9 +306,11 @@ export function EmailComposerEnhanced({
           if (contact) {
             context.contact = {
               id: contact.id,
+              first_name: contact.first_name,
+              last_name: contact.last_name,
               full_name: contact.full_name,
               email: contact.email,
-              company_name: contact.company_name,
+              company_name: contact.company,
               title: contact.title,
               linkedin_url: contact.linkedin_url
             };
@@ -329,8 +331,8 @@ export function EmailComposerEnhanced({
               title: event.title,
               start_time: event.start_time,
               end_time: event.end_time,
-              description: event.description,
-              attendees: event.attendees || []
+              notes: event.description,
+              location: event.location
             };
           }
         }
@@ -346,10 +348,11 @@ export function EmailComposerEnhanced({
           if (deal) {
             context.deal = {
               id: deal.id,
-              title: deal.title,
+              name: deal.name,
               value: deal.value,
-              stage: deal.stage,
-              description: deal.description
+              stage: deal.stage_id || '',
+              probability: deal.probability || 0,
+              description: deal.notes
             };
           }
         }
@@ -366,10 +369,10 @@ export function EmailComposerEnhanced({
           if (profile) {
             context.user_profile = {
               id: profile.id,
-              full_name: profile.full_name,
+              name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
               email: user.email || '',
-              title: profile.title,
-              company_name: profile.company_name
+              title: (profile as any).title || null,
+              company: (profile as any).company_name || null
             };
           }
         }

@@ -5,7 +5,8 @@
  * Super-admin only - provides CRUD operations with category filtering.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Plus,
@@ -28,7 +29,6 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -42,14 +42,8 @@ import {
   SKILL_CATEGORIES,
   type PlatformSkill,
   type SkillCategory,
-  type CreatePlatformSkillInput,
-  type UpdatePlatformSkillInput,
 } from '@/lib/hooks/usePlatformSkills';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { SkillDocumentEditor } from '@/components/platform/SkillDocumentEditor';
-import { SkillPreview } from '@/components/platform/SkillPreview';
-import { SkillTestConsole } from '@/components/platform/SkillTestConsole';
-import { toast } from 'sonner';
 
 const CATEGORY_ICONS: Record<SkillCategory, React.ElementType> = {
   'sales-ai': Sparkles,
@@ -60,14 +54,31 @@ const CATEGORY_ICONS: Record<SkillCategory, React.ElementType> = {
   'output-format': LayoutTemplate,
 };
 
+// Valid category slugs for URL routing
+const VALID_CATEGORIES = SKILL_CATEGORIES.map(c => c.value);
+const DEFAULT_CATEGORY: SkillCategory = 'sales-ai';
+
 export default function SkillsAdmin() {
   const { user } = useAuth();
-  const [selectedCategory, setSelectedCategory] = useState<SkillCategory>('sales-ai');
+  const { category: urlCategory } = useParams<{ category?: string }>();
+  const navigate = useNavigate();
+
+  // Validate and resolve category from URL
+  const selectedCategory: SkillCategory = useMemo(() => {
+    if (urlCategory && VALID_CATEGORIES.includes(urlCategory as SkillCategory)) {
+      return urlCategory as SkillCategory;
+    }
+    return DEFAULT_CATEGORY;
+  }, [urlCategory]);
+
+  // Redirect to default category if no category in URL or invalid
+  useEffect(() => {
+    if (!urlCategory || !VALID_CATEGORIES.includes(urlCategory as SkillCategory)) {
+      navigate(`/platform/skills/${DEFAULT_CATEGORY}`, { replace: true });
+    }
+  }, [urlCategory, navigate]);
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [editingSkill, setEditingSkill] = useState<PlatformSkill | null>(null);
-  const [previewSkill, setPreviewSkill] = useState<PlatformSkill | null>(null);
-  const [previewTab, setPreviewTab] = useState<'preview' | 'test'>('preview');
-  const [isCreating, setIsCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<PlatformSkill | null>(null);
 
   const { data: skills, isLoading, refetch } = usePlatformSkills(selectedCategory);
@@ -86,24 +97,6 @@ export default function SkillsAdmin() {
         skill.frontmatter.description?.toLowerCase().includes(query)
     );
   }, [skills, searchQuery]);
-
-  const handleCreate = async (input: CreatePlatformSkillInput) => {
-    try {
-      await operations.create(input);
-      setIsCreating(false);
-    } catch (error) {
-      // Error toast is handled in the hook
-    }
-  };
-
-  const handleUpdate = async (skillId: string, input: UpdatePlatformSkillInput) => {
-    try {
-      await operations.update(skillId, input);
-      setEditingSkill(null);
-    } catch (error) {
-      // Error toast is handled in the hook
-    }
-  };
 
   const handleDelete = async (skill: PlatformSkill) => {
     try {
@@ -151,42 +144,43 @@ export default function SkillsAdmin() {
                 <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
                 Refresh
               </Button>
-              <Button
-                onClick={() => setIsCreating(true)}
-                className="gap-2 bg-indigo-600 hover:bg-indigo-700"
-              >
-                <Plus className="w-4 h-4" />
-                New Skill
-              </Button>
+              <Link to={`/platform/skills/${selectedCategory}/new`}>
+                <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700">
+                  <Plus className="w-4 h-4" />
+                  New Skill
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Category Tabs & Search */}
+      {/* Category Navigation & Search */}
       <div className="border-b border-gray-200 dark:border-gray-700/50">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between gap-4">
-            <Tabs
-              value={selectedCategory}
-              onValueChange={(v) => setSelectedCategory(v as SkillCategory)}
-            >
-              <TabsList className="bg-gray-100 dark:bg-gray-800/50">
-                {SKILL_CATEGORIES.map((cat) => {
-                  const Icon = CATEGORY_ICONS[cat.value];
-                  return (
-                    <TabsTrigger
-                      key={cat.value}
-                      value={cat.value}
-                      className="gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900"
-                    >
-                      <Icon className="w-4 h-4" />
-                      {cat.label}
-                    </TabsTrigger>
-                  );
-                })}
-              </TabsList>
-            </Tabs>
+            {/* Category Links */}
+            <nav className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800/50 rounded-lg">
+              {SKILL_CATEGORIES.map((cat) => {
+                const Icon = CATEGORY_ICONS[cat.value];
+                const isActive = selectedCategory === cat.value;
+                return (
+                  <Link
+                    key={cat.value}
+                    to={`/platform/skills/${cat.value}`}
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                      isActive
+                        ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    )}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {cat.label}
+                  </Link>
+                );
+              })}
+            </nav>
 
             <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -224,10 +218,12 @@ export default function SkillsAdmin() {
                 : `Create your first ${selectedCategory} skill to get started`}
             </p>
             {!searchQuery && (
-              <Button onClick={() => setIsCreating(true)} className="gap-2">
-                <Plus className="w-4 h-4" />
-                Create Skill
-              </Button>
+              <Link to={`/platform/skills/${selectedCategory}/new`}>
+                <Button className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Create Skill
+                </Button>
+              </Link>
             )}
           </div>
         ) : (
@@ -236,9 +232,8 @@ export default function SkillsAdmin() {
               <SkillCard
                 key={skill.id}
                 skill={skill}
+                category={selectedCategory}
                 index={index}
-                onEdit={() => setEditingSkill(skill)}
-                onPreview={() => setPreviewSkill(skill)}
                 onDelete={() => setConfirmDelete(skill)}
                 onToggleActive={() => handleToggleActive(skill)}
                 isProcessing={operations.isProcessing}
@@ -247,90 +242,6 @@ export default function SkillsAdmin() {
           </div>
         )}
       </div>
-
-      {/* Create Dialog */}
-      <Dialog open={isCreating} onOpenChange={setIsCreating}>
-        <DialogContent className="max-w-5xl h-[85vh] p-0 bg-white dark:bg-gray-900">
-          <DialogHeader className="px-6 py-4 border-b border-gray-200 dark:border-gray-700/50">
-            <DialogTitle className="text-gray-900 dark:text-gray-100">
-              Create New Skill
-            </DialogTitle>
-            <DialogDescription className="text-gray-600 dark:text-gray-400">
-              Define a new agent-executable skill with frontmatter metadata and content template
-            </DialogDescription>
-          </DialogHeader>
-          <SkillDocumentEditor
-            category={selectedCategory}
-            onSave={handleCreate}
-            onCancel={() => setIsCreating(false)}
-            isLoading={operations.isCreating}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Dialog */}
-      <Dialog open={!!editingSkill} onOpenChange={() => setEditingSkill(null)}>
-        <DialogContent className="max-w-5xl h-[85vh] p-0 bg-white dark:bg-gray-900">
-          <DialogHeader className="px-6 py-4 border-b border-gray-200 dark:border-gray-700/50">
-            <DialogTitle className="text-gray-900 dark:text-gray-100">
-              Edit Skill: {editingSkill?.frontmatter.name}
-            </DialogTitle>
-            <DialogDescription className="text-gray-600 dark:text-gray-400">
-              Modify the skill frontmatter and content template
-            </DialogDescription>
-          </DialogHeader>
-          {editingSkill && (
-            <SkillDocumentEditor
-              skill={editingSkill}
-              category={editingSkill.category}
-              onSave={(input) => handleUpdate(editingSkill.id, input)}
-              onCancel={() => setEditingSkill(null)}
-              isLoading={operations.isUpdating}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Preview Dialog */}
-      <Dialog
-        open={!!previewSkill}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPreviewSkill(null);
-            setPreviewTab('preview');
-          }
-        }}
-      >
-        <DialogContent className="max-w-4xl h-[80vh] p-0 bg-white dark:bg-gray-900">
-          <DialogHeader className="px-6 py-4 border-b border-gray-200 dark:border-gray-700/50">
-            <DialogTitle className="text-gray-900 dark:text-gray-100">
-              Preview: {previewSkill?.frontmatter.name}
-            </DialogTitle>
-            <DialogDescription className="text-gray-600 dark:text-gray-400">
-              View the skill template and compiled output with sample context
-            </DialogDescription>
-          </DialogHeader>
-          {previewSkill && (
-            <div className="h-full flex flex-col">
-              <div className="px-6 pt-4">
-                <Tabs value={previewTab} onValueChange={(v) => setPreviewTab(v as 'preview' | 'test')}>
-                  <TabsList>
-                    <TabsTrigger value="preview">Preview</TabsTrigger>
-                    <TabsTrigger value="test">Test</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-              <div className="flex-1 min-h-0">
-                {previewTab === 'preview' ? (
-                  <SkillPreview skill={previewSkill} onClose={() => setPreviewSkill(null)} />
-                ) : (
-                  <SkillTestConsole skillKey={previewSkill.skill_key} />
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!confirmDelete} onOpenChange={() => setConfirmDelete(null)}>
@@ -372,9 +283,8 @@ export default function SkillsAdmin() {
 
 interface SkillCardProps {
   skill: PlatformSkill;
+  category: SkillCategory;
   index: number;
-  onEdit: () => void;
-  onPreview: () => void;
   onDelete: () => void;
   onToggleActive: () => void;
   isProcessing: boolean;
@@ -382,9 +292,8 @@ interface SkillCardProps {
 
 function SkillCard({
   skill,
+  category,
   index,
-  onEdit,
-  onPreview,
   onDelete,
   onToggleActive,
   isProcessing,
@@ -452,26 +361,28 @@ function SkillCard({
 
       {/* Actions */}
       <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onPreview}
-          disabled={isProcessing}
-          className="flex-1 gap-1.5"
-        >
-          <Eye className="w-3.5 h-3.5" />
-          Preview
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onEdit}
-          disabled={isProcessing}
-          className="flex-1 gap-1.5"
-        >
-          <Edit2 className="w-3.5 h-3.5" />
-          Edit
-        </Button>
+        <Link to={`/platform/skills/${category}/${skill.skill_key}`} className="flex-1">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isProcessing}
+            className="w-full gap-1.5"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            View
+          </Button>
+        </Link>
+        <Link to={`/platform/skills/${category}/${skill.skill_key}/edit`} className="flex-1">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isProcessing}
+            className="w-full gap-1.5"
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+            Edit
+          </Button>
+        </Link>
         <Button
           variant="ghost"
           size="sm"

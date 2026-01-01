@@ -6,10 +6,10 @@
 import React from 'react';
 import { CheckCircle2, Clock, AlertCircle, Calendar } from 'lucide-react';
 import { ActionButtons } from '../ActionButtons';
-import type { ActivityResponse, ActivityItem } from '../types';
+import type { ActivityResponse as ActivityResponseData, ActivityItem } from '../types';
 
 interface ActivityResponseProps {
-  data: ActivityResponse;
+  data: ActivityResponseData;
   onActionClick?: (action: any) => void;
 }
 

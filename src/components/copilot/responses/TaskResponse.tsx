@@ -7,11 +7,11 @@ import React, { useState } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, Clock, Calendar, Flag } from 'lucide-react';
 import { ActionButtons } from '../ActionButtons';
 import { StatsFirstView } from './StatsFirstView';
-import type { TaskResponse, TaskItem } from '../types';
+import type { TaskResponse as TaskResponseData, TaskItem } from '../types';
 import { supabase } from '@/lib/supabase/clientV2';
 
 interface TaskResponseProps {
-  data: TaskResponse;
+  data: TaskResponseData;
   onActionClick?: (action: any) => void;
 }
 

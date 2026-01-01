@@ -308,7 +308,7 @@ export function EmailThread({
             email={email.thread.map(msg => ({
               ...msg,
               ...email,
-              body: msg.body || msg.snippet || ''
+              body: msg.content || ''
             }) as any)}
             className="mb-0"
           />

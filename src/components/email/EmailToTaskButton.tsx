@@ -20,22 +20,11 @@ export function EmailToTaskButton({ email, className = '' }: EmailToTaskButtonPr
 
   // Extract contact info from email sender
   const extractContactInfo = () => {
-    // Email format is often "Name <email@example.com>" or just "email@example.com"
-    const fromField = email.from || '';
+    const fromAddress = email.from;
 
-    let contactName = '';
-    let contactEmail = '';
-
-    // Try to extract name and email from "Name <email>" format
-    const match = fromField.match(/^(.+?)\s*<(.+?)>$/);
-    if (match) {
-      contactName = match[1].trim().replace(/["']/g, '');
-      contactEmail = match[2].trim();
-    } else {
-      // Just email address
-      contactEmail = fromField.trim();
-      contactName = contactEmail.split('@')[0]; // Use email prefix as name
-    }
+    // Handle EmailAddress object
+    const contactEmail = fromAddress?.email || '';
+    const contactName = fromAddress?.name || contactEmail.split('@')[0] || '';
 
     return { contactName, contactEmail };
   };
@@ -58,8 +47,8 @@ export function EmailToTaskButton({ email, className = '' }: EmailToTaskButtonPr
     // Use email subject as task title
     title: email.subject || 'Follow up on email',
 
-    // Use email body/snippet as description
-    description: `Follow up on email from ${contactName}:\n\n${email.body || email.snippet || 'No content'}`,
+    // Use email body as description
+    description: `Follow up on email from ${contactName}:\n\n${email.body_text || 'No content'}`,
 
     // Contact information
     contactName,

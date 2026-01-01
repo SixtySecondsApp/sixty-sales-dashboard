@@ -20,19 +20,11 @@ export function EmailToDealButton({ email, className = '' }: EmailToDealButtonPr
 
   // Extract contact info from email sender
   const extractContactInfo = () => {
-    const fromField = email.from || '';
+    const fromAddress = email.from;
 
-    let contactName = '';
-    let contactEmail = '';
-
-    const match = fromField.match(/^(.+?)\s*<(.+?)>$/);
-    if (match) {
-      contactName = match[1].trim().replace(/["']/g, '');
-      contactEmail = match[2].trim();
-    } else {
-      contactEmail = fromField.trim();
-      contactName = contactEmail.split('@')[0];
-    }
+    // Handle EmailAddress object
+    const contactEmail = fromAddress?.email || '';
+    const contactName = fromAddress?.name || contactEmail.split('@')[0] || '';
 
     // Try to extract company from email domain
     const company = contactEmail.split('@')[1]?.split('.')[0] || '';
@@ -70,8 +62,7 @@ export function EmailToDealButton({ email, className = '' }: EmailToDealButtonPr
           isOpen={isDealWizardOpen}
           onClose={() => setIsDealWizardOpen(false)}
           initialData={{
-            company: company || '',
-            contactName: contactName,
+            clientName: contactName || company || '',
             contactEmail: contactEmail,
           }}
           onDealCreated={(deal) => {

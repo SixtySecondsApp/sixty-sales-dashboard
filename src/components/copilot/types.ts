@@ -1329,7 +1329,7 @@ export interface MeetingPrepResponseData {
   lastInteractions: Interaction[];
   talkingPoints: string[];
   discoveryQuestions: string[];
-  actionItems: ActionItem[];
+  actionItems: MeetingActionItem[];
   risks: string[];
   opportunities: string[];
   context: MeetingContext;
@@ -1875,11 +1875,11 @@ export interface ActionSummaryResponse extends CopilotResponse {
 
 export interface ActionSummaryResponseData {
   actionsCompleted: number;
-  actionItems: ActionItem[];
+  actionItems: ActionSummaryItem[];
   metrics: ActionMetrics;
 }
 
-export interface ActionItem {
+export interface ActionSummaryItem {
   entityType: string;
   operation: string;
   entityId?: string;
@@ -1894,30 +1894,6 @@ export interface ActionMetrics {
   contactsUpdated: number;
   tasksCreated: number;
   activitiesCreated: number;
-}
-
-// ============================================================================
-// Action Summary Response
-// ============================================================================
-
-export interface ActionSummaryResponse extends CopilotResponse {
-  type: 'action_summary';
-  data: ActionSummaryResponseData;
-}
-
-export interface ActionSummaryResponseData {
-  actionsCompleted: number;
-  actionItems: ActionItem[];
-  metrics: ActionMetrics;
-}
-
-export interface ActionItem {
-  entityType: string;
-  operation: string;
-  entityId?: string;
-  entityName?: string;
-  details?: string;
-  success: boolean;
 }
 
 

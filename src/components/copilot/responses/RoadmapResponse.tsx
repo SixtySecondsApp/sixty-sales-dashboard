@@ -6,10 +6,10 @@
 import React from 'react';
 import { CheckCircle2, FileText, Tag, Flag, Calendar } from 'lucide-react';
 import { ActionButtons } from '../ActionButtons';
-import type { RoadmapResponse, RoadmapItem } from '../types';
+import type { RoadmapResponse as RoadmapResponseData, RoadmapItem } from '../types';
 
 interface RoadmapResponseProps {
-  data: RoadmapResponse;
+  data: RoadmapResponseData;
   onActionClick?: (action: any) => void;
 }
 
@@ -147,27 +147,27 @@ export const RoadmapResponse: React.FC<RoadmapResponseProps> = ({ data, onAction
             </div>
 
             {/* Ticket ID */}
-            {roadmapItem.ticket_id && (
+            {(roadmapItem as any).ticketId && (
               <div className="space-y-1">
                 <div className="text-xs text-gray-500">Ticket ID</div>
-                <div className="text-sm font-mono text-gray-300">{roadmapItem.ticket_id}</div>
+                <div className="text-sm font-mono text-gray-300">{(roadmapItem as any).ticketId}</div>
               </div>
             )}
           </div>
 
           {/* Timestamps */}
-          {(roadmapItem.created_at || roadmapItem.updated_at) && (
+          {(roadmapItem.createdAt || roadmapItem.updatedAt) && (
             <div className="flex items-center gap-4 text-xs text-gray-500 ml-6 pt-2 border-t border-gray-800/50">
-              {roadmapItem.created_at && (
+              {roadmapItem.createdAt && (
                 <div className="flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  <span>Created: {formatDate(roadmapItem.created_at)}</span>
+                  <span>Created: {formatDate(roadmapItem.createdAt)}</span>
                 </div>
               )}
-              {roadmapItem.updated_at && roadmapItem.updated_at !== roadmapItem.created_at && (
+              {roadmapItem.updatedAt && roadmapItem.updatedAt !== roadmapItem.createdAt && (
                 <div className="flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  <span>Updated: {formatDate(roadmapItem.updated_at)}</span>
+                  <span>Updated: {formatDate(roadmapItem.updatedAt)}</span>
                 </div>
               )}
             </div>
