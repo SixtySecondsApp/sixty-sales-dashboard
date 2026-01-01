@@ -5,9 +5,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useCopilot } from '@/lib/contexts/CopilotContext';
-import { CopilotEmpty } from './copilot/CopilotEmpty';
-import { ChatMessage } from './copilot/ChatMessage';
-import { ChatInput } from './copilot/ChatInput';
 import { CopilotLayout } from './copilot/CopilotLayout';
 import { CopilotService } from '@/lib/services/copilotService';
 import { EmailActionModal, EmailActionData, EmailActionType } from './copilot/EmailActionModal';
@@ -15,6 +12,7 @@ import { useDynamicPrompts } from '@/lib/hooks/useDynamicPrompts';
 import logger from '@/lib/utils/logger';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
+import { AssistantShell } from '@/components/assistant/AssistantShell';
 
 // Helper to get auth headers for edge functions
 async function getAuthHeaders() {
@@ -417,42 +415,7 @@ export const Copilot: React.FC<CopilotProps> = ({
   return (
     <CopilotLayout>
       <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 flex flex-col min-h-0 overflow-hidden h-[calc(100dvh-var(--app-top-offset))]">
-        {/* Empty State or Active Conversation */}
-        {isEmpty ? (
-          <CopilotEmpty onPromptClick={handlePromptClick} />
-        ) : (
-          <>
-            {/* Chat Messages Area - scrollable */}
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-6 py-8">
-              {messages.map(message => {
-                // Stable key based on message ID only - prevents unnecessary re-renders
-                return (
-                  <ChatMessage
-                    key={message.id}
-                    message={message}
-                    onActionClick={handleActionClick}
-                  />
-                );
-              })}
-
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Chat Input - fixed at bottom */}
-            <div className="flex-shrink-0 pb-6 pt-4">
-              <ChatInput
-                value={inputValue}
-                onChange={setInputValue}
-                onSend={handleSend}
-                onCancel={cancelRequest}
-                disabled={isLoading}
-                isLoading={isLoading}
-                suggestedPrompts={[]}
-                onPromptClick={undefined}
-              />
-            </div>
-          </>
-        )}
+        <AssistantShell mode="page" />
 
         {/* Email Action Modal (Reply/Forward) */}
         <EmailActionModal

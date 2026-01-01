@@ -186,6 +186,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       badge: 'New',
     },
     {
+      id: 'quickadd-simulator',
+      title: 'Quick Add Simulator',
+      description: 'Preview Quick Add versions and control internal vs external rollout',
+      icon: Brain,
+      href: '/platform/quickadd-simulator',
+      color: 'text-violet-600 bg-violet-100 dark:bg-violet-900/30',
+      badge: 'New',
+    },
+    {
       id: 'feature-flags',
       title: 'Feature Flags',
       description: 'Control feature availability per customer',

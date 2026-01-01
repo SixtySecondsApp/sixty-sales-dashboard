@@ -21,11 +21,22 @@ interface ChatMessageProps {
 export const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, onActionClick }) => {
   const isUser = message.role === 'user';
   const { userData } = useUser();
+  const BOT_ICON_URL =
+    'https://ygdpgliavpxeugaajgrb.supabase.co/storage/v1/object/public/Logos/ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459/Icon.png';
 
   return (
     <div className={cn('flex gap-3', isUser ? 'justify-end' : 'justify-start')}>
       {!isUser && (
-        <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-800 border border-gray-700 flex items-center justify-center">
+          <img
+            src={BOT_ICON_URL}
+            alt="60"
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              // Fallback to sparkle avatar if the icon can’t load
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+            }}
+          />
           <Sparkles className="w-4 h-4 text-white" />
         </div>
       )}

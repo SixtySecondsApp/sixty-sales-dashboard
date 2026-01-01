@@ -41,6 +41,7 @@ interface ChatRequest {
     contactId?: string
     dealIds?: string[]
     taskId?: string
+    orgId?: string
     temporalContext?: TemporalContextPayload
   }
 }
@@ -324,6 +325,48 @@ async function handleChat(
     } else if (!body.context.userId) {
       body.context.userId = userId
     }
+
+    // ---------------------------------------------------------------------------
+    // Resolve org_id (prefer explicit orgId from client context, but validate membership)
+    // ---------------------------------------------------------------------------
+    try {
+      const requestedOrgId = body.context?.orgId ? String(body.context.orgId) : null
+
+      if (requestedOrgId) {
+        const { data: membership, error: membershipError } = await client
+          .from('organization_memberships')
+          .select('org_id')
+          .eq('user_id', userId)
+          .eq('org_id', requestedOrgId)
+          .maybeSingle()
+
+        if (membershipError) {
+          console.warn('[API-COPILOT] Failed to validate requested orgId (falling back):', membershipError)
+        } else if (membership?.org_id) {
+          body.context.orgId = String(membership.org_id)
+        } else {
+          // Requested orgId is not one of the user's orgs; fall back.
+          body.context.orgId = undefined
+        }
+      }
+
+      // If no valid requested orgId, pick first membership as default
+      if (!body.context?.orgId) {
+        const { data: membership } = await client
+          .from('organization_memberships')
+          .select('org_id')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+
+        if (membership?.org_id) {
+          body.context.orgId = String(membership.org_id)
+        }
+      }
+    } catch (e) {
+      // fail open: copilot should still work without org context
+    }
     
     // Check if user is admin and validate targetUserId if provided
     const { data: currentUser } = await client
@@ -489,6 +532,7 @@ async function handleChat(
           context,
           client,
           userId,
+          body.context?.orgId ? String(body.context.orgId) : null,
           analyticsData // Pass analytics data to track tool usage
         )
         analyticsData.claude_api_time_ms = Date.now() - claudeStartTime
@@ -833,6 +877,11 @@ async function handleDraftEmail(
  * Handle skill testing requests (admin/dev console)
  *
  * POST /api-copilot/actions/test-skill
+ *
+ * Supports optional contact context for testing skills with real contact data:
+ * - contact_id: UUID of the contact to use
+ * - contact_test_mode: 'good' | 'average' | 'bad' | 'custom'
+ * - contact_context: { id, email, name, title, company_id, company_name, total_meetings_count, quality_tier, quality_score }
  */
 async function handleTestSkill(
   client: any,
@@ -845,17 +894,53 @@ async function handleTestSkill(
     const testInput = body?.test_input ? String(body.test_input) : ''
     const mode = body?.mode ? String(body.mode) : 'readonly'
 
+    // Optional contact testing context
+    const contactId = body?.contact_id ? String(body.contact_id) : null
+    const contactTestMode = body?.contact_test_mode ? String(body.contact_test_mode) : null
+    const contactContext = body?.contact_context || null
+
     if (!skillKey) {
       return createErrorResponse('skill_key is required', 400, 'INVALID_SKILL_KEY')
     }
 
-    const message = [
+    // Build message parts
+    const messageParts = [
       `Skill test mode: ${mode}.`,
       `First call get_skill({ "skill_key": "${skillKey}" }) and follow that skill's instructions.`,
-      testInput ? `User request to run through the skill: ${testInput}` : 'User request: run the skill with best-effort defaults.',
-    ].join('\n')
+    ]
 
-    const aiResponse = await callClaudeAPI(message, [], '', client, userId)
+    // Add contact context if provided
+    if (contactId && contactContext) {
+      const contactInfo = [
+        `\n--- CONTACT TESTING CONTEXT ---`,
+        `Test Mode: ${contactTestMode || 'custom'}`,
+        `Quality Tier: ${contactContext.quality_tier || 'unknown'} (Score: ${contactContext.quality_score || 0}/100)`,
+        ``,
+        `Contact Details:`,
+        `- ID: ${contactContext.id}`,
+        `- Name: ${contactContext.name || 'Unknown'}`,
+        `- Email: ${contactContext.email || 'Unknown'}`,
+        contactContext.title ? `- Title: ${contactContext.title}` : null,
+        contactContext.company_name ? `- Company: ${contactContext.company_name}` : null,
+        contactContext.total_meetings_count != null ? `- Meeting Count: ${contactContext.total_meetings_count}` : null,
+        ``,
+        `Use this contact's information when testing the skill. The contact_id is: ${contactId}`,
+        `--- END CONTACT CONTEXT ---\n`,
+      ].filter(Boolean).join('\n')
+
+      messageParts.push(contactInfo)
+    }
+
+    // Add user test input
+    messageParts.push(
+      testInput
+        ? `User request to run through the skill: ${testInput}`
+        : 'User request: run the skill with best-effort defaults.'
+    )
+
+    const message = messageParts.join('\n')
+
+    const aiResponse = await callClaudeAPI(message, [], '', client, userId, null)
 
     return new Response(
       JSON.stringify({
@@ -866,6 +951,13 @@ async function handleTestSkill(
         tool_iterations: aiResponse.tool_iterations || 0,
         tool_executions: aiResponse.tool_executions || [],
         usage: aiResponse.usage || undefined,
+        // Include contact testing info in response for debugging
+        contact_test_info: contactId ? {
+          contact_id: contactId,
+          test_mode: contactTestMode,
+          quality_tier: contactContext?.quality_tier,
+          quality_score: contactContext?.quality_score,
+        } : null,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
@@ -1341,15 +1433,7 @@ async function buildContext(client: any, userId: string, context?: ChatRequest['
   }
 
   try {
-    const { data: membership } = await client
-      .from('organization_memberships')
-      .select('org_id')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-
-    const orgId = membership?.org_id || null
+    const orgId = context?.orgId ? String(context.orgId) : null
 
     if (orgId) {
       const { data: org } = await client
@@ -2121,6 +2205,7 @@ async function callClaudeAPI(
   context: string,
   client: any,
   userId: string,
+  orgId: string | null,
   analyticsData?: any
 ): Promise<{ 
   content: string; 
@@ -2319,7 +2404,7 @@ You have access to skills - documents that contain instructions, context, and be
           }
           
           // Add timeout wrapper for tool execution
-          const toolPromise = executeToolCall(toolCall.name, toolCall.input, client, userId)
+          const toolPromise = executeToolCall(toolCall.name, toolCall.input, client, userId, orgId)
           const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Tool execution timeout')), 10000)
           )
@@ -2447,27 +2532,32 @@ async function executeToolCall(
   toolName: string,
   args: any,
   client: any,
-  userId: string
+  userId: string,
+  orgId: string | null
 ): Promise<any> {
   // ---------------------------------------------------------------------------
   // Skills Router (3-tool surface)
   // ---------------------------------------------------------------------------
   if (toolName === 'list_skills' || toolName === 'get_skill' || toolName === 'execute_action') {
-    // Resolve org_id (first org membership)
-    const { data: membership, error: membershipError } = await client
-      .from('organization_memberships')
-      .select('org_id')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
+    // Resolve org_id (prefer orgId from request context; otherwise fall back to first membership)
+    let resolvedOrgId = orgId
+    if (!resolvedOrgId) {
+      const { data: membership, error: membershipError } = await client
+        .from('organization_memberships')
+        .select('org_id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
 
-    if (membershipError) {
-      throw new Error(`Failed to resolve organization: ${membershipError.message}`)
+      if (membershipError) {
+        throw new Error(`Failed to resolve organization: ${membershipError.message}`)
+      }
+
+      resolvedOrgId = membership?.org_id ? String(membership.org_id) : null
     }
 
-    const orgId = membership?.org_id ? String(membership.org_id) : null
-    if (!orgId) {
+    if (!resolvedOrgId) {
       throw new Error('No organization found for user')
     }
 
@@ -2477,7 +2567,7 @@ async function executeToolCall(
 
       if (enabledOnly) {
         const { data: skills, error } = await client.rpc('get_organization_skills_for_agent', {
-          p_org_id: orgId,
+          p_org_id: resolvedOrgId,
         })
         if (error) throw new Error(`Failed to list skills: ${error.message}`)
 
@@ -2509,7 +2599,7 @@ async function executeToolCall(
           platform_skills:platform_skill_id(category, frontmatter, content_template, is_active)
         `
         )
-        .eq('organization_id', orgId)
+        .eq('organization_id', resolvedOrgId)
         .eq('is_active', true)
 
       if (error) throw new Error(`Failed to list skills: ${error.message}`)
@@ -2546,7 +2636,7 @@ async function executeToolCall(
 
       // Prefer enabled compiled skills first
       const { data: skills, error } = await client.rpc('get_organization_skills_for_agent', {
-        p_org_id: orgId,
+        p_org_id: resolvedOrgId,
       })
       if (error) throw new Error(`Failed to get skill: ${error.message}`)
 
@@ -2577,7 +2667,7 @@ async function executeToolCall(
           platform_skills:platform_skill_id(category, frontmatter, content_template, is_active)
         `
         )
-        .eq('organization_id', orgId)
+        .eq('organization_id', resolvedOrgId)
         .eq('skill_id', skillKey)
         .eq('is_active', true)
         .maybeSingle()
@@ -2602,7 +2692,7 @@ async function executeToolCall(
     if (toolName === 'execute_action') {
       const action = args?.action as ExecuteActionName
       const params = (args?.params || {}) as Record<string, unknown>
-      return await executeAction(client, userId, orgId, action, params)
+      return await executeAction(client, userId, resolvedOrgId, action, params)
     }
   }
 

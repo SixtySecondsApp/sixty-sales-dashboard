@@ -65,6 +65,7 @@ import { useTaskNotifications } from '@/lib/hooks/useTaskNotifications';
 import { SmartSearch } from '@/components/SmartSearch';
 import { useCopilot } from '@/lib/contexts/CopilotContext';
 import { useNavigate } from 'react-router-dom';
+import { AssistantOverlay } from '@/components/assistant/AssistantOverlay';
 // MeetingUsageIndicator moved to MeetingsList page
 import {
   DropdownMenu,
@@ -126,9 +127,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, toggleMobileMenu] = useCycle(false, true);
   const [hasMounted, setHasMounted] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isSmartSearchOpen, setIsSmartSearchOpen] = useState(false);
   const navigate = useNavigate();
   const { openCopilot } = useCopilot();
+  // Allow decoupled components (assistant/chat panels/etc) to open Quick Add.
+  useEventListener(
+    'modal:opened',
+    ({ type }) => {
+      if (type === 'quick-add') {
+        setIsQuickAddOpen(true);
+      }
+    },
+    []
+  );
   const { logoLight, logoDark, icon } = useBrandingSettings();
   const { resolvedTheme } = useTheme();
 
@@ -307,7 +319,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           type="button"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => setIsQuickAddOpen(true)}
+          onClick={() => setIsAssistantOpen(true)}
           className="fixed bottom-6 right-6 p-4 rounded-full bg-[#37bd7e] hover:bg-[#2da76c] transition-colors shadow-lg shadow-[#37bd7e]/20 z-50"
         >
           <Plus className="w-6 h-6 text-white" />
@@ -874,6 +886,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       >
         {children}
         <QuickAdd isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />
+        <AssistantOverlay isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} />
 
         {/* Password Setup Modal - shown for magic link users who haven't set a password */}
         <PasswordSetupModal

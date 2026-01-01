@@ -1,5 +1,6 @@
-import { motion } from 'framer-motion';
-import { ArrowRight, CheckSquare, Target, Zap, Flag, Clock, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, CheckSquare, Loader2, CheckCircle2, AlertCircle, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSmartDates } from './hooks/useSmartDates';
 import type { QuickAddFormData, TaskType, Priority, ValidationErrors } from './types';
@@ -14,23 +15,22 @@ interface TaskFormProps {
   onBack: () => void;
 }
 
-// Task type options with icons and colors
+// Compact task type options
 const taskTypes: TaskType[] = [
-  { value: 'call', label: 'Phone Call', icon: '📞', color: 'bg-blue-500/20 text-blue-400', iconColor: 'text-blue-500' },
-  { value: 'email', label: 'Email', icon: '✉️', color: 'bg-green-500/20 text-green-400', iconColor: 'text-green-500' },
-  { value: 'meeting', label: 'Meeting', icon: '🤝', color: 'bg-purple-500/20 text-purple-400', iconColor: 'text-purple-500' },
-  { value: 'follow_up', label: 'Follow Up', icon: '🔄', color: 'bg-orange-500/20 text-orange-400', iconColor: 'text-orange-500' },
-  { value: 'demo', label: 'Demo', icon: '🎯', color: 'bg-indigo-500/20 text-indigo-400', iconColor: 'text-indigo-500' },
-  { value: 'proposal', label: 'Proposal', icon: '📋', color: 'bg-yellow-500/20 text-yellow-400', iconColor: 'text-yellow-500' },
-  { value: 'general', label: 'General', icon: '⚡', color: 'bg-gray-500/20 text-gray-400', iconColor: 'text-gray-400' },
+  { value: 'call', label: 'Call', icon: '📞', color: 'bg-blue-500/20 text-blue-400 border-blue-500/40', iconColor: 'text-blue-500' },
+  { value: 'email', label: 'Email', icon: '✉️', color: 'bg-green-500/20 text-green-400 border-green-500/40', iconColor: 'text-green-500' },
+  { value: 'meeting', label: 'Meeting', icon: '🤝', color: 'bg-purple-500/20 text-purple-400 border-purple-500/40', iconColor: 'text-purple-500' },
+  { value: 'follow_up', label: 'Follow Up', icon: '🔄', color: 'bg-orange-500/20 text-orange-400 border-orange-500/40', iconColor: 'text-orange-500' },
+  { value: 'demo', label: 'Demo', icon: '🎯', color: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40', iconColor: 'text-indigo-500' },
+  { value: 'general', label: 'Other', icon: '⚡', color: 'bg-gray-500/20 text-gray-400 border-gray-500/40', iconColor: 'text-gray-400' },
 ];
 
-// Priority options with visual indicators
+// Compact priority options
 const priorities: Priority[] = [
-  { value: 'low', label: 'Low', icon: '🟢', color: 'bg-green-500/20 text-green-400 border-green-500/30', ringColor: 'ring-green-500/30' },
-  { value: 'medium', label: 'Medium', icon: '🟡', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', ringColor: 'ring-yellow-500/30' },
-  { value: 'high', label: 'High', icon: '🟠', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30', ringColor: 'ring-orange-500/30' },
-  { value: 'urgent', label: 'Urgent', icon: '🔴', color: 'bg-red-500/20 text-red-400 border-red-500/30', ringColor: 'ring-red-500/30' },
+  { value: 'low', label: 'Low', icon: '🟢', color: 'bg-green-500/20 text-green-400 border-green-500/40', ringColor: 'ring-green-500/30' },
+  { value: 'medium', label: 'Med', icon: '🟡', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40', ringColor: 'ring-yellow-500/30' },
+  { value: 'high', label: 'High', icon: '🟠', color: 'bg-orange-500/20 text-orange-400 border-orange-500/40', ringColor: 'ring-orange-500/30' },
+  { value: 'urgent', label: 'Urgent', icon: '🔴', color: 'bg-red-500/20 text-red-400 border-red-500/40', ringColor: 'ring-red-500/30' },
 ];
 
 export function TaskForm({ 
@@ -43,6 +43,9 @@ export function TaskForm({
   onBack 
 }: TaskFormProps) {
   const { getSmartQuickDates } = useSmartDates();
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const quickDates = getSmartQuickDates().slice(0, 4);
 
   const handleQuickDate = (dateValue: string) => {
     setFormData({ ...formData, due_date: dateValue });
@@ -50,232 +53,191 @@ export function TaskForm({
 
   return (
     <motion.form
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
+      initial={{ opacity: 0, x: 10 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -10 }}
+      transition={{ duration: 0.15 }}
       onSubmit={onSubmit}
-      className="space-y-6"
+      className="flex flex-col h-full"
     >
-      {/* Header with back button */}
-      <div className="flex items-center gap-3 mb-6">
+      {/* Ultra-compact header - just back + icon + title inline */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-800/30">
         <button
           type="button"
           onClick={onBack}
-          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-xl transition-colors"
+          className="p-1 hover:bg-gray-800 rounded-md transition-colors"
         >
-          <ArrowRight className="w-5 h-5 theme-text-tertiary rotate-180" />
+          <ArrowLeft className="w-4 h-4 text-gray-500" />
         </button>
-        <div>
-          <h3 className="text-xl font-semibold theme-text-primary flex items-center gap-2">
-            <CheckSquare className="w-6 h-6 text-indigo-500" />
-            Create New Task
-          </h3>
-          <p className="theme-text-tertiary text-sm">Set up your task quickly and efficiently</p>
-        </div>
+        <CheckSquare className="w-4 h-4 text-blue-400" />
+        <span className="text-sm font-medium text-gray-300">New Task</span>
       </div>
 
-      {/* Task Title */}
-      <div className="space-y-3">
-        <label className="text-lg font-semibold theme-text-primary flex items-center gap-2">
-          <Target className="w-5 h-5 text-indigo-400" />
-          What needs to be done? *
-        </label>
+      {/* Compact Form Content */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+        {/* Task Title */}
         <input
           type="text"
           value={formData.title}
           onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          placeholder="e.g., Call John about the proposal"
+          placeholder="What needs to be done?"
+          autoFocus
           className={cn(
-            "w-full theme-bg-elevated theme-border theme-text-primary text-lg p-4 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:theme-text-tertiary transition-all",
+            "w-full bg-gray-800/50 border text-white text-sm p-2.5 rounded-lg",
+            "placeholder:text-gray-500 transition-all",
+            "focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50",
             validationErrors.title
-              ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20"
-              : ""
+              ? "border-red-500/50"
+              : "border-gray-700/50"
           )}
           required
         />
         {validationErrors.title && (
-          <p className="text-red-400 text-sm mt-1 flex items-center gap-1">
+          <p className="text-red-400 text-xs flex items-center gap-1 -mt-2">
             <AlertCircle className="w-3 h-3" />
             {validationErrors.title}
           </p>
         )}
-      </div>
 
-      {/* Task Type & Priority Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Task Type */}
-        <div className="space-y-3">
-          <label className="text-base font-medium theme-text-primary flex items-center gap-2">
-            <Zap className="w-4 h-4 text-yellow-400" />
-            Task Type
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            {taskTypes.slice(0, 4).map((type) => (
+        {/* Type + Priority side by side */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Task Type */}
+          <div>
+            <label className="text-xs text-gray-500 mb-1.5 block">Type</label>
+            <div className="flex flex-wrap gap-1">
+              {taskTypes.map((type) => (
+                <button
+                  key={type.value}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, task_type: type.value as any })}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-1 rounded-md border text-xs transition-all",
+                    formData.task_type === type.value
+                      ? type.color
+                      : "bg-gray-800/30 border-gray-700/30 text-gray-500 hover:bg-gray-800/50"
+                  )}
+                >
+                  <span className="text-xs">{type.icon}</span>
+                  <span className="hidden sm:inline">{type.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Priority */}
+          <div>
+            <label className="text-xs text-gray-500 mb-1.5 block">Priority</label>
+            <div className="flex gap-1">
+              {priorities.map((priority) => (
+                <button
+                  key={priority.value}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, priority: priority.value as any })}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-0.5 px-1.5 py-1.5 rounded-md border text-xs transition-all",
+                    formData.priority === priority.value
+                      ? priority.color
+                      : "bg-gray-800/30 border-gray-700/30 text-gray-500 hover:bg-gray-800/50"
+                  )}
+                  title={priority.label}
+                >
+                  <span>{priority.icon}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Due Date - compact row */}
+        <div>
+          <label className="text-xs text-gray-500 mb-1.5 block">Due</label>
+          <div className="flex gap-1.5 mb-1.5">
+            {quickDates.map((quick) => (
               <button
-                key={type.value}
+                key={quick.label}
                 type="button"
-                onClick={() => setFormData({ ...formData, task_type: type.value as any })}
-                className={`p-3 rounded-xl border transition-all ${
-                  formData.task_type === type.value
-                    ? `${type.color} border-current`
-                    : 'theme-bg-elevated theme-border theme-text-tertiary hover:bg-gray-100 dark:hover:bg-gray-700/50'
-                }`}
+                onClick={() => handleQuickDate(quick.value)}
+                className={cn(
+                  "flex-1 flex flex-col items-center py-1.5 rounded-md border text-xs transition-all",
+                  formData.due_date === quick.value
+                    ? "bg-blue-500/20 border-blue-500/50 text-blue-300"
+                    : "bg-gray-800/30 border-gray-700/30 text-gray-500 hover:bg-gray-800/50"
+                )}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-base">{type.icon}</span>
-                  <span className="text-xs font-medium">{type.label}</span>
-                </div>
+                <span className="text-sm leading-none">{quick.icon}</span>
+                <span className="text-[10px] mt-0.5">{quick.label.replace('Tomorrow ', 'Tom ')}</span>
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            {taskTypes.slice(4).map((type) => (
-              <button
-                key={type.value}
-                type="button"
-                onClick={() => setFormData({ ...formData, task_type: type.value as any })}
-                className={`p-3 rounded-xl border transition-all ${
-                  formData.task_type === type.value
-                    ? `${type.color} border-current`
-                    : 'theme-bg-elevated theme-border theme-text-tertiary hover:bg-gray-100 dark:hover:bg-gray-700/50'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-base">{type.icon}</span>
-                  <span className="text-xs font-medium">{type.label}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Priority */}
-        <div className="space-y-3">
-          <label className="text-base font-medium theme-text-primary flex items-center gap-2">
-            <Flag className="w-4 h-4 text-red-400" />
-            Priority Level
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            {priorities.map((priority) => (
-              <button
-                key={priority.value}
-                type="button"
-                onClick={() => setFormData({ ...formData, priority: priority.value as any })}
-                className={`p-3 rounded-xl border transition-all ${
-                  formData.priority === priority.value
-                    ? `${priority.color} ${priority.ringColor} ring-2`
-                    : 'theme-bg-elevated theme-border theme-text-tertiary hover:bg-gray-100 dark:hover:bg-gray-700/50'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-base">{priority.icon}</span>
-                  <span className="text-xs font-medium">{priority.label}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Due Date Section */}
-      <div className="space-y-4">
-        <label className="text-base font-medium theme-text-primary flex items-center gap-2">
-          <Clock className="w-4 h-4 text-green-400" />
-          When is this due?
-        </label>
-
-        {/* Smart Quick Date Buttons */}
-        <div className="grid grid-cols-2 gap-2">
-          {getSmartQuickDates().map((quick) => (
-            <button
-              key={quick.label}
-              type="button"
-              onClick={() => handleQuickDate(quick.value)}
-              className={`p-3 rounded-xl border transition-all group ${
-                formData.due_date === quick.value
-                  ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300'
-                  : 'theme-bg-elevated theme-border theme-text-secondary hover:bg-gray-100 dark:hover:bg-gray-700/50'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-lg">{quick.icon}</span>
-                <div className="text-left">
-                  <div className="text-sm font-medium">{quick.label}</div>
-                  <div className="text-xs opacity-70">{quick.description}</div>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        {/* Custom Date Input */}
-        <div className="space-y-2">
-          <label className="text-sm theme-text-tertiary">Or set a custom date & time</label>
           <input
             type="datetime-local"
             value={formData.due_date}
             onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-            className="w-full theme-bg-elevated theme-border theme-text-primary p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+            className="w-full bg-gray-800/30 border border-gray-700/30 text-gray-400 text-xs p-1.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500/50"
           />
         </div>
+
+        {/* Advanced Options - Collapsed */}
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-400 transition-colors py-1"
+        >
+          <ChevronDown className={cn("w-3 h-3 transition-transform", showAdvanced && "rotate-180")} />
+          <span>{showAdvanced ? 'Less options' : 'More options'}</span>
+        </button>
+
+        <AnimatePresence>
+          {showAdvanced && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="space-y-2 overflow-hidden"
+            >
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Notes (optional)"
+                rows={2}
+                className="w-full bg-gray-800/30 border border-gray-700/30 text-white text-xs p-2 rounded-md placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50 resize-none"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={formData.contact_name}
+                  onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
+                  placeholder="Contact name"
+                  className="bg-gray-800/30 border border-gray-700/30 text-white text-xs p-2 rounded-md placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                />
+                <input
+                  type="text"
+                  value={formData.company_website}
+                  onChange={(e) => {
+                    let website = e.target.value.trim();
+                    if (website && !website.startsWith('www.') && !website.startsWith('http')) {
+                      if (website.includes('.') && !website.includes(' ')) {
+                        website = `www.${website}`;
+                      }
+                    }
+                    setFormData({ ...formData, company_website: website });
+                  }}
+                  placeholder="Company website"
+                  className="bg-gray-800/30 border border-gray-700/30 text-white text-xs p-2 rounded-md placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Description */}
-      <div className="space-y-3">
-        <label className="text-base font-medium theme-text-primary">
-          Additional Details (Optional)
-        </label>
-        <textarea
-          value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          placeholder="Any additional context or notes..."
-          rows={3}
-          className="w-full theme-bg-elevated theme-border theme-text-primary p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:theme-text-tertiary transition-all resize-none"
-        />
-      </div>
-
-      {/* Contact & Company Info */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium theme-text-tertiary">Contact Name</label>
-          <input
-            type="text"
-            value={formData.contact_name}
-            onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
-            placeholder="John Smith"
-            className="w-full theme-bg-elevated theme-border theme-text-primary p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:theme-text-tertiary transition-all"
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium theme-text-tertiary">Company Website</label>
-          <input
-            type="text"
-            value={formData.company_website}
-            onChange={(e) => {
-              let website = e.target.value.trim();
-
-              // Auto-add www. if user enters a domain without it
-              if (website && !website.startsWith('www.') && !website.startsWith('http')) {
-                // Check if it looks like a domain (has a dot and no spaces)
-                if (website.includes('.') && !website.includes(' ')) {
-                  website = `www.${website}`;
-                }
-              }
-
-              setFormData({ ...formData, company_website: website });
-            }}
-            placeholder="www.company.com"
-            className="w-full theme-bg-elevated theme-border theme-text-primary p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:theme-text-tertiary transition-all"
-          />
-        </div>
-      </div>
-
-      {/* Submit Button */}
-      <div className="flex gap-3 pt-4">
+      {/* Compact Footer */}
+      <div className="flex gap-2 px-4 py-3 border-t border-gray-800/30">
         <button
           type="button"
           onClick={onBack}
-          className="flex-1 py-3 px-4 theme-bg-elevated theme-border theme-text-secondary rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-all font-medium"
+          className="px-4 py-2 bg-gray-800/50 border border-gray-700/30 text-gray-400 rounded-lg hover:bg-gray-800 text-xs font-medium transition-colors"
         >
           Cancel
         </button>
@@ -283,28 +245,28 @@ export function TaskForm({
           type="submit"
           disabled={isSubmitting}
           className={cn(
-            "flex-1 py-3 px-4 rounded-xl transition-all font-medium shadow-sm flex items-center justify-center gap-2",
+            "flex-1 py-2 px-4 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all",
             submitStatus === 'success'
-              ? "bg-emerald-600 text-white hover:bg-emerald-700"
+              ? "bg-emerald-600 text-white"
               : isSubmitting
-                ? "bg-gray-400 text-gray-200 cursor-not-allowed"
-                : "bg-indigo-600 text-white hover:bg-indigo-700"
+                ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                : "bg-blue-600 text-white hover:bg-blue-500"
           )}
         >
           {isSubmitting ? (
             <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Creating...
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Creating...</span>
             </>
           ) : submitStatus === 'success' ? (
             <>
-              <CheckCircle2 className="w-5 h-5" />
-              Created!
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Created!</span>
             </>
           ) : (
             <>
-              <CheckSquare className="w-5 h-5" />
-              Create Task
+              <CheckSquare className="w-3.5 h-3.5" />
+              <span>Create Task</span>
             </>
           )}
         </button>

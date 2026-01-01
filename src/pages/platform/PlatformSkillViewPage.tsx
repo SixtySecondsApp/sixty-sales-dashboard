@@ -27,7 +27,6 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { SkillPreview } from '@/components/platform/SkillPreview';
 import { SkillTestConsole } from '@/components/platform/SkillTestConsole';
 import {
@@ -219,27 +218,37 @@ export default function PlatformSkillViewPage() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Action Buttons */}
       <div className="border-b border-gray-200 dark:border-gray-700/50">
-        <div className="max-w-6xl mx-auto px-6">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'preview' | 'test')}>
-            <TabsList className="bg-transparent border-b-0 h-12 p-0 gap-6">
-              <TabsTrigger
-                value="preview"
-                className="bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-indigo-600 rounded-none px-0 pb-3 pt-3 gap-2"
+        <div className="max-w-6xl mx-auto px-6 py-3">
+          <div className="flex items-center gap-2">
+            <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              <button
+                onClick={() => setActiveTab('preview')}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2',
+                  activeTab === 'preview'
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                )}
               >
                 <Eye className="w-4 h-4" />
                 Preview
-              </TabsTrigger>
-              <TabsTrigger
-                value="test"
-                className="bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-indigo-600 rounded-none px-0 pb-3 pt-3 gap-2"
+              </button>
+              <button
+                onClick={() => setActiveTab('test')}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2',
+                  activeTab === 'test'
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                )}
               >
                 <Play className="w-4 h-4" />
                 Test
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

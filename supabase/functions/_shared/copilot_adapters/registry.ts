@@ -1,10 +1,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import type { CRMAdapter, EmailAdapter, MeetingAdapter, NotificationAdapter } from './types.ts';
+import type { CRMAdapter, EmailAdapter, EnrichmentAdapter, MeetingAdapter, NotificationAdapter } from './types.ts';
 import {
   createDbCrmAdapter,
   createDbEmailAdapter,
   createDbMeetingAdapter,
   createDbNotificationAdapter,
+  createEnrichmentAdapter,
 } from './dbAdapters.ts';
 import {
   hasHubSpotIntegration,
@@ -19,6 +20,7 @@ export interface AdapterBundle {
   meetings: MeetingAdapter;
   email: EmailAdapter;
   notifications: NotificationAdapter;
+  enrichment: EnrichmentAdapter;
 }
 
 /**
@@ -151,6 +153,7 @@ export class AdapterRegistry {
       meetings: createDbMeetingAdapter(this.client, this.userId),
       email: createDbEmailAdapter(this.client, this.userId),
       notifications: createDbNotificationAdapter(this.client),
+      enrichment: createEnrichmentAdapter(),
     };
   }
 }

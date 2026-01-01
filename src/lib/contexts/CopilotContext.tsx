@@ -19,6 +19,7 @@ import type {
 import { supabase } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
 import { getTemporalContext } from '@/lib/utils/temporalContext';
+import { useOrg } from '@/lib/contexts/OrgContext';
 
 interface CopilotContextValue {
   isOpen: boolean;
@@ -50,6 +51,7 @@ interface CopilotProviderProps {
 }
 
 export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) => {
+  const { activeOrgId } = useOrg();
   const [isOpen, setIsOpen] = useState(false);
   const [state, setState] = useState<CopilotState>({
     mode: 'empty',
@@ -82,6 +84,14 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     };
     initContext();
   }, []);
+
+  // Keep orgId in Copilot context (org-scoped assistant)
+  React.useEffect(() => {
+    setContextState(prev => ({
+      ...prev,
+      orgId: activeOrgId || undefined
+    }));
+  }, [activeOrgId]);
 
   const startNewChat = useCallback(() => {
     // Cancel any pending request
@@ -477,6 +487,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
             currentView: context.currentView || 'dashboard',
             contactId: context.contactId,
             dealIds: context.dealIds,
+            orgId: context.orgId,
             temporalContext: getTemporalContext()
           };
 

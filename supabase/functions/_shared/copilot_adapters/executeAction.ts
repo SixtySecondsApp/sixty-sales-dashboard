@@ -73,6 +73,21 @@ export async function executeAction(
         ctx
       );
 
+    case 'enrich_contact':
+      return adapters.enrichment.enrichContact({
+        email: params.email ? String(params.email) : '',
+        name: params.name ? String(params.name) : undefined,
+        title: params.title ? String(params.title) : undefined,
+        company_name: params.company_name ? String(params.company_name) : undefined,
+      });
+
+    case 'enrich_company':
+      return adapters.enrichment.enrichCompany({
+        name: params.name ? String(params.name) : '',
+        domain: params.domain ? String(params.domain) : undefined,
+        website: params.website ? String(params.website) : undefined,
+      });
+
     default:
       return { success: false, data: null, error: `Unknown action: ${String(action)}` };
   }

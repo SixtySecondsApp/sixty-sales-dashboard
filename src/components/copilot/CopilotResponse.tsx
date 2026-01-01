@@ -25,6 +25,7 @@ import { DealHealthResponse } from './responses/DealHealthResponse';
 import { ContactRelationshipResponse } from './responses/ContactRelationshipResponse';
 import { CommunicationHistoryResponse } from './responses/CommunicationHistoryResponse';
 import { MeetingPrepResponse } from './responses/MeetingPrepResponse';
+import { MeetingPrepPanel } from '@/components/assistant/panels/MeetingPrepPanel';
 import { DataQualityResponse } from './responses/DataQualityResponse';
 import { PipelineForecastResponse } from './responses/PipelineForecastResponse';
 import { ActivityPlanningResponse } from './responses/ActivityPlanningResponse';
@@ -145,7 +146,7 @@ export const CopilotResponse: React.FC<CopilotResponseProps> = ({ response, onAc
       return <CommunicationHistoryResponse data={response as CommunicationHistoryResponseType} onActionClick={onActionClick} />;
 
     case 'meeting_prep':
-      return <MeetingPrepResponse data={response as MeetingPrepResponseType} onActionClick={onActionClick} />;
+      return <MeetingPrepPanel data={response as MeetingPrepResponseType} onActionClick={onActionClick} />;
 
     case 'data_quality':
       return <DataQualityResponse data={response as DataQualityResponseType} onActionClick={onActionClick} />;

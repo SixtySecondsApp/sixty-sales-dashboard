@@ -66,6 +66,7 @@ export interface CopilotContext {
   currentView?: 'dashboard' | 'contact' | 'pipeline' | 'deal';
   contactId?: string;
   dealIds?: string[];
+  orgId?: string;
   userId: string;
   temporalContext?: TemporalContextPayload;
 }

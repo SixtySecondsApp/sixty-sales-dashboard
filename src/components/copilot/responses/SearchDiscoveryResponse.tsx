@@ -85,7 +85,12 @@ export const SearchDiscoveryResponse: React.FC<SearchDiscoveryResponseProps> = (
               </h4>
               <div className="space-y-3">
                 {category.results.map((result) => (
-                  <div key={result.id} className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+                  <button
+                    key={result.id}
+                    type="button"
+                    onClick={() => onActionClick?.('open_search_result', result)}
+                    className="w-full text-left bg-gray-800/50 border border-gray-700 rounded-lg p-4 hover:bg-gray-800/70 transition-colors"
+                  >
                     <div className="flex items-start gap-3">
                       <div className={`p-2 rounded ${getTypeColor(result.type)}`}>
                         {getTypeIcon(result.type)}
@@ -131,7 +136,7 @@ export const SearchDiscoveryResponse: React.FC<SearchDiscoveryResponseProps> = (
                         )}
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -141,7 +146,12 @@ export const SearchDiscoveryResponse: React.FC<SearchDiscoveryResponseProps> = (
         /* All Results (if no categories) */
         <div className="space-y-3">
           {results.map((result) => (
-            <div key={result.id} className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+            <button
+              key={result.id}
+              type="button"
+              onClick={() => onActionClick?.('open_search_result', result)}
+              className="w-full text-left bg-gray-800/50 border border-gray-700 rounded-lg p-4 hover:bg-gray-800/70 transition-colors"
+            >
               <div className="flex items-start gap-3">
                 <div className={`p-2 rounded ${getTypeColor(result.type)}`}>
                   {getTypeIcon(result.type)}
@@ -177,7 +187,7 @@ export const SearchDiscoveryResponse: React.FC<SearchDiscoveryResponseProps> = (
                   )}
                 </div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}

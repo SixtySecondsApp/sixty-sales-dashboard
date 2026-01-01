@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Play, Loader2, TerminalSquare, AlertTriangle } from 'lucide-react';
+import { Play, Loader2, TerminalSquare, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,12 @@ import { cn } from '@/lib/utils';
 import { API_BASE_URL } from '@/lib/config';
 import { getSupabaseHeaders } from '@/lib/utils/apiUtils';
 import { useOrgStore } from '@/lib/stores/orgStore';
+import { useAuth } from '@/lib/contexts/AuthContext';
+import { ContactTestModeSelector, type ContactTestMode } from './ContactTestModeSelector';
+import { TestContactList } from './TestContactList';
+import { TestContactSearch } from './TestContactSearch';
+import { useTestContacts, type TestContact } from '@/lib/hooks/useTestContacts';
+import { type ContactQualityTier } from '@/lib/utils/contactQualityScoring';
 
 type TestMode = 'readonly' | 'mock';
 
@@ -44,12 +50,33 @@ interface TestSkillResponse {
 
 export function SkillTestConsole({ skillKey }: { skillKey: string }) {
   const { activeOrgId, loadOrganizations, isLoading } = useOrgStore();
+  const { user } = useAuth();
 
   const [testInput, setTestInput] = useState('Run this skill for a call prep briefing.');
   const [mode, setMode] = useState<TestMode>('readonly');
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState<TestSkillResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Contact testing states
+  const [contactMode, setContactMode] = useState<ContactTestMode>('none');
+  const [selectedContact, setSelectedContact] = useState<TestContact | null>(null);
+  const [showContactSection, setShowContactSection] = useState(false);
+
+  // Fetch contacts based on quality tier (only for good/average/bad modes)
+  const tierMode = contactMode !== 'none' && contactMode !== 'custom' ? contactMode : null;
+  const { contacts, isLoading: isLoadingContacts } = useTestContacts({
+    mode: (tierMode || 'good') as ContactQualityTier,
+    enabled: !!tierMode && !!user?.id,
+    limit: 10,
+  });
+
+  // Reset selected contact when mode changes
+  const handleContactModeChange = (newMode: ContactTestMode) => {
+    setContactMode(newMode);
+    setSelectedContact(null);
+    setShowContactSection(newMode !== 'none');
+  };
 
   useEffect(() => {
     // Ensure we have an org loaded for authenticated admins
@@ -58,7 +85,14 @@ export function SkillTestConsole({ skillKey }: { skillKey: string }) {
     }
   }, [activeOrgId, isLoading, loadOrganizations]);
 
-  const canRun = useMemo(() => !!skillKey && !!activeOrgId && !isRunning, [skillKey, activeOrgId, isRunning]);
+  const canRun = useMemo(() => {
+    const hasSkill = !!skillKey && !!activeOrgId && !isRunning;
+    // If contact mode requires a selection, ensure one is selected
+    if (contactMode !== 'none' && !selectedContact) {
+      return false;
+    }
+    return hasSkill;
+  }, [skillKey, activeOrgId, isRunning, contactMode, selectedContact]);
 
   const handleRun = async () => {
     setError(null);
@@ -66,10 +100,36 @@ export function SkillTestConsole({ skillKey }: { skillKey: string }) {
     setIsRunning(true);
     try {
       const headers = await getSupabaseHeaders();
+
+      // Build request body with optional contact context
+      const requestBody: Record<string, unknown> = {
+        skill_key: skillKey,
+        test_input: testInput,
+        mode,
+      };
+
+      // Add contact context if a contact is selected
+      if (selectedContact && contactMode !== 'none') {
+        requestBody.contact_id = selectedContact.id;
+        requestBody.contact_test_mode = contactMode;
+        requestBody.contact_context = {
+          id: selectedContact.id,
+          email: selectedContact.email,
+          name: selectedContact.full_name ||
+            [selectedContact.first_name, selectedContact.last_name].filter(Boolean).join(' '),
+          title: selectedContact.title,
+          company_id: selectedContact.company_id,
+          company_name: selectedContact.company_name,
+          total_meetings_count: selectedContact.total_meetings_count,
+          quality_tier: selectedContact.qualityScore.tier,
+          quality_score: selectedContact.qualityScore.score,
+        };
+      }
+
       const resp = await fetch(`${API_BASE_URL}/api-copilot/actions/test-skill`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skill_key: skillKey, test_input: testInput, mode }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = (await resp.json().catch(() => ({}))) as TestSkillResponse;
@@ -126,9 +186,68 @@ export function SkillTestConsole({ skillKey }: { skillKey: string }) {
               placeholder="readonly | mock"
             />
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              Use <span className="font-mono">readonly</span> unless you’re mocking external calls.
+              Use <span className="font-mono">readonly</span> unless you're mocking external calls.
             </p>
           </div>
+        </div>
+
+        {/* Contact Testing Section */}
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700/50 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowContactSection(!showContactSection)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                Contact Testing Mode
+              </span>
+              {contactMode !== 'none' && selectedContact && (
+                <Badge variant="outline" className="text-xs">
+                  {selectedContact.full_name || selectedContact.email}
+                </Badge>
+              )}
+              {contactMode !== 'none' && !selectedContact && (
+                <Badge variant="outline" className="text-xs text-amber-600 dark:text-amber-400">
+                  Select a contact
+                </Badge>
+              )}
+            </div>
+            {showContactSection ? (
+              <ChevronUp className="w-4 h-4 text-gray-500" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-gray-500" />
+            )}
+          </button>
+
+          {showContactSection && (
+            <div className="p-4 space-y-4 border-t border-gray-200 dark:border-gray-700/50">
+              <ContactTestModeSelector
+                mode={contactMode}
+                onChange={handleContactModeChange}
+                disabled={isRunning}
+              />
+
+              {/* Show contact list for good/average/bad modes */}
+              {tierMode && (
+                <TestContactList
+                  contacts={contacts}
+                  isLoading={isLoadingContacts}
+                  selectedContactId={selectedContact?.id || null}
+                  onSelect={setSelectedContact}
+                  tier={tierMode}
+                />
+              )}
+
+              {/* Show search for custom mode */}
+              {contactMode === 'custom' && (
+                <TestContactSearch
+                  selectedContact={selectedContact}
+                  onSelect={setSelectedContact}
+                />
+              )}
+            </div>
+          )}
         </div>
 
         {error && <div className="text-sm text-red-600 dark:text-red-400">{error}</div>}

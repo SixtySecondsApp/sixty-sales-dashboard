@@ -4,6 +4,7 @@ import type {
   AdapterContext,
   CRMAdapter,
   EmailAdapter,
+  EnrichmentAdapter,
   MeetingAdapter,
   NotificationAdapter,
 } from './types.ts';
@@ -323,6 +324,192 @@ export function createDbNotificationAdapter(_client: SupabaseClient): Notificati
         },
         this.source
       );
+    },
+  };
+}
+
+const GEMINI_MODEL = Deno.env.get('GEMINI_FLASH_MODEL') ?? Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash';
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') ?? Deno.env.get('GOOGLE_GEMINI_API_KEY') ?? '';
+
+/**
+ * Parse Gemini JSON response with robust error handling
+ */
+function parseGeminiResponse(text: string): Record<string, unknown> {
+  // Remove markdown code blocks if present
+  const jsonMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+  let jsonString = jsonMatch ? jsonMatch[1] : text;
+
+  // Extract JSON object
+  if (!jsonString.trim().startsWith('{')) {
+    const objectMatch = jsonString.match(/\{[\s\S]*\}/);
+    if (objectMatch) jsonString = objectMatch[0];
+  }
+
+  // Clean up - find first/last braces
+  jsonString = jsonString.trim();
+  const firstBrace = jsonString.indexOf('{');
+  const lastBrace = jsonString.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    jsonString = jsonString.substring(firstBrace, lastBrace + 1);
+  }
+
+  // Remove trailing commas
+  jsonString = jsonString.replace(/,(\s*[}\]])/g, '$1');
+
+  return JSON.parse(jsonString);
+}
+
+export function createEnrichmentAdapter(): EnrichmentAdapter {
+  return {
+    source: 'gemini_enrichment',
+    async enrichContact(params) {
+      if (!GEMINI_API_KEY) {
+        return fail('GEMINI_API_KEY not configured', this.source);
+      }
+
+      try {
+        const name = params.name || params.email.split('@')[0];
+        const prompt = `You are a B2B sales data enrichment assistant. Given the following contact information, enrich it with accurate, professional data.
+
+Contact Information:
+- Name: ${name}
+- Email: ${params.email}
+- Current Title: ${params.title || 'Not provided'}
+- Company: ${params.company_name || 'Not provided'}
+
+Return ONLY valid JSON with these fields (omit any you cannot determine):
+{
+  "title": "Accurate job title",
+  "linkedin_url": "LinkedIn profile URL (format: https://linkedin.com/in/username)",
+  "industry": "Industry classification",
+  "summary": "Brief professional summary (1-2 sentences)",
+  "confidence": 0.5
+}`;
+
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${GEMINI_API_KEY}`;
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.3,
+              topP: 0.8,
+              maxOutputTokens: 800,
+              responseMimeType: 'application/json',
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Gemini API error:', errorText);
+          return fail(`Gemini API error: ${response.status}`, this.source);
+        }
+
+        const data = await response.json();
+        const parts = data.candidates?.[0]?.content?.parts ?? [];
+        const text = parts.map((p: { text?: string }) => p.text || '').join('').trim();
+
+        if (!text) {
+          return fail('Empty response from Gemini', this.source);
+        }
+
+        const enriched = parseGeminiResponse(text);
+        return ok(
+          {
+            enriched_contact: {
+              title: enriched.title,
+              linkedin_url: enriched.linkedin_url,
+              industry: enriched.industry,
+              summary: enriched.summary,
+              confidence: enriched.confidence || 0.5,
+            },
+            original: { email: params.email, name, title: params.title, company_name: params.company_name },
+          },
+          this.source
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return fail(msg, this.source);
+      }
+    },
+
+    async enrichCompany(params) {
+      if (!GEMINI_API_KEY) {
+        return fail('GEMINI_API_KEY not configured', this.source);
+      }
+
+      try {
+        const prompt = `You are a B2B sales data enrichment assistant. Given the following company information, enrich it with accurate data.
+
+Company Information:
+- Name: ${params.name}
+- Domain: ${params.domain || 'Not provided'}
+- Website: ${params.website || 'Not provided'}
+
+Return ONLY valid JSON with these fields (omit any you cannot determine):
+{
+  "industry": "Standardized industry classification",
+  "size": "Company size: startup, small, medium, large, or enterprise",
+  "description": "Professional company description (2-3 sentences)",
+  "linkedin_url": "LinkedIn company page URL",
+  "address": "Company headquarters address",
+  "phone": "Company phone number",
+  "confidence": 0.5
+}`;
+
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${GEMINI_API_KEY}`;
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.3,
+              topP: 0.8,
+              maxOutputTokens: 1000,
+              responseMimeType: 'application/json',
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Gemini API error:', errorText);
+          return fail(`Gemini API error: ${response.status}`, this.source);
+        }
+
+        const data = await response.json();
+        const parts = data.candidates?.[0]?.content?.parts ?? [];
+        const text = parts.map((p: { text?: string }) => p.text || '').join('').trim();
+
+        if (!text) {
+          return fail('Empty response from Gemini', this.source);
+        }
+
+        const enriched = parseGeminiResponse(text);
+        return ok(
+          {
+            enriched_company: {
+              industry: enriched.industry,
+              size: enriched.size,
+              description: enriched.description,
+              linkedin_url: enriched.linkedin_url,
+              address: enriched.address,
+              phone: enriched.phone,
+              confidence: enriched.confidence || 0.5,
+            },
+            original: { name: params.name, domain: params.domain, website: params.website },
+          },
+          this.source
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return fail(msg, this.source);
+      }
     },
   };
 }

@@ -1,6 +1,7 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { ArrowRight, Map, Flag, Zap, AlertTriangle, Settings, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, Map, Zap, AlertTriangle, ArrowRight, Settings, Loader2, CheckCircle2, ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { QuickAddFormData } from './types';
 
 interface RoadmapFormProps {
@@ -14,17 +15,17 @@ interface RoadmapFormProps {
 }
 
 const roadmapTypes = [
-  { value: 'feature', label: 'Feature Request', icon: Zap, color: 'blue' },
-  { value: 'bug', label: 'Bug Report', icon: AlertTriangle, color: 'red' },
-  { value: 'improvement', label: 'Enhancement', icon: ArrowRight, color: 'green' },
-  { value: 'other', label: 'Other', icon: Settings, color: 'gray' }
+  { value: 'feature', label: 'Feature', icon: Zap, emoji: '✨' },
+  { value: 'bug', label: 'Bug', icon: AlertTriangle, emoji: '🐛' },
+  { value: 'improvement', label: 'Improve', icon: ArrowRight, emoji: '📈' },
+  { value: 'other', label: 'Other', icon: Settings, emoji: '⚙️' }
 ];
 
 const priorityOptions = [
-  { value: 'low', label: 'Low', color: 'gray' },
-  { value: 'medium', label: 'Medium', color: 'yellow' },
-  { value: 'high', label: 'High', color: 'orange' },
-  { value: 'critical', label: 'Critical', color: 'red' }
+  { value: 'low', label: 'Low', emoji: '🟢' },
+  { value: 'medium', label: 'Med', emoji: '🟡' },
+  { value: 'high', label: 'High', emoji: '🟠' },
+  { value: 'critical', label: 'Critical', emoji: '🔴' }
 ];
 
 export function RoadmapForm({
@@ -36,158 +37,187 @@ export function RoadmapForm({
   onSubmit,
   onBack
 }: RoadmapFormProps) {
+  const [showDescription, setShowDescription] = useState(false);
+
   const handleInputChange = (field: string, value: string) => {
-    setFormData({
-      ...formData,
-      [field]: value
-    });
+    setFormData({ ...formData, [field]: value });
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.3 }}
-      className="space-y-6"
+    <motion.form
+      initial={{ opacity: 0, x: 10 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -10 }}
+      transition={{ duration: 0.15 }}
+      onSubmit={onSubmit}
+      className="flex flex-col h-full"
     >
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 bg-blue-500/10 rounded-xl ring-1 ring-blue-500/30">
-          <Map className="w-6 h-6 text-blue-500" />
-        </div>
-        <div>
-          <h3 className="text-lg font-semibold theme-text-primary">Add Roadmap Suggestion</h3>
-          <p className="text-sm theme-text-tertiary">Submit feature requests, bug reports, and improvements</p>
-        </div>
+      {/* Compact header */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-800/30">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="p-1 hover:bg-gray-800 rounded-md transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4 text-gray-500" />
+          </button>
+        )}
+        <Map className="w-4 h-4 text-purple-400" />
+        <span className="text-sm font-medium text-gray-300">Roadmap Suggestion</span>
       </div>
 
-      <form onSubmit={onSubmit} className="space-y-6">
+      {/* Compact Form */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
         {/* Title */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium theme-text-secondary">
-            Title <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="text"
-            value={formData.title || ''}
-            onChange={(e) => handleInputChange('title', e.target.value)}
-            placeholder="Brief description of your request..."
-            className={`w-full px-4 py-3 theme-bg-elevated theme-border rounded-xl theme-text-primary placeholder:theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all ${
-              validationErrors.title ? 'border-red-500/50' : ''
-            }`}
-          />
-          {validationErrors.title && (
-            <p className="text-sm text-red-400">{validationErrors.title}</p>
+        <input
+          type="text"
+          value={formData.title || ''}
+          onChange={(e) => handleInputChange('title', e.target.value)}
+          placeholder="What would you like to suggest?"
+          autoFocus
+          className={cn(
+            "w-full bg-gray-800/50 border text-white text-sm p-2.5 rounded-lg",
+            "placeholder:text-gray-500 transition-all",
+            "focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50",
+            validationErrors.title ? "border-red-500/50" : "border-gray-700/50"
           )}
-        </div>
+        />
+        {validationErrors.title && (
+          <p className="text-red-400 text-xs -mt-2">{validationErrors.title}</p>
+        )}
 
-        {/* Type Selection */}
-        <div className="space-y-3">
-          <label className="text-sm font-medium theme-text-secondary">
-            Request Type <span className="text-red-400">*</span>
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            {roadmapTypes.map((type) => {
-              const isSelected = formData.roadmap_type === type.value;
-              const IconComponent = type.icon;
-
-              return (
+        {/* Type + Priority side by side */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Type */}
+          <div>
+            <label className="text-xs text-gray-500 mb-1.5 block">Type</label>
+            <div className="grid grid-cols-2 gap-1">
+              {roadmapTypes.map((type) => (
                 <button
                   key={type.value}
                   type="button"
                   onClick={() => handleInputChange('roadmap_type', type.value)}
-                  className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
-                    isSelected
-                      ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20'
-                      : 'theme-border theme-bg-elevated hover:bg-gray-100 dark:hover:bg-gray-800/50'
-                  }`}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-1.5 rounded-md border text-xs transition-all",
+                    formData.roadmap_type === type.value
+                      ? "bg-purple-500/20 text-purple-400 border-purple-500/40"
+                      : "bg-gray-800/30 border-gray-700/30 text-gray-500 hover:bg-gray-800/50"
+                  )}
                 >
-                  <div className={`p-2 rounded-lg ${
-                    isSelected
-                      ? 'bg-blue-500/20 text-blue-400'
-                      : 'bg-gray-100 dark:bg-gray-700/50 theme-text-tertiary'
-                  }`}>
-                    <IconComponent className="w-4 h-4" />
-                  </div>
-                  <span className={`text-sm font-medium ${
-                    isSelected ? 'text-blue-600 dark:text-white' : 'theme-text-primary'
-                  }`}>
-                    {type.label}
-                  </span>
+                  <span>{type.emoji}</span>
+                  <span>{type.label}</span>
                 </button>
-              );
-            })}
+              ))}
+            </div>
+            {validationErrors.roadmap_type && (
+              <p className="text-red-400 text-xs mt-1">{validationErrors.roadmap_type}</p>
+            )}
           </div>
-          {validationErrors.roadmap_type && (
-            <p className="text-sm text-red-400">{validationErrors.roadmap_type}</p>
-          )}
+
+          {/* Priority */}
+          <div>
+            <label className="text-xs text-gray-500 mb-1.5 block">Priority</label>
+            <div className="flex gap-1">
+              {priorityOptions.map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  onClick={() => handleInputChange('priority', p.value)}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-0.5 px-1.5 py-1.5 rounded-md border text-xs transition-all",
+                    formData.priority === p.value
+                      ? "bg-purple-500/20 text-purple-400 border-purple-500/40"
+                      : "bg-gray-800/30 border-gray-700/30 text-gray-500 hover:bg-gray-800/50"
+                  )}
+                  title={p.label}
+                >
+                  <span>{p.emoji}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* Priority */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium theme-text-secondary">Priority</label>
-          <select
-            value={formData.priority || 'medium'}
-            onChange={(e) => handleInputChange('priority', e.target.value)}
-            className="w-full px-4 py-3 theme-bg-elevated theme-border rounded-xl theme-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+        {/* Description toggle */}
+        <button
+          type="button"
+          onClick={() => setShowDescription(!showDescription)}
+          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-400 transition-colors py-1"
+        >
+          <ChevronDown className={cn("w-3 h-3 transition-transform", showDescription && "rotate-180")} />
+          <span>{showDescription ? 'Hide details' : 'Add details'}</span>
+        </button>
+
+        <AnimatePresence>
+          {showDescription && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="overflow-hidden"
+            >
+              <textarea
+                value={formData.description || ''}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                placeholder="Describe your suggestion in detail..."
+                rows={3}
+                className={cn(
+                  "w-full bg-gray-800/30 border border-gray-700/30 text-white text-xs p-2 rounded-md",
+                  "placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-purple-500/50 resize-none",
+                  validationErrors.description && "border-red-500/50"
+                )}
+              />
+              {validationErrors.description && (
+                <p className="text-red-400 text-xs mt-1">{validationErrors.description}</p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Compact Footer */}
+      <div className="flex gap-2 px-4 py-3 border-t border-gray-800/30">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="px-4 py-2 bg-gray-800/50 border border-gray-700/30 text-gray-400 rounded-lg hover:bg-gray-800 text-xs font-medium transition-colors"
           >
-            {priorityOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Description */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium theme-text-secondary">
-            Description <span className="text-red-400">*</span>
-          </label>
-          <textarea
-            value={formData.description || ''}
-            onChange={(e) => handleInputChange('description', e.target.value)}
-            placeholder="Provide detailed information about your request..."
-            rows={4}
-            className={`w-full px-4 py-3 theme-bg-elevated theme-border rounded-xl theme-text-primary placeholder:theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-none transition-all ${
-              validationErrors.description ? 'border-red-500/50' : ''
-            }`}
-          />
-          {validationErrors.description && (
-            <p className="text-sm text-red-400">{validationErrors.description}</p>
-          )}
-        </div>
-
-        {/* Submit Button */}
-        <motion.button
+            Cancel
+          </button>
+        )}
+        <button
           type="submit"
           disabled={isSubmitting}
-          whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
-          whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
-          className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-medium transition-all shadow-sm ${
+          className={cn(
+            "flex-1 py-2 px-4 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all",
             submitStatus === 'success'
-              ? 'bg-emerald-600 dark:bg-emerald-500/10 text-white dark:text-emerald-400 dark:border dark:border-emerald-500/20'
-              : submitStatus === 'error'
-                ? 'bg-red-600 dark:bg-red-500/10 text-white dark:text-red-400 dark:border dark:border-red-500/20'
-                : isSubmitting
-                  ? 'bg-blue-500/50 dark:bg-blue-700/50 text-white/70 cursor-not-allowed'
-                  : 'bg-blue-600 dark:bg-blue-500/10 text-white dark:text-blue-400 dark:border dark:border-blue-500/20 hover:bg-blue-700 dark:hover:bg-blue-500/20'
-          }`}
+              ? "bg-emerald-600 text-white"
+              : isSubmitting
+                ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                : "bg-purple-600 text-white hover:bg-purple-500"
+          )}
         >
-          {submitStatus === 'success' ? (
-            <CheckCircle2 className="w-5 h-5" />
-          ) : submitStatus === 'error' ? (
-            <AlertCircle className="w-5 h-5" />
-          ) : isSubmitting ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
+          {isSubmitting ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Submitting...</span>
+            </>
+          ) : submitStatus === 'success' ? (
+            <>
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Submitted!</span>
+            </>
           ) : (
             <>
-              <ArrowRight className="w-5 h-5" />
-              Submit Suggestion
+              <Map className="w-3.5 h-3.5" />
+              <span>Submit</span>
             </>
           )}
-        </motion.button>
-      </form>
-    </motion.div>
+        </button>
+      </div>
+    </motion.form>
   );
 }

@@ -27,7 +27,9 @@ export type ExecuteActionName =
   | 'search_emails'
   | 'draft_email'
   | 'update_crm'
-  | 'send_notification';
+  | 'send_notification'
+  | 'enrich_contact'
+  | 'enrich_company';
 
 export interface ExecuteActionRequest {
   action: ExecuteActionName;
@@ -74,5 +76,11 @@ export interface EmailAdapter {
 export interface NotificationAdapter {
   source: string;
   sendNotification(params: { channel?: 'slack'; message: string; blocks?: unknown; meta?: Record<string, unknown> }, ctx: AdapterContext): Promise<ActionResult>;
+}
+
+export interface EnrichmentAdapter {
+  source: string;
+  enrichContact(params: { email: string; name?: string; title?: string; company_name?: string }): Promise<ActionResult>;
+  enrichCompany(params: { name: string; domain?: string; website?: string }): Promise<ActionResult>;
 }
 

@@ -4,7 +4,6 @@ import {
   Brain,
   Sparkles,
   ChevronRight,
-  Command,
   ArrowUp,
   Paperclip,
   Mic,
@@ -73,9 +72,22 @@ interface QuickAddProps {
   isOpen: boolean;
   onClose: () => void;
   variant?: 'v1' | 'v2';
+  renderMode?: 'modal' | 'embedded';
+  hideHeader?: boolean;
+  prefill?: {
+    preselectAction?: string;
+    initialData?: Partial<QuickAddFormData>;
+  };
 }
 
-function QuickAddComponent({ isOpen, onClose, variant = 'v1' }: QuickAddProps) {
+function QuickAddComponent({
+  isOpen,
+  onClose,
+  variant = 'v1',
+  renderMode = 'modal',
+  hideHeader = false,
+  prefill,
+}: QuickAddProps) {
   const { userData } = useUser();
   const { findDealsByClient, moveDealToStage } = useDealsActions();
   const { contacts, createContact, findContactByEmail } = useContacts();
@@ -239,6 +251,26 @@ function QuickAddComponent({ isOpen, onClose, variant = 'v1' }: QuickAddProps) {
       })();
     }
   }, [formData]);
+
+  // Prefill from direct props (used for embedded Quick Add in Assistant overlay)
+  const lastPrefillKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!prefill) return;
+    const key = JSON.stringify(prefill);
+    if (lastPrefillKeyRef.current === key) return;
+    lastPrefillKeyRef.current = key;
+
+    if (prefill.preselectAction) {
+      setSelectedAction(prefill.preselectAction);
+    }
+    if (prefill.initialData) {
+      updateFormData({
+        ...(formData || {}),
+        ...prefill.initialData,
+      });
+    }
+  }, [isOpen, prefill, formData]);
 
   // Event-driven communication for decoupling
   useEventListener('contact:selected', ({ contact, context }) => {
@@ -1047,8 +1079,12 @@ function QuickAddComponent({ isOpen, onClose, variant = 'v1' }: QuickAddProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 bg-gray-900/50 dark:bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center"
-          onClick={handleClose}
+          className={
+            renderMode === 'embedded'
+              ? 'relative w-full h-full'
+              : 'fixed inset-0 bg-gray-900/50 dark:bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center'
+          }
+          onClick={renderMode === 'embedded' ? undefined : handleClose}
         >
           <motion.div
             initial={{ y: '100%', opacity: 0 }}
@@ -1062,38 +1098,41 @@ function QuickAddComponent({ isOpen, onClose, variant = 'v1' }: QuickAddProps) {
             }}
             className={
               variant === 'v2'
-                ? 'relative w-full sm:max-w-2xl bg-gray-900 rounded-2xl border border-gray-800 shadow-2xl shadow-black/50 overflow-hidden backdrop-blur-sm sm:m-4 max-h-[85dvh] flex flex-col'
-                : 'relative bg-white dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700/50 rounded-t-3xl sm:rounded-3xl p-6 sm:p-8 w-full sm:max-w-2xl backdrop-blur-sm sm:m-4 max-h-[90vh] overflow-y-auto shadow-sm dark:shadow-none'
+                ? (renderMode === 'embedded'
+                  ? 'relative w-full h-full bg-gray-900 rounded-2xl border border-gray-800 shadow-2xl shadow-black/50 overflow-hidden backdrop-blur-sm flex flex-col'
+                  : 'relative w-full sm:max-w-2xl bg-gray-900 rounded-2xl border border-gray-800 shadow-2xl shadow-black/50 overflow-hidden backdrop-blur-sm sm:m-4 max-h-[85dvh] flex flex-col')
+                : (renderMode === 'embedded'
+                  ? 'relative w-full h-full bg-white dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700/50 rounded-3xl p-6 sm:p-8 backdrop-blur-sm overflow-y-auto shadow-sm dark:shadow-none'
+                  : 'relative bg-white dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700/50 rounded-t-3xl sm:rounded-3xl p-6 sm:p-8 w-full sm:max-w-2xl backdrop-blur-sm sm:m-4 max-h-[90vh] overflow-y-auto shadow-sm dark:shadow-none')
             }
             onClick={e => e.stopPropagation()}
           >
             {variant === 'v2' ? (
               <>
                 {/* Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800/50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-                      <Brain className="w-5 h-5 text-white" />
+                {!hideHeader && (
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                        <Brain className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h2 className="text-white font-semibold text-sm">Quick Add Assistant</h2>
+                        <p className="text-gray-500 text-xs">Fast capture for meetings, tasks, sales, and more</p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-white font-semibold text-sm">Quick Add Assistant</h2>
-                      <p className="text-gray-500 text-xs">Fast capture for meetings, tasks, sales, and more</p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleClose}
+                        className="p-2 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+                        aria-label="Close Quick Add"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-gray-800/50">
-                      <Command className="w-3 h-3 text-gray-500" />
-                      <span className="text-xs text-gray-500">K</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleClose}
-                      className="p-2 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
+                )}
 
                 {/* Body */}
                 <div className="flex-1 min-h-0 flex flex-col">
@@ -1246,9 +1285,6 @@ function QuickAddComponent({ isOpen, onClose, variant = 'v1' }: QuickAddProps) {
                             <span className="text-sm text-gray-400 group-hover:text-gray-200 whitespace-nowrap">
                               {action.label}
                             </span>
-                            <kbd className="text-xs px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-500 group-hover:bg-gray-700">
-                              {action.shortcut}
-                            </kbd>
                           </button>
                         ))}
                       </div>
@@ -1309,18 +1345,20 @@ function QuickAddComponent({ isOpen, onClose, variant = 'v1' }: QuickAddProps) {
               </>
             ) : (
               <>
-                <motion.div
-                  className="w-12 h-1 rounded-full bg-gray-400 dark:bg-gray-800 absolute -top-8 left-1/2 -translate-x-1/2 sm:hidden"
-                  initial={{ width: '2rem' }}
-                  animate={{ width: '3rem' }}
-                  transition={{
-                    type: 'spring',
-                    stiffness: 400,
-                    damping: 30,
-                    repeat: Infinity,
-                    repeatType: 'reverse'
-                  }}
-                />
+                {renderMode !== 'embedded' && (
+                  <motion.div
+                    className="w-12 h-1 rounded-full bg-gray-400 dark:bg-gray-800 absolute -top-8 left-1/2 -translate-x-1/2 sm:hidden"
+                    initial={{ width: '2rem' }}
+                    animate={{ width: '3rem' }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 400,
+                      damping: 30,
+                      repeat: Infinity,
+                      repeatType: 'reverse'
+                    }}
+                  />
+                )}
 
                 <div className="flex justify-between items-center mb-6 sm:mb-8">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white tracking-wide">Quick Add</h2>
