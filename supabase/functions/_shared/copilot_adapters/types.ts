@@ -29,7 +29,35 @@ export type ExecuteActionName =
   | 'update_crm'
   | 'send_notification'
   | 'enrich_contact'
-  | 'enrich_company';
+  | 'enrich_company'
+  | 'invoke_skill'
+  | 'create_task';
+
+/**
+ * Parameters for invoke_skill action - enables skill composition
+ */
+export interface InvokeSkillParams {
+  skill_key: string;                    // Target skill to invoke
+  context?: Record<string, unknown>;    // Context to pass to skill
+  merge_parent_context?: boolean;       // Default: true - merge with parent context
+  timeout_ms?: number;                  // Default: 30000 - max execution time
+  return_format?: 'full' | 'data_only'; // Default: 'data_only' - what to return
+  _invoke_depth?: number;               // Internal: tracks recursion depth
+  _parent_skill?: string;               // Internal: tracks calling skill
+}
+
+/**
+ * Parameters for create_task action
+ */
+export interface CreateTaskParams {
+  title: string;
+  description?: string;
+  due_date?: string;              // ISO date string
+  contact_id?: string;
+  deal_id?: string;
+  priority?: 'low' | 'medium' | 'high';
+  assignee_id?: string;
+}
 
 export interface ExecuteActionRequest {
   action: ExecuteActionName;

@@ -1,8 +1,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { AdapterRegistry } from './registry.ts';
-import type { ActionResult, AdapterContext, ExecuteActionName } from './types.ts';
+import type { ActionResult, AdapterContext, ExecuteActionName, InvokeSkillParams, CreateTaskParams } from './types.ts';
 
 type SupabaseClient = ReturnType<typeof createClient>;
+
+// Maximum skill nesting depth to prevent infinite recursion
+const MAX_INVOKE_DEPTH = 3;
 
 export async function executeAction(
   client: SupabaseClient,
@@ -87,6 +90,128 @@ export async function executeAction(
         domain: params.domain ? String(params.domain) : undefined,
         website: params.website ? String(params.website) : undefined,
       });
+
+    case 'invoke_skill': {
+      // Skill composition: allows skills to invoke other skills
+      const skillKey = params.skill_key ? String(params.skill_key) : '';
+      if (!skillKey) {
+        return { success: false, data: null, error: 'skill_key is required for invoke_skill' };
+      }
+
+      // Recursion protection
+      const currentDepth = (params._invoke_depth as number) || 0;
+      if (currentDepth >= MAX_INVOKE_DEPTH) {
+        return {
+          success: false,
+          data: null,
+          error: `Max skill nesting depth (${MAX_INVOKE_DEPTH}) exceeded. Skill chain: ${params._parent_skill || 'root'} → ${skillKey}`,
+        };
+      }
+
+      // Circular dependency detection
+      const parentSkill = params._parent_skill ? String(params._parent_skill) : null;
+      if (parentSkill === skillKey) {
+        return {
+          success: false,
+          data: null,
+          error: `Circular skill invocation detected: ${skillKey} cannot invoke itself`,
+        };
+      }
+
+      // Fetch the target skill from organization_skills or platform_skills
+      const { data: skillData, error: skillError } = await client
+        .from('organization_skills')
+        .select(`
+          skill_id,
+          compiled_content,
+          compiled_frontmatter,
+          platform_skills:platform_skill_id(category, frontmatter, content_template, is_active)
+        `)
+        .eq('skill_id', skillKey)
+        .eq('org_id', orgId)
+        .maybeSingle();
+
+      if (skillError || !skillData) {
+        return { success: false, data: null, error: `Skill not found: ${skillKey}` };
+      }
+
+      // Return skill data for the AI to process
+      // The actual skill execution happens in the main copilot loop
+      const mergedContext = params.merge_parent_context !== false
+        ? { ...params._parent_context, ...params.context }
+        : params.context || {};
+
+      return {
+        success: true,
+        data: {
+          skill_key: skillKey,
+          skill_content: skillData.compiled_content || skillData.platform_skills?.content_template || '',
+          skill_frontmatter: skillData.compiled_frontmatter || skillData.platform_skills?.frontmatter || {},
+          context: mergedContext,
+          invoke_metadata: {
+            depth: currentDepth + 1,
+            parent_skill: parentSkill,
+            max_depth: MAX_INVOKE_DEPTH,
+          },
+        },
+        source: 'invoke_skill',
+      };
+    }
+
+    case 'create_task': {
+      // Create a task in the database
+      const title = params.title ? String(params.title) : '';
+      if (!title) {
+        return { success: false, data: null, error: 'title is required for create_task' };
+      }
+
+      const taskData: Record<string, unknown> = {
+        user_id: userId,
+        org_id: orgId,
+        title,
+        description: params.description ? String(params.description) : null,
+        status: 'pending',
+        priority: params.priority || 'medium',
+        created_at: new Date().toISOString(),
+      };
+
+      // Add optional relations
+      if (params.due_date) {
+        taskData.due_date = String(params.due_date);
+      }
+      if (params.contact_id) {
+        taskData.contact_id = String(params.contact_id);
+      }
+      if (params.deal_id) {
+        taskData.deal_id = String(params.deal_id);
+      }
+      if (params.assignee_id) {
+        taskData.assignee_id = String(params.assignee_id);
+      }
+
+      const { data: newTask, error: taskError } = await client
+        .from('tasks')
+        .insert(taskData)
+        .select('id, title, status, priority, due_date')
+        .single();
+
+      if (taskError) {
+        return { success: false, data: null, error: `Failed to create task: ${taskError.message}` };
+      }
+
+      return {
+        success: true,
+        data: {
+          task_id: newTask.id,
+          title: newTask.title,
+          status: newTask.status,
+          priority: newTask.priority,
+          due_date: newTask.due_date,
+          message: `Task "${title}" created successfully`,
+        },
+        source: 'create_task',
+      };
+    }
 
     default:
       return { success: false, data: null, error: `Unknown action: ${String(action)}` };
