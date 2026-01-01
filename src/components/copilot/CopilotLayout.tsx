@@ -34,7 +34,7 @@ export const CopilotLayout: React.FC<CopilotLayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className="flex h-full relative">
+    <div className="flex h-full min-h-0 relative overflow-hidden">
       {/* History Toggle Button */}
       <Button
         variant="ghost"
@@ -83,7 +83,7 @@ export const CopilotLayout: React.FC<CopilotLayoutProps> = ({ children }) => {
 
       {/* Main Chat Area */}
       <div className={cn(
-        'flex-1 transition-all duration-300',
+        'flex-1 min-h-0 transition-all duration-300',
         showHistory && 'md:ml-0'
       )}>
         {children}

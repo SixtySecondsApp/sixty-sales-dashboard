@@ -416,14 +416,14 @@ export const Copilot: React.FC<CopilotProps> = ({
 
   return (
     <CopilotLayout>
-      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 flex flex-col h-[calc(100vh-4rem)]">
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 flex flex-col min-h-0 overflow-hidden h-[calc(100dvh-var(--app-top-offset))]">
         {/* Empty State or Active Conversation */}
         {isEmpty ? (
           <CopilotEmpty onPromptClick={handlePromptClick} />
         ) : (
           <>
             {/* Chat Messages Area - scrollable */}
-            <div className="flex-1 overflow-y-auto space-y-6 py-8">
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-6 py-8">
               {messages.map(message => {
                 // Stable key based on message ID only - prevents unnecessary re-renders
                 return (

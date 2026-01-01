@@ -42,7 +42,7 @@ export const CopilotEmpty: React.FC<CopilotEmptyProps> = ({ onPromptClick }) => 
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-12rem)] w-full px-4">
+    <div className="flex flex-col items-center justify-center h-full min-h-0 w-full px-4 py-8">
       <div className="w-full max-w-3xl mx-auto flex flex-col items-center">
         {/* Welcome Section */}
         <div className="text-center mb-12">

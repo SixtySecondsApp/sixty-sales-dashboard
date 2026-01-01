@@ -2054,8 +2054,18 @@ const SKILLS_ROUTER_TOOLS = [
   },
   {
     name: 'execute_action',
-    description:
-      'Execute an action needed to complete a skill (fetch CRM data, meetings, emails, send notifications). Write actions require params.confirm=true.',
+    description: `Execute an action to fetch CRM data, meetings, emails, or send notifications.
+
+ACTION PARAMETERS:
+• get_contact: { email?: string, name?: string, id?: string } - Search contacts by email (preferred), name, or id
+• get_deal: { name?: string, id?: string } - Search deals by name or id
+• get_meetings: { contactEmail?: string, contactId?: string, limit?: number } - Get meetings with a contact. IMPORTANT: Always pass contactEmail when you have an email address!
+• search_emails: { contact_email?: string, query?: string, limit?: number } - Search emails by contact email or query
+• draft_email: { to: string, subject?: string, context?: string, tone?: string } - Draft an email
+• update_crm: { entity: 'deal'|'contact'|'task'|'activity', id: string, updates: object, confirm: true } - Update CRM record (requires confirm=true)
+• send_notification: { channel: 'slack', message: string, blocks?: object } - Send a notification
+
+Write actions require params.confirm=true.`,
     input_schema: {
       type: 'object',
       properties: {
@@ -2070,8 +2080,32 @@ const SKILLS_ROUTER_TOOLS = [
             'update_crm',
             'send_notification',
           ],
+          description: 'The action to execute',
         },
-        params: { type: 'object', description: 'Action-specific parameters' },
+        params: {
+          type: 'object',
+          description: 'Action-specific parameters (see tool description for each action)',
+          properties: {
+            email: { type: 'string', description: 'Contact email address (for get_contact)' },
+            name: { type: 'string', description: 'Name to search (for get_contact, get_deal)' },
+            id: { type: 'string', description: 'Record ID' },
+            contactEmail: { type: 'string', description: 'Email of the contact (for get_meetings) - PREFERRED method' },
+            contactId: { type: 'string', description: 'Contact ID (for get_meetings)' },
+            contact_email: { type: 'string', description: 'Contact email (for search_emails)' },
+            query: { type: 'string', description: 'Search query (for search_emails)' },
+            limit: { type: 'number', description: 'Max results to return' },
+            to: { type: 'string', description: 'Recipient email (for draft_email)' },
+            subject: { type: 'string', description: 'Email subject (for draft_email)' },
+            context: { type: 'string', description: 'Context for drafting (for draft_email)' },
+            tone: { type: 'string', description: 'Email tone (for draft_email)' },
+            entity: { type: 'string', enum: ['deal', 'contact', 'task', 'activity'], description: 'CRM entity type (for update_crm)' },
+            updates: { type: 'object', description: 'Fields to update (for update_crm)' },
+            confirm: { type: 'boolean', description: 'Set to true to confirm write operations' },
+            channel: { type: 'string', description: 'Notification channel (for send_notification)' },
+            message: { type: 'string', description: 'Notification message (for send_notification)' },
+            blocks: { type: 'object', description: 'Slack blocks (for send_notification)' },
+          },
+        },
       },
       required: ['action', 'params'],
     },

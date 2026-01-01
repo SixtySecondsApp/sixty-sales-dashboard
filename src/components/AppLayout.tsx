@@ -105,6 +105,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     // Check real trial status
     return trialStatus.isTrialing && !trialStatus.isLoading;
   }, [trialStatus.isTrialing, trialStatus.isLoading]);
+
+  // AppLayout uses top padding to make room for the fixed top bars/banners.
+  // Some pages (e.g. Copilot chat) need a reliable way to compute the remaining viewport height
+  // without hard-coding "4rem" and accidentally creating extra scroll space.
+  const topOffsetPx = useMemo(() => {
+    // Base top bar is 64px (pt-16). Impersonation adds 44px. Trial banner adds ~17px.
+    if (isTrialBannerVisible) {
+      return isImpersonating ? 132 : 115;
+    }
+    return isImpersonating ? 108 : 64;
+  }, [isTrialBannerVisible, isImpersonating]);
+
+  const topPaddingClass = useMemo(() => {
+    return isTrialBannerVisible
+      ? (isImpersonating ? 'pt-[132px] lg:pt-[132px]' : 'pt-[115px] lg:pt-[115px]')
+      : (isImpersonating ? 'pt-[108px] lg:pt-[108px]' : 'pt-16 lg:pt-16');
+  }, [isTrialBannerVisible, isImpersonating]);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, toggleMobileMenu] = useCycle(false, true);
   const [hasMounted, setHasMounted] = useState(false);
@@ -171,6 +188,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     if (shouldCollapse) {
       setIsCollapsed(true);
     }
+  }, [location.pathname]);
+
+  // Pages that should behave like an app-within-the-app (no document scrolling).
+  // The page itself manages its own internal scroll regions (e.g. Copilot chat).
+  const isFullHeightPage = useMemo(() => {
+    return location.pathname === '/copilot';
   }, [location.pathname]);
 
   // Keyboard shortcut for SmartSearch (⌘K) - Disabled
@@ -834,17 +857,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </motion.div>
-      <main className={cn(
+      <main
+        style={
+          {
+            // Used by full-height pages to avoid double-counting the top padding.
+            '--app-top-offset': `${topOffsetPx}px`,
+          } as React.CSSProperties
+        }
+        className={cn(
+        isFullHeightPage && 'h-[100dvh] overflow-hidden',
         'flex-1 transition-[margin] duration-300 ease-in-out',
         isCollapsed ? 'lg:ml-[96px]' : 'lg:ml-[256px]',
         'ml-0',
-        // Conditionally add extra padding when trial banner is visible
-        // Account for impersonation banner (44px) + top bar (64px) = 108px
-        // When trial banner is visible, add ~17px more
-        isTrialBannerVisible
-          ? (isImpersonating ? 'pt-[132px] lg:pt-[132px]' : 'pt-[115px] lg:pt-[115px]')
-          : (isImpersonating ? 'pt-[108px] lg:pt-[108px]' : 'pt-16 lg:pt-16')
-      )}>
+        topPaddingClass
+      )}
+      >
         {children}
         <QuickAdd isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />
 
