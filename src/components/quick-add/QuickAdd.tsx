@@ -1410,6 +1410,14 @@ function QuickAddComponent({ isOpen, onClose, variant = 'v1' }: QuickAddProps) {
               isOpen={showContactSearch}
               onClose={() => {
                 setShowContactSearch(false);
+                // If user cancels contact selection for actions that require a contact,
+                // return them to the action picker instead of leaving an empty modal state.
+                if ((selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale') && !selectedContact) {
+                  setSelectedAction(null);
+                  if (variant === 'v2') {
+                    setShowQuickActionsV2(true);
+                  }
+                }
               }}
               onContactSelect={(contact) => {
                 // Pre-populate form data with contact info
