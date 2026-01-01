@@ -930,3 +930,433 @@ export const buildTaskAddedConfirmation = (taskTitle: string, count: number = 1)
     text: message,
   };
 };
+
+// =============================================================================
+// HITL (Human-in-the-Loop) TYPES & BUILDERS
+// =============================================================================
+
+export type HITLResourceType =
+  | 'email_draft'
+  | 'follow_up'
+  | 'task_list'
+  | 'summary'
+  | 'meeting_notes'
+  | 'proposal_section'
+  | 'coaching_tip';
+
+export interface HITLApprovalData {
+  approvalId: string;
+  resourceType: HITLResourceType;
+  resourceId: string;
+  resourceName: string;
+  content: {
+    subject?: string;
+    body?: string;
+    recipient?: string;
+    recipientEmail?: string;
+    items?: string[];
+    summary?: string;
+    [key: string]: unknown;
+  };
+  context?: {
+    dealName?: string;
+    dealId?: string;
+    contactName?: string;
+    meetingTitle?: string;
+    meetingId?: string;
+    confidence?: number;
+  };
+  expiresAt?: string;
+  appUrl: string;
+}
+
+export interface HITLConfirmationData {
+  approvalId: string;
+  title: string;
+  items: Array<{
+    id: string;
+    label: string;
+    description?: string;
+    selected?: boolean;
+  }>;
+  context?: string;
+  appUrl: string;
+}
+
+export interface HITLEditRequestData {
+  approvalId: string;
+  resourceType: HITLResourceType;
+  original: {
+    label: string;
+    content: string;
+  };
+  suggested: {
+    label: string;
+    content: string;
+  };
+  changesSummary?: string[];
+  context?: {
+    dealName?: string;
+    reason?: string;
+  };
+  appUrl: string;
+}
+
+export interface HITLActionedConfirmation {
+  action: 'approved' | 'rejected' | 'edited';
+  resourceType: string;
+  resourceName: string;
+  actionedBy: string;
+  slackUserId?: string;
+  timestamp: string;
+  editSummary?: string;
+  rejectionReason?: string;
+}
+
+/**
+ * Get emoji badge for HITL resource type
+ */
+const getHITLResourceEmoji = (resourceType: HITLResourceType): string => {
+  const emojiMap: Record<HITLResourceType, string> = {
+    'email_draft': '📧',
+    'follow_up': '📞',
+    'task_list': '✅',
+    'summary': '📝',
+    'meeting_notes': '🎯',
+    'proposal_section': '📄',
+    'coaching_tip': '💡',
+  };
+  return emojiMap[resourceType] || '📋';
+};
+
+/**
+ * Format resource type for display
+ */
+const formatResourceType = (resourceType: string): string => {
+  return resourceType
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+/**
+ * Build HITL Approval Message
+ * Used for email drafts, follow-ups, summaries needing approval
+ */
+export const buildHITLApprovalMessage = (data: HITLApprovalData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+
+  const emoji = getHITLResourceEmoji(data.resourceType);
+  const typeLabel = formatResourceType(data.resourceType);
+
+  // Header with resource type badge
+  blocks.push(header(`${emoji} Review: ${truncate(typeLabel, 80)}`));
+
+  // Context section (deal, contact, meeting)
+  if (data.context) {
+    const contextParts: string[] = [];
+    if (data.context.dealName) contextParts.push(`💼 ${truncate(data.context.dealName, 40)}`);
+    if (data.context.contactName) contextParts.push(`👤 ${truncate(data.context.contactName, 30)}`);
+    if (data.context.meetingTitle) contextParts.push(`📅 ${truncate(data.context.meetingTitle, 40)}`);
+    if (data.context.confidence !== undefined) {
+      contextParts.push(`🎯 ${data.context.confidence}% confidence`);
+    }
+
+    if (contextParts.length > 0) {
+      blocks.push(context(contextParts));
+    }
+  }
+
+  blocks.push(divider());
+
+  // Content preview based on resource type
+  if (data.resourceType === 'email_draft' || data.resourceType === 'follow_up') {
+    // Email-style content
+    if (data.content.recipient || data.content.recipientEmail) {
+      const recipient = data.content.recipient || data.content.recipientEmail;
+      blocks.push(section(`*To:* ${truncate(recipient as string, 100)}`));
+    }
+    if (data.content.subject) {
+      blocks.push(section(`*Subject:* ${truncate(data.content.subject, 200)}`));
+    }
+    if (data.content.body) {
+      blocks.push(section(`*Message:*\n${truncate(data.content.body, 800)}`));
+    }
+  } else if (data.resourceType === 'task_list' && data.content.items) {
+    // Task list content
+    const taskLines = data.content.items.slice(0, 5).map((item) => `• ${truncate(item, 100)}`);
+    blocks.push(section(`*Tasks:*\n${taskLines.join('\n')}`));
+    if (data.content.items.length > 5) {
+      blocks.push(context([`+ ${data.content.items.length - 5} more tasks`]));
+    }
+  } else if (data.content.summary) {
+    // Generic summary content
+    blocks.push(section(`*Content:*\n${truncate(data.content.summary, 800)}`));
+  } else if (data.content.body) {
+    // Fallback to body
+    blocks.push(section(`*Content:*\n${truncate(data.content.body, 800)}`));
+  }
+
+  blocks.push(divider());
+
+  // Action buttons with HITL action ID convention: {action}::{resource_type}::{approval_id}
+  const callbackValue = JSON.stringify({ approvalId: data.approvalId });
+
+  blocks.push({
+    type: 'actions',
+    block_id: `hitl_actions::${data.approvalId}`,
+    elements: [
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: safeButtonText('✅ Approve'), emoji: true },
+        style: 'primary',
+        action_id: `approve::${data.resourceType}::${data.approvalId}`,
+        value: safeButtonValue(callbackValue),
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: safeButtonText('✏️ Edit'), emoji: true },
+        action_id: `edit::${data.resourceType}::${data.approvalId}`,
+        value: safeButtonValue(callbackValue),
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: safeButtonText('❌ Reject'), emoji: true },
+        style: 'danger',
+        action_id: `reject::${data.resourceType}::${data.approvalId}`,
+        value: safeButtonValue(callbackValue),
+      },
+    ],
+  });
+
+  // Expiry and resource context
+  const contextItems: string[] = [];
+  if (data.expiresAt) {
+    const expiresDate = new Date(data.expiresAt);
+    const hoursLeft = Math.max(0, Math.round((expiresDate.getTime() - Date.now()) / 3600000));
+    contextItems.push(`⏱️ Expires in ${hoursLeft} hours`);
+  }
+  if (data.resourceName) {
+    contextItems.push(truncate(data.resourceName, 60));
+  }
+  if (contextItems.length > 0) {
+    blocks.push(context([contextItems.join(' • ')]));
+  }
+
+  return {
+    blocks,
+    text: `Review requested: ${typeLabel} - ${truncate(data.resourceName || 'Pending approval', 60)}`,
+  };
+};
+
+/**
+ * Build HITL Multi-Item Confirmation Message
+ * Used for bulk approvals with checkboxes
+ */
+export const buildHITLConfirmationMessage = (data: HITLConfirmationData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+
+  blocks.push(header(`☑️ ${truncate(data.title, 100)}`));
+
+  if (data.context) {
+    blocks.push(context([truncate(data.context, 150)]));
+  }
+
+  blocks.push(divider());
+
+  // Build checkbox group (max 10 options per Slack limits)
+  const options = data.items.slice(0, 10).map((item) => ({
+    text: {
+      type: 'mrkdwn' as const,
+      text: item.description
+        ? `*${truncate(item.label, 60)}*\n${truncate(item.description, 100)}`
+        : `*${truncate(item.label, 80)}*`,
+    },
+    value: item.id,
+  }));
+
+  const initialOptions = data.items
+    .filter((item) => item.selected !== false)
+    .slice(0, 10)
+    .map((item) => ({
+      text: {
+        type: 'mrkdwn' as const,
+        text: item.description
+          ? `*${truncate(item.label, 60)}*\n${truncate(item.description, 100)}`
+          : `*${truncate(item.label, 80)}*`,
+      },
+      value: item.id,
+    }));
+
+  blocks.push({
+    type: 'section',
+    block_id: 'hitl_items_selection',
+    text: {
+      type: 'mrkdwn',
+      text: 'Select items to include:',
+    },
+    accessory: {
+      type: 'checkboxes',
+      action_id: `select_items::confirmation::${data.approvalId}`,
+      options,
+      ...(initialOptions.length > 0 ? { initial_options: initialOptions } : {}),
+    },
+  });
+
+  blocks.push(divider());
+
+  // Bulk action buttons
+  const allItemIds = data.items.map((i) => i.id);
+  blocks.push({
+    type: 'actions',
+    block_id: `hitl_bulk_actions::${data.approvalId}`,
+    elements: [
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: safeButtonText('✅ Confirm Selected'), emoji: true },
+        style: 'primary',
+        action_id: `confirm_selected::confirmation::${data.approvalId}`,
+        value: safeButtonValue(JSON.stringify({ approvalId: data.approvalId })),
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: safeButtonText('✅ Confirm All'), emoji: true },
+        action_id: `confirm_all::confirmation::${data.approvalId}`,
+        value: safeButtonValue(JSON.stringify({ approvalId: data.approvalId, itemIds: allItemIds })),
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: safeButtonText('❌ Cancel'), emoji: true },
+        style: 'danger',
+        action_id: `cancel::confirmation::${data.approvalId}`,
+        value: safeButtonValue(JSON.stringify({ approvalId: data.approvalId })),
+      },
+    ],
+  });
+
+  return {
+    blocks,
+    text: `Confirmation needed: ${truncate(data.title, 80)}`,
+  };
+};
+
+/**
+ * Build HITL Edit Request Message
+ * Side-by-side original vs suggested content comparison
+ */
+export const buildHITLEditRequestMessage = (data: HITLEditRequestData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+
+  blocks.push(header(`📝 Suggested Changes`));
+
+  if (data.context?.dealName) {
+    const contextText = data.context.reason
+      ? `💼 ${truncate(data.context.dealName, 40)} • ${truncate(data.context.reason, 60)}`
+      : `💼 ${truncate(data.context.dealName, 60)}`;
+    blocks.push(context([contextText]));
+  }
+
+  blocks.push(divider());
+
+  // Original content
+  blocks.push(section(`*${truncate(data.original.label, 40)}:*`));
+  blocks.push(section(`\`\`\`${truncate(data.original.content, 600)}\`\`\``));
+
+  blocks.push(divider());
+
+  // Suggested content
+  blocks.push(section(`*${truncate(data.suggested.label, 40)}:*`));
+  blocks.push(section(`\`\`\`${truncate(data.suggested.content, 600)}\`\`\``));
+
+  // Changes summary
+  if (data.changesSummary && data.changesSummary.length > 0) {
+    blocks.push(divider());
+    const changeLines = data.changesSummary.slice(0, 3).map((c) => `• ${truncate(c, 80)}`);
+    blocks.push(section(`*Key Changes:*\n${changeLines.join('\n')}`));
+  }
+
+  blocks.push(divider());
+
+  // Action buttons
+  const callbackValue = JSON.stringify({ approvalId: data.approvalId });
+  blocks.push({
+    type: 'actions',
+    block_id: `hitl_edit_actions::${data.approvalId}`,
+    elements: [
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: safeButtonText('✅ Use Suggested'), emoji: true },
+        style: 'primary',
+        action_id: `use_suggested::${data.resourceType}::${data.approvalId}`,
+        value: safeButtonValue(JSON.stringify({ ...JSON.parse(callbackValue), choice: 'suggested' })),
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: safeButtonText('📝 Keep Original'), emoji: true },
+        action_id: `keep_original::${data.resourceType}::${data.approvalId}`,
+        value: safeButtonValue(JSON.stringify({ ...JSON.parse(callbackValue), choice: 'original' })),
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: safeButtonText('✏️ Customize'), emoji: true },
+        action_id: `customize::${data.resourceType}::${data.approvalId}`,
+        value: safeButtonValue(callbackValue),
+      },
+    ],
+  });
+
+  return {
+    blocks,
+    text: `Suggested changes for ${formatResourceType(data.resourceType)}`,
+  };
+};
+
+/**
+ * Build HITL Actioned Confirmation (replaces original message after action)
+ */
+export const buildHITLActionedConfirmation = (data: HITLActionedConfirmation): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+
+  const actionConfig: Record<string, { emoji: string; label: string }> = {
+    'approved': { emoji: '✅', label: 'Approved' },
+    'rejected': { emoji: '❌', label: 'Rejected' },
+    'edited': { emoji: '✏️', label: 'Edited & Approved' },
+  };
+
+  const config = actionConfig[data.action] || { emoji: '📋', label: data.action };
+  const userMention = data.slackUserId ? `<@${data.slackUserId}>` : data.actionedBy;
+  const typeLabel = formatResourceType(data.resourceType);
+
+  // Main confirmation message
+  blocks.push(
+    section(
+      `${config.emoji} *${config.label}* by ${userMention}\n` +
+        `_${typeLabel} • ${truncate(data.resourceName, 60)}_`
+    )
+  );
+
+  // Edit summary (if edited)
+  if (data.action === 'edited' && data.editSummary) {
+    blocks.push(context([`✏️ ${truncate(data.editSummary, 150)}`]));
+  }
+
+  // Rejection reason (if rejected)
+  if (data.action === 'rejected' && data.rejectionReason) {
+    blocks.push(context([`💬 _"${truncate(data.rejectionReason, 150)}"_`]));
+  }
+
+  // Timestamp
+  const formattedTime = new Date(data.timestamp).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  blocks.push(context([formattedTime]));
+
+  return {
+    blocks,
+    text: `${config.label}: ${truncate(data.resourceName, 60)}`,
+  };
+};

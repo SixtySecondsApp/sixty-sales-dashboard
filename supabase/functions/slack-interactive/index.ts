@@ -4,7 +4,14 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
-import { buildTaskAddedConfirmation, buildDealActivityMessage, type DealActivityData } from '../_shared/slackBlocks.ts';
+import {
+  buildTaskAddedConfirmation,
+  buildDealActivityMessage,
+  type DealActivityData,
+  buildHITLActionedConfirmation,
+  type HITLActionedConfirmation,
+  type HITLResourceType,
+} from '../_shared/slackBlocks.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -743,6 +750,708 @@ async function handleLogActivitySubmission(
   return new Response('', { status: 200, headers: corsHeaders });
 }
 
+// ============================================================================
+// HITL (Human-in-the-Loop) Support
+// ============================================================================
+
+interface ParsedHITLAction {
+  action: 'approve' | 'reject' | 'edit';
+  resourceType: HITLResourceType;
+  approvalId: string;
+}
+
+interface HITLApprovalRecord {
+  id: string;
+  org_id: string;
+  user_id: string | null;
+  created_by: string | null;
+  resource_type: HITLResourceType;
+  resource_id: string;
+  resource_name: string | null;
+  slack_team_id: string;
+  slack_channel_id: string;
+  slack_message_ts: string;
+  slack_thread_ts: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'edited' | 'expired' | 'cancelled';
+  original_content: Record<string, unknown>;
+  edited_content: Record<string, unknown> | null;
+  response: Record<string, unknown> | null;
+  actioned_by: string | null;
+  actioned_at: string | null;
+  callback_type: 'edge_function' | 'webhook' | 'workflow' | null;
+  callback_target: string | null;
+  callback_metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  expires_at: string;
+  metadata: Record<string, unknown>;
+}
+
+/**
+ * Parse HITL action ID
+ * Format: {action}::{resource_type}::{approval_id}
+ * Example: approve::email_draft::abc123
+ */
+function parseHITLActionId(actionId: string): ParsedHITLAction | null {
+  const parts = actionId.split('::');
+  if (parts.length !== 3) return null;
+
+  const [action, resourceType, approvalId] = parts;
+
+  if (!['approve', 'reject', 'edit'].includes(action)) return null;
+
+  const validResourceTypes: HITLResourceType[] = [
+    'email_draft', 'follow_up', 'task_list', 'summary',
+    'meeting_notes', 'proposal_section', 'coaching_tip'
+  ];
+  if (!validResourceTypes.includes(resourceType as HITLResourceType)) return null;
+
+  return {
+    action: action as 'approve' | 'reject' | 'edit',
+    resourceType: resourceType as HITLResourceType,
+    approvalId,
+  };
+}
+
+/**
+ * Validate that a HITL approval exists and is pending
+ */
+async function validateHITLApproval(
+  supabase: ReturnType<typeof createClient>,
+  approvalId: string,
+  _userId?: string
+): Promise<{ valid: boolean; approval?: HITLApprovalRecord; error?: string }> {
+  const { data, error } = await supabase
+    .from('hitl_pending_approvals')
+    .select('*')
+    .eq('id', approvalId)
+    .single();
+
+  if (error || !data) {
+    return { valid: false, error: 'Approval not found' };
+  }
+
+  const approval = data as HITLApprovalRecord;
+
+  if (approval.status !== 'pending') {
+    return { valid: false, error: `Approval already ${approval.status}`, approval };
+  }
+
+  if (new Date(approval.expires_at) < new Date()) {
+    return { valid: false, error: 'Approval has expired', approval };
+  }
+
+  return { valid: true, approval };
+}
+
+/**
+ * Get resource type label for display
+ */
+function getResourceTypeLabel(resourceType: HITLResourceType): string {
+  const labels: Record<HITLResourceType, string> = {
+    email_draft: 'Email Draft',
+    follow_up: 'Follow-up',
+    task_list: 'Task List',
+    summary: 'Summary',
+    meeting_notes: 'Meeting Notes',
+    proposal_section: 'Proposal Section',
+    coaching_tip: 'Coaching Tip',
+  };
+  return labels[resourceType] || resourceType;
+}
+
+/**
+ * Trigger callback after HITL action
+ */
+async function triggerHITLCallback(
+  approval: HITLApprovalRecord,
+  action: 'approved' | 'rejected' | 'edited',
+  content: Record<string, unknown>
+): Promise<void> {
+  if (!approval.callback_type || !approval.callback_target) {
+    console.log('No callback configured for approval:', approval.id);
+    return;
+  }
+
+  const callbackPayload = {
+    approval_id: approval.id,
+    resource_type: approval.resource_type,
+    resource_id: approval.resource_id,
+    resource_name: approval.resource_name,
+    action,
+    content,
+    original_content: approval.original_content,
+    callback_metadata: approval.callback_metadata,
+    actioned_at: new Date().toISOString(),
+  };
+
+  try {
+    switch (approval.callback_type) {
+      case 'edge_function': {
+        // Call another Supabase edge function
+        const functionUrl = `${supabaseUrl}/functions/v1/${approval.callback_target}`;
+        const response = await fetch(functionUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify(callbackPayload),
+        });
+        if (!response.ok) {
+          console.error('Callback edge function failed:', await response.text());
+        }
+        break;
+      }
+
+      case 'webhook': {
+        // Call external webhook URL
+        const response = await fetch(approval.callback_target, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(callbackPayload),
+        });
+        if (!response.ok) {
+          console.error('Callback webhook failed:', await response.text());
+        }
+        break;
+      }
+
+      case 'workflow': {
+        // Future: trigger internal workflow
+        console.log('Workflow callback not yet implemented:', approval.callback_target);
+        break;
+      }
+    }
+  } catch (error) {
+    console.error('Error triggering HITL callback:', error);
+  }
+}
+
+/**
+ * Log HITL action to integration_sync_logs
+ */
+async function logHITLAction(
+  supabase: ReturnType<typeof createClient>,
+  approval: HITLApprovalRecord,
+  action: string,
+  userId: string,
+  details?: Record<string, unknown>
+): Promise<void> {
+  try {
+    await supabase
+      .from('integration_sync_logs')
+      .insert({
+        org_id: approval.org_id,
+        integration_type: 'slack_hitl',
+        sync_type: 'hitl_action',
+        status: 'success',
+        records_synced: 1,
+        message: `HITL ${action}: ${approval.resource_type} - ${approval.resource_name || approval.resource_id}`,
+        metadata: {
+          approval_id: approval.id,
+          resource_type: approval.resource_type,
+          resource_id: approval.resource_id,
+          action,
+          actioned_by: userId,
+          ...details,
+        },
+      });
+  } catch (error) {
+    console.error('Error logging HITL action:', error);
+  }
+}
+
+/**
+ * Handle HITL approve action
+ */
+async function handleHITLApprove(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload,
+  action: SlackAction,
+  hitlAction: ParsedHITLAction
+): Promise<Response> {
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, payload.team?.id);
+
+  // Validate the approval
+  const validation = await validateHITLApproval(supabase, hitlAction.approvalId);
+  if (!validation.valid || !validation.approval) {
+    if (payload.response_url) {
+      await sendEphemeral(payload.response_url, {
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: `❌ ${validation.error || 'Invalid approval'}` } }],
+        text: validation.error || 'Invalid approval',
+      });
+    }
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const approval = validation.approval;
+
+  // Process the approval action
+  const { error: updateError } = await supabase.rpc('process_hitl_action', {
+    p_approval_id: hitlAction.approvalId,
+    p_action: 'approved',
+    p_actioned_by: ctx?.userId || null,
+    p_response: { slack_user_id: payload.user.id },
+  });
+
+  if (updateError) {
+    console.error('Error processing HITL approve:', updateError);
+    if (payload.response_url) {
+      await sendEphemeral(payload.response_url, {
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '❌ Failed to process approval. Please try again.' } }],
+        text: 'Failed to process approval.',
+      });
+    }
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Update the original Slack message
+  if (payload.response_url) {
+    const confirmationData: HITLActionedConfirmation = {
+      action: 'approved',
+      resourceType: hitlAction.resourceType,
+      resourceName: approval.resource_name || getResourceTypeLabel(hitlAction.resourceType),
+      slackUserId: payload.user.id,
+      timestamp: new Date().toISOString(),
+    };
+    const confirmationMessage = buildHITLActionedConfirmation(confirmationData);
+    await updateMessage(payload.response_url, confirmationMessage.blocks);
+  }
+
+  // Log the action
+  await logHITLAction(supabase, approval, 'approved', ctx?.userId || payload.user.id);
+
+  // Trigger callback
+  await triggerHITLCallback(approval, 'approved', approval.original_content);
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Handle HITL reject action
+ */
+async function handleHITLReject(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload,
+  action: SlackAction,
+  hitlAction: ParsedHITLAction
+): Promise<Response> {
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, payload.team?.id);
+
+  // Validate the approval
+  const validation = await validateHITLApproval(supabase, hitlAction.approvalId);
+  if (!validation.valid || !validation.approval) {
+    if (payload.response_url) {
+      await sendEphemeral(payload.response_url, {
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: `❌ ${validation.error || 'Invalid approval'}` } }],
+        text: validation.error || 'Invalid approval',
+      });
+    }
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const approval = validation.approval;
+
+  // Process the rejection
+  const { error: updateError } = await supabase.rpc('process_hitl_action', {
+    p_approval_id: hitlAction.approvalId,
+    p_action: 'rejected',
+    p_actioned_by: ctx?.userId || null,
+    p_response: { slack_user_id: payload.user.id },
+  });
+
+  if (updateError) {
+    console.error('Error processing HITL reject:', updateError);
+    if (payload.response_url) {
+      await sendEphemeral(payload.response_url, {
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '❌ Failed to process rejection. Please try again.' } }],
+        text: 'Failed to process rejection.',
+      });
+    }
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Update the original Slack message
+  if (payload.response_url) {
+    const confirmationData: HITLActionedConfirmation = {
+      action: 'rejected',
+      resourceType: hitlAction.resourceType,
+      resourceName: approval.resource_name || getResourceTypeLabel(hitlAction.resourceType),
+      slackUserId: payload.user.id,
+      timestamp: new Date().toISOString(),
+    };
+    const confirmationMessage = buildHITLActionedConfirmation(confirmationData);
+    await updateMessage(payload.response_url, confirmationMessage.blocks);
+  }
+
+  // Log the action
+  await logHITLAction(supabase, approval, 'rejected', ctx?.userId || payload.user.id);
+
+  // Trigger callback (with original content since nothing was changed)
+  await triggerHITLCallback(approval, 'rejected', approval.original_content);
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Build edit modal blocks based on resource type
+ */
+function buildHITLEditModalBlocks(
+  resourceType: HITLResourceType,
+  originalContent: Record<string, unknown>
+): unknown[] {
+  const blocks: unknown[] = [];
+
+  switch (resourceType) {
+    case 'email_draft':
+      blocks.push(
+        {
+          type: 'input',
+          block_id: 'subject',
+          label: { type: 'plain_text', text: 'Subject' },
+          element: {
+            type: 'plain_text_input',
+            action_id: 'subject_input',
+            initial_value: (originalContent.subject as string) || '',
+            placeholder: { type: 'plain_text', text: 'Email subject' },
+          },
+        },
+        {
+          type: 'input',
+          block_id: 'body',
+          label: { type: 'plain_text', text: 'Message' },
+          element: {
+            type: 'plain_text_input',
+            action_id: 'body_input',
+            multiline: true,
+            initial_value: (originalContent.body as string) || '',
+            placeholder: { type: 'plain_text', text: 'Email body' },
+          },
+        }
+      );
+      if (originalContent.recipient) {
+        blocks.unshift({
+          type: 'context',
+          elements: [{ type: 'mrkdwn', text: `*To:* ${originalContent.recipient}` }],
+        });
+      }
+      break;
+
+    case 'task_list':
+      const tasks = Array.isArray(originalContent.tasks)
+        ? (originalContent.tasks as string[]).join('\n')
+        : (originalContent.body as string) || '';
+      blocks.push({
+        type: 'input',
+        block_id: 'tasks',
+        label: { type: 'plain_text', text: 'Tasks (one per line)' },
+        element: {
+          type: 'plain_text_input',
+          action_id: 'tasks_input',
+          multiline: true,
+          initial_value: tasks,
+          placeholder: { type: 'plain_text', text: 'Enter tasks, one per line' },
+        },
+      });
+      break;
+
+    case 'follow_up':
+    case 'summary':
+    case 'meeting_notes':
+    case 'proposal_section':
+    case 'coaching_tip':
+    default:
+      // Generic content editor
+      blocks.push({
+        type: 'input',
+        block_id: 'content',
+        label: { type: 'plain_text', text: 'Content' },
+        element: {
+          type: 'plain_text_input',
+          action_id: 'content_input',
+          multiline: true,
+          initial_value: (originalContent.body as string) || (originalContent.content as string) || '',
+          placeholder: { type: 'plain_text', text: 'Edit content...' },
+        },
+      });
+      break;
+  }
+
+  // Add optional feedback field
+  blocks.push({
+    type: 'input',
+    block_id: 'feedback',
+    optional: true,
+    label: { type: 'plain_text', text: 'Feedback (optional)' },
+    element: {
+      type: 'plain_text_input',
+      action_id: 'feedback_input',
+      multiline: true,
+      placeholder: { type: 'plain_text', text: 'What should be improved in the future?' },
+    },
+  });
+
+  return blocks;
+}
+
+/**
+ * Handle HITL edit action - opens a modal for editing
+ */
+async function handleHITLEdit(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload,
+  action: SlackAction,
+  hitlAction: ParsedHITLAction
+): Promise<Response> {
+  const triggerId = payload.trigger_id;
+
+  if (!triggerId) {
+    if (payload.response_url) {
+      await sendEphemeral(payload.response_url, {
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '❌ Unable to open edit dialog.' } }],
+        text: 'Unable to open edit dialog.',
+      });
+    }
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Validate the approval
+  const validation = await validateHITLApproval(supabase, hitlAction.approvalId);
+  if (!validation.valid || !validation.approval) {
+    if (payload.response_url) {
+      await sendEphemeral(payload.response_url, {
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: `❌ ${validation.error || 'Invalid approval'}` } }],
+        text: validation.error || 'Invalid approval',
+      });
+    }
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const approval = validation.approval;
+
+  // Get org connection for bot token
+  const orgConnection = await getSlackOrgConnection(supabase, payload.team?.id);
+  if (!orgConnection) {
+    if (payload.response_url) {
+      await sendEphemeral(payload.response_url, {
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '❌ Slack is not connected for this workspace.' } }],
+        text: 'Slack is not connected.',
+      });
+    }
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Build modal blocks based on resource type
+  const editBlocks = buildHITLEditModalBlocks(
+    hitlAction.resourceType,
+    approval.original_content
+  );
+
+  const privateMetadata = JSON.stringify({
+    approvalId: hitlAction.approvalId,
+    resourceType: hitlAction.resourceType,
+    channelId: payload.channel?.id,
+    messageTs: payload.message?.ts,
+    responseUrl: payload.response_url,
+  });
+
+  // Open the edit modal
+  const modalResponse = await fetch('https://slack.com/api/views.open', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${orgConnection.botToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      trigger_id: triggerId,
+      view: {
+        type: 'modal',
+        callback_id: 'hitl_edit_modal',
+        private_metadata: privateMetadata,
+        title: { type: 'plain_text', text: `Edit ${getResourceTypeLabel(hitlAction.resourceType)}`, emoji: true },
+        submit: { type: 'plain_text', text: '✅ Save & Approve', emoji: true },
+        close: { type: 'plain_text', text: 'Cancel' },
+        blocks: editBlocks,
+      },
+    }),
+  });
+
+  const modalResult = await modalResponse.json();
+  if (!modalResult.ok) {
+    console.error('Failed to open HITL edit modal:', modalResult);
+    if (payload.response_url) {
+      await sendEphemeral(payload.response_url, {
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '❌ Failed to open edit dialog. Please try again.' } }],
+        text: 'Failed to open edit dialog.',
+      });
+    }
+  }
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Extract edited content from modal submission based on resource type
+ */
+function extractEditedContent(
+  resourceType: HITLResourceType,
+  values: Record<string, Record<string, { value?: string }>>
+): Record<string, unknown> {
+  const editedContent: Record<string, unknown> = {};
+
+  switch (resourceType) {
+    case 'email_draft':
+      editedContent.subject = values['subject']?.['subject_input']?.value || '';
+      editedContent.body = values['body']?.['body_input']?.value || '';
+      break;
+
+    case 'task_list':
+      const tasksText = values['tasks']?.['tasks_input']?.value || '';
+      editedContent.tasks = tasksText.split('\n').filter((t: string) => t.trim());
+      editedContent.body = tasksText;
+      break;
+
+    default:
+      editedContent.content = values['content']?.['content_input']?.value || '';
+      editedContent.body = editedContent.content;
+      break;
+  }
+
+  return editedContent;
+}
+
+/**
+ * Handle HITL edit modal submission
+ */
+async function handleHITLEditSubmission(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload
+): Promise<Response> {
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, payload.team?.id);
+
+  let meta: {
+    approvalId?: string;
+    resourceType?: HITLResourceType;
+    channelId?: string;
+    messageTs?: string;
+    responseUrl?: string;
+  } = {};
+
+  try {
+    meta = payload.view?.private_metadata ? JSON.parse(payload.view.private_metadata) : {};
+  } catch {
+    console.error('Failed to parse HITL edit modal metadata');
+    return new Response('', { status: 200, headers: corsHeaders });
+  }
+
+  if (!meta.approvalId || !meta.resourceType) {
+    console.error('Missing approval ID or resource type in HITL edit modal');
+    return new Response('', { status: 200, headers: corsHeaders });
+  }
+
+  // Validate the approval is still valid
+  const validation = await validateHITLApproval(supabase, meta.approvalId);
+  if (!validation.valid || !validation.approval) {
+    return new Response(
+      JSON.stringify({
+        response_action: 'errors',
+        errors: {
+          content: validation.error || 'This approval is no longer valid.',
+        },
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const approval = validation.approval;
+  const values = (payload.view?.state?.values || {}) as Record<string, Record<string, { value?: string }>>;
+
+  // Extract edited content
+  const editedContent = extractEditedContent(meta.resourceType, values);
+  const feedback = values['feedback']?.['feedback_input']?.value || null;
+
+  // Process the edit action
+  const { error: updateError } = await supabase.rpc('process_hitl_action', {
+    p_approval_id: meta.approvalId,
+    p_action: 'edited',
+    p_actioned_by: ctx?.userId || null,
+    p_response: {
+      slack_user_id: payload.user.id,
+      feedback,
+    },
+    p_edited_content: editedContent,
+  });
+
+  if (updateError) {
+    console.error('Error processing HITL edit submission:', updateError);
+    return new Response(
+      JSON.stringify({
+        response_action: 'errors',
+        errors: {
+          content: 'Failed to save changes. Please try again.',
+        },
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Update the original message if we have the response URL
+  if (meta.responseUrl) {
+    const confirmationData: HITLActionedConfirmation = {
+      action: 'edited',
+      resourceType: meta.resourceType,
+      resourceName: approval.resource_name || getResourceTypeLabel(meta.resourceType),
+      slackUserId: payload.user.id,
+      timestamp: new Date().toISOString(),
+      editSummary: feedback || undefined,
+    };
+    const confirmationMessage = buildHITLActionedConfirmation(confirmationData);
+    await updateMessage(meta.responseUrl, confirmationMessage.blocks);
+  }
+
+  // Log the action
+  await logHITLAction(supabase, approval, 'edited', ctx?.userId || payload.user.id, { feedback });
+
+  // Trigger callback with edited content
+  await triggerHITLCallback(approval, 'edited', editedContent);
+
+  // Close the modal
+  return new Response('', { status: 200, headers: corsHeaders });
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -805,6 +1514,20 @@ serve(async (req) => {
 
         console.log('Processing action:', action.action_id);
 
+        // Check if this is a HITL action first
+        const hitlAction = parseHITLActionId(action.action_id);
+        if (hitlAction) {
+          console.log('Processing HITL action:', hitlAction);
+          switch (hitlAction.action) {
+            case 'approve':
+              return handleHITLApprove(supabase, payload, action, hitlAction);
+            case 'reject':
+              return handleHITLReject(supabase, payload, action, hitlAction);
+            case 'edit':
+              return handleHITLEdit(supabase, payload, action, hitlAction);
+          }
+        }
+
         // Route to appropriate handler based on action_id
         if (action.action_id.startsWith('add_task_')) {
           return handleAddTask(supabase, payload, action);
@@ -834,10 +1557,13 @@ serve(async (req) => {
       }
 
       case 'view_submission': {
-        // Handle modal submissions (future feature)
+        // Handle modal submissions
         console.log('View submission:', payload.view?.callback_id);
         if (payload.view?.callback_id === 'log_activity_modal') {
           return handleLogActivitySubmission(supabase, payload);
+        }
+        if (payload.view?.callback_id === 'hitl_edit_modal') {
+          return handleHITLEditSubmission(supabase, payload);
         }
         return new Response('', { status: 200, headers: corsHeaders });
       }
