@@ -16,11 +16,29 @@ import { API_BASE_URL } from '@/lib/config';
 import { getSupabaseHeaders } from '@/lib/utils/apiUtils';
 import { useOrgStore } from '@/lib/stores/orgStore';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { ContactTestModeSelector, type ContactTestMode } from './ContactTestModeSelector';
+import {
+  type EntityType,
+  type EntityTestMode,
+  type QualityTier,
+} from '@/lib/utils/entityTestTypes';
+import { EntityTypeSelector } from './EntityTypeSelector';
+import { EntityTestModeSelector } from './EntityTestModeSelector';
+// Contact imports
 import { TestContactList } from './TestContactList';
 import { TestContactSearch } from './TestContactSearch';
 import { useTestContacts, type TestContact } from '@/lib/hooks/useTestContacts';
-import { type ContactQualityTier } from '@/lib/utils/contactQualityScoring';
+// Deal imports
+import { TestDealList } from './TestDealList';
+import { TestDealSearch } from './TestDealSearch';
+import { useTestDeals, type TestDeal } from '@/lib/hooks/useTestDeals';
+// Email imports
+import { TestEmailList } from './TestEmailList';
+import { TestEmailSearch } from './TestEmailSearch';
+import { useTestEmails, type TestEmail } from '@/lib/hooks/useTestEmails';
+// Activity imports
+import { TestActivityList } from './TestActivityList';
+import { TestActivitySearch } from './TestActivitySearch';
+import { useTestActivities, type TestActivity } from '@/lib/hooks/useTestActivities';
 
 type TestMode = 'readonly' | 'mock';
 
@@ -48,6 +66,9 @@ interface TestSkillResponse {
   error?: string;
 }
 
+// Union type for selected entities
+type SelectedEntity = TestContact | TestDeal | TestEmail | TestActivity | null;
+
 export function SkillTestConsole({ skillKey }: { skillKey: string }) {
   const { activeOrgId, loadOrganizations, isLoading } = useOrgStore();
   const { user } = useAuth();
@@ -58,24 +79,54 @@ export function SkillTestConsole({ skillKey }: { skillKey: string }) {
   const [result, setResult] = useState<TestSkillResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Contact testing states
-  const [contactMode, setContactMode] = useState<ContactTestMode>('none');
-  const [selectedContact, setSelectedContact] = useState<TestContact | null>(null);
-  const [showContactSection, setShowContactSection] = useState(false);
+  // Entity testing states
+  const [entityType, setEntityType] = useState<EntityType>('contact');
+  const [entityMode, setEntityMode] = useState<EntityTestMode>('none');
+  const [selectedEntity, setSelectedEntity] = useState<SelectedEntity>(null);
+  const [showEntitySection, setShowEntitySection] = useState(false);
 
-  // Fetch contacts based on quality tier (only for good/average/bad modes)
-  const tierMode = contactMode !== 'none' && contactMode !== 'custom' ? contactMode : null;
+  // Derive tier mode for fetching (good/average/bad only, not 'none' or 'custom')
+  const tierMode: QualityTier | null =
+    entityMode !== 'none' && entityMode !== 'custom' ? entityMode : null;
+
+  // Fetch contacts when entity type is 'contact'
   const { contacts, isLoading: isLoadingContacts } = useTestContacts({
-    mode: (tierMode || 'good') as ContactQualityTier,
-    enabled: !!tierMode && !!user?.id,
+    mode: tierMode || 'good',
+    enabled: !!tierMode && entityType === 'contact' && !!user?.id,
     limit: 10,
   });
 
-  // Reset selected contact when mode changes
-  const handleContactModeChange = (newMode: ContactTestMode) => {
-    setContactMode(newMode);
-    setSelectedContact(null);
-    setShowContactSection(newMode !== 'none');
+  // Fetch deals when entity type is 'deal'
+  const { deals, isLoading: isLoadingDeals } = useTestDeals({
+    mode: tierMode || 'good',
+    enabled: !!tierMode && entityType === 'deal' && !!user?.id,
+    limit: 10,
+  });
+
+  // Fetch emails when entity type is 'email'
+  const { emails, isLoading: isLoadingEmails } = useTestEmails({
+    mode: tierMode || 'good',
+    enabled: !!tierMode && entityType === 'email' && !!user?.id,
+    limit: 10,
+  });
+
+  // Fetch activities when entity type is 'activity'
+  const { activities, isLoading: isLoadingActivities } = useTestActivities({
+    mode: tierMode || 'good',
+    enabled: !!tierMode && entityType === 'activity' && !!user?.id,
+    limit: 10,
+  });
+
+  // Reset selected entity when entity type or mode changes
+  const handleEntityTypeChange = (newType: EntityType) => {
+    setEntityType(newType);
+    setSelectedEntity(null);
+  };
+
+  const handleEntityModeChange = (newMode: EntityTestMode) => {
+    setEntityMode(newMode);
+    setSelectedEntity(null);
+    setShowEntitySection(newMode !== 'none');
   };
 
   useEffect(() => {
@@ -87,12 +138,116 @@ export function SkillTestConsole({ skillKey }: { skillKey: string }) {
 
   const canRun = useMemo(() => {
     const hasSkill = !!skillKey && !!activeOrgId && !isRunning;
-    // If contact mode requires a selection, ensure one is selected
-    if (contactMode !== 'none' && !selectedContact) {
+    // If entity mode requires a selection, ensure one is selected
+    if (entityMode !== 'none' && !selectedEntity) {
       return false;
     }
     return hasSkill;
-  }, [skillKey, activeOrgId, isRunning, contactMode, selectedContact]);
+  }, [skillKey, activeOrgId, isRunning, entityMode, selectedEntity]);
+
+  /**
+   * Build entity context based on the entity type and selected entity
+   */
+  const buildEntityContext = (): Record<string, unknown> | null => {
+    if (!selectedEntity || entityMode === 'none') return null;
+
+    switch (entityType) {
+      case 'contact': {
+        const contact = selectedEntity as TestContact;
+        return {
+          id: contact.id,
+          email: contact.email,
+          name: contact.full_name ||
+            [contact.first_name, contact.last_name].filter(Boolean).join(' '),
+          title: contact.title,
+          company_id: contact.company_id,
+          company_name: contact.company_name,
+          total_meetings_count: contact.total_meetings_count,
+          quality_tier: contact.qualityScore.tier,
+          quality_score: contact.qualityScore.score,
+        };
+      }
+      case 'deal': {
+        const deal = selectedEntity as TestDeal;
+        return {
+          id: deal.id,
+          name: deal.name,
+          company: deal.company,
+          contact_name: deal.contact_name,
+          value: deal.value,
+          stage_name: deal.stage_name,
+          health_status: deal.health_status,
+          overall_health_score: deal.overall_health_score,
+          days_in_current_stage: deal.days_in_current_stage,
+          quality_tier: deal.qualityScore.tier,
+          quality_score: deal.qualityScore.score,
+        };
+      }
+      case 'email': {
+        const email = selectedEntity as TestEmail;
+        return {
+          id: email.id,
+          external_id: email.external_id,
+          thread_id: email.thread_id,
+          direction: email.direction,
+          category: email.category,
+          subject: email.subject,
+          from_email: email.from_email,
+          signals: email.signals,
+          received_at: email.received_at,
+          quality_tier: email.qualityScore.tier,
+          quality_score: email.qualityScore.score,
+        };
+      }
+      case 'activity': {
+        const activity = selectedEntity as TestActivity;
+        return {
+          id: activity.id,
+          type: activity.type,
+          status: activity.status,
+          priority: activity.priority,
+          client_name: activity.client_name,
+          details: activity.details,
+          amount: activity.amount,
+          date: activity.date,
+          deal_id: activity.deal_id,
+          engagement_quality: activity.engagement_quality,
+          quality_tier: activity.qualityScore.tier,
+          quality_score: activity.qualityScore.score,
+        };
+      }
+      default:
+        return null;
+    }
+  };
+
+  /**
+   * Get the display label for the selected entity
+   */
+  const getSelectedEntityLabel = (): string => {
+    if (!selectedEntity) return '';
+
+    switch (entityType) {
+      case 'contact': {
+        const contact = selectedEntity as TestContact;
+        return contact.full_name || contact.email || 'Unknown';
+      }
+      case 'deal': {
+        const deal = selectedEntity as TestDeal;
+        return deal.name;
+      }
+      case 'email': {
+        const email = selectedEntity as TestEmail;
+        return email.subject || email.from_email || 'Email';
+      }
+      case 'activity': {
+        const activity = selectedEntity as TestActivity;
+        return activity.client_name;
+      }
+      default:
+        return '';
+    }
+  };
 
   const handleRun = async () => {
     setError(null);
@@ -101,29 +256,27 @@ export function SkillTestConsole({ skillKey }: { skillKey: string }) {
     try {
       const headers = await getSupabaseHeaders();
 
-      // Build request body with optional contact context
+      // Build request body with optional entity context
       const requestBody: Record<string, unknown> = {
         skill_key: skillKey,
         test_input: testInput,
         mode,
       };
 
-      // Add contact context if a contact is selected
-      if (selectedContact && contactMode !== 'none') {
-        requestBody.contact_id = selectedContact.id;
-        requestBody.contact_test_mode = contactMode;
-        requestBody.contact_context = {
-          id: selectedContact.id,
-          email: selectedContact.email,
-          name: selectedContact.full_name ||
-            [selectedContact.first_name, selectedContact.last_name].filter(Boolean).join(' '),
-          title: selectedContact.title,
-          company_id: selectedContact.company_id,
-          company_name: selectedContact.company_name,
-          total_meetings_count: selectedContact.total_meetings_count,
-          quality_tier: selectedContact.qualityScore.tier,
-          quality_score: selectedContact.qualityScore.score,
-        };
+      // Add entity context if an entity is selected
+      const entityContext = buildEntityContext();
+      if (selectedEntity && entityMode !== 'none' && entityContext) {
+        requestBody.entity_type = entityType;
+        requestBody.entity_test_mode = entityMode;
+        requestBody[`${entityType}_id`] = entityContext.id;
+        requestBody[`${entityType}_context`] = entityContext;
+
+        // For backwards compatibility, also set contact-specific fields
+        if (entityType === 'contact') {
+          requestBody.contact_id = entityContext.id;
+          requestBody.contact_test_mode = entityMode;
+          requestBody.contact_context = entityContext;
+        }
       }
 
       const resp = await fetch(`${API_BASE_URL}/api-copilot/actions/test-skill`, {
@@ -191,59 +344,117 @@ export function SkillTestConsole({ skillKey }: { skillKey: string }) {
           </div>
         </div>
 
-        {/* Contact Testing Section */}
+        {/* Entity Testing Section */}
         <div className="rounded-lg border border-gray-200 dark:border-gray-700/50 overflow-hidden">
           <button
             type="button"
-            onClick={() => setShowContactSection(!showContactSection)}
+            onClick={() => setShowEntitySection(!showEntitySection)}
             className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
           >
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                Contact Testing Mode
+                Entity Testing Mode
               </span>
-              {contactMode !== 'none' && selectedContact && (
+              {entityMode !== 'none' && selectedEntity && (
                 <Badge variant="outline" className="text-xs">
-                  {selectedContact.full_name || selectedContact.email}
+                  {getSelectedEntityLabel()}
                 </Badge>
               )}
-              {contactMode !== 'none' && !selectedContact && (
+              {entityMode !== 'none' && !selectedEntity && (
                 <Badge variant="outline" className="text-xs text-amber-600 dark:text-amber-400">
-                  Select a contact
+                  Select {entityType === 'activity' ? 'an' : 'a'} {entityType}
                 </Badge>
               )}
             </div>
-            {showContactSection ? (
+            {showEntitySection ? (
               <ChevronUp className="w-4 h-4 text-gray-500" />
             ) : (
               <ChevronDown className="w-4 h-4 text-gray-500" />
             )}
           </button>
 
-          {showContactSection && (
+          {showEntitySection && (
             <div className="p-4 space-y-4 border-t border-gray-200 dark:border-gray-700/50">
-              <ContactTestModeSelector
-                mode={contactMode}
-                onChange={handleContactModeChange}
+              {/* Entity Type Selector */}
+              <EntityTypeSelector
+                type={entityType}
+                onChange={handleEntityTypeChange}
                 disabled={isRunning}
               />
 
-              {/* Show contact list for good/average/bad modes */}
-              {tierMode && (
+              {/* Entity Mode Selector */}
+              <EntityTestModeSelector
+                entityType={entityType}
+                mode={entityMode}
+                onChange={handleEntityModeChange}
+                disabled={isRunning}
+              />
+
+              {/* Contact List/Search */}
+              {entityType === 'contact' && tierMode && (
                 <TestContactList
                   contacts={contacts}
                   isLoading={isLoadingContacts}
-                  selectedContactId={selectedContact?.id || null}
-                  onSelect={setSelectedContact}
+                  selectedContactId={(selectedEntity as TestContact | null)?.id || null}
+                  onSelect={(contact) => setSelectedEntity(contact)}
                   tier={tierMode}
                 />
               )}
-
-              {/* Show search for custom mode */}
-              {contactMode === 'custom' && (
+              {entityType === 'contact' && entityMode === 'custom' && (
                 <TestContactSearch
-                  selectedContact={selectedContact}
-                  onSelect={setSelectedContact}
+                  selectedContact={selectedEntity as TestContact | null}
+                  onSelect={(contact) => setSelectedEntity(contact)}
+                />
+              )}
+
+              {/* Deal List/Search */}
+              {entityType === 'deal' && tierMode && (
+                <TestDealList
+                  deals={deals}
+                  isLoading={isLoadingDeals}
+                  selectedDealId={(selectedEntity as TestDeal | null)?.id || null}
+                  onSelect={(deal) => setSelectedEntity(deal)}
+                  tier={tierMode}
+                />
+              )}
+              {entityType === 'deal' && entityMode === 'custom' && (
+                <TestDealSearch
+                  selectedDeal={selectedEntity as TestDeal | null}
+                  onSelect={(deal) => setSelectedEntity(deal)}
+                />
+              )}
+
+              {/* Email List/Search */}
+              {entityType === 'email' && tierMode && (
+                <TestEmailList
+                  emails={emails}
+                  isLoading={isLoadingEmails}
+                  selectedEmailId={(selectedEntity as TestEmail | null)?.id || null}
+                  onSelect={(email) => setSelectedEntity(email)}
+                  tier={tierMode}
+                />
+              )}
+              {entityType === 'email' && entityMode === 'custom' && (
+                <TestEmailSearch
+                  selectedEmail={selectedEntity as TestEmail | null}
+                  onSelect={(email) => setSelectedEntity(email)}
+                />
+              )}
+
+              {/* Activity List/Search */}
+              {entityType === 'activity' && tierMode && (
+                <TestActivityList
+                  activities={activities}
+                  isLoading={isLoadingActivities}
+                  selectedActivityId={(selectedEntity as TestActivity | null)?.id || null}
+                  onSelect={(activity) => setSelectedEntity(activity)}
+                  tier={tierMode}
+                />
+              )}
+              {entityType === 'activity' && entityMode === 'custom' && (
+                <TestActivitySearch
+                  selectedActivity={selectedEntity as TestActivity | null}
+                  onSelect={(activity) => setSelectedEntity(activity)}
                 />
               )}
             </div>

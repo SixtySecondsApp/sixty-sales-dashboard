@@ -329,6 +329,112 @@ graph TB
 
 ---
 
+## Copilot Architecture (60 Agent)
+
+The Copilot is an autonomous sales agent powered by skills, actions, and integrations.
+
+### Hierarchy
+
+```mermaid
+graph TB
+    subgraph Agent["60 - Autonomous Sales Agent"]
+        CP[Copilot Orchestrator]
+    end
+
+    subgraph Skills["Skills Layer (22+)"]
+        S1[Sales-AI Skills]
+        S2[Writing Skills]
+        S3[Enrichment Skills]
+        S4[Workflow Skills]
+        S5[Helper Skills]
+    end
+
+    subgraph Actions["Actions Layer (11)"]
+        A1[get_contact / get_deal]
+        A2[get_meetings / search_emails]
+        A3[update_crm / create_task]
+        A4[send_notification]
+        A5[enrich_contact / enrich_company]
+        A6[invoke_skill]
+    end
+
+    subgraph Integrations["Integrations Layer"]
+        I1[(Supabase CRM)]
+        I2[Slack]
+        I3[Fathom]
+        I4[Calendar]
+        I5[Gemini AI]
+    end
+
+    CP --> Skills
+    Skills -->|invoke_skill| S5
+    Skills --> Actions
+    Actions --> Integrations
+```
+
+### Skill Composition Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant CP as Copilot
+    participant S1 as Primary Skill
+    participant S2 as Helper Skill
+    participant A as Action
+    participant I as Integration
+
+    U->>CP: "Send deal alert to Slack"
+    CP->>S1: Execute slack-deal-alert
+    S1->>A: get_deal(id)
+    A->>I: Query Supabase
+    I-->>A: Deal data
+    A-->>S1: Deal context
+    S1->>A: invoke_skill(slack-blocks)
+    A->>S2: Execute slack-blocks
+    S2-->>A: Formatted blocks
+    A-->>S1: Block Kit JSON
+    S1->>A: send_notification(slack, blocks)
+    A->>I: Slack API
+    I-->>A: Sent
+    A-->>S1: Success
+    S1-->>CP: Completed
+    CP-->>U: "Alert sent to Slack"
+```
+
+### Skill Categories
+
+| Category | Skills | Purpose |
+|----------|--------|---------|
+| **sales-ai** | lead-qualification, deal-scoring, icp-matching, objection-handling, ghosting-detection, deal-stall-analysis, meeting-prep-briefing, sales-coaching-insight | Intelligence & scoring |
+| **writing** | follow-up-email, cold-email, linkedin-outreach, meeting-recap, proposal-intro, proposal-generator, brand-voice | Content generation |
+| **enrichment** | email-enrichment, lead-research, company-analysis, meeting-prep, competitor-intel | Data enrichment |
+| **workflows** | new-lead-workflow, deal-won-workflow, stale-deal-workflow, follow-up-sequence, outreach-sequence, slack-deal-alert | Automation |
+| **output-format** | slack-blocks | Helper/formatters |
+
+### Actions Reference
+
+| Action | Purpose | Returns |
+|--------|---------|---------|
+| `get_contact` | Fetch contact by id/email/name | Contact + company data |
+| `get_deal` | Fetch deal by id/name | Deal + stage + contacts |
+| `get_meetings` | List meetings for contact | Meeting records |
+| `search_emails` | Search email history | Email threads |
+| `update_crm` | Update deal/contact/task | Confirmation |
+| `create_task` | Create follow-up task | Task ID |
+| `send_notification` | Send Slack message | Delivery status |
+| `enrich_contact` | AI contact enrichment | Profile data |
+| `enrich_company` | AI company enrichment | Company data |
+| `invoke_skill` | Call another skill | Skill output |
+
+### Skill Invocation Rules
+
+1. **Max Depth**: 3 levels of skill nesting
+2. **No Circular Calls**: Skill A cannot invoke itself
+3. **Context Merging**: Parent context passed to child by default
+4. **Timeout**: 30s default per skill invocation
+
+---
+
 ## Technology Decisions
 
 | Decision | Choice | Rationale |
