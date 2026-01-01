@@ -47,6 +47,9 @@ interface EnrichmentData {
   case_study_customers: string[];
   tech_stack: string[];
   key_people: Array<{ name: string; title: string }>;
+  // Additional context for platform skills
+  pricing_model?: string;
+  key_phrases?: string[];
 }
 
 /**
@@ -787,6 +790,9 @@ function transformToEnrichmentData(rawData: any): EnrichmentData {
     case_study_customers: rawData.market?.case_study_customers || rawData.market?.customer_logos || [],
     tech_stack: rawData.offering?.integrations || [],
     key_people: [],
+    // Platform skill context variables
+    pricing_model: rawData.salesContext?.pricing_model || '',
+    key_phrases: rawData.voice?.key_phrases || [],
   };
 }
 
@@ -983,6 +989,14 @@ async function saveOrganizationContext(
   // Content Samples (for brand voice)
   if (enrichmentData.content_samples && enrichmentData.content_samples.length > 0) {
     contextMappings.push({ key: 'content_samples', value: enrichmentData.content_samples, valueType: 'array' });
+  }
+
+  // Platform Skill Context Variables
+  if (enrichmentData.pricing_model) {
+    contextMappings.push({ key: 'pricing_model', value: enrichmentData.pricing_model, valueType: 'string' });
+  }
+  if (enrichmentData.key_phrases && enrichmentData.key_phrases.length > 0) {
+    contextMappings.push({ key: 'key_phrases', value: enrichmentData.key_phrases, valueType: 'array' });
   }
 
   // Save each context value
