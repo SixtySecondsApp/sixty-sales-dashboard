@@ -146,8 +146,15 @@ export function AssistantShell({ mode, onOpenQuickAdd }: AssistantShellProps) {
                   <button
                     key={s}
                     type="button"
-                    onClick={() => setInputValue(s)}
-                    className="w-full text-left text-sm px-3 py-2 rounded-lg bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-all duration-200 flex items-center gap-2 group"
+                    disabled={isLoading}
+                    onClick={() => {
+                      // Auto-run the suggestion immediately without requiring second confirmation
+                      sendMessage(s);
+                    }}
+                    className={cn(
+                      'w-full text-left text-sm px-3 py-2 rounded-lg bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-all duration-200 flex items-center gap-2 group',
+                      isLoading && 'opacity-60 cursor-not-allowed'
+                    )}
                   >
                     <ChevronRight className="w-3 h-3 text-gray-600 group-hover:text-violet-400 transition-colors" />
                     <span>{s}</span>

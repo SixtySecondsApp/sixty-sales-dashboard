@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Users, FileText, PoundSterling, Calendar, Loader2, CheckCircle2, AlertCircle, Briefcase, Phone, UserPlus, Hash } from 'lucide-react';
+import { ArrowLeft, Users, FileText, PoundSterling, Calendar, Loader2, CheckCircle2, AlertCircle, Phone } from 'lucide-react';
 import { format, addDays, addWeeks } from 'date-fns';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -39,29 +39,28 @@ export function ActivityForms({
 
   const getActionIcon = () => {
     switch (selectedAction) {
-      case 'meeting': return <Users className="w-5 h-5 text-violet-500" />;
-      case 'proposal': return <FileText className="w-5 h-5 text-orange-500" />;
-      case 'sale': return <PoundSterling className="w-5 h-5 text-emerald-500" />;
-      case 'outbound': return <Phone className="w-5 h-5 text-blue-500" />;
+      case 'meeting': return <Users className="w-4 h-4 text-violet-400" />;
+      case 'proposal': return <FileText className="w-4 h-4 text-orange-400" />;
+      case 'sale': return <PoundSterling className="w-4 h-4 text-emerald-400" />;
+      case 'outbound': return <Phone className="w-4 h-4 text-blue-400" />;
     }
   };
 
   const getActionTitle = () => {
     switch (selectedAction) {
-      case 'meeting': return 'Add Meeting';
-      case 'proposal': return 'Add Proposal';
-      case 'sale': return 'Add Sale';
-      case 'outbound': return 'Add Outbound';
+      case 'meeting': return 'Meeting';
+      case 'proposal': return 'Proposal';
+      case 'sale': return 'Sale';
+      case 'outbound': return 'Outbound';
     }
   };
 
-  const getDateLabel = () => {
+  const getActionColor = () => {
     switch (selectedAction) {
-      case 'meeting': return 'Meeting Date';
-      case 'proposal': return 'Proposal Date';
-      case 'sale': return 'Sale Date';
-      case 'outbound': return 'Outbound Date';
-      default: return 'Date';
+      case 'meeting': return 'violet';
+      case 'proposal': return 'orange';
+      case 'sale': return 'emerald';
+      case 'outbound': return 'blue';
     }
   };
 
@@ -71,390 +70,249 @@ export function ActivityForms({
     return ((monthly * 3) + oneOff).toFixed(2);
   };
 
+  const color = getActionColor();
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="space-y-6"
+    <motion.form
+      initial={{ opacity: 0, x: 10 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -10 }}
+      transition={{ duration: 0.15 }}
+      onSubmit={onSubmit}
+      className="flex flex-col h-full"
     >
-      <form onSubmit={onSubmit} className="space-y-4">
-        {/* Compact Header with contact info */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onBack}
-              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
-            >
-              <ArrowRight className="w-4 h-4 text-gray-500 dark:text-gray-400 rotate-180" />
-            </button>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                {getActionIcon()} {getActionTitle()}
-              </h3>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-sm text-gray-600 dark:text-gray-400">for</span>
-                <span className="text-sm text-emerald-700 dark:text-emerald-400 font-medium">
-                  {selectedContact.full_name ||
-                   (selectedContact.first_name || selectedContact.last_name ?
-                    `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() :
-                    selectedContact.email)}
-                </span>
-                {selectedContact.company && (
-                  <span className="text-sm text-gray-500 dark:text-gray-500">• {typeof selectedContact.company === 'string' ? selectedContact.company : (selectedContact.company as any)?.name || 'Company'}</span>
+      {/* Compact header */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-800/30">
+        <button type="button" onClick={onBack} className="p-1 hover:bg-gray-800 rounded-md transition-colors">
+          <ArrowLeft className="w-4 h-4 text-gray-500" />
+        </button>
+        {getActionIcon()}
+        <span className="text-sm font-medium text-gray-300">{getActionTitle()}</span>
+        <span className="text-gray-600">•</span>
+        <span className="text-xs text-emerald-400 truncate max-w-[150px]">
+          {selectedContact.full_name || selectedContact.first_name || selectedContact.email}
+        </span>
+        <button type="button" onClick={onChangeContact} className="text-[10px] text-gray-500 hover:text-gray-300 ml-auto">
+          Change
+        </button>
+      </div>
+
+      {/* Compact form */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+        {/* Date Selection */}
+        <div>
+          <label className="text-xs text-gray-500 mb-1.5 block">Date</label>
+          <div className="flex gap-1.5 mb-1.5">
+            {[
+              { label: 'Today', date: new Date() },
+              { label: 'Yesterday', date: addDays(new Date(), -1) },
+              { label: 'Last Week', date: addWeeks(new Date(), -1) }
+            ].map((opt) => (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => { setSelectedDate(opt.date); setShowCalendar(false); }}
+                className={cn(
+                  "flex-1 py-1.5 rounded-md border text-xs transition-all",
+                  format(selectedDate, 'yyyy-MM-dd') === format(opt.date, 'yyyy-MM-dd')
+                    ? `bg-${color}-500/20 border-${color}-500/50 text-${color}-300`
+                    : "bg-gray-800/30 border-gray-700/30 text-gray-500 hover:bg-gray-800/50"
                 )}
-                <button
-                  type="button"
-                  onClick={onChangeContact}
-                  className="text-xs text-gray-600 hover:text-emerald-700 dark:text-gray-400 dark:hover:text-emerald-400 ml-2"
-                >
-                  Change
-                </button>
-              </div>
-            </div>
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
-        </div>
-
-        {/* Compact Date Selection */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-400">
-              {getDateLabel()}
-            </label>
-            <div className="flex gap-2">
-              {[
-                { label: 'Today', date: new Date() },
-                { label: 'Yesterday', date: addDays(new Date(), -1) },
-                { label: 'Last Week', date: addWeeks(new Date(), -1) }
-              ].map((option) => (
-                <button
-                  key={option.label}
-                  type="button"
-                  onClick={() => {
-                    setSelectedDate(option.date);
-                    setShowCalendar(false);
-                  }}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-all ${
-                    format(selectedDate, 'yyyy-MM-dd') === format(option.date, 'yyyy-MM-dd')
-                      ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-600 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
-                      : 'bg-white dark:bg-gray-800/50 border-gray-300 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <button
             type="button"
             onClick={() => setShowCalendar(!showCalendar)}
-            className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-3 py-2.5 text-gray-900 dark:text-white text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all flex items-center justify-between group"
+            className="w-full flex items-center justify-between bg-gray-800/30 border border-gray-700/30 rounded-md px-2.5 py-1.5 text-xs text-gray-400 hover:bg-gray-800/50"
           >
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span className="text-sm">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</span>
-            </div>
-            <span className="text-xs text-gray-500 dark:text-gray-400">Change</span>
+            <span className="flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5" />
+              {format(selectedDate, 'EEE, MMM d')}
+            </span>
+            <span className="text-gray-600">▾</span>
           </button>
-
           {showCalendar && (
-            <div className="absolute left-0 right-0 mt-2 bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-4 z-20 shadow-sm dark:shadow-none">
+            <div className="mt-1 bg-gray-900 border border-gray-700/50 rounded-lg p-2 z-20">
               <CalendarComponent
                 mode="single"
                 selected={selectedDate}
-                onSelect={(date) => {
-                  if (date) {
-                    setSelectedDate(date);
-                    setShowCalendar(false);
-                  }
-                }}
-                className="bg-transparent [&_.rdp-day]:text-gray-900 dark:[&_.rdp-day]:text-white [&_.rdp-day_button:hover]:bg-emerald-100 dark:[&_.rdp-day_button:hover]:bg-emerald-500/10 [&_.rdp-day_button:focus]:bg-emerald-100 dark:[&_.rdp-day_button:focus]:bg-emerald-500/10 [&_.rdp-day_selected]:!bg-emerald-600 dark:[&_.rdp-day_selected]:!bg-emerald-500/10 [&_.rdp-day_selected]:hover:!bg-emerald-700 dark:[&_.rdp-day_selected]:hover:!bg-emerald-500/20 [&_.rdp-caption]:text-gray-900 dark:[&_.rdp-caption]:text-white [&_.rdp-head_cell]:text-gray-600 dark:[&_.rdp-head_cell]:text-gray-400"
+                onSelect={(date) => { if (date) { setSelectedDate(date); setShowCalendar(false); } }}
+                className="text-xs [&_.rdp-day]:text-white [&_.rdp-day_selected]:!bg-emerald-600"
               />
             </div>
           )}
         </div>
 
-        {/* Meeting-specific fields - Compact */}
+        {/* Meeting-specific */}
         {selectedAction === 'meeting' && (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
-                Type <span className="text-red-500">*</span>
-              </label>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Type</label>
               <select
                 required
-                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500/50 transition-colors"
+                className="w-full bg-gray-800/30 border border-gray-700/30 rounded-md px-2 py-1.5 text-xs text-white"
                 value={formData.details}
-                onChange={(e) => setFormData({...formData, details: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, details: e.target.value })}
               >
-                <option value="">Select type</option>
+                <option value="">Select</option>
                 <option value="Discovery">Discovery</option>
                 <option value="Demo">Demo</option>
                 <option value="Follow-up">Follow-up</option>
-                <option value="Proposal">Proposal Review</option>
-                <option value="Client Call">Client Call</option>
+                <option value="Proposal">Proposal</option>
                 <option value="Other">Other</option>
               </select>
             </div>
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
-                Status
-              </label>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Status</label>
               <select
-                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500/50 transition-colors"
+                className="w-full bg-gray-800/30 border border-gray-700/30 rounded-md px-2 py-1.5 text-xs text-white"
                 value={formData.status}
-                onChange={(e) => setFormData({...formData, status: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
               >
                 <option value="completed">Completed</option>
                 <option value="pending">Scheduled</option>
                 <option value="cancelled">Cancelled</option>
-                <option value="no_show">No Show</option>
               </select>
             </div>
           </div>
         )}
 
-        {/* Proposal-specific fields - Compact */}
+        {/* Proposal-specific */}
         {selectedAction === 'proposal' && (
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
-              Proposal Value (£)
-            </label>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Value (£)</label>
             <input
               type="number"
               min="0"
               step="0.01"
-              placeholder="Enter proposal value"
-              className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500/50 transition-colors"
+              placeholder="0.00"
+              className="w-full bg-gray-800/30 border border-gray-700/30 rounded-md px-2.5 py-1.5 text-xs text-white placeholder:text-gray-600"
               value={formData.amount || ''}
-              onChange={(e) => setFormData({...formData, amount: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
             />
           </div>
         )}
 
-        {/* Sale-specific fields - Compact with both inputs */}
+        {/* Sale-specific */}
         {selectedAction === 'sale' && (
           <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
-                  Monthly Subscription (£)
-                </label>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Monthly (£)</label>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   placeholder="0.00"
-                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-colors"
+                  className="w-full bg-gray-800/30 border border-gray-700/30 rounded-md px-2.5 py-1.5 text-xs text-white placeholder:text-gray-600"
                   value={formData.monthlyMrr || ''}
-                  onChange={(e) => setFormData({...formData, monthlyMrr: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, monthlyMrr: e.target.value })}
                 />
               </div>
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
-                  One-off Amount (£)
-                </label>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">One-off (£)</label>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   placeholder="0.00"
-                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-colors"
+                  className="w-full bg-gray-800/30 border border-gray-700/30 rounded-md px-2.5 py-1.5 text-xs text-white placeholder:text-gray-600"
                   value={formData.oneOffRevenue || ''}
-                  onChange={(e) => setFormData({...formData, oneOffRevenue: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, oneOffRevenue: e.target.value })}
                 />
               </div>
             </div>
             {(formData.monthlyMrr || formData.oneOffRevenue) && (
-              <div className="px-2 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-lg">
-                <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                  Deal Value: £{calculateDealValue()}
-                  {formData.monthlyMrr && <span className="text-emerald-600/70 dark:text-emerald-300/60 text-xs"> (3mo LTV)</span>}
-                </p>
+              <div className="px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded text-xs text-emerald-400">
+                Deal: £{calculateDealValue()} <span className="text-emerald-300/60">(3mo)</span>
               </div>
             )}
           </div>
         )}
 
-        {/* Outbound-specific fields */}
-        {selectedAction === 'outbound' && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
-                  Outbound Type
-                </label>
-                <select
-                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
-                  value={formData.outboundType || 'Call'}
-                  onChange={(e) => setFormData({...formData, outboundType: e.target.value})}
-                >
-                  <option value="Call">Call</option>
-                  <option value="Email">Email</option>
-                  <option value="LinkedIn">LinkedIn</option>
-                  <option value="SMS">SMS</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
-                  Attempt #
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="50"
-                  placeholder="1"
-                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
-                  value={formData.outboundCount || '1'}
-                  onChange={(e) => setFormData({...formData, outboundCount: e.target.value})}
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
-                Outbound Details
-              </label>
-              <textarea
-                rows={2}
-                placeholder="Cold outreach, follow-up call, etc..."
-                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors resize-none"
-                value={formData.details || ''}
-                onChange={(e) => setFormData({...formData, details: e.target.value})}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Company Information - Required */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-400">
-              Company Name <span className="text-gray-500 dark:text-gray-500 text-xs">(or use website below)</span>
-            </label>
+        {/* Company info */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Company</label>
             <input
               type="text"
               placeholder="Acme Inc."
               className={cn(
-                "w-full bg-white dark:bg-gray-800/50 border rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors",
-                validationErrors.client_name
-                  ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20"
-                  : !formData.client_name && selectedAction
-                    ? 'border-amber-500/50'
-                    : 'border-gray-300 dark:border-gray-700/50'
+                "w-full bg-gray-800/30 border rounded-md px-2.5 py-1.5 text-xs text-white placeholder:text-gray-600",
+                validationErrors.client_name ? "border-red-500/50" : "border-gray-700/30"
               )}
               value={formData.client_name || ''}
-              onChange={(e) => setFormData({...formData, client_name: e.target.value})}
-              required
+              onChange={(e) => setFormData({ ...formData, client_name: e.target.value })}
             />
             {validationErrors.client_name && (
-              <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
+              <p className="text-red-400 text-[10px] mt-0.5 flex items-center gap-0.5">
+                <AlertCircle className="w-2.5 h-2.5" />
                 {validationErrors.client_name}
               </p>
             )}
           </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-400">
-              Website
-            </label>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Website</label>
             <input
               type="text"
-              placeholder="www.acme.com"
-              className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors"
+              placeholder="acme.com"
+              className="w-full bg-gray-800/30 border border-gray-700/30 rounded-md px-2.5 py-1.5 text-xs text-white placeholder:text-gray-600"
               value={formData.company_website || ''}
               onChange={(e) => {
-                let website = e.target.value.trim();
-                
-                // Auto-add www. if user enters a domain without it
-                if (website && !website.startsWith('www.') && !website.startsWith('http')) {
-                  // Check if it looks like a domain (has a dot and no spaces)
-                  if (website.includes('.') && !website.includes(' ')) {
-                    website = `www.${website}`;
-                  }
+                let val = e.target.value.trim();
+                if (val && !val.startsWith('www.') && !val.startsWith('http') && val.includes('.')) {
+                  val = `www.${val}`;
                 }
-                
-                setFormData({...formData, company_website: website});
+                setFormData({ ...formData, company_website: val });
               }}
             />
           </div>
         </div>
 
-        {/* Deal Information - Optional */}
-        <details className="group">
-          <summary className="cursor-pointer list-none flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-800/30 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-800/50 transition-colors">
-            <div className="flex items-center gap-2">
-              <Briefcase className="w-4 h-4 text-purple-500" />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Deal Details</span>
-              <span className="text-xs text-gray-500 dark:text-gray-500">(Optional)</span>
-            </div>
-            <div className="text-xs text-purple-600 dark:text-purple-400">
-              {selectedAction === 'sale' ? 'Signed stage' : selectedAction === 'proposal' ? 'Opportunity stage' : 'SQL stage'}
-            </div>
-          </summary>
-          <div className="mt-2 space-y-2 p-3">
-            <input
-              type="text"
-              placeholder={`Deal name (auto-generated if empty)`}
-              className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors"
-              value={formData.deal_name || ''}
-              onChange={(e) => setFormData({...formData, deal_name: e.target.value})}
-            />
-          </div>
-        </details>
+        {/* Notes */}
+        <textarea
+          rows={2}
+          placeholder="Notes (optional)..."
+          className="w-full bg-gray-800/30 border border-gray-700/30 rounded-md px-2.5 py-1.5 text-xs text-white placeholder:text-gray-600 resize-none"
+          value={formData.description || ''}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+        />
+      </div>
 
-        {/* Notes - Compact */}
-        <div className="space-y-1">
-          <textarea
-            rows={2}
-            placeholder="Additional notes (optional)..."
-            className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-colors resize-none"
-            value={formData.description || ''}
-            onChange={(e) => setFormData({...formData, description: e.target.value})}
-          />
-        </div>
-
-        <div className="flex gap-3 pt-2">
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex-1 py-2.5 px-4 bg-gray-200 dark:bg-gray-800/30 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700/50 transition-colors text-sm font-medium"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className={cn(
-              "flex-1 py-2.5 px-4 text-white rounded-lg transition-all text-sm font-medium shadow-sm flex items-center justify-center gap-2",
-              submitStatus === 'success'
-                ? "bg-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border dark:border-emerald-500/20 hover:bg-emerald-700 dark:hover:bg-emerald-500/20"
-                : isSubmitting
-                  ? "bg-gray-600 dark:bg-gray-700 cursor-not-allowed"
-                  : "bg-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border dark:border-emerald-500/20 hover:bg-emerald-700 dark:hover:bg-emerald-500/20"
-            )}
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Creating...
-              </>
-            ) : submitStatus === 'success' ? (
-              <>
-                <CheckCircle2 className="w-4 h-4" />
-                Created!
-              </>
-            ) : (
-              <>
-                Create {selectedAction === 'sale' ? 'Sale' : selectedAction === 'meeting' ? 'Meeting' : 'Proposal'}
-              </>
-            )}
-          </button>
-        </div>
-      </form>
-    </motion.div>
+      {/* Footer */}
+      <div className="flex gap-2 px-4 py-3 border-t border-gray-800/30">
+        <button
+          type="button"
+          onClick={onBack}
+          className="px-4 py-2 bg-gray-800/50 border border-gray-700/30 text-gray-400 rounded-lg hover:bg-gray-800 text-xs font-medium"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className={cn(
+            "flex-1 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all",
+            submitStatus === 'success'
+              ? "bg-emerald-600 text-white"
+              : isSubmitting
+                ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                : `bg-${color}-600 text-white hover:bg-${color}-500`
+          )}
+        >
+          {isSubmitting ? (
+            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Creating...</>
+          ) : submitStatus === 'success' ? (
+            <><CheckCircle2 className="w-3.5 h-3.5" /> Created!</>
+          ) : (
+            <>Create {getActionTitle()}</>
+          )}
+        </button>
+      </div>
+    </motion.form>
   );
 }
 
@@ -484,180 +342,113 @@ export function OutboundForm({
   onChangeContact
 }: OutboundFormProps) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="space-y-6"
+    <motion.form
+      initial={{ opacity: 0, x: 10 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -10 }}
+      transition={{ duration: 0.15 }}
+      onSubmit={onSubmit}
+      className="flex flex-col h-full"
     >
-      <form onSubmit={onSubmit} className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Phone className="w-5 h-5 text-blue-500" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Log Outbound Activity</h3>
-          </div>
+      {/* Compact header */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-800/30">
+        <button type="button" onClick={onBack} className="p-1 hover:bg-gray-800 rounded-md transition-colors">
+          <ArrowLeft className="w-4 h-4 text-gray-500" />
+        </button>
+        <Phone className="w-4 h-4 text-sky-400" />
+        <span className="text-sm font-medium text-gray-300">Outbound</span>
+        {selectedContact && (
+          <>
+            <span className="text-gray-600">•</span>
+            <span className="text-xs text-sky-400 truncate max-w-[120px]">
+              {selectedContact.full_name || selectedContact.first_name || selectedContact.email}
+            </span>
+            <button type="button" onClick={onChangeContact} className="text-[10px] text-gray-500 hover:text-gray-300">
+              Change
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Form */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+        {!selectedContact && (
           <button
             type="button"
-            onClick={onBack}
-            className="text-gray-400 hover:text-white transition-colors p-2"
+            onClick={onAddContact}
+            className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-700 rounded-lg text-gray-400 hover:border-sky-500/50 hover:text-sky-400 transition-colors text-sm"
           >
-            <ArrowRight className="w-4 h-4 rotate-180" />
+            Select Contact
           </button>
-        </div>
-
-        {/* Contact Selection (Optional) */}
-        <div className="bg-gray-100 dark:bg-gray-800/30 rounded-lg p-4 border border-gray-300 dark:border-gray-700/50">
-          <div className="flex items-center justify-between mb-3">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-400">Contact (Optional)</label>
-            {selectedContact && (
-              <button
-                type="button"
-                onClick={onChangeContact}
-                className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
-              >
-                Change Contact
-              </button>
-            )}
-          </div>
-          
-          {selectedContact ? (
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-violet-100 dark:bg-violet-500/20 rounded-full flex items-center justify-center">
-                <Users className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {selectedContact.full_name ||
-                   (selectedContact.first_name || selectedContact.last_name ?
-                    `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() :
-                    selectedContact.email)}
-                </p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">{selectedContact.email}</p>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={onAddContact}
-              className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors text-sm"
-            >
-              <UserPlus className="w-4 h-4" />
-              Add Contact (Optional)
-            </button>
-          )}
-        </div>
-
-        {/* Outbound Activity Details */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
-              Activity Type <span className="text-red-500">*</span>
-            </label>
-            <select
-              required
-              className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
-              value={formData.outboundType || 'Call'}
-              onChange={(e) => setFormData({...formData, outboundType: e.target.value})}
-            >
-              <option value="Call">Cold Calls</option>
-              <option value="Email">Cold Emails</option>
-              <option value="LinkedIn">LinkedIn Messages</option>
-              <option value="SMS">SMS Messages</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
-              Quantity <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <Hash className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
-              <input
-                type="number"
-                required
-                min="1"
-                max="500"
-                placeholder="50"
-                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg pl-10 pr-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
-                value={formData.outboundCount || ''}
-                onChange={(e) => setFormData({...formData, outboundCount: e.target.value})}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Details */}
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
-            Session Notes
-          </label>
-          <textarea
-            rows={3}
-            placeholder="e.g., '50 cold calls to tech companies in London. 5 callbacks scheduled, 12 answered calls, good response rate'"
-            className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors resize-none"
-            value={formData.details || ''}
-            onChange={(e) => setFormData({...formData, details: e.target.value})}
-          />
-        </div>
-
-        {/* Company/Client Name (if no contact selected) */}
-        {!selectedContact && (
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
-              Target Company/Client <span className="text-gray-500 dark:text-gray-500 text-xs">(optional)</span>
-            </label>
-            <input
-              type="text"
-              placeholder="e.g., 'Tech startups in London' or 'Acme Inc.'"
-              className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
-              value={formData.client_name || ''}
-              onChange={(e) => setFormData({...formData, client_name: e.target.value})}
-            />
-          </div>
         )}
 
-        {/* Submit Button */}
-        <motion.button
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Type</label>
+            <select
+              className="w-full bg-gray-800/30 border border-gray-700/30 rounded-md px-2 py-1.5 text-xs text-white"
+              value={formData.outboundType || 'Call'}
+              onChange={(e) => setFormData({ ...formData, outboundType: e.target.value })}
+            >
+              <option value="Call">📞 Call</option>
+              <option value="Email">✉️ Email</option>
+              <option value="LinkedIn">💼 LinkedIn</option>
+              <option value="SMS">💬 SMS</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Count</label>
+            <input
+              type="number"
+              min="1"
+              max="50"
+              placeholder="1"
+              className="w-full bg-gray-800/30 border border-gray-700/30 rounded-md px-2.5 py-1.5 text-xs text-white"
+              value={formData.outboundCount || '1'}
+              onChange={(e) => setFormData({ ...formData, outboundCount: e.target.value })}
+            />
+          </div>
+        </div>
+
+        <textarea
+          rows={2}
+          placeholder="Details (optional)..."
+          className="w-full bg-gray-800/30 border border-gray-700/30 rounded-md px-2.5 py-1.5 text-xs text-white placeholder:text-gray-600 resize-none"
+          value={formData.details || ''}
+          onChange={(e) => setFormData({ ...formData, details: e.target.value })}
+        />
+      </div>
+
+      {/* Footer */}
+      <div className="flex gap-2 px-4 py-3 border-t border-gray-800/30">
+        <button
+          type="button"
+          onClick={onBack}
+          className="px-4 py-2 bg-gray-800/50 border border-gray-700/30 text-gray-400 rounded-lg hover:bg-gray-800 text-xs font-medium"
+        >
+          Cancel
+        </button>
+        <button
           type="submit"
-          disabled={isSubmitting}
-          whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
-          whileTap={{ scale: 0.98 }}
+          disabled={isSubmitting || !selectedContact}
           className={cn(
-            "w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition-colors",
-            isSubmitting
-              ? "bg-blue-500/30 text-blue-300 cursor-not-allowed"
-              : submitStatus === 'success'
+            "flex-1 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all",
+            submitStatus === 'success'
               ? "bg-emerald-600 text-white"
-              : submitStatus === 'error'
-              ? "bg-red-600 text-white"
-              : "bg-blue-600 hover:bg-blue-700 text-white"
+              : isSubmitting || !selectedContact
+                ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                : "bg-sky-600 text-white hover:bg-sky-500"
           )}
         >
           {isSubmitting ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Logging Activity...
-            </>
+            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Logging...</>
           ) : submitStatus === 'success' ? (
-            <>
-              <CheckCircle2 className="w-4 h-4" />
-              Activity Logged!
-            </>
-          ) : submitStatus === 'error' ? (
-            <>
-              <AlertCircle className="w-4 h-4" />
-              Try Again
-            </>
+            <><CheckCircle2 className="w-3.5 h-3.5" /> Logged!</>
           ) : (
-            <>
-              <Phone className="w-4 h-4" />
-              Log {formData.outboundCount || 1} {formData.outboundType || 'Activities'}
-            </>
+            <>Log Outbound</>
           )}
-        </motion.button>
-      </form>
-    </motion.div>
+        </button>
+      </div>
+    </motion.form>
   );
 }

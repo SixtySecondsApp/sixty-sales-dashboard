@@ -173,6 +173,9 @@ function QuickAddComponent({
   const [showDealChoice, setShowDealChoice] = useState(false);
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [showContactSearch, setShowContactSearch] = useState(false);
+  
+  // Ref to track if contact was just selected (to prevent race condition with onClose)
+  const contactJustSelectedRef = useRef(false);
 
   // ============================================================
   // V2 (Chat-style UI) local state (presentation only)
@@ -263,6 +266,13 @@ function QuickAddComponent({
 
     if (prefill.preselectAction) {
       setSelectedAction(prefill.preselectAction);
+      // For meeting/proposal/sale, also trigger contact search
+      if (['meeting', 'proposal', 'sale'].includes(prefill.preselectAction)) {
+        setShowContactSearch(true);
+        if (variant === 'v2') {
+          setShowQuickActionsV2(false);
+        }
+      }
     }
     if (prefill.initialData) {
       updateFormData({
@@ -270,7 +280,7 @@ function QuickAddComponent({
         ...prefill.initialData,
       });
     }
-  }, [isOpen, prefill, formData]);
+  }, [isOpen, prefill, formData, variant]);
 
   // Event-driven communication for decoupling
   useEventListener('contact:selected', ({ contact, context }) => {
@@ -1360,16 +1370,18 @@ function QuickAddComponent({
                   />
                 )}
 
-                <div className="flex justify-between items-center mb-6 sm:mb-8">
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white tracking-wide">Quick Add</h2>
-                  <button
-                    type="button"
-                    onClick={handleClose}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-xl transition-colors"
-                  >
-                    <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                  </button>
-                </div>
+                {!hideHeader && (
+                  <div className="flex justify-between items-center mb-6 sm:mb-8">
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white tracking-wide">Quick Add</h2>
+                    <button
+                      type="button"
+                      onClick={handleClose}
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-xl transition-colors"
+                    >
+                      <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                    </button>
+                  </div>
+                )}
 
                 {!showContactSearch && !selectedAction && (
                   <ActionGrid onActionSelect={handleActionSelect} />
@@ -1450,14 +1462,20 @@ function QuickAddComponent({
                 setShowContactSearch(false);
                 // If user cancels contact selection for actions that require a contact,
                 // return them to the action picker instead of leaving an empty modal state.
-                if ((selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale') && !selectedContact) {
+                // Skip this if a contact was just selected (ref prevents race condition with async state)
+                if (!contactJustSelectedRef.current && (selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale') && !selectedContact) {
                   setSelectedAction(null);
                   if (variant === 'v2') {
                     setShowQuickActionsV2(true);
                   }
                 }
+                // Reset the ref after processing
+                contactJustSelectedRef.current = false;
               }}
               onContactSelect={(contact) => {
+                // Mark that a contact was just selected (prevents onClose from resetting action)
+                contactJustSelectedRef.current = true;
+                
                 // Pre-populate form data with contact info
                 const contactName = contact.full_name || 
                                   (contact.first_name || contact.last_name ? 

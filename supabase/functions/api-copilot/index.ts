@@ -2223,24 +2223,27 @@ async function callClaudeAPI(
   }
 
   // Build messages array for Claude
-  // Resolve org + company name for minimal system prompt
-  let orgId: string | null = null
+  // Resolve company name for minimal system prompt (orgId already passed as parameter)
   let companyName = 'your company'
   try {
-    const { data: membership } = await client
-      .from('organization_memberships')
-      .select('org_id')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    orgId = membership?.org_id ? String(membership.org_id) : null
+    // Use the orgId parameter if provided, otherwise look it up
+    let resolvedOrgId = orgId
+    if (!resolvedOrgId) {
+      const { data: membership } = await client
+        .from('organization_memberships')
+        .select('org_id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      resolvedOrgId = membership?.org_id ? String(membership.org_id) : null
+    }
 
-    if (orgId) {
+    if (resolvedOrgId) {
       const { data: orgCompanyName } = await client
         .from('organization_context')
         .select('value')
-        .eq('organization_id', orgId)
+        .eq('organization_id', resolvedOrgId)
         .eq('context_key', 'company_name')
         .maybeSingle()
 
@@ -2254,7 +2257,7 @@ async function callClaudeAPI(
         const { data: org } = await client
           .from('organizations')
           .select('name')
-          .eq('id', orgId)
+          .eq('id', resolvedOrgId)
           .maybeSingle()
         if (org?.name) companyName = String(org.name)
       }
@@ -9168,3 +9171,4 @@ function extractRecommendations(content: string): any[] {
   return recommendations
 }
 
+// force rebuild 1767298228

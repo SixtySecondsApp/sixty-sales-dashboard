@@ -20,6 +20,7 @@ import { supabase } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
 import { getTemporalContext } from '@/lib/utils/temporalContext';
 import { useOrg } from '@/lib/contexts/OrgContext';
+import { toast } from 'sonner';
 
 interface CopilotContextValue {
   isOpen: boolean;
@@ -500,7 +501,12 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
             logger.log('Request was cancelled');
             return;
           }
-          throw new Error('Request took too long. Please try again.');
+          // Preserve fast-fail errors (e.g., CORS/preflight/network) so we can show useful dev diagnostics.
+          // Only rewrite true timeouts to a friendly message.
+          if (err?.message === 'Request timeout') {
+            throw new Error('Request took too long. Please try again.');
+          }
+          throw (err instanceof Error ? err : new Error(String(err)));
         }
 
         // Update AI message with actual response - this will trigger fade out of tool call
@@ -533,13 +539,28 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
       } catch (error) {
         logger.error('Error sending message to Copilot:', error);
 
+        const rawMessage =
+          error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error';
+
+        const isLikelyCorsOrNetwork =
+          /cors|failed to fetch|networkerror|preflight|access control/i.test(rawMessage);
+
+        // Helpful dev-only toast so we don't silently fail with a generic message during local dev.
+        if (import.meta.env.DEV && isLikelyCorsOrNetwork) {
+          toast.error(
+            'Copilot request blocked (likely CORS / Edge Function preflight). Re-deploy with verify_jwt=false for api-copilot and allow localhost:5175.'
+          );
+        }
+
         // Update the existing assistant message with error and remove tool call
         setState(prev => {
           const updatedMessages = prev.messages.map(msg => {
             if (msg.id === assistantMessageId) {
               return {
                 ...msg,
-                content: 'Sorry, I encountered an error processing your request. Please try again.',
+                content: import.meta.env.DEV && isLikelyCorsOrNetwork
+                  ? 'Copilot is currently unreachable from the browser (CORS / Edge Function preflight). A deploy/config fix is required.'
+                  : 'Sorry, I encountered an error processing your request. Please try again.',
                 toolCall: undefined // Remove tool call to trigger fade out
               };
             }
