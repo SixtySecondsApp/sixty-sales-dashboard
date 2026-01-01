@@ -1058,6 +1058,17 @@ async function saveSkillDerivedContext(
     if (skills.icp.buyingSignals && skills.icp.buyingSignals.length > 0) {
       contextMappings.push({ key: 'buying_signals', value: skills.icp.buyingSignals, valueType: 'array' });
     }
+
+    // icp_summary - consolidated ICP for platform skill templates that use ${icp_summary}
+    const icpParts = [
+      skills.icp.companyProfile,
+      skills.icp.buyerPersona,
+      skills.icp.buyingSignals?.length > 0 ? `Buying signals: ${skills.icp.buyingSignals.join(', ')}` : null
+    ].filter(Boolean);
+
+    if (icpParts.length > 0) {
+      contextMappings.push({ key: 'icp_summary', value: icpParts.join(' | '), valueType: 'string' });
+    }
   }
 
   // Lead Qualification context
