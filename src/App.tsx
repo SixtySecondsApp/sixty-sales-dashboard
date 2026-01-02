@@ -65,7 +65,7 @@ import {
   MeetingIntelligenceDemoSimple, TasksDemo, ProcessMaps, IntelligenceTestRunner, VSLAnalyticsTests,
   CronJobsAdmin, ApiMonitor, SaasAdminDashboard, IntegrationsDashboard, FathomIntegrationTests,
   HubSpotIntegrationTests, SlackIntegrationTests, SavvyCalIntegrationTests,
-  QuickAddSimulator, ProactiveSimulator,
+  QuickAddSimulator, ProactiveSimulator, DealTruthSimulator, EngagementSimulator,
   // Auth
   Signup, VerifyEmail, ForgotPassword, ResetPassword, SetPassword, Onboarding, UpdatePassword,
   // CRM & Data
@@ -398,12 +398,14 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/launch-checklist" element={<PlatformAdminRouteGuard><AppLayout><LaunchChecklist /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/activation" element={<PlatformAdminRouteGuard><AppLayout><ActivationDashboard /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/engagement" element={<PlatformAdminRouteGuard><AppLayout><EngagementDashboard /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/engagement-simulator" element={<PlatformAdminRouteGuard><AppLayout><EngagementSimulator /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/vsl-analytics" element={<PlatformAdminRouteGuard><AppLayout><VSLAnalytics /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/meta-ads" element={<PlatformAdminRouteGuard><AppLayout><MetaAdsAnalytics /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/error-monitoring" element={<PlatformAdminRouteGuard><AppLayout><ErrorMonitoring /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/sentry-bridge" element={<PlatformAdminRouteGuard><AppLayout><SentryBridge /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/agent-simulator" element={<PlatformAdminRouteGuard><AppLayout><ProactiveSimulator /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/proactive-simulator" element={<Navigate to="/platform/agent-simulator" replace />} />
+                <Route path="/platform/deal-truth-simulator" element={<PlatformAdminRouteGuard><AppLayout><DealTruthSimulator /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/slack-demo" element={<PlatformAdminRouteGuard><AppLayout><SlackDemo /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Cron Jobs Admin - Monitor and manage scheduled jobs */}
                 <Route path="/platform/cron-jobs" element={<PlatformAdminRouteGuard><AppLayout><CronJobsAdmin /></AppLayout></PlatformAdminRouteGuard>} />

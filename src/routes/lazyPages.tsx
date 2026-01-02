@@ -12,11 +12,13 @@ export const WaitlistSlackSettings = lazyWithRetry(() => import('@/pages/platfor
 export const OnboardingSimulator = lazyWithRetry(() => import('@/pages/platform/OnboardingSimulator'));
 export const TrialTimelineSimulator = lazyWithRetry(() => import('@/pages/platform/TrialTimelineSimulator'));
 export const ProactiveSimulator = lazyWithRetry(() => import('@/pages/platform/ProactiveSimulator'));
+export const DealTruthSimulator = lazyWithRetry(() => import('@/pages/platform/DealTruthSimulator'));
 export const PricingControl = lazyWithRetry(() => import('@/pages/platform/PricingControl'));
 export const CostAnalysis = lazyWithRetry(() => import('@/pages/platform/CostAnalysis'));
 export const LaunchChecklist = lazyWithRetry(() => import('@/pages/platform/LaunchChecklist'));
 export const ActivationDashboard = lazyWithRetry(() => import('@/pages/platform/ActivationDashboard'));
 export const EngagementDashboard = lazyWithRetry(() => import('@/pages/platform/EngagementDashboard'));
+export const EngagementSimulator = lazyWithRetry(() => import('@/pages/platform/EngagementSimulator'));
 export const PlatformDashboard = lazyWithRetry(() => import('@/pages/platform/PlatformDashboard'));
 export const IntegrationRoadmap = lazyWithRetry(() => import('@/pages/platform/IntegrationRoadmap'));
 export const VSLAnalytics = lazyWithRetry(() => import('@/pages/platform/VSLAnalytics'));

@@ -330,6 +330,14 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     badge: 'New',
   },
   {
+    path: '/platform/engagement-simulator',
+    access: 'platformAdmin',
+    label: 'Engagement Simulator',
+    showInNav: false,
+    navSection: 'platform',
+    order: 3.8,
+  },
+  {
     path: '/platform/usage',
     access: 'platformAdmin',
     label: 'Usage',

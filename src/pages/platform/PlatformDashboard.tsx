@@ -40,6 +40,8 @@ import {
   Bug,
   FileCode,
   Bell,
+  Activity,
+  Eye,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -305,6 +307,24 @@ const platformSections: Record<string, PlatformSection[]> = {
       badge: 'New',
     },
     {
+      id: 'deal-truth-simulator',
+      title: 'Deal Truth Simulator',
+      description: 'Visualize Deal Truth fields, clarity scoring, and close plan execution',
+      icon: Eye,
+      href: '/platform/deal-truth-simulator',
+      color: 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900/30',
+      badge: 'New',
+    },
+    {
+      id: 'engagement-simulator',
+      title: 'Engagement Simulator',
+      description: 'Test Smart Engagement Algorithm with mock and live user data',
+      icon: Activity,
+      href: '/platform/engagement-simulator',
+      color: 'text-green-600 bg-green-100 dark:bg-green-900/30',
+      badge: 'New',
+    },
+    {
       id: 'tasks-demo',
       title: 'Tasks Demo',
       description: 'End-to-end test AI suggestions → action items → tasks (meeting-first, calls toggle)',
@@ -347,6 +367,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: Code2,
       href: '/platform/dev/api-testing',
       color: 'text-cyan-600 bg-cyan-100 dark:bg-cyan-900/30',
+    },
+    {
+      id: 'api-monitor',
+      title: 'API Monitor',
+      description: 'Monitor REST API usage, errors, bursts, and track improvements',
+      icon: Activity,
+      href: '/platform/dev/api-monitor',
+      color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30',
+      badge: 'New',
     },
     {
       id: 'function-testing',
