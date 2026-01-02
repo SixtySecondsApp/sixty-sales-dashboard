@@ -43,6 +43,11 @@ class NotificationService {
   private listeners: Set<(notification: Notification) => void> = new Set();
   private unreadCountListeners: Set<(count: number) => void> = new Set();
 
+  // Small in-memory caching to prevent bursty duplicate REST calls
+  private unreadCountCache: { userId: string; value: number; fetchedAt: number } | null = null;
+  private unreadCountInFlight: Promise<number> | null = null;
+  private readonly UNREAD_COUNT_CACHE_MS = 5_000;
+
   /**
    * Create a new notification
    */
@@ -104,19 +109,20 @@ class NotificationService {
    * Get notifications for current user
    */
   async getNotifications(options?: {
+    userId?: string;
     limit?: number;
     offset?: number;
     unreadOnly?: boolean;
     category?: NotificationCategory;
   }): Promise<Notification[]> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
+      const resolvedUserId = options?.userId || (await supabase.auth.getUser()).data.user?.id;
+      if (!resolvedUserId) return [];
 
       let query = supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', resolvedUserId)
         .order('created_at', { ascending: false });
 
       if (options?.unreadOnly) {
@@ -150,19 +156,45 @@ class NotificationService {
   /**
    * Get unread notification count
    */
-  async getUnreadCount(): Promise<number> {
+  async getUnreadCount(userId?: string): Promise<number> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return 0;
+      // Cache is keyed by userId. Prefer the caller-supplied id to avoid auth.getUser() calls.
+      const resolvedUserId = userId || (await supabase.auth.getUser()).data.user?.id;
+      if (!resolvedUserId) return 0;
 
-      const { data, error } = await supabase
-        .rpc('get_unread_notification_count');
-
-      if (error) {
-        return 0;
+      // Serve from cache if fresh
+      if (
+        this.unreadCountCache &&
+        this.unreadCountCache.userId === resolvedUserId &&
+        Date.now() - this.unreadCountCache.fetchedAt < this.UNREAD_COUNT_CACHE_MS
+      ) {
+        return this.unreadCountCache.value;
       }
 
-      return data || 0;
+      // Dedupe concurrent calls
+      const existingInFlight = this.unreadCountInFlight;
+      if (existingInFlight) {
+        return await existingInFlight;
+      }
+
+      const inFlight = (async () => {
+        const { data, error } = await supabase.rpc('get_unread_notification_count');
+        if (error) return 0;
+        const value = data || 0;
+        this.unreadCountCache = { userId: resolvedUserId, value, fetchedAt: Date.now() };
+        return value;
+      })();
+      this.unreadCountInFlight = inFlight;
+
+      try {
+        return await inFlight;
+      } finally {
+        // Only clear if we are still the active in-flight promise
+        if (this.unreadCountInFlight === inFlight) {
+          this.unreadCountInFlight = null;
+        }
+      }
+
     } catch (error) {
       return 0;
     }
@@ -174,7 +206,8 @@ class NotificationService {
   async markAsRead(notificationId: string): Promise<boolean> {
     try {
       const { error } = await supabase
-        .rpc('mark_notification_read', { notification_id: notificationId });
+        // DB arg name is p_notification_id
+        .rpc('mark_notification_read', { p_notification_id: notificationId });
 
       if (error) {
         return false;
@@ -329,7 +362,9 @@ class NotificationService {
    * Update unread count and notify listeners
    */
   private async updateUnreadCount(): Promise<void> {
-    const count = await this.getUnreadCount();
+    // Use cached/in-flight protection
+    const { data: { user } } = await supabase.auth.getUser();
+    const count = await this.getUnreadCount(user?.id);
     this.notifyUnreadCountListeners(count);
   }
 

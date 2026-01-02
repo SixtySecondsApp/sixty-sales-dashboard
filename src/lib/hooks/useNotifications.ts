@@ -31,8 +31,8 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
       setError(null);
 
       const [notificationsList, count] = await Promise.all([
-        notificationService.getNotifications({ limit, category }),
-        notificationService.getUnreadCount()
+        notificationService.getNotifications({ userId: user.id, limit, category }),
+        notificationService.getUnreadCount(user.id)
       ]);
 
       setNotifications(notificationsList);
@@ -42,7 +42,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     } finally {
       setIsLoading(false);
     }
-  }, [user, limit, category]);
+  }, [user?.id, limit, category]);
 
   // Mark notification as read
   const markAsRead = useCallback(async (notificationId: string) => {
@@ -125,10 +125,11 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
 
   // Set up real-time subscription
   useEffect(() => {
-    if (!user || !autoSubscribe) return;
+    const userId = user?.id;
+    if (!userId || !autoSubscribe) return;
 
     // Subscribe to real-time notifications
-    notificationService.subscribeToNotifications(user.id);
+    notificationService.subscribeToNotifications(userId);
 
     // Add listener for new notifications
     const handleNewNotification = (notification: Notification) => {
@@ -155,7 +156,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
       notificationService.removeUnreadCountListener(handleUnreadCountChange);
       notificationService.unsubscribe();
     };
-  }, [user, autoSubscribe, category]);
+  }, [user?.id, autoSubscribe, category]);
 
   // Initial fetch
   useEffect(() => {

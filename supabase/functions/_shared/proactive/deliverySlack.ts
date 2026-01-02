@@ -118,7 +118,7 @@ export async function deliverToSlack(
   supabase: SupabaseClient,
   payload: ProactiveNotificationPayload,
   botToken: string
-): Promise<{ sent: boolean; channelId?: string; ts?: string; error?: string }> {
+): Promise<{ sent: boolean; channelId?: string; ts?: string; error?: string; interactionId?: string }> {
   if (!payload.recipientSlackUserId) {
     return {
       sent: false,
@@ -133,10 +133,32 @@ export async function deliverToSlack(
     text: payload.message,
   });
 
+  // Record notification interaction for Smart Engagement Algorithm
+  let interactionId: string | undefined;
+  if (result.success) {
+    try {
+      const { data, error } = await supabase.rpc('record_notification_interaction', {
+        p_user_id: payload.recipientUserId,
+        p_org_id: payload.orgId,
+        p_notification_type: payload.type,
+        p_delivered_via: 'slack_dm',
+      });
+
+      if (error) {
+        console.error('[proactive/deliverySlack] Error recording interaction:', error);
+      } else {
+        interactionId = data as string;
+      }
+    } catch (err) {
+      console.error('[proactive/deliverySlack] Error recording interaction:', err);
+    }
+  }
+
   return {
     sent: result.success,
     channelId: result.channelId,
     ts: result.ts,
     error: result.error,
+    interactionId,
   };
 }

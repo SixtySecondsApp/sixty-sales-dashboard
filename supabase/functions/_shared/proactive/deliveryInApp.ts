@@ -13,7 +13,7 @@ import type { ProactiveNotificationPayload } from './types.ts';
 export async function deliverToInApp(
   supabase: SupabaseClient,
   payload: ProactiveNotificationPayload
-): Promise<{ created: boolean; notificationId?: string; error?: string }> {
+): Promise<{ created: boolean; notificationId?: string; interactionId?: string; error?: string }> {
   try {
     const { data, error } = await supabase
       .from('notifications')
@@ -44,9 +44,30 @@ export async function deliverToInApp(
       };
     }
 
+    // Record notification interaction for Smart Engagement Algorithm
+    let interactionId: string | undefined;
+    try {
+      const { data: interactionData, error: interactionError } = await supabase.rpc('record_notification_interaction', {
+        p_user_id: payload.recipientUserId,
+        p_org_id: payload.orgId,
+        p_notification_type: payload.type,
+        p_delivered_via: 'in_app',
+        p_notification_id: data.id,
+      });
+
+      if (interactionError) {
+        console.error('[proactive/deliveryInApp] Error recording interaction:', interactionError);
+      } else {
+        interactionId = interactionData as string;
+      }
+    } catch (err) {
+      console.error('[proactive/deliveryInApp] Error recording interaction:', err);
+    }
+
     return {
       created: true,
       notificationId: data.id,
+      interactionId,
     };
   } catch (error) {
     return {

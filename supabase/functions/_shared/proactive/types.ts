@@ -63,10 +63,12 @@ export interface NotificationDeliveryResult {
     channelId?: string;
     ts?: string;
     error?: string;
+    interactionId?: string; // Smart Engagement Algorithm tracking
   };
   inApp?: {
     created: boolean;
     notificationId?: string;
     error?: string;
+    interactionId?: string; // Smart Engagement Algorithm tracking
   };
 }
