@@ -220,16 +220,6 @@ export function useUser() {
     }
   }, [isImpersonating]);
 
-  // Initialize API monitor service with user ID
-  useEffect(() => {
-    if (userData?.id) {
-      apiMonitorService.setUserId(userData.id);
-    } else {
-      apiMonitorService.setUserId(null);
-      apiMonitorService.cleanup();
-    }
-  }, [userData?.id]);
-
   // Handle mock user for development (only when no auth user)
   const userData = useMemo(() => {
     // If we have a profile from React Query, use it
@@ -288,6 +278,16 @@ export function useUser() {
 
     return null;
   }, [authUser, profile, isAuthLoading, isProfileLoading]);
+
+  // Initialize API monitor service with user ID
+  useEffect(() => {
+    if (userData?.id) {
+      apiMonitorService.setUserId(userData.id);
+    } else {
+      apiMonitorService.setUserId(null);
+      apiMonitorService.cleanup();
+    }
+  }, [userData?.id]);
 
   const signOut = async () => {
     try {
