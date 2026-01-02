@@ -64,7 +64,7 @@ import {
   MeetingIntelligenceDemoSimple, TasksDemo, ProcessMaps, IntelligenceTestRunner, VSLAnalyticsTests,
   CronJobsAdmin, SaasAdminDashboard, IntegrationsDashboard, FathomIntegrationTests,
   HubSpotIntegrationTests, SlackIntegrationTests, SavvyCalIntegrationTests,
-  QuickAddSimulator,
+  QuickAddSimulator, ProactiveSimulator,
   // Auth
   Signup, VerifyEmail, ForgotPassword, ResetPassword, SetPassword, Onboarding, UpdatePassword,
   // CRM & Data
@@ -391,8 +391,9 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/meta-ads" element={<PlatformAdminRouteGuard><AppLayout><MetaAdsAnalytics /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/error-monitoring" element={<PlatformAdminRouteGuard><AppLayout><ErrorMonitoring /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/sentry-bridge" element={<PlatformAdminRouteGuard><AppLayout><SentryBridge /></AppLayout></PlatformAdminRouteGuard>} />
-                <Route path="/platform/proactive-simulator" element={<PlatformAdminRouteGuard><AppLayout><SlackDemo /></AppLayout></PlatformAdminRouteGuard>} />
-                <Route path="/platform/slack-demo" element={<Navigate to="/platform/proactive-simulator" replace />} />
+                <Route path="/platform/agent-simulator" element={<PlatformAdminRouteGuard><AppLayout><ProactiveSimulator /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/proactive-simulator" element={<Navigate to="/platform/agent-simulator" replace />} />
+                <Route path="/platform/slack-demo" element={<PlatformAdminRouteGuard><AppLayout><SlackDemo /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Cron Jobs Admin - Monitor and manage scheduled jobs */}
                 <Route path="/platform/cron-jobs" element={<PlatformAdminRouteGuard><AppLayout><CronJobsAdmin /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Meeting Intelligence full demo (internal-only) */}
