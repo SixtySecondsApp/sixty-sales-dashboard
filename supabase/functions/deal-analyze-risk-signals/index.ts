@@ -1329,7 +1329,7 @@ serve(async (req) => {
             allDetectedSignals.push(...signals);
 
             // Save signals
-            await saveRiskSignals(supabase, deal.id, orgId, signals);
+            await saveRiskSignals(supabase, deal.id, orgId!, signals);
             dealsToProcess.push(deal.id);
           }
         }
@@ -1389,15 +1389,15 @@ serve(async (req) => {
           if (summary) {
             const signals = analyzeStructuredSummary(summary, meeting, stageName);
             allDetectedSignals.push(...signals);
-            await saveRiskSignals(supabase, dealId, orgId, signals);
+            await saveRiskSignals(supabase, dealId, orgId!, signals);
           }
         }
       }
 
       // Also check engagement patterns
-      const engagementSignals = await analyzeEngagementPatterns(supabase, dealId, orgId);
+      const engagementSignals = await analyzeEngagementPatterns(supabase, dealId, orgId!);
       allDetectedSignals.push(...engagementSignals);
-      await saveRiskSignals(supabase, dealId, orgId, engagementSignals);
+      await saveRiskSignals(supabase, dealId, orgId!, engagementSignals);
     }
 
     // Recalculate aggregates for all processed deals
