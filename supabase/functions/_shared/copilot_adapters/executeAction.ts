@@ -158,6 +158,28 @@ export async function executeAction(
       };
     }
 
+    case 'get_booking_stats': {
+      // Check if user is admin for org-wide queries
+      let isAdmin = false;
+      if (params.org_wide === true && orgId) {
+        const { data: profile } = await client
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', userId)
+          .maybeSingle();
+        isAdmin = profile?.is_admin === true;
+      }
+
+      return adapters.meetings.getBookingStats({
+        period: params.period ? String(params.period) : undefined,
+        filter_by: params.filter_by ? String(params.filter_by) : undefined,
+        source: params.source ? String(params.source) : undefined,
+        org_wide: params.org_wide === true,
+        isAdmin,
+        orgId: orgId || undefined,
+      });
+    }
+
     case 'create_task': {
       // Create a task in the database
       const title = params.title ? String(params.title) : '';

@@ -24,6 +24,7 @@ export type ExecuteActionName =
   | 'get_contact'
   | 'get_deal'
   | 'get_meetings'
+  | 'get_booking_stats'
   | 'search_emails'
   | 'draft_email'
   | 'update_crm'
@@ -85,6 +86,14 @@ export interface MeetingAdapter {
     contactEmail?: string;
     contactId?: string;
     limit?: number;
+  }): Promise<ActionResult>;
+  getBookingStats(params: {
+    period?: string;
+    filter_by?: string;
+    source?: string;
+    org_wide?: boolean;
+    isAdmin?: boolean;
+    orgId?: string;
   }): Promise<ActionResult>;
 }
 

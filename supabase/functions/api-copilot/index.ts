@@ -482,6 +482,7 @@ async function handleChat(
     const hasHowIsMyPerformance = messageLower.includes('how is my performance')
     
     const isPerformanceQuery = hasPerformance || hasSalesCoach || hasHowAmIDoing || hasHowIsMyPerformance
+    const isMeetingPrepQuery = isNextMeetingPrepQuestion(messageLower)
     
     console.log('[PERF-DETECT] Performance query detection:', {
       message: body.message.substring(0, 100),
@@ -491,17 +492,22 @@ async function handleChat(
       hasHowAmIDoing,
       hasHowIsMyPerformance,
       isPerformanceQuery,
+      isMeetingPrepQuery,
       userId,
       isAdmin: currentUser?.is_admin
     })
     
-    // If it's a performance query, skip Claude and go straight to structured response
+    // If it's a deterministic workflow (performance report or next-meeting prep),
+    // skip Claude and go straight to structured response.
     let aiResponse: any = null
     let shouldSkipClaude = false
     
-    if (isPerformanceQuery) {
+    if (isPerformanceQuery || isMeetingPrepQuery) {
       shouldSkipClaude = true
-      console.log('[PERF-DETECT] ✅ Performance query detected - skipping Claude API call')
+      console.log('[STRUCTURED] ✅ Deterministic request detected - skipping Claude API call', {
+        isPerformanceQuery,
+        isMeetingPrepQuery
+      })
       // Create a mock AI response for structured response processing
       aiResponse = {
         content: '', // Empty content since we'll use structured response
@@ -642,23 +648,37 @@ async function handleChat(
     })
 
     // Detect intent and structure response if appropriate
-    // If we skipped Claude for performance query, we MUST generate structured response
+    // If we skipped Claude for a deterministic request, we MUST generate structured response
     let structuredResponse: StructuredResponse | null = null
     if (shouldSkipClaude) {
-      console.log('[STRUCTURED] Generating structured response for performance query...', {
-        targetUserId,
-        requestingUserId: userId,
-        message: body.message.substring(0, 50)
-      })
-      // For performance queries, directly call structureSalesCoachResponse
       try {
-        structuredResponse = await structureSalesCoachResponse(
-          client,
-          targetUserId,
-          '', // No AI content since we skipped Claude
-          body.message,
-          userId // Pass requesting user ID for permission checks
-        )
+        if (isPerformanceQuery) {
+          console.log('[STRUCTURED] Generating structured response for performance query...', {
+            targetUserId,
+            requestingUserId: userId,
+            message: body.message.substring(0, 50)
+          })
+          structuredResponse = await structureSalesCoachResponse(
+            client,
+            targetUserId,
+            '', // No AI content since we skipped Claude
+            body.message,
+            userId // Pass requesting user ID for permission checks
+          )
+        } else if (isMeetingPrepQuery) {
+          console.log('[STRUCTURED] Generating structured response for next-meeting prep...', {
+            targetUserId,
+            orgId: body.context?.orgId || null
+          })
+          structuredResponse = await structureNextMeetingPrepResponse(
+            client,
+            targetUserId,
+            body.context?.orgId ? String(body.context.orgId) : null,
+            body.context?.temporalContext
+          )
+        } else {
+          structuredResponse = null
+        }
         console.log('[STRUCTURED] ✅ Structured response generated:', {
           type: structuredResponse?.type,
           hasData: !!structuredResponse?.data,
@@ -692,7 +712,7 @@ async function handleChat(
     // If we have a structured response, prioritize it over text content
     // IMPORTANT: If we skipped Claude and have no structured response, something went wrong
     if (shouldSkipClaude && !structuredResponse) {
-      console.error('[RESPONSE] ❌ ERROR: Skipped Claude for performance query but no structured response generated!', {
+      console.error('[RESPONSE] ❌ ERROR: Skipped Claude but no structured response generated!', {
         targetUserId,
         userId,
         message: body.message
@@ -701,7 +721,7 @@ async function handleChat(
       return new Response(JSON.stringify({
         response: {
           type: 'text',
-          content: 'I encountered an error generating the performance report. Please try again.',
+          content: 'I encountered an error generating that response. Please try again.',
           recommendations: [],
           structuredResponse: undefined
         },
@@ -2144,6 +2164,7 @@ ACTION PARAMETERS:
 • get_contact: { email?: string, name?: string, id?: string } - Search contacts by email (preferred), name, or id
 • get_deal: { name?: string, id?: string } - Search deals by name or id
 • get_meetings: { contactEmail?: string, contactId?: string, limit?: number } - Get meetings with a contact. IMPORTANT: Always pass contactEmail when you have an email address!
+• get_booking_stats: { period?, filter_by?, source?, org_wide? } - Get meeting/booking statistics for a time period. period: "this_week"|"last_week"|"this_month"|"last_month"|"last_7_days"|"last_30_days" (default: "this_week"). filter_by: "meeting_date"|"booking_date" (default: "meeting_date"). source: "all"|"savvycal"|"calendar"|"meetings" (default: "all"). org_wide: boolean (default: false, admin only).
 • search_emails: { contact_email?: string, query?: string, limit?: number } - Search emails by contact email or query
 • draft_email: { to: string, subject?: string, context?: string, tone?: string } - Draft an email
 • update_crm: { entity: 'deal'|'contact'|'task'|'activity', id: string, updates: object, confirm: true } - Update CRM record (requires confirm=true)
@@ -2159,6 +2180,7 @@ Write actions require params.confirm=true.`,
             'get_contact',
             'get_deal',
             'get_meetings',
+            'get_booking_stats',
             'search_emails',
             'draft_email',
             'update_crm',
@@ -2175,6 +2197,10 @@ Write actions require params.confirm=true.`,
             id: { type: 'string', description: 'Record ID' },
             contactEmail: { type: 'string', description: 'Email of the contact (for get_meetings) - PREFERRED method' },
             contactId: { type: 'string', description: 'Contact ID (for get_meetings)' },
+            period: { type: 'string', enum: ['this_week', 'last_week', 'this_month', 'last_month', 'last_7_days', 'last_30_days'], description: 'Time period for booking stats (for get_booking_stats)' },
+            filter_by: { type: 'string', enum: ['meeting_date', 'booking_date'], description: 'Filter by when meeting is scheduled or when booking was created (for get_booking_stats)' },
+            source: { type: 'string', enum: ['all', 'savvycal', 'calendar', 'meetings'], description: 'Data source to query (for get_booking_stats)' },
+            org_wide: { type: 'boolean', description: 'If true and user is admin, show all org bookings (for get_booking_stats)' },
             contact_email: { type: 'string', description: 'Contact email (for search_emails)' },
             query: { type: 'string', description: 'Search query (for search_emails)' },
             limit: { type: 'number', description: 'Max results to return' },
@@ -5054,6 +5080,27 @@ function isAvailabilityQuestion(messageLower: string): boolean {
 }
 
 /**
+ * Check if a message is asking for "prep/brief me on my next meeting".
+ * We treat this as a deterministic workflow: find the next upcoming calendar event and generate a meeting_prep panel.
+ */
+function isNextMeetingPrepQuestion(messageLower: string): boolean {
+  if (!messageLower) return false
+
+  const hasNextMeeting = messageLower.includes('next meeting') || messageLower.includes('upcoming meeting')
+  const hasPrepVerb =
+    messageLower.includes('prep') ||
+    messageLower.includes('prepare') ||
+    messageLower.includes('brief') ||
+    messageLower.includes('briefing')
+
+  // Common exact phrasing from the UI
+  if (messageLower.includes('prep me for my next meeting')) return true
+  if (messageLower.includes('brief me on my next meeting')) return true
+
+  return hasNextMeeting && hasPrepVerb
+}
+
+/**
  * Detect intent from user message and structure response accordingly
  */
 async function detectAndStructureResponse(
@@ -7748,6 +7795,662 @@ async function structureCalendarSearchResponse(
     }
   } catch (error) {
     console.error('[CALENDAR-SEARCH] Error structuring response:', error)
+    return null
+  }
+}
+
+/**
+ * Deterministic "next meeting prep" response.
+ * Finds the user's next upcoming calendar event and returns a meeting_prep structured response
+ * that the frontend can render as the Meeting Prep panel.
+ */
+async function structureNextMeetingPrepResponse(
+  client: any,
+  userId: string,
+  orgId: string | null,
+  temporalContext?: TemporalContextPayload
+): Promise<StructuredResponse | null> {
+  try {
+    const now = temporalContext?.isoString ? new Date(temporalContext.isoString) : new Date()
+    const windowEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+
+    // Fetch next upcoming event from our locally-synced calendar_events table (org-scoped when available).
+    let eventQuery = client
+      .from('calendar_events')
+      .select(
+        'id, title, start_time, end_time, location, description, meeting_url, html_link, raw_data, contact_id, deal_id, company_id'
+      )
+      .eq('user_id', userId)
+      .gt('start_time', now.toISOString())
+      .lt('start_time', windowEnd.toISOString())
+      .order('start_time', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (orgId) {
+      eventQuery = eventQuery.eq('org_id', orgId)
+    }
+
+    const { data: event, error: eventError } = await eventQuery
+    if (eventError) throw new Error(`Failed to load next meeting: ${eventError.message}`)
+
+    if (!event) {
+      return {
+        type: 'calendar',
+        summary: 'No upcoming meetings found in the next 30 days.',
+        data: { meetings: [], availability: [] },
+        actions: [
+          {
+            id: 'open-calendar',
+            label: 'Open Calendar',
+            type: 'primary',
+            icon: 'calendar',
+            callback: '/calendar',
+          },
+        ],
+        metadata: {
+          timeGenerated: new Date().toISOString(),
+          dataSource: ['calendar_events'],
+          range: { start: now.toISOString(), end: windowEnd.toISOString() },
+        },
+      }
+    }
+
+    // Resolve user email for attendee filtering
+    const { data: profile } = await client
+      .from('profiles')
+      .select('email')
+      .eq('id', userId)
+      .maybeSingle()
+    const userEmail = profile?.email ? String(profile.email).toLowerCase() : null
+
+    const rawAttendees = event.raw_data?.attendees || []
+    const attendees = (rawAttendees || [])
+      .map((a: any) => ({
+        name: a?.displayName || a?.email || 'Attendee',
+        email: a?.email || '',
+      }))
+      .filter((a: any) => a.email || a.name)
+      .slice(0, 25)
+
+    // Pick a best-effort "counterparty" attendee (not the user) to infer contact if needed
+    const counterpartyEmail =
+      attendees.find((a: any) => a.email && userEmail && String(a.email).toLowerCase() !== userEmail)?.email ||
+      attendees.find((a: any) => a.email)?.email ||
+      null
+
+    // Resolve contact (prefer explicit link, then infer by attendee email)
+    let contactRow: any = null
+
+    if (event.contact_id) {
+      let contactQuery = client
+        .from('contacts')
+        .select('id, full_name, first_name, last_name, email, company_id, title, phone')
+        .eq('id', event.contact_id)
+        .eq('user_id', userId)
+        .maybeSingle()
+      if (orgId) contactQuery = contactQuery.eq('org_id', orgId)
+
+      const { data: c, error: cErr } = await contactQuery
+      if (cErr) throw new Error(`Failed to load linked contact: ${cErr.message}`)
+      contactRow = c
+    }
+
+    if (!contactRow && counterpartyEmail) {
+      let inferredQuery = client
+        .from('contacts')
+        .select('id, full_name, first_name, last_name, email, company_id, title, phone')
+        .eq('user_id', userId)
+        .ilike('email', counterpartyEmail)
+        .maybeSingle()
+      if (orgId) inferredQuery = inferredQuery.eq('org_id', orgId)
+
+      const { data: c2 } = await inferredQuery
+      contactRow = c2
+    }
+
+    const contactName =
+      contactRow?.full_name ||
+      `${contactRow?.first_name || ''} ${contactRow?.last_name || ''}`.trim() ||
+      counterpartyEmail ||
+      'Unknown contact'
+
+    // Company name (optional)
+    let companyName: string | undefined = undefined
+    if (contactRow?.company_id) {
+      let companyQuery = client.from('companies').select('name').eq('id', contactRow.company_id).maybeSingle()
+      if (orgId) companyQuery = companyQuery.eq('org_id', orgId)
+      const { data: co } = await companyQuery
+      if (co?.name) companyName = String(co.name)
+    }
+
+    // Deal context (optional)
+    let dealInfo: any = undefined
+    if (event.deal_id) {
+      let dealQuery = client
+        .from('deals')
+        .select('id, name, value, stage_id, probability, owner_id')
+        .eq('id', event.deal_id)
+        .eq('owner_id', userId)
+        .maybeSingle()
+      if (orgId) dealQuery = dealQuery.eq('org_id', orgId)
+
+      const { data: dealRow } = await dealQuery
+
+      if (dealRow?.id) {
+        // Best-effort stage name
+        let stageName = String(dealRow.stage_id || 'Unknown')
+        if (dealRow.stage_id) {
+          const { data: stageRow } = await client
+            .from('deal_stages')
+            .select('name')
+            .eq('id', dealRow.stage_id)
+            .maybeSingle()
+          if (stageRow?.name) stageName = String(stageRow.name)
+        }
+
+        dealInfo = {
+          id: String(dealRow.id),
+          name: String(dealRow.name || 'Deal'),
+          value: Number(dealRow.value || 0),
+          stage: stageName,
+          probability: Number(dealRow.probability || 0),
+          closeDate: undefined,
+          healthScore: 50,
+        }
+      }
+    }
+
+    const meeting = {
+      id: String(event.id),
+      title: String(event.title || 'Meeting'),
+      startTime: String(event.start_time),
+      endTime: String(event.end_time),
+      attendees,
+      location: event.location || undefined,
+      description: event.description || undefined,
+    }
+
+    const contact = {
+      id: String(contactRow?.id || ''),
+      name: contactName,
+      email: String(contactRow?.email || counterpartyEmail || ''),
+      company: companyName,
+      title: contactRow?.title || undefined,
+      phone: contactRow?.phone || undefined,
+    }
+
+    // ==========================================
+    // ENHANCED PREP DATA: Fetch rich context
+    // ==========================================
+    
+    // Fetch last interactions (activities + meetings)
+    const lastInteractions: Array<{
+      id: string
+      type: 'email' | 'call' | 'meeting' | 'note'
+      date: string
+      summary: string
+      keyPoints?: string[]
+    }> = []
+    
+    // Track action items mentioned in transcripts/summaries for completion checking
+    const mentionedActionItems: Array<{
+      text: string
+      meetingId: string
+      meetingTitle: string
+      meetingDate: string
+      completed: boolean
+    }> = []
+    
+    if (companyName || contactRow?.id) {
+      // Get recent activities
+      let activitiesQuery = client
+        .from('activities')
+        .select('id, type, notes, created_at, client_name')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(5)
+      
+      if (orgId) {
+        activitiesQuery = activitiesQuery.eq('org_id', orgId)
+      }
+      // Prefer contact_id filter if available (more specific), otherwise use company name
+      if (contactRow?.id) {
+        activitiesQuery = activitiesQuery.eq('contact_id', contactRow.id)
+      } else if (companyName) {
+        activitiesQuery = activitiesQuery.ilike('company_name', `%${companyName}%`)
+      }
+      
+      const { data: activities } = await activitiesQuery
+      
+      if (activities) {
+        for (const act of activities) {
+          lastInteractions.push({
+            id: String(act.id),
+            type: act.type === 'meeting' ? 'meeting' : act.type === 'call' ? 'call' : act.type === 'email' ? 'email' : 'note',
+            date: new Date(act.created_at).toISOString(),
+            summary: act.notes || `${act.type} with ${act.client_name || contactName}`,
+          })
+        }
+      }
+      
+      // Get recent meetings with structured summaries and transcripts
+      let meetingsQuery = client
+        .from('meetings')
+        .select(`
+          id,
+          title,
+          start_time,
+          notes,
+          summary,
+          transcript_text,
+          owner_user_id,
+          meeting_structured_summaries (
+            topics_discussed,
+            objections_raised,
+            outcome_signals
+          ),
+          meeting_action_items (
+            id,
+            title,
+            completed
+          )
+        `)
+        .eq('owner_user_id', userId)
+        .order('start_time', { ascending: false })
+        .limit(5)
+      
+      if (orgId) {
+        meetingsQuery = meetingsQuery.eq('org_id', orgId)
+      }
+      // Prefer contact_id filter if available (more specific), otherwise use company name in title
+      if (contactRow?.id) {
+        meetingsQuery = meetingsQuery.eq('contact_id', contactRow.id)
+      } else if (companyName) {
+        meetingsQuery = meetingsQuery.ilike('title', `%${companyName}%`)
+      }
+      
+      const { data: recentMeetings } = await meetingsQuery
+      
+      if (recentMeetings) {
+        for (const m of recentMeetings) {
+          // Skip the current meeting
+          if (String(m.id) === String(event.id)) continue
+          
+          const structuredSummary = (m as any).meeting_structured_summaries?.[0]
+          const topics = structuredSummary?.topics_discussed || []
+          const keyTopics = topics.slice(0, 3)
+          
+          // Extract action items from transcript/summary
+          const transcriptText = m.transcript_text || m.summary || ''
+          if (transcriptText) {
+            // Look for patterns like "I said I would:", "I will:", "I'll:", "I promised to:", etc.
+            const actionItemPatterns = [
+              /(?:I said I would|I will|I'll|I promised to|I committed to|I agreed to)[:;]\s*([^\.\n]+)/gi,
+              /(?:I'm going to|I'm planning to|I intend to)[:;]\s*([^\.\n]+)/gi,
+              /(?:action item|next step|follow up)[:;]\s*([^\.\n]+)/gi,
+            ]
+            
+            for (const pattern of actionItemPatterns) {
+              const matches = transcriptText.matchAll(pattern)
+              for (const match of matches) {
+                if (match[1]) {
+                  const actionText = match[1].trim()
+                  // Check if this action item exists in meeting_action_items and is completed
+                  const meetingActionItems = (m as any).meeting_action_items || []
+                  const matchingActionItem = meetingActionItems.find((ai: any) => 
+                    actionText.toLowerCase().includes(ai.title.toLowerCase()) || 
+                    ai.title.toLowerCase().includes(actionText.toLowerCase())
+                  )
+                  
+                  mentionedActionItems.push({
+                    text: actionText,
+                    meetingId: String(m.id),
+                    meetingTitle: m.title || 'Meeting',
+                    meetingDate: new Date(m.start_time).toISOString(),
+                    completed: matchingActionItem?.completed || false,
+                  })
+                }
+              }
+            }
+          }
+          
+          // Also check structured action items from meeting_action_items
+          const meetingActionItems = (m as any).meeting_action_items || []
+          for (const ai of meetingActionItems) {
+            // Only include if it's mentioned in transcript/summary or if it's a user-created action item
+            const mentionedInText = transcriptText.toLowerCase().includes(ai.title.toLowerCase())
+            if (mentionedInText || !transcriptText) {
+              mentionedActionItems.push({
+                text: ai.title,
+                meetingId: String(m.id),
+                meetingTitle: m.title || 'Meeting',
+                meetingDate: new Date(m.start_time).toISOString(),
+                completed: ai.completed || false,
+              })
+            }
+          }
+          
+          // Build summary from structured data if available
+          let summaryText = m.summary || m.notes || m.title || 'Meeting'
+          if (keyTopics.length > 0) {
+            summaryText += ` - Topics: ${keyTopics.join(', ')}`
+          }
+          
+          lastInteractions.push({
+            id: String(m.id),
+            type: 'meeting',
+            date: new Date(m.start_time).toISOString(),
+            summary: summaryText,
+            keyPoints: keyTopics,
+          })
+        }
+      }
+      
+      // Also check tasks table for completed action items
+      if (mentionedActionItems.length > 0 && (contactRow?.id || dealInfo?.id)) {
+        let tasksQuery = client
+          .from('tasks')
+          .select('id, title, status')
+          .eq('user_id', userId)
+          .eq('status', 'done')
+          .limit(20)
+        
+        if (orgId) tasksQuery = tasksQuery.eq('org_id', orgId)
+        if (contactRow?.id) tasksQuery = tasksQuery.eq('contact_id', contactRow.id)
+        if (dealInfo?.id) tasksQuery = tasksQuery.eq('deal_id', dealInfo.id)
+        
+        const { data: completedTasks } = await tasksQuery
+        if (completedTasks) {
+          // Match mentioned action items with completed tasks
+          for (const mentioned of mentionedActionItems) {
+            const matchingTask = completedTasks.find((t: any) =>
+              mentioned.text.toLowerCase().includes(t.title.toLowerCase()) ||
+              t.title.toLowerCase().includes(mentioned.text.toLowerCase())
+            )
+            if (matchingTask && !mentioned.completed) {
+              mentioned.completed = true
+            }
+          }
+        }
+      }
+    }
+    
+    // Sort by date (most recent first) and limit to 5
+    lastInteractions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    const lastInteractionsFinal = lastInteractions.slice(0, 5)
+    
+    // Fetch deal risk signals
+    const risks: string[] = []
+    if (dealInfo?.id) {
+      let risksQuery = client
+        .from('deal_risk_signals')
+        .select('title, description, severity')
+        .eq('deal_id', dealInfo.id)
+        .eq('status', 'active')
+        .order('severity', { ascending: false })
+        .limit(5)
+      
+      if (orgId) risksQuery = risksQuery.eq('org_id', orgId)
+      
+      const { data: riskSignals } = await risksQuery
+      if (riskSignals) {
+        for (const signal of riskSignals) {
+          const severity = signal.severity === 'critical' ? '🚨' : signal.severity === 'high' ? '⚠️' : ''
+          risks.push(`${severity} ${signal.title || signal.description || 'Risk identified'}`)
+        }
+      }
+    }
+    
+    // Fetch action items (tasks related to contact/deal)
+    const actionItems: Array<{
+      id: string
+      title: string
+      status: 'pending' | 'completed'
+      assignedTo?: string
+      dueDate?: string
+      fromMeeting?: string
+    }> = []
+    
+    if (contactRow?.id || dealInfo?.id) {
+      let tasksQuery = client
+        .from('tasks')
+        .select('id, title, status, due_date, assigned_to, contact_id, deal_id')
+        .eq('user_id', userId)
+        .in('status', ['todo', 'in_progress'])
+        .order('due_date', { ascending: true })
+        .limit(5)
+      
+      if (orgId) {
+        tasksQuery = tasksQuery.eq('org_id', orgId)
+      }
+      // Filter by contact_id or deal_id (can match either)
+      if (contactRow?.id && dealInfo?.id) {
+        tasksQuery = tasksQuery.or(`contact_id.eq.${contactRow.id},deal_id.eq.${dealInfo.id}`)
+      } else if (contactRow?.id) {
+        tasksQuery = tasksQuery.eq('contact_id', contactRow.id)
+      } else if (dealInfo?.id) {
+        tasksQuery = tasksQuery.eq('deal_id', dealInfo.id)
+      }
+      
+      const { data: tasks } = await tasksQuery
+      if (tasks) {
+        for (const task of tasks) {
+          actionItems.push({
+            id: String(task.id),
+            title: String(task.title),
+            status: task.status === 'done' ? 'completed' : 'pending',
+            dueDate: task.due_date ? new Date(task.due_date).toISOString() : undefined,
+          })
+        }
+      }
+    }
+    
+    // Calculate relationship duration and previous meetings count
+    let relationshipDuration = '—'
+    let previousMeetings = 0
+    let lastMeetingDate: string | undefined = undefined
+    
+    if (contactRow?.id) {
+      // Get contact creation date
+      const { data: contactData } = await client
+        .from('contacts')
+        .select('created_at')
+        .eq('id', contactRow.id)
+        .maybeSingle()
+      
+      if (contactData?.created_at) {
+        const contactCreated = new Date(contactData.created_at)
+        const daysSince = Math.floor((now.getTime() - contactCreated.getTime()) / (1000 * 60 * 60 * 24))
+        if (daysSince < 30) relationshipDuration = `${daysSince} days`
+        else if (daysSince < 365) relationshipDuration = `${Math.floor(daysSince / 30)} months`
+        else relationshipDuration = `${Math.floor(daysSince / 365)} years`
+      }
+      
+      // Count previous meetings
+      let meetingsCountQuery = client
+        .from('meetings')
+        .select('id, start_time', { count: 'exact' })
+        .eq('owner_user_id', userId)
+        .eq('contact_id', contactRow.id)
+        .lt('start_time', event.start_time)
+      
+      if (orgId) {
+        meetingsCountQuery = meetingsCountQuery.eq('org_id', orgId)
+      }
+      
+      const { data: prevMeetings, count } = await meetingsCountQuery
+      previousMeetings = count || 0
+      
+      // Get last meeting date
+      if (prevMeetings && prevMeetings.length > 0) {
+        const sorted = prevMeetings.sort((a: any, b: any) => 
+          new Date(b.start_time).getTime() - new Date(a.start_time).getTime()
+        )
+        lastMeetingDate = sorted[0].start_time
+      }
+    }
+    
+    // Generate talking points and discovery questions using Claude (if API key available)
+    let talkingPoints: string[] = []
+    let discoveryQuestions: string[] = []
+    let opportunities: string[] = []
+    
+    if (ANTHROPIC_API_KEY) {
+      try {
+        // Build context for AI
+        const contextParts = []
+        if (meeting.title) contextParts.push(`Meeting: ${meeting.title}`)
+        if (companyName) contextParts.push(`Company: ${companyName}`)
+        if (dealInfo) {
+          contextParts.push(`Deal: ${dealInfo.name} - Stage: ${dealInfo.stage} - Value: ${dealInfo.value}`)
+        }
+        if (lastInteractionsFinal.length > 0) {
+          contextParts.push(`Recent interactions: ${lastInteractionsFinal.slice(0, 3).map(i => i.summary).join('; ')}`)
+        }
+        if (risks.length > 0) {
+          contextParts.push(`Risks: ${risks.slice(0, 3).join('; ')}`)
+        }
+        
+        // Add action items context - mention completed ones
+        const completedActionItems = mentionedActionItems.filter(ai => ai.completed)
+        const pendingActionItems = mentionedActionItems.filter(ai => !ai.completed)
+        
+        if (completedActionItems.length > 0) {
+          contextParts.push(`Completed action items from previous meetings: ${completedActionItems.slice(0, 3).map(ai => `"${ai.text}" (from ${ai.meetingTitle})`).join('; ')}`)
+        }
+        if (pendingActionItems.length > 0) {
+          contextParts.push(`Pending action items: ${pendingActionItems.slice(0, 3).map(ai => `"${ai.text}" (from ${ai.meetingTitle})`).join('; ')}`)
+        }
+        
+        const context = contextParts.join('\n')
+        
+        // Generate talking points and discovery questions in one call
+        const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 1000,
+            temperature: 0.5,
+            system: 'You are a sales preparation assistant. Generate specific, actionable talking points and discovery questions for an upcoming meeting. When action items from previous meetings have been completed, acknowledge them naturally (e.g., "I mentioned I would do X, and I\'ve completed it"). Return ONLY valid JSON.',
+            messages: [{
+              role: 'user',
+              content: `Generate meeting prep for this meeting:
+
+${context}
+
+Generate:
+1. 3-4 specific talking points that address risks, move the deal forward, and build on previous conversations. If there are completed action items, naturally acknowledge them (e.g., "I said I would: {action_item} and I have completed it").
+2. 3-4 discovery questions appropriate for the deal stage (if applicable) or general discovery
+3. 2-3 opportunities or positive signals to leverage
+
+Return JSON: {
+  "talkingPoints": ["point1", "point2", "point3"],
+  "discoveryQuestions": ["question1", "question2", "question3"],
+  "opportunities": ["opportunity1", "opportunity2"]
+}`
+            }],
+          }),
+        })
+        
+        if (aiResponse.ok) {
+          const result = await aiResponse.json()
+          const content = result.content[0]?.text
+          const parsed = JSON.parse(content)
+          talkingPoints = parsed.talkingPoints || []
+          discoveryQuestions = parsed.discoveryQuestions || []
+          opportunities = parsed.opportunities || []
+        }
+      } catch (error) {
+        console.error('[MEETING-PREP] Error generating AI content:', error)
+      }
+    }
+    
+    // Fallback talking points if AI failed
+    if (talkingPoints.length === 0) {
+      talkingPoints = [
+        'Review any previous discussions and follow up on open items',
+        'Understand their current priorities and challenges',
+        'Identify next steps to move the conversation forward',
+      ]
+      if (risks.length > 0) {
+        talkingPoints.unshift('Address any timeline or budget concerns directly')
+      }
+    }
+    
+    // Fallback discovery questions if AI failed
+    if (discoveryQuestions.length === 0) {
+      if (dealInfo?.stage) {
+        const stageLower = dealInfo.stage.toLowerCase()
+        if (stageLower.includes('sql') || stageLower.includes('qualification')) {
+          discoveryQuestions = [
+            'What specific challenges are you trying to solve?',
+            'Who else is involved in this decision?',
+            'What does your timeline look like?',
+          ]
+        } else if (stageLower.includes('opportunity') || stageLower.includes('proposal')) {
+          discoveryQuestions = [
+            'What feedback do you have on the proposal?',
+            'Are there any concerns we haven\'t addressed?',
+            'Who else needs to see this before you can move forward?',
+          ]
+        } else {
+          discoveryQuestions = [
+            'What are your main priorities for this call?',
+            'What questions do you have for us?',
+            'What would make this meeting successful for you?',
+          ]
+        }
+      } else {
+        discoveryQuestions = [
+          'What are your main priorities for this call?',
+          'What questions do you have for us?',
+          'What would make this meeting successful for you?',
+        ]
+      }
+    }
+    
+    // Fallback opportunities if AI failed
+    if (opportunities.length === 0 && dealInfo) {
+      opportunities = [
+        `Deal is in ${dealInfo.stage} stage with ${dealInfo.probability}% probability`,
+        `Deal value: ${dealInfo.value}`,
+      ]
+    }
+
+    return {
+      type: 'meeting_prep',
+      summary: `Meeting prep: ${meeting.title}`,
+      data: {
+        meeting,
+        contact,
+        deal: dealInfo,
+        lastInteractions: lastInteractionsFinal,
+        talkingPoints,
+        discoveryQuestions,
+        actionItems,
+        risks,
+        opportunities,
+        context: {
+          relationshipDuration,
+          previousMeetings,
+          lastMeetingDate,
+          dealStage: dealInfo?.stage,
+          dealValue: dealInfo?.value,
+        },
+      },
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: ['calendar_events', 'activities', 'meetings', 'tasks', 'deal_risk_signals'],
+      },
+    }
+  } catch (error) {
+    console.error('[MEETING-PREP] Error structuring next meeting prep response:', error)
     return null
   }
 }

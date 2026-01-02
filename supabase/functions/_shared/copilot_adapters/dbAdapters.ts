@@ -126,7 +126,175 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
         return fail(msg, this.source);
       }
     },
+
+    async getBookingStats(params) {
+      try {
+        const period = params.period || 'this_week';
+        const filterBy = params.filter_by || 'meeting_date';
+        const source = params.source || 'all';
+        const orgWide = params.org_wide === true && params.isAdmin === true;
+
+        // Calculate date range based on period
+        const { startDate, endDate } = calculateDateRange(period);
+
+        // Determine which date column to filter on
+        const dateColumn = filterBy === 'booking_date' ? 'created_at' : 'meeting_start';
+        const calendarDateColumn = filterBy === 'booking_date' ? 'created_at' : 'start_time';
+
+        const stats: {
+          period: string;
+          filter_by: string;
+          startDate: string;
+          endDate: string;
+          scope: string;
+          sources: Record<string, { count: number; items: unknown[] }>;
+        } = {
+          period,
+          filter_by: filterBy,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          scope: orgWide ? 'organization' : 'user',
+          sources: {},
+        };
+
+        // Query SavvyCal bookings from leads table
+        if (source === 'all' || source === 'savvycal') {
+          let memberIds: string[] = [];
+
+          // For org-wide, get all org members first
+          if (orgWide && params.orgId) {
+            const { data: orgMembers } = await client
+              .from('organization_memberships')
+              .select('user_id')
+              .eq('org_id', params.orgId);
+            memberIds = (orgMembers || []).map((m) => m.user_id);
+          }
+
+          let q = client
+            .from('leads')
+            .select('id, meeting_title, meeting_start, contact_name, contact_email, created_at, owner_id')
+            .eq('external_source', 'savvycal')
+            .is('deleted_at', null)
+            .gte(dateColumn, startDate.toISOString())
+            .lte(dateColumn, endDate.toISOString())
+            .order(dateColumn, { ascending: true });
+
+          // Scope filtering
+          if (orgWide && memberIds.length > 0) {
+            q = q.in('owner_id', memberIds);
+          } else {
+            q = q.eq('owner_id', userId);
+          }
+
+          const { data: leads } = await q;
+          stats.sources.savvycal = { count: leads?.length || 0, items: leads || [] };
+        }
+
+        // Query calendar events
+        if (source === 'all' || source === 'calendar') {
+          let q = client
+            .from('calendar_events')
+            .select('id, title, start_time, end_time, attendees_count, user_id')
+            .neq('status', 'cancelled')
+            .gte(calendarDateColumn, startDate.toISOString())
+            .lte(calendarDateColumn, endDate.toISOString())
+            .order(calendarDateColumn, { ascending: true });
+
+          if (orgWide && params.orgId) {
+            q = q.eq('org_id', params.orgId);
+          } else {
+            q = q.eq('user_id', userId);
+          }
+
+          const { data: events } = await q;
+          stats.sources.calendar = { count: events?.length || 0, items: events || [] };
+        }
+
+        // Query completed meetings (Fathom)
+        if (source === 'all' || source === 'meetings') {
+          let q = client
+            .from('meetings')
+            .select('id, title, meeting_start, duration_minutes, owner_user_id')
+            .gte('meeting_start', startDate.toISOString())
+            .lte('meeting_start', endDate.toISOString())
+            .order('meeting_start', { ascending: true });
+
+          if (orgWide && params.orgId) {
+            q = q.eq('org_id', params.orgId);
+          } else {
+            q = q.eq('owner_user_id', userId);
+          }
+
+          const { data: meetings } = await q;
+          stats.sources.meetings = { count: meetings?.length || 0, items: meetings || [] };
+        }
+
+        // Calculate totals
+        const totalCount = Object.values(stats.sources).reduce((sum, s) => sum + s.count, 0);
+
+        return ok(
+          {
+            total_bookings: totalCount,
+            ...stats,
+          },
+          this.source
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return fail(msg, this.source);
+      }
+    },
   };
+}
+
+/**
+ * Helper function to calculate date range based on period string
+ */
+function calculateDateRange(period: string): { startDate: Date; endDate: Date } {
+  const now = new Date();
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+
+  switch (period) {
+    case 'this_week': {
+      const dayOfWeek = now.getDay();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - dayOfWeek);
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      return { startDate: startOfDay(startOfWeek), endDate: endOfDay(endOfWeek) };
+    }
+    case 'last_week': {
+      const dayOfWeek = now.getDay();
+      const startOfLastWeek = new Date(now);
+      startOfLastWeek.setDate(now.getDate() - dayOfWeek - 7);
+      const endOfLastWeek = new Date(startOfLastWeek);
+      endOfLastWeek.setDate(startOfLastWeek.getDate() + 6);
+      return { startDate: startOfDay(startOfLastWeek), endDate: endOfDay(endOfLastWeek) };
+    }
+    case 'this_month': {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return { startDate: startOfDay(startOfMonth), endDate: endOfDay(endOfMonth) };
+    }
+    case 'last_month': {
+      const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { startDate: startOfDay(startOfLastMonth), endDate: endOfDay(endOfLastMonth) };
+    }
+    case 'last_7_days': {
+      const start = new Date(now);
+      start.setDate(now.getDate() - 6);
+      return { startDate: startOfDay(start), endDate: endOfDay(now) };
+    }
+    case 'last_30_days': {
+      const start = new Date(now);
+      start.setDate(now.getDate() - 29);
+      return { startDate: startOfDay(start), endDate: endOfDay(now) };
+    }
+    default:
+      return { startDate: startOfDay(now), endDate: endOfDay(now) };
+  }
 }
 
 export function createDbCrmAdapter(client: SupabaseClient, userId: string): CRMAdapter {
