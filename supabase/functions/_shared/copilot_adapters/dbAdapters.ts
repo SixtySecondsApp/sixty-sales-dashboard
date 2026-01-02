@@ -427,21 +427,44 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
               if (company) {
                 context.company = company;
 
-                // Get deals for this company
-                const { data: deals } = await client
-                  .from('deals')
-                  .select(`
-                    id, name, value, status, expected_close_date,
-                    deal_stages(name),
-                    deal_health_scores(health_status, risk_level)
-                  `)
-                  .eq('owner_id', userId)
-                  .eq('company_id', company.id)
-                  .eq('status', 'active')
-                  .limit(5);
+                // OPTIMIZATION: Batch all company-dependent queries in parallel
+                // This reduces 3 sequential queries to 1 parallel batch
+                const [dealsResult, meetingsResult, activitiesResult] = await Promise.all([
+                  // Get deals for this company
+                  client
+                    .from('deals')
+                    .select(`
+                      id, name, value, status, expected_close_date,
+                      deal_stages(name),
+                      deal_health_scores(health_status, risk_level)
+                    `)
+                    .eq('owner_id', userId)
+                    .eq('company_id', company.id)
+                    .eq('status', 'active')
+                    .limit(5),
 
-                if (deals) {
-                  context.deals = deals.map((d: any) => {
+                  // Get recent meetings with this company
+                  client
+                    .from('meetings')
+                    .select('id, title, meeting_start, duration_minutes, summary')
+                    .eq('owner_user_id', userId)
+                    .eq('company_id', company.id)
+                    .order('meeting_start', { ascending: false })
+                    .limit(3),
+
+                  // Get recent activities for this company
+                  client
+                    .from('activities')
+                    .select('id, type, description, created_at')
+                    .eq('owner_id', userId)
+                    .eq('company_id', company.id)
+                    .order('created_at', { ascending: false })
+                    .limit(5),
+                ]);
+
+                // Process deals
+                if (dealsResult.data) {
+                  context.deals = dealsResult.data.map((d: any) => {
                     const stage = Array.isArray(d.deal_stages) ? d.deal_stages[0] : d.deal_stages;
                     const health = Array.isArray(d.deal_health_scores) ? d.deal_health_scores[0] : d.deal_health_scores;
                     return {
@@ -457,30 +480,14 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
                   });
                 }
 
-                // Get recent meetings with this company
-                const { data: recentMeetings } = await client
-                  .from('meetings')
-                  .select('id, title, meeting_start, duration_minutes, summary')
-                  .eq('owner_user_id', userId)
-                  .eq('company_id', company.id)
-                  .order('meeting_start', { ascending: false })
-                  .limit(3);
-
-                if (recentMeetings) {
-                  context.recentMeetings = recentMeetings;
+                // Process meetings
+                if (meetingsResult.data) {
+                  context.recentMeetings = meetingsResult.data;
                 }
 
-                // Get recent activities for this company
-                const { data: recentActivities } = await client
-                  .from('activities')
-                  .select('id, type, description, created_at')
-                  .eq('owner_id', userId)
-                  .eq('company_id', company.id)
-                  .order('created_at', { ascending: false })
-                  .limit(5);
-
-                if (recentActivities) {
-                  context.recentActivities = recentActivities;
+                // Process activities
+                if (activitiesResult.data) {
+                  context.recentActivities = activitiesResult.data;
                 }
               }
             }

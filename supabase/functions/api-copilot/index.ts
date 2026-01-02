@@ -449,6 +449,9 @@ async function handleChat(
       })
 
     if (msgError) {
+      console.error('[Copilot] Failed to save user message:', msgError.message);
+      // Non-fatal: continue processing even if message save fails
+      // The conversation will work but history may be incomplete
     }
 
     // Fetch conversation history for context
@@ -460,6 +463,8 @@ async function handleChat(
       .limit(20) // Last 20 messages for context
 
     if (historyError) {
+      console.error('[Copilot] Failed to fetch conversation history:', historyError.message);
+      // Non-fatal: continue with empty history - AI will respond without context
     }
 
     // Ensure messages is an array and format correctly

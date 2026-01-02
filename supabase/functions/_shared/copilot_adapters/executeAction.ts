@@ -330,24 +330,50 @@ export async function executeAction(
         return { success: false, data: null, error: 'skill_key is required for invoke_skill' };
       }
 
-      // Recursion protection
-      const currentDepth = (params._invoke_depth as number) || 0;
+      // Recursion protection - extract depth from params or invoke_metadata
+      const invokeMetadata = params.invoke_metadata as { depth?: number; parent_skill?: string } | undefined;
+      const currentDepth = (params._invoke_depth as number) || invokeMetadata?.depth || 0;
       if (currentDepth >= MAX_INVOKE_DEPTH) {
         return {
           success: false,
           data: null,
-          error: `Max skill nesting depth (${MAX_INVOKE_DEPTH}) exceeded. Skill chain: ${params._parent_skill || 'root'} → ${skillKey}`,
+          error: `Max skill nesting depth (${MAX_INVOKE_DEPTH}) exceeded. Skill chain: ${params._parent_skill || invokeMetadata?.parent_skill || 'root'} → ${skillKey}`,
         };
       }
 
       // Circular dependency detection
-      const parentSkill = params._parent_skill ? String(params._parent_skill) : null;
+      const parentSkill = params._parent_skill
+        ? String(params._parent_skill)
+        : invokeMetadata?.parent_skill || null;
       if (parentSkill === skillKey) {
         return {
           success: false,
           data: null,
           error: `Circular skill invocation detected: ${skillKey} cannot invoke itself`,
         };
+      }
+
+      // Validate org_id is available for skill lookup
+      if (!orgId) {
+        return { success: false, data: null, error: 'Organization context required to invoke skills' };
+      }
+
+      // AUTHORIZATION: Verify user is a member of the organization
+      const { data: membership, error: membershipError } = await client
+        .from('organization_memberships')
+        .select('role')
+        .eq('org_id', orgId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (membershipError) {
+        console.error('[invoke_skill] Error checking membership:', membershipError.message);
+        return { success: false, data: null, error: 'Failed to verify organization membership' };
+      }
+
+      if (!membership) {
+        console.warn('[invoke_skill] User not a member of organization:', { userId, orgId, skillKey });
+        return { success: false, data: null, error: 'User is not a member of this organization' };
       }
 
       // Fetch the target skill from organization_skills or platform_skills
@@ -364,15 +390,22 @@ export async function executeAction(
         .eq('is_enabled', true)
         .maybeSingle();
 
-      if (skillError || !skillData) {
-        return { success: false, data: null, error: `Skill not found: ${skillKey}` };
+      if (skillError) {
+        console.error('[invoke_skill] Database error fetching skill:', skillError.message);
+        return { success: false, data: null, error: `Failed to fetch skill: ${skillError.message}` };
       }
 
-      // Return skill data for the AI to process
-      // The actual skill execution happens in the main copilot loop
+      if (!skillData) {
+        return { success: false, data: null, error: `Skill not found or not enabled: ${skillKey}` };
+      }
+
+      // Merge context: parent context (from previous invoke) + explicit context (from params)
+      // Both _parent_context and context can be used, with context taking precedence
+      const parentContext = (params._parent_context || params.parent_context || {}) as Record<string, unknown>;
+      const explicitContext = (params.context || {}) as Record<string, unknown>;
       const mergedContext = params.merge_parent_context !== false
-        ? { ...params._parent_context, ...params.context }
-        : params.context || {};
+        ? { ...parentContext, ...explicitContext }
+        : explicitContext;
 
       return {
         success: true,
@@ -383,7 +416,7 @@ export async function executeAction(
           context: mergedContext,
           invoke_metadata: {
             depth: currentDepth + 1,
-            parent_skill: parentSkill,
+            parent_skill: skillKey, // Track current skill as parent for next invocation
             max_depth: MAX_INVOKE_DEPTH,
           },
         },
@@ -474,28 +507,51 @@ export async function executeAction(
         return { success: false, data: null, error: 'title is required for create_task' };
       }
 
-      const taskData: Record<string, unknown> = {
-        user_id: userId,
-        org_id: orgId,
+      const taskPreview = {
         title,
         description: params.description ? String(params.description) : null,
         status: 'pending',
         priority: params.priority || 'medium',
+        due_date: params.due_date ? String(params.due_date) : null,
+        contact_id: params.contact_id ? String(params.contact_id) : null,
+        deal_id: params.deal_id ? String(params.deal_id) : null,
+        assignee_id: params.assignee_id ? String(params.assignee_id) : null,
+      };
+
+      // Require confirmation for write operations
+      if (!ctx.confirm) {
+        return {
+          success: false,
+          data: null,
+          error: 'Confirmation required to create task',
+          needs_confirmation: true,
+          preview: taskPreview,
+          source: 'create_task',
+        };
+      }
+
+      const taskData: Record<string, unknown> = {
+        user_id: userId,
+        org_id: orgId,
+        title,
+        description: taskPreview.description,
+        status: 'pending',
+        priority: taskPreview.priority,
         created_at: new Date().toISOString(),
       };
 
       // Add optional relations
-      if (params.due_date) {
-        taskData.due_date = String(params.due_date);
+      if (taskPreview.due_date) {
+        taskData.due_date = taskPreview.due_date;
       }
-      if (params.contact_id) {
-        taskData.contact_id = String(params.contact_id);
+      if (taskPreview.contact_id) {
+        taskData.contact_id = taskPreview.contact_id;
       }
-      if (params.deal_id) {
-        taskData.deal_id = String(params.deal_id);
+      if (taskPreview.deal_id) {
+        taskData.deal_id = taskPreview.deal_id;
       }
-      if (params.assignee_id) {
-        taskData.assignee_id = String(params.assignee_id);
+      if (taskPreview.assignee_id) {
+        taskData.assignee_id = taskPreview.assignee_id;
       }
 
       const { data: newTask, error: taskError } = await client
