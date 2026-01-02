@@ -28,6 +28,10 @@ import { handleFollowUp } from './handlers/followUp.ts';
 import { handleRisks } from './handlers/risks.ts';
 import { handleDebrief } from './handlers/debrief.ts';
 import { handleTaskAdd, handleTaskList, handleFocus } from './handlers/task.ts';
+// Phase 5: Team & Manager Commands
+import { handleStandup } from './handlers/standup.ts';
+import { handlePipeline } from './handlers/pipeline.ts';
+import { handleApprovals } from './handlers/approvals.ts';
 
 // ============================================================================
 // Environment
@@ -212,6 +216,23 @@ async function routeCommand(
     case 'focus':
       // Focus mode (Phase 4)
       return await handleFocusCommand(ctx);
+
+    // Phase 5: Team & Manager Commands
+    case 'standup':
+    case 'stand-up':
+      // Team standup digest
+      return await handleStandupCommand(ctx);
+
+    case 'pipeline':
+    case 'pipe':
+      // Pipeline summary with filters
+      return await handlePipelineCommand(ctx, rawArgs || '');
+
+    case 'approvals':
+    case 'approve':
+    case 'pending':
+      // Pending HITL approvals
+      return await handleApprovalsCommand(ctx);
 
     default:
       // Unknown command → show help with suggestion
@@ -461,6 +482,73 @@ async function handleFocusCommand(ctx: CommandContext): Promise<Response> {
 }
 
 // ============================================================================
+// Phase 5: Team & Manager Command Wrappers
+// ============================================================================
+
+/**
+ * Handle /sixty standup
+ */
+async function handleStandupCommand(ctx: CommandContext): Promise<Response> {
+  const loadingResponse = buildLoadingResponse('Generating team standup...');
+
+  processInBackground(async () => {
+    try {
+      const response = await handleStandup(ctx);
+      await sendEphemeral(ctx.payload.response_url, response);
+    } catch (error) {
+      console.error('Error in handleStandup:', error);
+      await sendEphemeral(ctx.payload.response_url, buildErrorResponse(
+        'Failed to generate standup. Please try again.'
+      ));
+    }
+  });
+
+  return jsonResponse(loadingResponse);
+}
+
+/**
+ * Handle /sixty pipeline [filter]
+ */
+async function handlePipelineCommand(ctx: CommandContext, filter: string): Promise<Response> {
+  const loadingResponse = buildLoadingResponse('Loading pipeline...');
+
+  processInBackground(async () => {
+    try {
+      const response = await handlePipeline(ctx, filter);
+      await sendEphemeral(ctx.payload.response_url, response);
+    } catch (error) {
+      console.error('Error in handlePipeline:', error);
+      await sendEphemeral(ctx.payload.response_url, buildErrorResponse(
+        'Failed to load pipeline. Please try again.'
+      ));
+    }
+  });
+
+  return jsonResponse(loadingResponse);
+}
+
+/**
+ * Handle /sixty approvals
+ */
+async function handleApprovalsCommand(ctx: CommandContext): Promise<Response> {
+  const loadingResponse = buildLoadingResponse('Loading pending approvals...');
+
+  processInBackground(async () => {
+    try {
+      const response = await handleApprovals(ctx);
+      await sendEphemeral(ctx.payload.response_url, response);
+    } catch (error) {
+      console.error('Error in handleApprovals:', error);
+      await sendEphemeral(ctx.payload.response_url, buildErrorResponse(
+        'Failed to load approvals. Please try again.'
+      ));
+    }
+  });
+
+  return jsonResponse(loadingResponse);
+}
+
+// ============================================================================
 // Utilities
 // ============================================================================
 
@@ -502,6 +590,10 @@ function getSuggestion(input: string): string {
     { cmd: 'task add', desc: 'Create a new task' },
     { cmd: 'task list', desc: 'View your tasks' },
     { cmd: 'focus', desc: 'Focus mode with top tasks' },
+    // Phase 5: Team & Manager Commands
+    { cmd: 'standup', desc: 'Team standup digest' },
+    { cmd: 'pipeline', desc: 'Pipeline summary' },
+    { cmd: 'approvals', desc: 'Pending AI approvals' },
   ];
 
   // Simple fuzzy match - find commands that start with same letter or contain the input
