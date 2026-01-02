@@ -39,6 +39,7 @@ import {
   Play,
   Bug,
   FileCode,
+  Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -182,6 +183,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       description: 'Manage agent-executable skill documents for AI automation',
       icon: FileCode,
       href: '/platform/skills',
+      color: 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900/30',
+      badge: 'New',
+    },
+    {
+      id: 'proactive-simulator',
+      title: 'Proactive Simulator',
+      description: 'Simulate Proactive 60 notifications in Slack + in-app for your account',
+      icon: Bell,
+      href: '/platform/proactive-simulator',
       color: 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900/30',
       badge: 'New',
     },

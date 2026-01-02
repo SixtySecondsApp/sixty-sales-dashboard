@@ -502,14 +502,16 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     navSection: 'platform',
     order: 52,
   },
-  // Slack Integration Demo
+  // Proactive notifications simulator (Slack + in-app)
   {
-    path: '/platform/slack-demo',
+    path: '/platform/proactive-simulator',
     access: 'platformAdmin',
-    label: 'Slack Demo',
-    showInNav: false,
+    label: 'Proactive Simulator',
+    icon: Bot,
+    showInNav: true,
     navSection: 'platform',
     order: 53,
+    badge: 'New',
   },
   // Process Maps - AI-generated process visualization
   {

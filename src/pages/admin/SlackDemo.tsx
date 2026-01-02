@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -46,6 +47,8 @@ import { useOrg } from '@/lib/contexts/OrgContext';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useSlackOrgSettings } from '@/lib/hooks/useSlackSettings';
 import { slackOAuthService } from '@/lib/services/slackOAuthService';
+import { notificationService } from '@/lib/services/notificationService';
+import { SlackSelfMapping } from '@/components/settings/SlackSelfMapping';
 import { toast } from 'sonner';
 
 interface TestResult {
@@ -141,6 +144,8 @@ export default function SlackDemo() {
   const { activeOrgId, activeOrg } = useOrg();
   const { user } = useAuth();
   const { data: slackSettings, isLoading: settingsLoading } = useSlackOrgSettings();
+  const [sendToSlack, setSendToSlack] = useState(true);
+  const [mirrorToInApp, setMirrorToInApp] = useState(true);
 
   const handleConnectSlack = () => {
     if (!user?.id) {
@@ -285,6 +290,45 @@ export default function SlackDemo() {
     return data;
   };
 
+  const createInAppMirror = useCallback(
+    async (params: {
+      title: string;
+      message: string;
+      category?: 'workflow' | 'deal' | 'task' | 'meeting' | 'system' | 'team';
+      entity_type?: string;
+      entity_id?: string;
+      action_url?: string;
+      metadata?: Record<string, unknown>;
+      type?: 'info' | 'success' | 'warning' | 'error';
+    }) => {
+      if (!mirrorToInApp) return null;
+      if (!user?.id) {
+        toast.error('Not logged in');
+        return null;
+      }
+
+      const created = await notificationService.create({
+        user_id: user.id,
+        title: params.title,
+        message: params.message,
+        type: params.type ?? 'info',
+        category: params.category,
+        entity_type: params.entity_type,
+        entity_id: params.entity_id,
+        action_url: params.action_url,
+        metadata: params.metadata,
+      });
+
+      if (!created) {
+        toast.error('Failed to create in-app notification');
+        return null;
+      }
+      toast.success('Created in-app notification');
+      return created;
+    },
+    [mirrorToInApp, user?.id]
+  );
+
   const previewSalesAssistant = async () => {
     if (!activeOrgId) {
       toast.error('No organization selected');
@@ -313,11 +357,13 @@ export default function SlackDemo() {
     }
     setLoadingState('salesAssistant', true);
     try {
-      const result = await invokeFunction('slack-test-message', {
-        orgId: activeOrgId,
-        action: 'send_sales_assistant_dm',
-        mode: assistantMode,
-      });
+      const result = sendToSlack
+        ? await invokeFunction('slack-test-message', {
+            orgId: activeOrgId,
+            action: 'send_sales_assistant_dm',
+            mode: assistantMode,
+          })
+        : { success: true, mode: assistantMode, digest: assistantPreview?.digest, blocks: assistantPreview?.blocks };
       setResult('salesAssistant', {
         success: result.success,
         message: result.success ? 'Sales Assistant DM sent to you!' : result.error || 'Failed',
@@ -325,6 +371,17 @@ export default function SlackDemo() {
         timestamp: new Date(),
       });
       setAssistantPreview(result);
+      await createInAppMirror({
+        title: 'Sales Assistant: Action Items',
+        message: `Sales Assistant digest generated${result?.digest?.actionItems ? ` (${result.digest.actionItems.length} items)` : ''}.`,
+        category: 'team',
+        entity_type: 'sales_assistant_digest',
+        metadata: {
+          source: 'proactive_simulator',
+          mode: assistantMode,
+          slack: sendToSlack ? { ts: result?.ts, channelId: result?.channelId } : { skipped: true },
+        },
+      });
       toast.success('Sales Assistant DM sent');
     } catch (e: any) {
       setResult('salesAssistant', {
@@ -549,11 +606,13 @@ export default function SlackDemo() {
   const testMeetingDebrief = async () => {
     setLoadingState('meetingDebrief', true);
     try {
-      const result = await invokeFunction('slack-post-meeting', {
-        meetingId: meetingDebriefData.meetingId || null,
-        orgId: activeOrgId,
-        isTest: true,
-      });
+      const result = sendToSlack
+        ? await invokeFunction('slack-post-meeting', {
+            meetingId: meetingDebriefData.meetingId || null,
+            orgId: activeOrgId,
+            isTest: true,
+          })
+        : { success: true, skippedSlack: true };
 
       const deliveryInfo = result.deliveryMethod === 'dm' 
         ? 'via DM' 
@@ -566,6 +625,18 @@ export default function SlackDemo() {
         message: result.success ? `Meeting debrief sent ${deliveryInfo}!` : result.error || 'Failed',
         data: result,
         timestamp: new Date(),
+      });
+      await createInAppMirror({
+        title: 'Post-call summary ready',
+        message: 'A meeting debrief was generated (simulated).',
+        category: 'meeting',
+        entity_type: 'meeting',
+        entity_id: meetingDebriefData.meetingId || undefined,
+        action_url: meetingDebriefData.meetingId ? `/meetings/${meetingDebriefData.meetingId}` : undefined,
+        metadata: {
+          source: 'proactive_simulator',
+          slack: sendToSlack ? { ts: result?.ts, channelId: result?.channelId } : { skipped: true },
+        },
       });
       if (result?.success) {
         toast.success(`Meeting debrief sent ${deliveryInfo}`);
@@ -587,11 +658,13 @@ export default function SlackDemo() {
   const testDailyDigest = async () => {
     setLoadingState('dailyDigest', true);
     try {
-      const result = await invokeFunction('slack-daily-digest', {
-        orgId: activeOrgId,
-        date: dailyDigestData.date,
-        isTest: true,
-      });
+      const result = sendToSlack
+        ? await invokeFunction('slack-daily-digest', {
+            orgId: activeOrgId,
+            date: dailyDigestData.date,
+            isTest: true,
+          })
+        : { success: true, skippedSlack: true };
 
       setResult('dailyDigest', {
         success: result.success,
@@ -604,6 +677,17 @@ export default function SlackDemo() {
         })(),
         data: result,
         timestamp: new Date(),
+      });
+      await createInAppMirror({
+        title: 'Morning Brief (simulated)',
+        message: `Generated a morning brief for ${dailyDigestData.date}.`,
+        category: 'team',
+        entity_type: 'morning_brief',
+        metadata: {
+          source: 'proactive_simulator',
+          date: dailyDigestData.date,
+          slack: sendToSlack ? { results: result?.results } : { skipped: true },
+        },
       });
       const firstOk = Array.isArray(result?.results) ? result.results.find((r: any) => r?.success) : null;
       toast.success(`Daily digest test sent${firstOk?.channelId ? ` to ${firstOk.channelId}` : ''}`);
@@ -667,18 +751,33 @@ export default function SlackDemo() {
   const testMeetingPrep = async () => {
     setLoadingState('meetingPrep', true);
     try {
-      const result = await invokeFunction('slack-meeting-prep', {
-        meetingId: meetingPrepData.meetingId || 'test-meeting-id',
-        orgId: activeOrgId,
-        minutesBefore: parseInt(meetingPrepData.minutesBefore),
-        isTest: true,
-      });
+      const result = sendToSlack
+        ? await invokeFunction('slack-meeting-prep', {
+            meetingId: meetingPrepData.meetingId || 'test-meeting-id',
+            orgId: activeOrgId,
+            minutesBefore: parseInt(meetingPrepData.minutesBefore),
+            isTest: true,
+          })
+        : { success: true, skippedSlack: true };
 
       setResult('meetingPrep', {
         success: result.success,
         message: result.success ? 'Meeting prep sent!' : result.error || 'Failed',
         data: result,
         timestamp: new Date(),
+      });
+      await createInAppMirror({
+        title: 'Pre-meeting nudge (simulated)',
+        message: `Prep card generated${meetingPrepData.meetingId ? ' for selected meeting' : ''}.`,
+        category: 'meeting',
+        entity_type: 'meeting',
+        entity_id: meetingPrepData.meetingId || undefined,
+        action_url: meetingPrepData.meetingId ? `/meetings/${meetingPrepData.meetingId}` : undefined,
+        metadata: {
+          source: 'proactive_simulator',
+          minutesBefore: parseInt(meetingPrepData.minutesBefore),
+          slack: sendToSlack ? { ts: result?.ts, channelId: result?.channelId } : { skipped: true },
+        },
       });
       toast.success('Meeting prep test sent');
     } catch (error: any) {
@@ -794,6 +893,112 @@ export default function SlackDemo() {
     }
   };
 
+  // Proactive simulator (sample-only) — these use slack-test-message DM actions so we can iterate quickly
+  const testMorningBriefDm = async () => {
+    if (!activeOrgId) {
+      toast.error('No organization selected');
+      return;
+    }
+    setLoadingState('morningBrief', true);
+    try {
+      const result = sendToSlack
+        ? await invokeFunction('slack-test-message', { orgId: activeOrgId, action: 'send_morning_brief_dm' })
+        : { success: true, skippedSlack: true };
+
+      setResult('morningBrief', {
+        success: result.success,
+        message: result.success ? 'Morning Brief sent to you!' : result.error || 'Failed',
+        data: result,
+        timestamp: new Date(),
+      });
+
+      await createInAppMirror({
+        title: 'Morning Brief (simulated)',
+        message: 'Your daily priorities and next steps are ready.',
+        category: 'team',
+        entity_type: 'morning_brief',
+        metadata: { source: 'proactive_simulator', slack: sendToSlack ? { ts: result?.ts, channelId: result?.channelId } : { skipped: true } },
+      });
+    } catch (e: any) {
+      setResult('morningBrief', { success: false, message: e?.message || 'Failed', data: e, timestamp: new Date() });
+      toast.error(e?.message || 'Failed to send Morning Brief');
+    } finally {
+      setLoadingState('morningBrief', false);
+    }
+  };
+
+  const testStaleDealAlertDm = async () => {
+    if (!activeOrgId) {
+      toast.error('No organization selected');
+      return;
+    }
+    setLoadingState('staleDeal', true);
+    try {
+      const result = sendToSlack
+        ? await invokeFunction('slack-test-message', {
+            orgId: activeOrgId,
+            action: 'send_stale_deal_alert_dm',
+            dealId: dealRoomData.dealId || null,
+          })
+        : { success: true, skippedSlack: true };
+
+      setResult('staleDeal', {
+        success: result.success,
+        message: result.success ? 'Stale deal alert sent to you!' : result.error || 'Failed',
+        data: result,
+        timestamp: new Date(),
+      });
+
+      await createInAppMirror({
+        title: 'Stale deal alert (simulated)',
+        message: 'A deal looks stale — suggested follow-up is ready.',
+        category: 'deal',
+        entity_type: 'deal',
+        entity_id: dealRoomData.dealId || undefined,
+        action_url: dealRoomData.dealId ? `/deals/${dealRoomData.dealId}` : undefined,
+        metadata: { source: 'proactive_simulator' },
+      });
+    } catch (e: any) {
+      setResult('staleDeal', { success: false, message: e?.message || 'Failed', data: e, timestamp: new Date() });
+      toast.error(e?.message || 'Failed to send stale deal alert');
+    } finally {
+      setLoadingState('staleDeal', false);
+    }
+  };
+
+  const testEmailReplyAlertDm = async () => {
+    if (!activeOrgId) {
+      toast.error('No organization selected');
+      return;
+    }
+    setLoadingState('emailReply', true);
+    try {
+      const result = sendToSlack
+        ? await invokeFunction('slack-test-message', { orgId: activeOrgId, action: 'send_email_reply_alert_dm' })
+        : { success: true, skippedSlack: true };
+
+      setResult('emailReply', {
+        success: result.success,
+        message: result.success ? 'Email reply alert sent to you!' : result.error || 'Failed',
+        data: result,
+        timestamp: new Date(),
+      });
+
+      await createInAppMirror({
+        title: 'Email reply received (simulated)',
+        message: 'A prospect replied — suggested response is ready.',
+        category: 'team',
+        entity_type: 'email',
+        metadata: { source: 'proactive_simulator' },
+      });
+    } catch (e: any) {
+      setResult('emailReply', { success: false, message: e?.message || 'Failed', data: e, timestamp: new Date() });
+      toast.error(e?.message || 'Failed to send email reply alert');
+    } finally {
+      setLoadingState('emailReply', false);
+    }
+  };
+
   if (settingsLoading) {
     return (
       <div className="container max-w-4xl py-8 px-4 sm:px-6">
@@ -804,75 +1009,14 @@ export default function SlackDemo() {
     );
   }
 
-  if (!slackSettings?.is_connected) {
-    return (
-      <div className="container max-w-4xl py-8 px-4 sm:px-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Slack Integration Demo</h1>
-          <p className="text-muted-foreground mt-1">
-            Connect your Slack workspace to test notification features.
-          </p>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-[#4A154B]/10 rounded-lg">
-                <MessageSquare className="h-6 w-6 text-[#4A154B]" />
-              </div>
-              <div>
-                <CardTitle>Connect Slack</CardTitle>
-                <CardDescription>
-                  Link your Slack workspace to enable notifications for meetings, deals, and daily digests.
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                <span>AI Meeting Debriefs</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                <span>Daily Standup Digest</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                <span>Pre-Meeting Prep Cards</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                <span>Deal Room Channels</span>
-              </div>
-            </div>
-
-            <Separator />
-
-            <Button onClick={handleConnectSlack} className="w-full" size="lg">
-              <MessageSquare className="mr-2 h-5 w-5" />
-              Connect Slack Workspace
-            </Button>
-
-            <p className="text-xs text-muted-foreground text-center">
-              You'll be redirected to Slack to authorize the connection.
-              {activeOrg && <span> Connecting for: <strong>{activeOrg.name}</strong></span>}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="container max-w-4xl py-8 px-4 sm:px-6 space-y-8">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Slack Integration Demo</h1>
+          <h1 className="text-2xl font-bold">Proactive Simulator (Slack + In‑App)</h1>
           <p className="text-muted-foreground mt-1">
-            Quickly verify Slack connection, then test each notification type (real Slack messages).
+            Simulate proactive features end-to-end on your account: send a Slack DM, mirror into in-app notifications, and validate interactive buttons.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -906,18 +1050,60 @@ export default function SlackDemo() {
       </div>
 
       {/* Connection Status */}
-      <Alert>
-        <CheckCircle className="h-4 w-4 text-green-500" />
-        <AlertDescription className="flex items-center gap-2">
-          Connected to <Badge variant="secondary">{slackSettings.slack_team_name}</Badge>
-          {activeOrg && (
-            <>
-              <span className="text-muted-foreground">•</span>
-              <span>Org: {activeOrg.name}</span>
-            </>
-          )}
-        </AlertDescription>
-      </Alert>
+      {slackSettings?.is_connected ? (
+        <Alert>
+          <CheckCircle className="h-4 w-4 text-green-500" />
+          <AlertDescription className="flex items-center gap-2">
+            Connected to <Badge variant="secondary">{slackSettings.slack_team_name}</Badge>
+            {activeOrg && (
+              <>
+                <span className="text-muted-foreground">•</span>
+                <span>Org: {activeOrg.name}</span>
+              </>
+            )}
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>Slack is not connected for this org. You can still simulate in-app notifications.</span>
+            <Button onClick={handleConnectSlack} size="sm">
+              <MessageSquare className="mr-2 h-4 w-4" />
+              Connect Slack
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="md:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Simulation Controls</CardTitle>
+            <CardDescription>Choose where to deliver the simulated notification.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="font-medium">Send to Slack</div>
+                <div className="text-xs text-muted-foreground">Posts real Slack DMs using the org bot</div>
+              </div>
+              <Switch checked={sendToSlack} onCheckedChange={setSendToSlack} disabled={!slackSettings?.is_connected} />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="font-medium">Mirror to In-app</div>
+                <div className="text-xs text-muted-foreground">Creates a `notifications` row for your user</div>
+              </div>
+              <Switch checked={mirrorToInApp} onCheckedChange={setMirrorToInApp} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="md:col-span-1">
+          <SlackSelfMapping />
+        </div>
+      </div>
 
       {connectionTestResult && (
         <Alert variant={connectionTestResult.success ? 'default' : 'destructive'}>
@@ -934,6 +1120,20 @@ export default function SlackDemo() {
 
       {/* Test Cards */}
       <div className="grid gap-6">
+        {/* Proactive: Morning Brief */}
+        <TestCard
+          title="Morning Brief (DM)"
+          description="Send a sample morning brief to yourself (Slack DM) and mirror it into in-app notifications."
+          icon={Calendar}
+          onTest={testMorningBriefDm}
+          isLoading={loading.morningBrief}
+          lastResult={results.morningBrief || null}
+        >
+          <p className="text-xs text-muted-foreground">
+            This uses the dedicated simulator action in `slack-test-message` so we can iterate on Block Kit quickly.
+          </p>
+        </TestCard>
+
         {/* Meeting Debrief */}
         <TestCard
           title="AI Meeting Debrief"
@@ -1232,6 +1432,54 @@ export default function SlackDemo() {
               </div>
             )}
           </div>
+        </TestCard>
+
+        {/* Proactive: Stale Deal Alert */}
+        <TestCard
+          title="Stale Deal Alert (DM)"
+          description="Send a sample stale deal alert to yourself and mirror it into in-app notifications."
+          icon={AlertTriangle}
+          onTest={testStaleDealAlertDm}
+          isLoading={loading.staleDeal}
+          lastResult={results.staleDeal || null}
+        >
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Optional: select a deal to reference</Label>
+            <Select
+              value={dealRoomData.dealId ? dealRoomData.dealId : NONE_SELECT_VALUE}
+              onValueChange={(value) => setDealRoomData({ ...dealRoomData, dealId: value === NONE_SELECT_VALUE ? '' : value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={dealsLoading ? 'Loading deals…' : 'Select a deal (optional)'} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE_SELECT_VALUE}>None</SelectItem>
+                {filteredDeals.slice(0, 50).map((d) => {
+                  const company = d.company?.name ? ` • ${d.company.name}` : '';
+                  const stage = d.stage ? ` • ${d.stage}` : '';
+                  return (
+                    <SelectItem key={d.id} value={d.id}>
+                      {(d.title || 'Untitled deal') + company + stage}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+        </TestCard>
+
+        {/* Proactive: Email Reply Alert */}
+        <TestCard
+          title="Email Reply Received (DM)"
+          description="Send a sample email reply alert to yourself and mirror it into in-app notifications."
+          icon={Mail}
+          onTest={testEmailReplyAlertDm}
+          isLoading={loading.emailReply}
+          lastResult={results.emailReply || null}
+        >
+          <p className="text-xs text-muted-foreground">
+            This is a sample alert. The production version will be driven by inbound email events/categorizations.
+          </p>
         </TestCard>
 
         {/* Deal Room */}

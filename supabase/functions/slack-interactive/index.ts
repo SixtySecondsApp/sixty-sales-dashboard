@@ -495,6 +495,76 @@ async function handleCreateTaskFromAlert(
 }
 
 /**
+ * Handle task creation from the Sales Assistant (and other proactive DMs)
+ * Value is JSON and may include: title, dealId, contactId, dueInDays, source
+ */
+async function handleCreateTaskFromAssistant(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload,
+  action: SlackAction
+): Promise<Response> {
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, payload.team?.id);
+
+  if (!ctx) {
+    if (payload.response_url) {
+      await sendEphemeral(payload.response_url, {
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '❌ Your Slack account is not linked to Sixty.' } }],
+        text: 'Your Slack account is not linked to Sixty.',
+      });
+    }
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  try {
+    const parsed = JSON.parse(action.value || '{}') as {
+      title?: string;
+      dealId?: string;
+      contactId?: string;
+      dueInDays?: number;
+      source?: string;
+    };
+
+    const title = (parsed.title || '').trim() || 'Follow up';
+    const dueInDays = typeof parsed.dueInDays === 'number' ? parsed.dueInDays : 1;
+
+    const result = await createTask(supabase, ctx, {
+      title,
+      dealId: parsed.dealId,
+      contactId: parsed.contactId,
+      dueInDays,
+    });
+
+    if (payload.response_url) {
+      if (result.success) {
+        const confirmation = buildTaskAddedConfirmation(title);
+        await sendEphemeral(payload.response_url, confirmation);
+      } else {
+        await sendEphemeral(payload.response_url, {
+          blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '❌ Failed to create task.' } }],
+          text: 'Failed to create task.',
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error creating task from assistant:', error);
+    if (payload.response_url) {
+      await sendEphemeral(payload.response_url, {
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '❌ Failed to create task.' } }],
+        text: 'Failed to create task.',
+      });
+    }
+  }
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+/**
  * Update a block to show a checkmark after task was added
  */
 function updateBlockWithCheckmark(
@@ -1535,6 +1605,8 @@ serve(async (req) => {
           return handleAddAllTasks(supabase, payload, action);
         } else if (action.action_id === 'dismiss_tasks') {
           return handleDismiss(payload, action);
+        } else if (action.action_id === 'create_task_from_assistant') {
+          return handleCreateTaskFromAssistant(supabase, payload, action);
         } else if (action.action_id === 'create_task_from_alert') {
           return handleCreateTaskFromAlert(supabase, payload, action);
         } else if (action.action_id === 'log_activity') {
