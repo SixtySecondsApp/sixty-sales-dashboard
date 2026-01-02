@@ -16,6 +16,8 @@ import {
   getAvailableContextVariables,
 } from '@/lib/hooks/usePlatformSkills';
 import ReactMarkdown from 'react-markdown';
+import { toast } from 'sonner';
+import { buildSkillResponseFormatExport, writeJsonToClipboard } from '@/lib/utils/responseFormatExport';
 
 interface SkillPreviewProps {
   skill: PlatformSkill;
@@ -55,6 +57,7 @@ const DEFAULT_SAMPLE_CONTEXT: Record<string, unknown> = {
 export function SkillPreview({ skill, onClose, sampleContext }: SkillPreviewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('template');
   const [copied, setCopied] = useState(false);
+  const [copiedFormat, setCopiedFormat] = useState(false);
 
   const context = { ...DEFAULT_SAMPLE_CONTEXT, ...sampleContext };
 
@@ -119,6 +122,21 @@ export function SkillPreview({ skill, onClose, sampleContext }: SkillPreviewProp
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleCopyFormatJson = async () => {
+    try {
+      await writeJsonToClipboard({
+        kind: 'skill-response-format',
+        generatedAt: new Date().toISOString(),
+        skill: buildSkillResponseFormatExport(skill),
+      });
+      setCopiedFormat(true);
+      setTimeout(() => setCopiedFormat(false), 2000);
+      toast.success('Copied format JSON');
+    } catch {
+      toast.error('Failed to copy');
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Header with view toggle */}
@@ -151,20 +169,35 @@ export function SkillPreview({ skill, onClose, sampleContext }: SkillPreviewProp
           </button>
         </div>
 
-        {/* Copy button */}
-        <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1.5">
-          {copied ? (
-            <>
-              <Check className="w-3.5 h-3.5 text-green-600" />
-              Copied
-            </>
-          ) : (
-            <>
-              <Copy className="w-3.5 h-3.5" />
-              Copy
-            </>
-          )}
-        </Button>
+        {/* Copy buttons */}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleCopyFormatJson} className="gap-1.5">
+            {copiedFormat ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-green-600" />
+                Copied JSON
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                Copy format JSON
+              </>
+            )}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1.5">
+            {copied ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-green-600" />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                Copy
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Frontmatter Display */}

@@ -56,6 +56,7 @@ import { getDefaultTemplate } from '@/lib/services/promptService';
 import { useUser } from '@/lib/hooks/useUser';
 import { isUserAdmin } from '@/lib/utils/adminUtils';
 import type { PromptTemplate } from '@/lib/prompts';
+import { buildPromptResponseFormatExport, writeJsonToClipboard } from '@/lib/utils/responseFormatExport';
 
 // ============================================================================
 // Category Configuration
@@ -186,6 +187,45 @@ export default function PromptSettings() {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [showVariablesInfo, setShowVariablesInfo] = useState(false);
 
+  const handleCopyAllResponseFormats = async () => {
+    try {
+      const featureKeys = Object.values(PROMPT_CATEGORIES).flatMap((c) => c.features);
+      const exports = featureKeys
+        .map((featureKey) => getDefaultTemplate(featureKey))
+        .filter((t): t is PromptTemplate => Boolean(t))
+        .map((t) => buildPromptResponseFormatExport(t));
+
+      await writeJsonToClipboard({
+        kind: 'prompt-response-formats',
+        generatedAt: new Date().toISOString(),
+        prompts: exports,
+      });
+      toast.success('Copied response formats JSON');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to copy');
+    }
+  };
+
+  const handleCopySelectedResponseFormat = async () => {
+    if (!selectedFeature) return;
+    try {
+      const template = getDefaultTemplate(selectedFeature);
+      if (!template) {
+        toast.error('No default template found for this prompt');
+        return;
+      }
+
+      await writeJsonToClipboard({
+        kind: 'prompt-response-format',
+        generatedAt: new Date().toISOString(),
+        prompt: buildPromptResponseFormatExport(template),
+      });
+      toast.success('Copied response format JSON');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to copy');
+    }
+  };
+
   // Admin access check
   useEffect(() => {
     if (userData && !isUserAdmin(userData)) {
@@ -289,6 +329,11 @@ export default function PromptSettings() {
                   Customize AI prompts system-wide for all users
                 </p>
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={handleCopyAllResponseFormats}>
+                Copy response formats JSON
+              </Button>
             </div>
           </div>
         </div>
@@ -403,6 +448,13 @@ export default function PromptSettings() {
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCopySelectedResponseFormat}
+                      >
+                        Copy format JSON
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"

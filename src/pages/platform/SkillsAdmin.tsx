@@ -44,6 +44,8 @@ import {
   type SkillCategory,
 } from '@/lib/hooks/usePlatformSkills';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { toast } from 'sonner';
+import { buildSkillResponseFormatExport, writeJsonToClipboard } from '@/lib/utils/responseFormatExport';
 
 const CATEGORY_ICONS: Record<SkillCategory, React.ElementType> = {
   'sales-ai': Sparkles,
@@ -115,6 +117,21 @@ export default function SkillsAdmin() {
     }
   };
 
+  const handleCopyCategoryResponseFormats = async () => {
+    try {
+      const all = (skills || []).map((s) => buildSkillResponseFormatExport(s));
+      await writeJsonToClipboard({
+        kind: 'skill-response-formats',
+        generatedAt: new Date().toISOString(),
+        category: selectedCategory,
+        skills: all,
+      });
+      toast.success('Copied response formats JSON');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to copy');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
       {/* Header */}
@@ -135,6 +152,14 @@ export default function SkillsAdmin() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                onClick={handleCopyCategoryResponseFormats}
+                disabled={isLoading}
+                className="gap-2"
+              >
+                Copy formats JSON
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => refetch()}

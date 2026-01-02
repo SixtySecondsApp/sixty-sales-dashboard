@@ -1014,7 +1014,7 @@ export default function SlackDemo() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Proactive Simulator (Slack + In‑App)</h1>
+          <h1 className="text-2xl font-bold">Slack Demo (Notifications + HITL)</h1>
           <p className="text-muted-foreground mt-1">
             Simulate proactive features end-to-end on your account: send a Slack DM, mirror into in-app notifications, and validate interactive buttons.
           </p>
