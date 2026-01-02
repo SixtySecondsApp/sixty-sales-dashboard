@@ -467,6 +467,71 @@ const PROCESS_DESCRIPTIONS: Record<string, Record<string, ProcessDescriptionData
 
 **Features**: Personal email detection, progressive disclosure UI, confidence scoring, manual data fallback`
     },
+    deal_health_momentum: {
+      short: `Proactive deal clarity and execution tracking with Slack nudges for deals needing attention.`,
+      long: `**Deal Health Momentum Workflow** unifies Deal Health Score + Risk Signals + Deal Truth + Close Plan to keep deals moving forward.
+
+**Triggers**:
+- Nightly cron refresh (health + risk aggregates)
+- After meeting processing completes
+- After email activity classification
+- After CRM sync updates
+- Manual Slack command: /sixty deal <name>
+
+**Data Layers**:
+
+1. **Deal Truth (Clarity Layer)**:
+   - 6 fields: pain, success_metric, champion, economic_buyer, next_step, top_risks
+   - Each field has: value, confidence (0-1), source, last_updated_at
+   - Clarity Score = next_step_dated(30) + economic_buyer(25) + champion(20) + success_metric(15) + risks(10)
+   - Stored in \`deal_truth_fields\` table
+
+2. **Close Plan (Execution Layer)**:
+   - 6 milestones: success_criteria, stakeholders_mapped, solution_fit, commercials_aligned, legal_procurement, signature_kickoff
+   - Each milestone: owner_id, due_date, status (pending/in_progress/completed/blocked), blocker_note
+   - Overdue milestones drag momentum score
+   - Stored in \`deal_close_plan_items\` table
+
+3. **Health Score (Behavioral Layer)**:
+   - 5 signals: stage_velocity, sentiment, engagement, activity_recency, response_time
+   - Composite health_status: healthy, attention, warning, critical, stalled
+   - Stored in \`deal_health_scores\` table
+
+4. **Risk Signals (Detection Layer)**:
+   - AI-detected friction points with categories and severity
+   - Aggregated to overall_risk_level: low, medium, high, critical
+   - Stored in \`deal_risk_signals\` and \`deal_risk_aggregates\`
+
+**Momentum Score Calculation**:
+\`\`\`
+momentum = 0.55 * clarity_score + 0.25 * (100 - risk_score) + 0.20 * health_score - overdue_penalty
+\`\`\`
+
+**Notification Triggers**:
+- health_status IN (warning, critical, stalled)
+- overall_risk_level IN (high, critical)
+- clarity_score < 50
+- economic_buyer unknown AND next_step undated
+
+**Slack Card Actions**:
+- Set Next Step: Opens modal with date picker and confidence selector
+- Mark Milestone: Update close plan item status
+- Answer Question: 1-click responses for low-confidence truth fields
+- Log Activity: Quick activity logging
+- Create Task: Generate task from context
+
+**Deduplication**:
+- \`deal_momentum_nudge\`: 24-hour cooldown per deal
+- \`deal_clarification_question\`: 4-hour cooldown per deal+field
+- Tracked in \`slack_notifications_sent\` table
+
+**Edge Functions**:
+- \`slack-deal-momentum\`: Proactive nudge delivery (cron-triggered)
+- \`slack-interactive/handlers/momentum.ts\`: Button and modal handlers
+- \`slack-slash-commands/handlers/deal.ts\`: /sixty deal command
+
+**Features**: Risk-triggered questions, 1-click confidence updates, close plan progress tracking, momentum scoring, in-app notification mirroring`
+    },
   },
 }
 
