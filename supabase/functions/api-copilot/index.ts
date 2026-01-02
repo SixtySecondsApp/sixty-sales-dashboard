@@ -2336,6 +2336,27 @@ ${skillsListText || '  No skills configured yet'}
 4. Use execute_action to gather data or perform tasks
 5. Deliver results in the user's preferred channel
 
+## Common Workflows
+
+### Meeting Prep (when user says "prep me for meeting with X" or similar)
+This is NOT about creating a meeting - it's about preparing a briefing for an existing upcoming meeting.
+1. Use execute_action with get_contact to find the contact by name/email
+2. Use execute_action with get_meetings to find upcoming meetings with that contact
+3. Also use execute_action with get_booking_stats (source: "savvycal") to check for SavvyCal bookings
+4. Use get_skill with "meeting-prep" or "meeting-prep-briefing" skill_id
+5. Follow the skill to generate a comprehensive briefing including:
+   - Contact/company background
+   - Recent interactions and email history
+   - Deal status if applicable
+   - Talking points and suggested agenda
+DO NOT show a "Create Meeting" UI for prep requests.
+
+### Lead Research (when user wants to learn about a contact/company)
+1. Use execute_action with get_contact or enrich_contact
+2. Use execute_action with enrich_company if needed
+3. Use get_skill with "lead-research" skill_id
+4. Follow the skill to compile research
+
 ## Core Rules
 - Confirm before any CRM updates, notifications, or sends (execute_action write actions require params.confirm=true)
 - Do not make up information; prefer tool results
@@ -5243,19 +5264,35 @@ async function detectAndStructureResponse(
     return structured
   }
   
+  // Detect meeting PREP requests - these should NOT trigger activity creation
+  // User wants to prepare FOR a meeting, not CREATE a meeting
+  const meetingPrepKeywords = [
+    'prep me for', 'prep for', 'prepare me for', 'prepare for',
+    'brief me for', 'briefing for', 'brief me on', 'brief on',
+    'ready for meeting', 'ready me for', 'get ready for',
+    'meeting prep', 'meeting briefing', 'meeting preparation',
+    'help me prepare', 'what should i know'
+  ]
+  const isMeetingPrepRequest = meetingPrepKeywords.some(keyword => messageLower.includes(keyword)) ||
+    (messageLower.includes('prep') && messageLower.includes('meeting')) ||
+    (messageLower.includes('prepare') && messageLower.includes('meeting')) ||
+    (messageLower.includes('brief') && messageLower.includes('meeting'))
+
   // Detect proposal/activity creation requests (check before other detections)
+  // EXCLUDE meeting prep requests - those should go to AI for skill-based handling
   const proposalKeywords = ['add a proposal', 'create proposal', 'add proposal', 'proposal for', 'new proposal']
   const meetingKeywords = ['add a meeting', 'create meeting', 'add meeting', 'meeting with', 'new meeting']
   const saleKeywords = ['add a sale', 'create sale', 'add sale', 'sale for', 'new sale']
   const outboundKeywords = ['add outbound', 'create outbound', 'outbound for', 'new outbound']
-  
-  const isProposalRequest = proposalKeywords.some(keyword => messageLower.includes(keyword)) || 
+
+  const isProposalRequest = proposalKeywords.some(keyword => messageLower.includes(keyword)) ||
     (messageLower.includes('proposal') && (messageLower.includes('add') || messageLower.includes('create') || messageLower.includes('for')))
-  const isMeetingRequest = meetingKeywords.some(keyword => messageLower.includes(keyword)) || 
-    (messageLower.includes('meeting') && (messageLower.includes('add') || messageLower.includes('create') || messageLower.includes('with')))
-  const isSaleRequest = saleKeywords.some(keyword => messageLower.includes(keyword)) || 
+  // isMeetingRequest now excludes prep/briefing requests - let AI handle those with skills
+  const isMeetingRequest = !isMeetingPrepRequest && (meetingKeywords.some(keyword => messageLower.includes(keyword)) ||
+    (messageLower.includes('meeting') && (messageLower.includes('add') || messageLower.includes('create') || messageLower.includes('with'))))
+  const isSaleRequest = saleKeywords.some(keyword => messageLower.includes(keyword)) ||
     (messageLower.includes('sale') && (messageLower.includes('add') || messageLower.includes('create') || messageLower.includes('for')))
-  const isOutboundRequest = outboundKeywords.some(keyword => messageLower.includes(keyword)) || 
+  const isOutboundRequest = outboundKeywords.some(keyword => messageLower.includes(keyword)) ||
     (messageLower.includes('outbound') && (messageLower.includes('add') || messageLower.includes('create') || messageLower.includes('for')))
   
   if (isProposalRequest || isMeetingRequest || isSaleRequest || isOutboundRequest) {
