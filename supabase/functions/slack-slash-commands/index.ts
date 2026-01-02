@@ -27,6 +27,7 @@ import { handleMeetingBrief } from './handlers/meetingBrief.ts';
 import { handleFollowUp } from './handlers/followUp.ts';
 import { handleRisks } from './handlers/risks.ts';
 import { handleDebrief } from './handlers/debrief.ts';
+import { handleTaskAdd, handleTaskList, handleFocus } from './handlers/task.ts';
 
 // ============================================================================
 // Environment
@@ -187,6 +188,30 @@ async function routeCommand(
     case 'debrief':
       // Post-meeting debrief (Phase 3)
       return await handleDebriefCommand(ctx, rawArgs || 'last');
+
+    case 'task':
+      // Task management (Phase 4)
+      // Parse task subcommand: /sixty task add <text>, /sixty task list [filter]
+      const taskSubcmd = args[0]?.toLowerCase() || '';
+      const taskArgs = args.slice(1).join(' ');
+
+      if (taskSubcmd === 'add') {
+        if (!taskArgs) {
+          return jsonResponse(buildErrorResponse(
+            'Please provide a task description.\n\nExample: `/sixty task add Follow up with John tomorrow`'
+          ));
+        }
+        return await handleTaskAddCommand(ctx, taskArgs);
+      } else if (taskSubcmd === 'list' || taskSubcmd === '') {
+        return await handleTaskListCommand(ctx, taskArgs);
+      } else {
+        // Assume it's task add without the "add" keyword
+        return await handleTaskAddCommand(ctx, rawArgs);
+      }
+
+    case 'focus':
+      // Focus mode (Phase 4)
+      return await handleFocusCommand(ctx);
 
     default:
       // Unknown command → show help with suggestion
@@ -372,6 +397,69 @@ async function handleDebriefCommand(ctx: CommandContext, target: string): Promis
   return jsonResponse(loadingResponse);
 }
 
+/**
+ * Handle /sixty task add <text>
+ */
+async function handleTaskAddCommand(ctx: CommandContext, text: string): Promise<Response> {
+  const loadingResponse = buildLoadingResponse('Creating task...');
+
+  processInBackground(async () => {
+    try {
+      const response = await handleTaskAdd(ctx, text);
+      await sendEphemeral(ctx.payload.response_url, response);
+    } catch (error) {
+      console.error('Error in handleTaskAdd:', error);
+      await sendEphemeral(ctx.payload.response_url, buildErrorResponse(
+        'Failed to create task. Please try again.'
+      ));
+    }
+  });
+
+  return jsonResponse(loadingResponse);
+}
+
+/**
+ * Handle /sixty task list [filter]
+ */
+async function handleTaskListCommand(ctx: CommandContext, filter: string): Promise<Response> {
+  const loadingResponse = buildLoadingResponse('Loading your tasks...');
+
+  processInBackground(async () => {
+    try {
+      const response = await handleTaskList(ctx, filter);
+      await sendEphemeral(ctx.payload.response_url, response);
+    } catch (error) {
+      console.error('Error in handleTaskList:', error);
+      await sendEphemeral(ctx.payload.response_url, buildErrorResponse(
+        'Failed to load tasks. Please try again.'
+      ));
+    }
+  });
+
+  return jsonResponse(loadingResponse);
+}
+
+/**
+ * Handle /sixty focus
+ */
+async function handleFocusCommand(ctx: CommandContext): Promise<Response> {
+  const loadingResponse = buildLoadingResponse('Starting focus mode...');
+
+  processInBackground(async () => {
+    try {
+      const response = await handleFocus(ctx);
+      await sendEphemeral(ctx.payload.response_url, response);
+    } catch (error) {
+      console.error('Error in handleFocus:', error);
+      await sendEphemeral(ctx.payload.response_url, buildErrorResponse(
+        'Failed to start focus mode. Please try again.'
+      ));
+    }
+  });
+
+  return jsonResponse(loadingResponse);
+}
+
 // ============================================================================
 // Utilities
 // ============================================================================
@@ -411,6 +499,9 @@ function getSuggestion(input: string): string {
     { cmd: 'follow-up', desc: 'Draft a follow-up' },
     { cmd: 'risks', desc: 'At-risk deals' },
     { cmd: 'debrief', desc: 'Post-meeting summary' },
+    { cmd: 'task add', desc: 'Create a new task' },
+    { cmd: 'task list', desc: 'View your tasks' },
+    { cmd: 'focus', desc: 'Focus mode with top tasks' },
   ];
 
   // Simple fuzzy match - find commands that start with same letter or contain the input
