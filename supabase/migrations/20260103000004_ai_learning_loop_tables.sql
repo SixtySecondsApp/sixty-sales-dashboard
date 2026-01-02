@@ -172,14 +172,15 @@ CREATE POLICY "Service can update AI feedback"
   USING (auth.role() = 'service_role');
 
 -- Org preferences: admins can view/edit their org's preferences
+-- Uses organization_memberships table to check org membership and role
 CREATE POLICY "Admins can view org AI preferences"
   ON org_ai_preferences FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.organization_id = org_ai_preferences.org_id
-      AND profiles.role IN ('admin', 'owner')
+      SELECT 1 FROM organization_memberships om
+      WHERE om.user_id = auth.uid()
+      AND om.org_id = org_ai_preferences.org_id
+      AND om.role IN ('admin', 'owner')
     )
   );
 
@@ -187,10 +188,10 @@ CREATE POLICY "Admins can update org AI preferences"
   ON org_ai_preferences FOR UPDATE
   USING (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.organization_id = org_ai_preferences.org_id
-      AND profiles.role IN ('admin', 'owner')
+      SELECT 1 FROM organization_memberships om
+      WHERE om.user_id = auth.uid()
+      AND om.org_id = org_ai_preferences.org_id
+      AND om.role IN ('admin', 'owner')
     )
   );
 
@@ -198,10 +199,10 @@ CREATE POLICY "Admins can insert org AI preferences"
   ON org_ai_preferences FOR INSERT
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.organization_id = org_ai_preferences.org_id
-      AND profiles.role IN ('admin', 'owner')
+      SELECT 1 FROM organization_memberships om
+      WHERE om.user_id = auth.uid()
+      AND om.org_id = org_ai_preferences.org_id
+      AND om.role IN ('admin', 'owner')
     )
   );
 

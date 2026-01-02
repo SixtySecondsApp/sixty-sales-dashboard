@@ -116,11 +116,57 @@ export default function ApiMonitor() {
         method: 'GET',
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('API Monitor error:', error);
+        const errorMessage = (error as any)?.message || error?.toString() || 'Unknown error';
+        const errorContext = (error as any)?.context;
+        console.error('Error context:', errorContext);
+        
+        // Fallback: Try to load from database snapshots
+        console.log('Attempting fallback: loading from database snapshots...');
+        const { data: snapshotData, error: dbError } = await supabase
+          .from('api_monitor_snapshots')
+          .select('*')
+          .gte('time_bucket_start', timeRange.from.toISOString())
+          .lte('time_bucket_end', timeRange.to.toISOString())
+          .order('snapshot_time', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!dbError && snapshotData) {
+          console.log('Loaded snapshot from database:', snapshotData.id);
+          // Convert DB format to snapshot format
+          setSnapshot({
+            snapshot_time: snapshotData.snapshot_time,
+            time_bucket_start: snapshotData.time_bucket_start,
+            time_bucket_end: snapshotData.time_bucket_end,
+            bucket_type: snapshotData.bucket_type,
+            total_requests: snapshotData.total_requests,
+            total_errors: snapshotData.total_errors,
+            error_rate: snapshotData.error_rate,
+            top_endpoints: snapshotData.top_endpoints as any,
+            top_errors: snapshotData.top_errors as any,
+            top_callers: snapshotData.top_callers as any,
+            suspected_bursts: snapshotData.suspected_bursts as any,
+          });
+          toast.warning('Loaded from database snapshot (function unavailable)');
+          return;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      if (data?.success === false) {
+        throw new Error(data?.error || 'Failed to fetch metrics');
+      }
+
       setSnapshot(data?.snapshot || null);
     } catch (err) {
       console.error('Failed to fetch snapshot:', err);
-      toast.error('Failed to load API metrics');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load API metrics';
+      toast.error('Failed to load API metrics', {
+        description: errorMessage,
+      });
     }
   }, [timeRange]);
 
@@ -130,11 +176,22 @@ export default function ApiMonitor() {
         method: 'GET',
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Improvements fetch error:', error);
+        throw error;
+      }
+
+      if (data?.success === false) {
+        throw new Error(data?.error || 'Failed to fetch improvements');
+      }
+
       setImprovements(data?.improvements || []);
     } catch (err) {
       console.error('Failed to fetch improvements:', err);
-      toast.error('Failed to load improvements');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load improvements';
+      toast.error('Failed to load improvements', {
+        description: errorMessage,
+      });
     }
   }, []);
 
@@ -148,11 +205,23 @@ export default function ApiMonitor() {
         method: 'GET',
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('AI Review error:', error);
+        const errorMessage = (error as any)?.message || error?.toString() || 'Unknown error';
+        throw new Error(errorMessage);
+      }
+
+      if (data?.success === false) {
+        throw new Error(data?.error || 'Failed to generate AI review');
+      }
+
       setAiReview(data?.review || null);
     } catch (err) {
       console.error('Failed to fetch AI review:', err);
-      toast.error('Failed to generate AI review');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to generate AI review';
+      toast.error('Failed to generate AI review', {
+        description: errorMessage,
+      });
     }
   }, [timeRange]);
 

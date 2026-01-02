@@ -122,6 +122,9 @@ async function processStripeEvent(
         };
     }
 
+    // Mark event as processed successfully
+    await markEventProcessed(supabase, eventId, null);
+
     return {
       success: true,
       event_id: eventId,
@@ -131,6 +134,10 @@ async function processStripeEvent(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error(`Error processing ${eventType}:`, error);
+    
+    // Mark event as processed with error
+    await markEventProcessed(supabase, eventId, errorMessage);
+    
     await captureException(error, {
       tags: {
         function: 'stripe-webhook',
@@ -152,6 +159,27 @@ async function processStripeEvent(
   }
 }
 
+// Mark billing event as processed
+async function markEventProcessed(
+  supabase: SupabaseClient,
+  providerEventId: string,
+  error: string | null
+): Promise<void> {
+  const { error: updateError } = await supabase
+    .from('billing_event_log')
+    .update({
+      processed_at: new Date().toISOString(),
+      processing_error: error,
+    })
+    .eq('provider', 'stripe')
+    .eq('provider_event_id', providerEventId);
+
+  if (updateError) {
+    console.error('Error marking event as processed:', updateError);
+    // Don't throw - this is not critical
+  }
+}
+
 // ============================================================================
 // CHECKOUT SESSION COMPLETED
 // ============================================================================
@@ -169,6 +197,30 @@ async function handleCheckoutCompleted(
 
   if (!orgId) {
     console.warn("Checkout session missing org_id in metadata");
+    // Try to find org by customer ID if available
+    const customerId = typeof session.customer === "string"
+      ? session.customer
+      : session.customer?.id;
+    if (customerId) {
+      const { data: existingSub } = await supabase
+        .from("organization_subscriptions")
+        .select("org_id")
+        .eq("stripe_customer_id", customerId)
+        .single();
+      if (existingSub) {
+        // Update event log with found org_id
+        const subscriptionId = typeof session.subscription === "string"
+          ? session.subscription
+          : session.subscription?.id;
+        if (subscriptionId) {
+          await supabase
+            .from('billing_event_log')
+            .update({ org_id: existingSub.org_id })
+            .eq('provider', 'stripe')
+            .eq('provider_event_id', (session as any).id || '');
+        }
+      }
+    }
     return;
   }
 
@@ -273,6 +325,8 @@ async function handleSubscriptionUpdated(
     .eq("stripe_subscription_id", subscription.id)
     .single();
 
+  let orgId: string | null = null;
+
   if (findError || !existingSub) {
     // Try finding by customer ID
     const customerId = typeof subscription.customer === "string"
@@ -287,7 +341,14 @@ async function handleSubscriptionUpdated(
         .single();
 
       if (subByCustomer) {
-        await syncSubscriptionToDatabase(supabase, subByCustomer.org_id, subscription);
+        orgId = subByCustomer.org_id;
+        // Update event log with found org_id
+        await supabase
+          .from('billing_event_log')
+          .update({ org_id })
+          .eq('provider', 'stripe')
+          .eq('provider_event_id', subscription.id);
+        await syncSubscriptionToDatabase(supabase, orgId, subscription);
         return;
       }
     }
@@ -296,7 +357,16 @@ async function handleSubscriptionUpdated(
     return;
   }
 
-  await syncSubscriptionToDatabase(supabase, existingSub.org_id, subscription);
+  orgId = existingSub.org_id;
+  // Update event log with org_id if not already set
+  await supabase
+    .from('billing_event_log')
+    .update({ org_id })
+    .eq('provider', 'stripe')
+    .eq('provider_event_id', subscription.id)
+    .is('org_id', null);
+
+  await syncSubscriptionToDatabase(supabase, orgId, subscription);
 }
 
 // ============================================================================
@@ -414,12 +484,16 @@ async function handleInvoicePaid(
   }
 
   // Update subscription status to active (in case it was past_due)
+  // Also update payment dates for analytics
+  const paymentDate = new Date().toISOString();
   await supabase
     .from("organization_subscriptions")
     .update({
       status: "active",
       stripe_latest_invoice_id: invoice.id,
-      updated_at: new Date().toISOString(),
+      last_payment_at: paymentDate,
+      first_payment_at: paymentDate, // Set if not already set
+      updated_at: paymentDate,
     })
     .eq("stripe_subscription_id", subscriptionId);
 

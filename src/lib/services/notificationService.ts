@@ -46,7 +46,7 @@ class NotificationService {
   // Small in-memory caching to prevent bursty duplicate REST calls
   private unreadCountCache: { userId: string; value: number; fetchedAt: number } | null = null;
   private unreadCountInFlight: Promise<number> | null = null;
-  private readonly UNREAD_COUNT_CACHE_MS = 5_000;
+  private readonly UNREAD_COUNT_CACHE_MS = 30_000; // Increased from 5s to 30s to prevent bursts
 
   /**
    * Create a new notification
