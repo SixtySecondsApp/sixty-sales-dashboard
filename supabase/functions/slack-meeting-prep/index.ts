@@ -1,11 +1,20 @@
 // supabase/functions/slack-meeting-prep/index.ts
-// Posts Pre-Meeting Prep Cards to Slack 30 mins before meetings
+// Posts Pre-Meeting Prep Cards to Slack 10 mins before meetings
+// Supports both manual trigger and cron-based proactive delivery
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 import { buildMeetingPrepMessage, type MeetingPrepData } from '../_shared/slackBlocks.ts';
-import { getAuthContext, requireOrgRole } from '../_shared/edgeAuth.ts';
+import { getAuthContext, requireOrgRole, verifyCronSecret, isServiceRoleAuth } from '../_shared/edgeAuth.ts';
+import {
+  getSlackOrgSettings,
+  getNotificationFeatureSettings,
+  getSlackRecipient,
+  shouldSendNotification,
+  recordNotificationSent,
+  deliverToInApp,
+} from '../_shared/proactive/index.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -80,21 +89,23 @@ interface Deal {
 }
 
 /**
- * Get upcoming meetings (25-35 mins from now)
+ * Get upcoming meetings (8-12 mins from now for proactive, or custom window)
  */
 async function getUpcomingMeetings(
   supabase: ReturnType<typeof createClient>,
-  orgId?: string
+  orgId?: string,
+  minutesBefore: number = 10,
+  windowMinutes: number = 4
 ): Promise<CalendarEvent[]> {
   const now = new Date();
-  const in25Mins = new Date(now.getTime() + 25 * 60 * 1000);
-  const in35Mins = new Date(now.getTime() + 35 * 60 * 1000);
+  const windowStart = new Date(now.getTime() + (minutesBefore - windowMinutes) * 60 * 1000);
+  const windowEnd = new Date(now.getTime() + (minutesBefore + windowMinutes) * 60 * 1000);
 
   let query = supabase
     .from('calendar_events')
     .select('id, title, start_time, user_id, attendee_emails, meeting_url, org_id')
-    .gte('start_time', in25Mins.toISOString())
-    .lte('start_time', in35Mins.toISOString());
+    .gte('start_time', windowStart.toISOString())
+    .lte('start_time', windowEnd.toISOString());
 
   if (orgId) {
     query = query.eq('org_id', orgId);
@@ -823,6 +834,30 @@ async function processMeetingPrep(
       });
     }
 
+    // Mirror to in-app notifications (best-effort)
+    try {
+      await deliverToInApp(supabase, {
+        type: 'meeting_prep',
+        orgId: event.org_id,
+        recipientUserId: event.user_id,
+        recipientSlackUserId: slackUserId || undefined,
+        title: `Meeting soon: ${event.title || 'Upcoming meeting'}`,
+        message: 'Your meeting prep is ready — talking points, risks, and reminders inside.',
+        actionUrl: '/calendar',
+        inAppCategory: 'meeting',
+        inAppType: 'info',
+        entityType: 'calendar_event',
+        entityId: event.id,
+        metadata: {
+          eventId: event.id,
+          startTime: event.start_time,
+          source: 'slack_meeting_prep',
+        },
+      });
+    } catch (e) {
+      console.warn('[slack-meeting-prep] Failed to create in-app notification:', (e as any)?.message || e);
+    }
+
     return { success: true };
   } catch (error) {
     console.error('Error processing meeting prep:', error);
@@ -837,7 +872,8 @@ serve(async (req) => {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const auth = await getAuthContext(req, supabase, supabaseServiceKey);
+    const cronSecret = Deno.env.get('CRON_SECRET') || undefined;
+    const auth = await getAuthContext(req, supabase, supabaseServiceKey, { cronSecret });
 
     // Check for manual trigger with specific event
     let targetEventId: string | null = null;
@@ -916,8 +952,20 @@ serve(async (req) => {
         meetings = [];
       }
     } else {
-      // Get upcoming meetings (25-35 mins from now)
-      meetings = await getUpcomingMeetings(supabase, targetOrgId || undefined);
+      // Get upcoming meetings (8-12 mins from now for proactive 10-min nudge)
+      // Check org settings for custom minutes_before if available
+      let minutesBefore = 10;
+      if (targetOrgId) {
+        const settings = await getNotificationFeatureSettings(
+          supabase,
+          targetOrgId,
+          'meeting_prep'
+        );
+        if (settings?.thresholds?.minutes_before) {
+          minutesBefore = settings.thresholds.minutes_before as number;
+        }
+      }
+      meetings = await getUpcomingMeetings(supabase, targetOrgId || undefined, minutesBefore, 4);
     }
 
     if (meetings.length === 0) {

@@ -4,7 +4,12 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
-import { buildMeetingDebriefMessage, type MeetingDebriefData } from '../_shared/slackBlocks.ts';
+import {
+  buildMeetingDebriefMessage,
+  buildHITLApprovalMessage,
+  type MeetingDebriefData,
+  type HITLApprovalData,
+} from '../_shared/slackBlocks.ts';
 import { getAuthContext, requireOrgRole } from '../_shared/edgeAuth.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -20,6 +25,7 @@ interface MeetingData {
   duration_minutes?: number;
   attendees?: string[];
   owner_user_id: string;
+  org_id?: string | null;
   company_id?: string | null;
   deal?: {
     id: string;
@@ -149,6 +155,76 @@ Return your analysis as JSON with this exact structure:
 }
 
 /**
+ * Generate a follow-up email draft (HITL content).
+ * Fail-soft: return a deterministic draft if AI isn't configured.
+ */
+async function generateFollowUpDraft(input: {
+  meetingTitle: string;
+  attendeeNameOrEmail: string;
+  summary: string;
+  actionItems: Array<{ task: string; dueInDays: number }>;
+}): Promise<{ subject: string; body: string }> {
+  const subject = `Following up: ${input.meetingTitle}`;
+
+  if (!anthropicApiKey) {
+    const bullets = input.actionItems.slice(0, 4).map((a) => `- ${a.task}`).join('\n');
+    const body = `Hi ${input.attendeeNameOrEmail},\n\nThanks again for your time today.\n\nQuick recap:\n${input.summary}\n\nProposed next steps:\n${bullets || '- Confirm next steps and timeline'}\n\nBest,\n`;
+    return { subject, body };
+  }
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicApiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 800,
+        temperature: 0.5,
+        system:
+          'You write concise, friendly follow-up emails for sales calls. Return ONLY valid JSON with { "subject": "...", "body": "..." }',
+        messages: [
+          {
+            role: 'user',
+            content: `Draft a follow-up email.
+
+MEETING: ${input.meetingTitle}
+RECIPIENT: ${input.attendeeNameOrEmail}
+SUMMARY: ${input.summary}
+NEXT STEPS:
+${input.actionItems.slice(0, 6).map((a) => `- ${a.task}`).join('\n') || '- Confirm next steps'}
+
+Return JSON: { "subject": "...", "body": "..." }`,
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Anthropic API error: ${error}`);
+    }
+
+    const result = await response.json();
+    const content = result.content?.[0]?.text || '';
+    const candidate = extractJsonObject(content) ?? content;
+    const parsed = JSON.parse(candidate);
+
+    return {
+      subject: String(parsed.subject || subject).slice(0, 200),
+      body: String(parsed.body || '').slice(0, 5000),
+    };
+  } catch (e) {
+    const bullets = input.actionItems.slice(0, 4).map((a) => `- ${a.task}`).join('\n');
+    const body = `Hi ${input.attendeeNameOrEmail},\n\nThanks again for your time today.\n\nQuick recap:\n${input.summary}\n\nProposed next steps:\n${bullets || '- Confirm next steps and timeline'}\n\nBest,\n`;
+    return { subject, body };
+  }
+}
+
+/**
  * Get Slack bot token for org
  */
 async function getSlackConfig(
@@ -157,6 +233,7 @@ async function getSlackConfig(
   options?: { isTest?: boolean }
 ): Promise<{
   botToken: string;
+  slackTeamId: string;
   settings: {
     channelId?: string;
     deliveryMethod: string;
@@ -167,12 +244,12 @@ async function getSlackConfig(
   // Get org Slack settings
   const { data: orgSettings } = await supabase
     .from('slack_org_settings')
-    .select('bot_access_token')
+    .select('bot_access_token, slack_team_id')
     .eq('org_id', orgId)
     .eq('is_connected', true)
     .single();
 
-  if (!orgSettings?.bot_access_token) {
+  if (!orgSettings?.bot_access_token || !orgSettings?.slack_team_id) {
     console.log('No Slack connection for org:', orgId);
     return null;
   }
@@ -202,6 +279,7 @@ async function getSlackConfig(
 
   return {
     botToken: orgSettings.bot_access_token,
+    slackTeamId: orgSettings.slack_team_id,
     settings: {
       channelId: notifSettings.channel_id,
       deliveryMethod: notifSettings.delivery_method || 'channel',
@@ -306,6 +384,34 @@ async function sendSlackDM(
   return { ...res, channelId: dmChannelId };
 }
 
+async function createInAppNotification(
+  supabase: ReturnType<typeof createClient>,
+  params: {
+    userId: string;
+    meetingId: string;
+    title: string;
+    message: string;
+    actionUrl: string;
+    metadata?: Record<string, unknown>;
+  }
+): Promise<void> {
+  await supabase.from('notifications').insert({
+    user_id: params.userId,
+    title: params.title,
+    message: params.message,
+    type: 'info',
+    category: 'meeting',
+    entity_type: 'meeting_debrief',
+    entity_id: params.meetingId,
+    action_url: params.actionUrl,
+    metadata: {
+      ...params.metadata,
+      source: 'slack_post_meeting',
+      ai_generated: true,
+    },
+  });
+}
+
 /**
  * Record sent notification
  */
@@ -336,20 +442,136 @@ serve(async (req) => {
   }
 
   try {
-    const { meetingId, orgId, isTest } = await req.json();
+    const body = await req.json().catch(() => ({} as any));
+    const meetingId = typeof body.meetingId === 'string' ? body.meetingId : null;
+    const orgId = typeof body.orgId === 'string' ? body.orgId : null;
+    const isTest = body.isTest === true;
+    const dryRun = body.dryRun === true;
     const requestId = crypto.randomUUID();
     console.log('[slack-post-meeting] start', { requestId, meetingId, orgId, isTest: !!isTest });
 
-    if (!meetingId && !isTest) {
-      return new Response(
-        JSON.stringify({ error: 'meetingId required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const cronSecret = Deno.env.get('CRON_SECRET') || undefined;
+    const auth = await getAuthContext(req, supabase, supabaseServiceKey, { cronSecret });
+    console.log('[slack-post-meeting] auth', { requestId, mode: auth.mode, userId: auth.userId, isPlatformAdmin: auth.isPlatformAdmin });
+
+    // External release hardening: user-auth calls must target a specific org + meeting.
+    if (auth.mode === 'user' && auth.userId && !auth.isPlatformAdmin) {
+      if (!orgId) {
+        return new Response(
+          JSON.stringify({ error: 'Org ID required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (!meetingId && !isTest) {
+        return new Response(
+          JSON.stringify({ error: 'meetingId required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      await requireOrgRole(
+        supabase,
+        orgId,
+        auth.userId,
+        isTest ? ['owner', 'admin', 'member', 'readonly'] : ['owner', 'admin']
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const auth = await getAuthContext(req, supabase, supabaseServiceKey);
-    console.log('[slack-post-meeting] auth', { requestId, mode: auth.mode, userId: auth.userId, isPlatformAdmin: auth.isPlatformAdmin });
+    // Cron/service-role mode: scan for eligible meetings and invoke single-meeting sends.
+    if ((auth.mode === 'cron' || auth.mode === 'service_role') && !meetingId && !isTest) {
+      const orgScope = orgId || null;
+      const maxMeetings = typeof body.maxMeetings === 'number' ? Math.max(1, Math.min(25, body.maxMeetings)) : 10;
+
+      const orgsToProcess = orgScope
+        ? [{ org_id: orgScope }]
+        : (await supabase
+            .from('slack_org_settings')
+            .select('org_id')
+            .eq('is_connected', true)
+            .not('bot_access_token', 'is', null)).data || [];
+
+      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const results: Array<{ orgId: string; meetingId: string; ok: boolean; error?: string }> = [];
+
+      for (const o of orgsToProcess) {
+        const oid = (o as any).org_id as string | undefined;
+        if (!oid) continue;
+
+        const { data: candidates, error: candErr } = await supabase
+          .from('meetings')
+          .select('id, meeting_start')
+          .eq('org_id', oid)
+          .or('transcript_text.not.is.null,summary.not.is.null')
+          .gte('meeting_start', since.toISOString())
+          .order('meeting_start', { ascending: false })
+          .limit(maxMeetings * 2);
+
+        if (candErr) {
+          results.push({ orgId: oid, meetingId: 'n/a', ok: false, error: candErr.message });
+          continue;
+        }
+
+        for (const m of candidates || []) {
+          if (results.length >= maxMeetings) break;
+
+          // Skip if already sent
+          const { data: existingSent } = await supabase
+            .from('slack_notifications_sent')
+            .select('id')
+            .eq('org_id', oid)
+            .eq('feature', 'meeting_debrief')
+            .eq('entity_id', m.id)
+            .limit(1);
+
+          if (existingSent && existingSent.length > 0) {
+            continue;
+          }
+
+          if (dryRun) {
+            results.push({ orgId: oid, meetingId: m.id, ok: true });
+            continue;
+          }
+
+          try {
+            const resp = await fetch(`${supabaseUrl}/functions/v1/slack-post-meeting`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({ meetingId: m.id, orgId: oid }),
+            });
+
+            const payload = await resp.json().catch(() => ({}));
+            if (!resp.ok || payload?.success === false) {
+              results.push({
+                orgId: oid,
+                meetingId: m.id,
+                ok: false,
+                error: payload?.error || `HTTP ${resp.status}`,
+              });
+            } else {
+              results.push({ orgId: oid, meetingId: m.id, ok: true });
+            }
+          } catch (e: any) {
+            results.push({ orgId: oid, meetingId: m.id, ok: false, error: e?.message || 'Unknown error' });
+          }
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          mode: auth.mode,
+          dryRun,
+          attempted: results.length,
+          sent: results.filter((r) => r.ok).length,
+          failed: results.filter((r) => !r.ok).length,
+          results,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Fetch meeting data (schema-safe: our `meetings` table does NOT have `deal_id`, `attendees`, or `transcript`)
     // and there is no PostgREST relationship `meetings -> deals`.
@@ -409,17 +631,6 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'Org ID required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // External release hardening: only org admins (or platform admins) can trigger
-    // meeting debrief notifications for an org via this endpoint.
-    if (auth.mode === 'user' && auth.userId && !auth.isPlatformAdmin) {
-      await requireOrgRole(
-        supabase,
-        effectiveOrgId,
-        auth.userId,
-        isTest ? ['owner', 'admin', 'member', 'readonly'] : ['owner', 'admin']
       );
     }
 
@@ -694,7 +905,118 @@ serve(async (req) => {
       }
     }
 
-    console.log('Meeting debrief posted successfully:', meetingId, { channelId, recipientType });
+    // Mirror to in-app (best-effort) for the meeting owner
+    try {
+      if (!isTest && meeting.owner_user_id) {
+        await createInAppNotification(supabase, {
+          userId: meeting.owner_user_id,
+          meetingId: meeting.id,
+          title: `Post-call summary: ${meeting.title || 'Meeting'}`,
+          message: analysis.summary,
+          actionUrl: `/meetings`,
+          metadata: {
+            meetingId: meeting.id,
+            sentiment: analysis.sentiment,
+            sentimentScore: analysis.sentimentScore,
+            actionItemsCount: analysis.actionItems?.length || 0,
+          },
+        });
+      }
+    } catch (e) {
+      console.warn('[slack-post-meeting] Failed to create in-app notification:', (e as any)?.message || e);
+    }
+
+    // HITL follow-up email approval (best-effort): DM owner with approve/edit/reject
+    try {
+      if (!isTest && meeting.owner_user_id) {
+        const ownerSlackId = await getSlackUserId(supabase, effectiveOrgId, meeting.owner_user_id);
+        const externalAttendee = Array.isArray(meeting.meeting_attendees)
+          ? (meeting.meeting_attendees as any[]).find((a) => a?.is_external && a?.email)
+          : null;
+
+        if (ownerSlackId && externalAttendee?.email) {
+          const draft = await generateFollowUpDraft({
+            meetingTitle: meeting.title || 'Meeting',
+            attendeeNameOrEmail: externalAttendee?.name || externalAttendee?.email,
+            summary: analysis.summary,
+            actionItems: (analysis.actionItems || []).map((a) => ({ task: a.task, dueInDays: a.dueInDays })),
+          });
+
+          const approvalId = crypto.randomUUID();
+          const hitlData: HITLApprovalData = {
+            approvalId,
+            resourceType: 'email_draft',
+            resourceId: meeting.id,
+            resourceName: 'Follow-up Email',
+            content: {
+              recipientEmail: externalAttendee.email,
+              subject: draft.subject,
+              body: draft.body,
+            },
+            context: {
+              meetingTitle: meeting.title || undefined,
+              meetingId: meeting.id,
+              contactName: externalAttendee?.name || externalAttendee?.email,
+              dealName: (deal as any)?.name,
+              dealId: (deal as any)?.id,
+            },
+            appUrl,
+          };
+
+          const hitlMessage = buildHITLApprovalMessage(hitlData);
+          const dmRes = await sendSlackDM(slackConfig.botToken, ownerSlackId, hitlMessage);
+          if (dmRes.ok && dmRes.ts && dmRes.channelId) {
+            await supabase.from('hitl_pending_approvals').insert({
+              id: approvalId,
+              org_id: effectiveOrgId,
+              user_id: meeting.owner_user_id,
+              created_by: meeting.owner_user_id,
+              resource_type: 'email_draft',
+              resource_id: meeting.id,
+              resource_name: 'Follow-up Email',
+              slack_team_id: slackConfig.slackTeamId,
+              slack_channel_id: dmRes.channelId,
+              slack_message_ts: dmRes.ts,
+              slack_thread_ts: null,
+              status: 'pending',
+              original_content: hitlData.content,
+              callback_type: 'edge_function',
+              callback_target: 'hitl-send-followup-email',
+              callback_metadata: {
+                orgId: effectiveOrgId,
+                meetingId: meeting.id,
+                userId: meeting.owner_user_id,
+              },
+              metadata: {
+                source: 'slack_post_meeting',
+                meetingTitle: meeting.title,
+              },
+            });
+
+            // In-app mirror: approval requested
+            await supabase.from('notifications').insert({
+              user_id: meeting.owner_user_id,
+              title: 'Approval needed: follow-up email',
+              message: `Review and approve the follow-up email draft for "${meeting.title || 'your meeting'}".`,
+              type: 'info',
+              category: 'workflow',
+              entity_type: 'email_draft',
+              entity_id: meeting.id,
+              action_url: '/meetings',
+              metadata: {
+                approval_id: approvalId,
+                meeting_id: meeting.id,
+                source: 'hitl',
+              },
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[slack-post-meeting] HITL follow-up setup failed:', (e as any)?.message || e);
+    }
+
+    console.log('Meeting debrief posted successfully:', meetingId || meeting?.id, { channelId, recipientType });
     return new Response(
       JSON.stringify({ 
         success: true, 

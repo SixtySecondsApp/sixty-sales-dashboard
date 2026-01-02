@@ -1360,3 +1360,420 @@ export const buildHITLActionedConfirmation = (data: HITLActionedConfirmation): S
     text: `${config.label}: ${truncate(data.resourceName, 60)}`,
   };
 };
+
+/**
+ * Morning Brief Data Interface
+ */
+export interface MorningBriefData {
+  userName: string;
+  slackUserId?: string;
+  date: string;
+  currencyCode?: string;
+  currencyLocale?: string;
+  meetings: Array<{
+    time: string;
+    title: string;
+    contactName?: string;
+    companyName?: string;
+    dealValue?: number;
+    isImportant?: boolean;
+  }>;
+  tasks: {
+    overdue: Array<{
+      title: string;
+      daysOverdue: number;
+      dealName?: string;
+    }>;
+    dueToday: Array<{
+      title: string;
+      dealName?: string;
+    }>;
+  };
+  deals: Array<{
+    name: string;
+    id: string;
+    value: number;
+    stage: string;
+    closeDate?: string;
+    daysUntilClose?: number;
+    isAtRisk?: boolean;
+  }>;
+  emailsToRespond: number;
+  insights: string[];
+  priorities: string[];
+  appUrl: string;
+}
+
+/**
+ * Build Morning Brief Message
+ */
+export const buildMorningBriefMessage = (data: MorningBriefData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const userName = data.slackUserId ? `<@${data.slackUserId}>` : data.userName;
+  const formatCurrency = (amount: number) => {
+    if (!data.currencyCode) return `£${amount.toLocaleString()}`;
+    return new Intl.NumberFormat(data.currencyLocale || 'en-GB', {
+      style: 'currency',
+      currency: data.currencyCode,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  // Header
+  blocks.push(header(safeHeaderText(`☀️ Good morning, ${data.userName}`)));
+
+  blocks.push(section(safeMrkdwn(`*Here's your day at a glance*`)));
+  blocks.push(divider());
+
+  // Meetings section
+  if (data.meetings.length > 0) {
+    const meetingsText = data.meetings
+      .slice(0, 5)
+      .map(m => {
+        const dealInfo = m.dealValue ? ` _(${m.dealStage || 'Deal'}, ${formatCurrency(m.dealValue)})_` : '';
+        return `• ${m.time} - ${m.title}${dealInfo}`;
+      })
+      .join('\n');
+    
+    blocks.push(section(safeMrkdwn(`📅 *${data.meetings.length} meeting${data.meetings.length !== 1 ? 's' : ''} today*\n\n${meetingsText}`)));
+  }
+
+  // Priorities section
+  if (data.priorities.length > 0) {
+    const prioritiesText = data.priorities
+      .slice(0, 5)
+      .map(p => `• ${p}`)
+      .join('\n');
+    
+    blocks.push(section(safeMrkdwn(`⚡ *Top priorities*\n\n${prioritiesText}`)));
+  }
+
+  // Tasks section
+  const totalTasks = data.tasks.overdue.length + data.tasks.dueToday.length;
+  if (totalTasks > 0) {
+    const tasksText: string[] = [];
+    if (data.tasks.overdue.length > 0) {
+      tasksText.push(`*Overdue:*`);
+      data.tasks.overdue.slice(0, 3).forEach(t => {
+        tasksText.push(`• ${t.title} _(overdue by ${t.daysOverdue} day${t.daysOverdue !== 1 ? 's' : ''})_`);
+      });
+    }
+    if (data.tasks.dueToday.length > 0) {
+      tasksText.push(`*Due today:*`);
+      data.tasks.dueToday.slice(0, 3).forEach(t => {
+        tasksText.push(`• ${t.title}`);
+      });
+    }
+    
+    blocks.push(section(safeMrkdwn(`📋 *Tasks*\n\n${tasksText.join('\n')}`)));
+  }
+
+  // Deals section
+  if (data.deals.length > 0) {
+    const dealsText = data.deals
+      .slice(0, 3)
+      .map(d => {
+        const riskBadge = d.isAtRisk ? ' ⚠️' : '';
+        const closeInfo = d.daysUntilClose !== undefined 
+          ? ` _(closing in ${d.daysUntilClose} day${d.daysUntilClose !== 1 ? 's' : ''})_`
+          : '';
+        return `• ${d.name} - ${formatCurrency(d.value)}${closeInfo}${riskBadge}`;
+      })
+      .join('\n');
+    
+    blocks.push(section(safeMrkdwn(`🎯 *Deals closing this week*\n\n${dealsText}`)));
+  }
+
+  // Emails to respond
+  if (data.emailsToRespond > 0) {
+    blocks.push(section(safeMrkdwn(`📬 *${data.emailsToRespond} email${data.emailsToRespond !== 1 ? 's' : ''} need${data.emailsToRespond === 1 ? 's' : ''} response*`)));
+  }
+
+  // Insights
+  if (data.insights.length > 0) {
+    blocks.push(divider());
+    const insightsText = data.insights
+      .slice(0, 3)
+      .map(i => `• ${i}`)
+      .join('\n');
+    
+    blocks.push(section(safeMrkdwn(`💡 *Insights*\n\n${insightsText}`)));
+  }
+
+  blocks.push(divider());
+
+  // Actions
+  blocks.push(actions([
+    {
+      text: { type: 'plain_text', text: safeButtonText('📋 View Full Day'), emoji: true },
+      url: `${data.appUrl}/calendar`,
+      action_id: 'view_full_day',
+    },
+    {
+      text: { type: 'plain_text', text: safeButtonText('✅ Start Focus Mode'), emoji: true },
+      url: `${data.appUrl}/tasks`,
+      action_id: 'start_focus_mode',
+    },
+  ]));
+
+  return {
+    blocks,
+    text: `Good morning ${data.userName}! Here's your day at a glance.`,
+  };
+};
+
+/**
+ * Stale Deal Alert Data Interface
+ */
+export interface StaleDealAlertData {
+  userName: string;
+  slackUserId?: string;
+  deal: {
+    name: string;
+    id: string;
+    value: number;
+    stage: string;
+    closeDate?: string;
+    daysUntilClose?: number;
+    daysSinceLastActivity: number;
+    lastActivityDate?: string;
+    lastActivityType?: string;
+  };
+  suggestedActions: string[];
+  reEngagementDraft?: string;
+  currencyCode?: string;
+  currencyLocale?: string;
+  appUrl: string;
+}
+
+/**
+ * Build Stale Deal Alert Message
+ */
+export const buildStaleDealAlertMessage = (data: StaleDealAlertData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const userName = data.slackUserId ? `<@${data.slackUserId}>` : data.userName;
+  const formatCurrency = (amount: number) => {
+    if (!data.currencyCode) return `£${amount.toLocaleString()}`;
+    return new Intl.NumberFormat(data.currencyLocale || 'en-GB', {
+      style: 'currency',
+      currency: data.currencyCode,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  // Header
+  blocks.push(header(safeHeaderText(`⚠️ Deal going cold`)));
+
+  blocks.push(section(safeMrkdwn(
+    `*${data.deal.name}* - No activity in *${data.deal.daysSinceLastActivity} day${data.deal.daysSinceLastActivity !== 1 ? 's' : ''}*`
+  )));
+
+  // Context
+  const contextParts: string[] = [];
+  contextParts.push(`💰 ${formatCurrency(data.deal.value)}`);
+  contextParts.push(`${data.deal.stage} stage`);
+  if (data.deal.closeDate) {
+    const daysUntilClose = data.deal.daysUntilClose || 0;
+    if (daysUntilClose > 0) {
+      contextParts.push(`Close date: ${daysUntilClose} day${daysUntilClose !== 1 ? 's' : ''} away`);
+    } else {
+      contextParts.push(`Close date: ${Math.abs(daysUntilClose)} day${Math.abs(daysUntilClose) !== 1 ? 's' : ''} overdue`);
+    }
+  }
+  if (data.deal.lastActivityDate) {
+    contextParts.push(`Last activity: ${new Date(data.deal.lastActivityDate).toLocaleDateString()}`);
+  }
+
+  blocks.push(context([safeContextMrkdwn(contextParts.join(' • '))]));
+  blocks.push(divider());
+
+  // Activity timeline
+  if (data.deal.lastActivityType) {
+    blocks.push(section(safeMrkdwn(
+      `📊 *Last activity*\n\n• ${data.deal.lastActivityType}${data.deal.lastActivityDate ? ` (${new Date(data.deal.lastActivityDate).toLocaleDateString()})` : ''}\n• _${data.deal.daysSinceLastActivity} days of silence..._`
+    )));
+  }
+
+  // Suggested actions
+  if (data.suggestedActions.length > 0) {
+    const actionsText = data.suggestedActions
+      .slice(0, 3)
+      .map(a => `• ${a}`)
+      .join('\n');
+    
+    blocks.push(section(safeMrkdwn(`💡 *Suggested next steps*\n\n${actionsText}`)));
+  }
+
+  // Re-engagement draft (if available)
+  if (data.reEngagementDraft) {
+    blocks.push(divider());
+    blocks.push(section(safeMrkdwn(`📧 *Re-engagement draft*`)));
+    blocks.push(section(safeMrkdwn(`_${safeMrkdwn(data.reEngagementDraft.substring(0, 500))}_`)));
+  }
+
+  blocks.push(divider());
+
+  // Actions
+  blocks.push(actions([
+    {
+      text: { type: 'plain_text', text: safeButtonText('📄 Open Deal'), emoji: true },
+      url: `${data.appUrl}/deals/${data.deal.id}`,
+      action_id: 'open_deal',
+    },
+    {
+      text: { type: 'plain_text', text: safeButtonText('➕ Create Task'), emoji: true },
+      action_id: 'create_task',
+      value: safeButtonValue(JSON.stringify({ dealId: data.deal.id, dealName: data.deal.name })),
+    },
+    {
+      text: { type: 'plain_text', text: safeButtonText('✉️ Send Check-in'), emoji: true },
+      action_id: 'send_checkin',
+      value: safeButtonValue(JSON.stringify({ dealId: data.deal.id })),
+    },
+  ]));
+
+  return {
+    blocks,
+    text: `Deal ${data.deal.name} has no activity in ${data.deal.daysSinceLastActivity} days.`,
+  };
+};
+
+/**
+ * Email Reply Alert Data Interface
+ */
+export interface EmailReplyAlertData {
+  userName: string;
+  slackUserId?: string;
+  email: {
+    subject: string;
+    from: string;
+    fromName?: string;
+    threadId?: string;
+    receivedAt: string;
+  };
+  contact?: {
+    name: string;
+    companyName?: string;
+  };
+  deal?: {
+    name: string;
+    id: string;
+    stage: string;
+  };
+  sentiment: 'positive' | 'neutral' | 'negative';
+  keyPoints: string[];
+  suggestedReply?: string;
+  suggestedActions: string[];
+  appUrl: string;
+}
+
+/**
+ * Build Email Reply Alert Message
+ */
+export const buildEmailReplyAlertMessage = (data: EmailReplyAlertData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const userName = data.slackUserId ? `<@${data.slackUserId}>` : data.userName;
+  const sentimentEmoji = data.sentiment === 'positive' ? '🟢' : data.sentiment === 'negative' ? '🔴' : '🟡';
+
+  // Header
+  blocks.push(header(safeHeaderText(`📬 Reply received`)));
+
+  const fromDisplay = data.contact?.name || data.email.fromName || data.email.from;
+  const contextText = data.deal 
+    ? `*${fromDisplay}* from *${data.contact?.companyName || 'Unknown'}* replied to your email`
+    : `*${fromDisplay}* replied to your email`;
+
+  blocks.push(section(safeMrkdwn(contextText)));
+
+  // Context
+  const contextParts: string[] = [];
+  contextParts.push(`${sentimentEmoji} ${data.sentiment.charAt(0).toUpperCase() + data.sentiment.slice(1)} sentiment`);
+  contextParts.push(`Re: ${truncate(data.email.subject, 40)}`);
+  contextParts.push(`Just now`);
+  blocks.push(context([safeContextMrkdwn(contextParts.join(' • '))]));
+  blocks.push(divider());
+
+  // Key points
+  if (data.keyPoints.length > 0) {
+    const pointsText = data.keyPoints
+      .slice(0, 5)
+      .map(p => `• ${p}`)
+      .join('\n');
+    
+    blocks.push(section(safeMrkdwn(`💡 *Key points detected*\n\n${pointsText}`)));
+  }
+
+  // Deal context
+  if (data.deal) {
+    blocks.push(section(safeMrkdwn(
+      `💰 *Deal context*\n• ${data.deal.name} • ${data.deal.stage} stage`
+    )));
+  }
+
+  // Suggested reply
+  if (data.suggestedReply) {
+    blocks.push(divider());
+    blocks.push(section(safeMrkdwn(`📝 *Suggested reply*`)));
+    blocks.push(section(safeMrkdwn(`_${safeMrkdwn(data.suggestedReply.substring(0, 800))}_`)));
+  }
+
+  // Suggested actions
+  if (data.suggestedActions.length > 0) {
+    blocks.push(divider());
+    const actionsText = data.suggestedActions
+      .slice(0, 3)
+      .map(a => `• ${a}`)
+      .join('\n');
+    
+    blocks.push(section(safeMrkdwn(`⚡ *Suggested next steps*\n\n${actionsText}`)));
+  }
+
+  blocks.push(divider());
+
+  // Actions
+  const actionButtons: any[] = [
+    {
+      text: { type: 'plain_text', text: safeButtonText('✉️ Reply'), emoji: true },
+      style: 'primary',
+      action_id: 'reply_email',
+      value: safeButtonValue(JSON.stringify({ 
+        threadId: data.email.threadId,
+        from: data.email.from,
+      })),
+    },
+  ];
+
+  if (data.suggestedReply) {
+    actionButtons.push({
+      text: { type: 'plain_text', text: safeButtonText('✏️ Edit First'), emoji: true },
+      action_id: 'edit_reply',
+      value: safeButtonValue(JSON.stringify({ 
+        threadId: data.email.threadId,
+        draft: data.suggestedReply,
+      })),
+    });
+  }
+
+  if (data.deal) {
+    actionButtons.push({
+      text: { type: 'plain_text', text: safeButtonText('🔄 Update Deal'), emoji: true },
+      action_id: 'update_deal',
+      value: safeButtonValue(JSON.stringify({ dealId: data.deal.id })),
+    });
+  }
+
+  actionButtons.push({
+    text: { type: 'plain_text', text: safeButtonText('📄 View Email'), emoji: true },
+    url: `${data.appUrl}/emails${data.email.threadId ? `?thread=${data.email.threadId}` : ''}`,
+    action_id: 'view_email',
+  });
+
+  blocks.push(actions(actionButtons));
+
+  return {
+    blocks,
+    text: `Reply from ${fromDisplay}: ${data.email.subject}`,
+  };
+};

@@ -666,13 +666,16 @@ For every proactive run:
 
 ## Deliverables Checklist
 
-- [ ] Proactive Engine shared modules (`supabase/functions/_shared/proactive/*`)
-- [ ] Skills runtime (`supabase/functions/_shared/skillsRuntime.ts`)
-- [ ] Morning Brief edge function + cron route + vercel schedule
-- [ ] Sales Assistant refactor + shared dedupe/caps + in-app mirror
-- [ ] Meeting Prep adjusted to 10 minutes + schedule
-- [ ] Post-call debrief + HITL callback to send follow-up email
-- [ ] Stale deal alerts edge function + schedule
-- [ ] Email reply alerts edge function + schedule
-- [ ] In-app Notification Center UI implemented and wired
+- [x] Proactive Engine shared modules (`supabase/functions/_shared/proactive/*`)
+- [x] Skills runtime (`supabase/functions/_shared/skillsRuntime.ts`)
+- [x] Morning Brief edge function + cron route + vercel schedule
+- [ ] Sales Assistant refactor + shared dedupe/caps + in-app mirror *(in-app mirror done; full refactor to shared engine still optional)*
+- [x] Meeting Prep adjusted to 10 minutes + schedule
+- [x] Post-call debrief + HITL callback to send follow-up email
+- [x] Stale deal alerts edge function + schedule
+- [x] Email reply alerts edge function + schedule
+- [x] In-app Notification Center UI implemented and wired
+
+### Notes / follow-ups
+- **Schema alignment**: added `supabase/migrations/20260102000013_proactive_notification_schema_alignment.sql` to support proactive dedupe keys (`dedupe_key`) and feature thresholds (`thresholds`) while remaining additive/backwards-compatible.
 

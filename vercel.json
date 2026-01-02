@@ -177,6 +177,26 @@
       "schedule": "5 8 * * *"
     },
     {
+      "path": "/api/cron/slack-morning-brief",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/slack-stale-deals",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/slack-email-reply-alert",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/slack-meeting-prep",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/slack-post-meeting",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/slack-deal-room-archive",
       "schedule": "10 * * * *"
     },
