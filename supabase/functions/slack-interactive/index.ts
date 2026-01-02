@@ -2928,6 +2928,228 @@ function truncateText(text: string, maxLength: number): string {
   return text.substring(0, maxLength - 3) + '...';
 }
 
+// ============================================================================
+// Phase 2: Risks Command Handlers
+// ============================================================================
+
+/**
+ * Handle risks filter button clicks (stale, closing, all)
+ * Re-triggers the /sixty risks command with the selected filter
+ */
+async function handleRisksFilter(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload,
+  action: SlackAction
+): Promise<Response> {
+  const teamId = payload.team?.id;
+  const channelId = payload.channel?.id;
+
+  const orgConnection = await getSlackOrgConnection(supabase, teamId);
+  if (!orgConnection?.botToken) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, teamId);
+  if (ctx) {
+    // Log interaction for Smart Engagement Algorithm
+    logSlackInteraction(supabase, {
+      userId: ctx.userId,
+      orgId: ctx.orgId,
+      actionType: 'risks_filter_change',
+      actionCategory: 'navigation',
+      entityType: 'deal',
+      metadata: { filter: action.value },
+    });
+  }
+
+  // Get filter from action value (stale, closing, or all/empty)
+  const filter = action.value === 'all' ? '' : action.value;
+
+  // Post loading message
+  if (channelId) {
+    await fetch('https://slack.com/api/chat.postEphemeral', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${orgConnection.botToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        channel: channelId,
+        user: payload.user.id,
+        text: ':hourglass: Updating risk view...',
+      }),
+    });
+  }
+
+  // Call the risks command with the filter
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+
+  try {
+    await fetch(`${supabaseUrl}/functions/v1/slack-slash-commands`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'x-slack-request-timestamp': Math.floor(Date.now() / 1000).toString(),
+      },
+      body: new URLSearchParams({
+        command: '/sixty',
+        text: `risks ${filter}`,
+        user_id: payload.user.id,
+        team_id: teamId || '',
+        channel_id: channelId || '',
+        trigger_id: payload.trigger_id || '',
+        response_url: payload.response_url || '',
+      }).toString(),
+    });
+  } catch (error) {
+    console.error('Error calling risks command:', error);
+  }
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Handle deal risk overflow menu actions
+ * Actions: view_deal, draft_checkin, log_activity, update_stage
+ */
+async function handleDealRiskOverflow(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload,
+  action: SlackAction
+): Promise<Response> {
+  const teamId = payload.team?.id;
+  const channelId = payload.channel?.id;
+
+  // Overflow menus have selected_option in the action
+  const selectedOption = (action as any).selected_option?.value || action.value;
+  if (!selectedOption) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const [actionType, dealId, ...dealNameParts] = selectedOption.split(':');
+  const dealName = dealNameParts.join(':');
+
+  const orgConnection = await getSlackOrgConnection(supabase, teamId);
+  if (!orgConnection?.botToken) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, teamId);
+
+  // Log interaction
+  if (ctx) {
+    logSlackInteraction(supabase, {
+      userId: ctx.userId,
+      orgId: ctx.orgId,
+      actionType: `risk_overflow_${actionType}`,
+      actionCategory: 'deal_action',
+      entityType: 'deal',
+      entityId: dealId,
+      metadata: { dealName },
+    });
+  }
+
+  switch (actionType) {
+    case 'view_deal': {
+      // Post link to deal in app
+      const appUrlEnv = Deno.env.get('APP_URL') || 'https://app.use60.com';
+      if (channelId) {
+        await fetch('https://slack.com/api/chat.postEphemeral', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${orgConnection.botToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            channel: channelId,
+            user: payload.user.id,
+            text: `<${appUrlEnv}/deals/${dealId}|View ${dealName || 'deal'} in Sixty>`,
+          }),
+        });
+      }
+      break;
+    }
+
+    case 'draft_checkin': {
+      // Trigger follow-up command for check-in
+      if (channelId) {
+        await fetch('https://slack.com/api/chat.postEphemeral', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${orgConnection.botToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            channel: channelId,
+            user: payload.user.id,
+            text: `✨ Drafting check-in for ${dealName || 'deal'}...`,
+          }),
+        });
+      }
+
+      const supabaseUrl = Deno.env.get('SUPABASE_URL');
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/slack-slash-commands`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'x-slack-request-timestamp': Math.floor(Date.now() / 1000).toString(),
+          },
+          body: new URLSearchParams({
+            command: '/sixty',
+            text: `follow-up ${dealName || ''}`,
+            user_id: payload.user.id,
+            team_id: teamId || '',
+            channel_id: channelId || '',
+            trigger_id: payload.trigger_id || '',
+            response_url: payload.response_url || '',
+          }).toString(),
+        });
+      } catch (error) {
+        console.error('Error calling follow-up command:', error);
+      }
+      break;
+    }
+
+    case 'log_activity': {
+      // Open log activity modal - reuse existing logic
+      const fakeAction: SlackAction = {
+        action_id: 'log_activity',
+        value: JSON.stringify({ dealId, dealName, entityType: 'deal' }),
+        type: 'button',
+      };
+      return handleLogActivity(supabase, payload, fakeAction);
+    }
+
+    case 'update_stage': {
+      // Open update stage modal - reuse existing logic
+      const fakeAction: SlackAction = {
+        action_id: 'update_deal_stage',
+        value: JSON.stringify({ dealId, dealName }),
+        type: 'button',
+      };
+      return handleUpdateDealStage(supabase, payload, fakeAction);
+    }
+  }
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -3041,6 +3263,15 @@ serve(async (req) => {
           return handleDraftFollowupContact(supabase, payload, action);
         } else if (action.action_id === 'draft_checkin_deal') {
           return handleDraftCheckinDeal(supabase, payload, action);
+        }
+
+        // Phase 2: Risks command actions
+        else if (action.action_id === 'risks_filter_stale' ||
+                 action.action_id === 'risks_filter_closing' ||
+                 action.action_id === 'risks_filter_all') {
+          return handleRisksFilter(supabase, payload, action);
+        } else if (action.action_id === 'deal_risk_actions') {
+          return handleDealRiskOverflow(supabase, payload, action);
         }
 
         // Unknown action - just acknowledge

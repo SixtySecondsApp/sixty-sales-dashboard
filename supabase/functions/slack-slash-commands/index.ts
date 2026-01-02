@@ -25,6 +25,7 @@ import { handleContact } from './handlers/contact.ts';
 import { handleDeal } from './handlers/deal.ts';
 import { handleMeetingBrief } from './handlers/meetingBrief.ts';
 import { handleFollowUp } from './handlers/followUp.ts';
+import { handleRisks } from './handlers/risks.ts';
 
 // ============================================================================
 // Environment
@@ -176,6 +177,12 @@ async function routeCommand(
       }
       return await handleFollowUpCommand(ctx, rawArgs);
 
+    case 'risks':
+    case 'risk':
+    case 'stale':
+      // At-risk and stale deals (aliases: risks, risk, stale)
+      return await handleRisksCommand(ctx, rawArgs || '');
+
     default:
       // Unknown command → show help with suggestion
       return jsonResponse({
@@ -318,6 +325,27 @@ async function handleFollowUpCommand(ctx: CommandContext, target: string): Promi
   return jsonResponse(loadingResponse);
 }
 
+/**
+ * Handle /sixty risks [stale|closing|all]
+ */
+async function handleRisksCommand(ctx: CommandContext, filter: string): Promise<Response> {
+  const loadingResponse = buildLoadingResponse('Analyzing pipeline risks...');
+
+  processInBackground(async () => {
+    try {
+      const response = await handleRisks(ctx, filter);
+      await sendEphemeral(ctx.payload.response_url, response);
+    } catch (error) {
+      console.error('Error in handleRisks:', error);
+      await sendEphemeral(ctx.payload.response_url, buildErrorResponse(
+        'Failed to fetch at-risk deals. Please try again.'
+      ));
+    }
+  });
+
+  return jsonResponse(loadingResponse);
+}
+
 // ============================================================================
 // Utilities
 // ============================================================================
@@ -355,6 +383,7 @@ function getSuggestion(input: string): string {
     { cmd: 'deal', desc: 'Deal snapshot' },
     { cmd: 'meeting-brief', desc: 'Meeting prep' },
     { cmd: 'follow-up', desc: 'Draft a follow-up' },
+    { cmd: 'risks', desc: 'At-risk deals' },
   ];
 
   // Simple fuzzy match - find commands that start with same letter or contain the input
