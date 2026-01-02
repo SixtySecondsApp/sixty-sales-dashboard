@@ -705,7 +705,7 @@ async function syncSubscriptionToDatabase(
     throw error;
   }
 
-  console.log(`Synced subscription for org ${orgId}: status=${status}`);
+  console.log(`Synced subscription for org ${orgId}: status=${status}, MRR=${recurringAmountCents / 100} ${interval}`);
 }
 
 interface BillingEventData {

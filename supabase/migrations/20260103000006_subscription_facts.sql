@@ -22,6 +22,9 @@ ALTER TABLE organization_subscriptions ADD COLUMN IF NOT EXISTS discount_info JS
 -- Customer country/region (for segmentation)
 ALTER TABLE organization_subscriptions ADD COLUMN IF NOT EXISTS customer_country TEXT;
 
+-- Currency (for multi-currency support)
+ALTER TABLE organization_subscriptions ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'GBP';
+
 -- First payment date (for cohort analysis)
 ALTER TABLE organization_subscriptions ADD COLUMN IF NOT EXISTS first_payment_at TIMESTAMPTZ;
 
