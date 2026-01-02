@@ -484,16 +484,35 @@ export const buildMeetingDebriefMessage = (data: MeetingDebriefData): SlackMessa
     blocks.push(context([`_"${truncate(data.keyQuotes[0], 200)}"_`]));
   }
 
-  // Action buttons (max 3)
-  const buttonRow: Array<{ text: string; actionId: string; value: string; url?: string; style?: 'primary' }> = [
+  // Action buttons row 1 - View links
+  const viewButtons: Array<{ text: string; actionId: string; value: string; url?: string; style?: 'primary' }> = [
     { text: '🎬 View Meeting', actionId: 'view_meeting', value: data.meetingId, url: `${data.appUrl}/meetings/${data.meetingId}`, style: 'primary' },
   ];
 
   if (data.dealId) {
-    buttonRow.push({ text: '💼 View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` });
+    viewButtons.push({ text: '💼 View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` });
   }
 
-  blocks.push(actions(buttonRow));
+  blocks.push(actions(viewButtons));
+
+  // Action buttons row 2 - Quick actions
+  const actionValue = JSON.stringify({
+    meetingId: data.meetingId,
+    meetingTitle: data.meetingTitle,
+    dealId: data.dealId,
+    dealName: data.dealName,
+    attendees: data.attendees,
+  });
+
+  const quickActions: Array<{ text: string; actionId: string; value: string; style?: 'primary' }> = [
+    { text: '✉️ Draft Follow-up', actionId: 'debrief_draft_followup', value: actionValue },
+  ];
+
+  if (data.dealId) {
+    quickActions.push({ text: '📊 Update Deal', actionId: 'debrief_update_deal', value: actionValue });
+  }
+
+  blocks.push(actions(quickActions));
 
   return {
     blocks,

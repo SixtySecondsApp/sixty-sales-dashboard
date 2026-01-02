@@ -26,6 +26,7 @@ import { handleDeal } from './handlers/deal.ts';
 import { handleMeetingBrief } from './handlers/meetingBrief.ts';
 import { handleFollowUp } from './handlers/followUp.ts';
 import { handleRisks } from './handlers/risks.ts';
+import { handleDebrief } from './handlers/debrief.ts';
 
 // ============================================================================
 // Environment
@@ -182,6 +183,10 @@ async function routeCommand(
     case 'stale':
       // At-risk and stale deals (aliases: risks, risk, stale)
       return await handleRisksCommand(ctx, rawArgs || '');
+
+    case 'debrief':
+      // Post-meeting debrief (Phase 3)
+      return await handleDebriefCommand(ctx, rawArgs || 'last');
 
     default:
       // Unknown command → show help with suggestion
@@ -346,6 +351,27 @@ async function handleRisksCommand(ctx: CommandContext, filter: string): Promise<
   return jsonResponse(loadingResponse);
 }
 
+/**
+ * Handle /sixty debrief [last|today|name]
+ */
+async function handleDebriefCommand(ctx: CommandContext, target: string): Promise<Response> {
+  const loadingResponse = buildLoadingResponse('Generating meeting debrief...');
+
+  processInBackground(async () => {
+    try {
+      const response = await handleDebrief(ctx, target);
+      await sendEphemeral(ctx.payload.response_url, response);
+    } catch (error) {
+      console.error('Error in handleDebrief:', error);
+      await sendEphemeral(ctx.payload.response_url, buildErrorResponse(
+        'Failed to generate meeting debrief. Please try again.'
+      ));
+    }
+  });
+
+  return jsonResponse(loadingResponse);
+}
+
 // ============================================================================
 // Utilities
 // ============================================================================
@@ -384,6 +410,7 @@ function getSuggestion(input: string): string {
     { cmd: 'meeting-brief', desc: 'Meeting prep' },
     { cmd: 'follow-up', desc: 'Draft a follow-up' },
     { cmd: 'risks', desc: 'At-risk deals' },
+    { cmd: 'debrief', desc: 'Post-meeting summary' },
   ];
 
   // Simple fuzzy match - find commands that start with same letter or contain the input
