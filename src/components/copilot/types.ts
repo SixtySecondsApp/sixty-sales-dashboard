@@ -209,7 +209,11 @@ export type ResponseData =
   | ActivityCreationResponseData
   | TaskCreationResponseData
   | ProposalSelectionResponseData
-  | ActionSummaryResponseData;
+  | ActionSummaryResponseData
+  | MeetingCountResponseData
+  | MeetingBriefingResponseData
+  | MeetingListResponseData
+  | TimeBreakdownResponseData;
 
 // Pipeline Response
 export interface PipelineResponse extends CopilotResponse {
@@ -1393,6 +1397,171 @@ export interface DealInfo {
   probability: number;
   closeDate?: string;
   healthScore: number;
+}
+
+// ============================================================================
+// Meeting Query Response Types (Phase 5 - Meeting Query Enhancement)
+// ============================================================================
+
+/**
+ * Response for "How many meetings this week?" query
+ */
+export interface MeetingCountResponseData {
+  count: number;
+  period: 'today' | 'tomorrow' | 'this_week' | 'next_week' | 'this_month';
+  periodLabel: string; // Human-readable: "this week", "today", etc.
+  breakdown?: {
+    internal: number;
+    external: number;
+    oneOnOne: number;
+    group: number;
+  };
+  comparison?: {
+    previousPeriod: number;
+    percentageChange: number;
+    trend: 'up' | 'down' | 'stable';
+  };
+}
+
+/**
+ * Response for "What's my next meeting + context?" query (HERO FEATURE)
+ */
+export interface MeetingBriefingResponseData {
+  meeting: UnifiedMeetingInfo;
+  context: {
+    company: MeetingCompanyContext | null;
+    deal: MeetingDealContext | null;
+    lastActivity: MeetingLastActivity | null;
+    openTasks: MeetingTask[];
+    previousMeetings: PreviousMeetingInfo[];
+  };
+  actionItems: {
+    completed: MeetingActionItemEnhanced[];
+    outstanding: MeetingActionItemEnhanced[];
+  };
+  suggestions: string[];
+}
+
+export interface UnifiedMeetingInfo {
+  id: string;
+  source: 'google_calendar' | 'savvycal' | 'fathom' | 'teams';
+  title: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  attendees: MeetingAttendee[];
+  location?: string;
+  meetingUrl?: string;
+  meetingType?: 'sales' | 'client' | 'internal' | 'unknown';
+  status: 'confirmed' | 'tentative' | 'cancelled';
+}
+
+export interface MeetingAttendee {
+  email: string;
+  name?: string;
+  isExternal: boolean;
+  isOrganizer: boolean;
+  responseStatus?: 'accepted' | 'declined' | 'tentative' | 'needsAction';
+  crmContactId?: string;
+}
+
+export interface MeetingCompanyContext {
+  id: string;
+  name: string;
+  domain?: string;
+  industry?: string;
+  size?: string;
+  relationshipDuration?: string;
+}
+
+export interface MeetingDealContext {
+  id: string;
+  name: string;
+  stage: string;
+  value: number;
+  probability: number;
+  closeDate?: string;
+  healthScore?: number;
+  daysInStage?: number;
+}
+
+export interface MeetingLastActivity {
+  type: 'email' | 'call' | 'meeting' | 'note' | 'task';
+  date: string;
+  summary: string;
+}
+
+export interface MeetingTask {
+  id: string;
+  title: string;
+  dueDate?: string;
+  priority?: 'low' | 'medium' | 'high';
+}
+
+export interface PreviousMeetingInfo {
+  id: string;
+  title: string;
+  date: string;
+  summary?: string;
+  keyTopics?: string[];
+}
+
+export interface MeetingActionItemEnhanced {
+  id: string;
+  description: string;
+  owner: string;
+  dueDate?: string;
+  isCompleted: boolean;
+  meetingId: string;
+  meetingTitle?: string;
+}
+
+/**
+ * Response for "What meetings do I have today/tomorrow?" query
+ */
+export interface MeetingListResponseData {
+  meetings: UnifiedMeetingInfo[];
+  period: 'today' | 'tomorrow';
+  periodLabel: string;
+  totalCount: number;
+  totalDurationMinutes: number;
+  breakdown?: {
+    internal: number;
+    external: number;
+    withDeals: number;
+  };
+}
+
+/**
+ * Response for "Time breakdown" query (meetings vs other work)
+ */
+export interface TimeBreakdownResponseData {
+  period: 'this_week' | 'last_week' | 'this_month' | 'last_month';
+  periodLabel: string;
+  totalHours: number;
+  meetingHours: number;
+  nonMeetingHours: number;
+  breakdown: {
+    internal: { hours: number; count: number };
+    external: { hours: number; count: number };
+    oneOnOne: { hours: number; count: number };
+    group: { hours: number; count: number };
+  };
+  dailyDistribution: TimeBreakdownDay[];
+  insights: string[];
+  comparison?: {
+    previousPeriod: number;
+    percentageChange: number;
+    trend: 'up' | 'down' | 'stable';
+  };
+}
+
+export interface TimeBreakdownDay {
+  date: string;
+  dayLabel: string; // "Monday", "Tuesday", etc.
+  meetingHours: number;
+  meetingCount: number;
+  busiest: boolean;
 }
 
 // ============================================================================

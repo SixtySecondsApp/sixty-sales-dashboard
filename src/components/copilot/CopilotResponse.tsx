@@ -37,6 +37,10 @@ import { ActivityCreationResponse } from './responses/ActivityCreationResponse';
 import { TaskCreationResponse } from './responses/TaskCreationResponse';
 import { ProposalSelectionResponse } from './responses/ProposalSelectionResponse';
 import { ActionSummaryResponse } from './responses/ActionSummaryResponse';
+import { MeetingCountResponse } from './responses/MeetingCountResponse';
+import { MeetingBriefingResponse } from './responses/MeetingBriefingResponse';
+import { MeetingListResponse } from './responses/MeetingListResponse';
+import { TimeBreakdownResponse } from './responses/TimeBreakdownResponse';
 import type {
   CopilotResponse as CopilotResponseType,
   PipelineResponse as PipelineResponseType,
@@ -71,6 +75,10 @@ import type {
   TaskCreationResponse as TaskCreationResponseType,
   ProposalSelectionResponse as ProposalSelectionResponseType,
   ActionSummaryResponse as ActionSummaryResponseType,
+  MeetingCountResponseData,
+  MeetingBriefingResponseData,
+  MeetingListResponseData,
+  TimeBreakdownResponseData,
 } from './types';
 
 interface CopilotResponseProps {
@@ -180,7 +188,19 @@ export const CopilotResponse: React.FC<CopilotResponseProps> = ({ response, onAc
     
     case 'action_summary':
       return <ActionSummaryResponse data={response as ActionSummaryResponseType} onActionClick={onActionClick} />;
-    
+
+    case 'meeting_count':
+      return <MeetingCountResponse data={(response as any).data as MeetingCountResponseData} onActionClick={onActionClick} />;
+
+    case 'meeting_briefing':
+      return <MeetingBriefingResponse data={(response as any).data as MeetingBriefingResponseData} onActionClick={onActionClick} />;
+
+    case 'meeting_list':
+      return <MeetingListResponse data={(response as any).data as MeetingListResponseData} onActionClick={onActionClick} />;
+
+    case 'time_breakdown':
+      return <TimeBreakdownResponse data={(response as any).data as TimeBreakdownResponseData} onActionClick={onActionClick} />;
+
     default:
       // Fallback to text response if type is unknown
       return (
