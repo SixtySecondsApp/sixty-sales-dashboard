@@ -205,6 +205,8 @@ serve(async (req) => {
             "fathom-hourly-sync": "fathom-cron-sync",
             "check-cron-failures": "", // This is a database function, not an edge function
             "compute-engagement-daily": "compute-engagement",
+            "process-notification-queue": "process-notification-queue",
+            "cancel-stale-notifications": "", // This is a database function
           };
 
           const functionPath = functionMap[jobname];
