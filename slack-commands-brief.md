@@ -47,37 +47,37 @@
 
 ---
 
-## Phase 2: Contact & Deal Workflows
+## Phase 2: Contact & Deal Workflows 🔄
 
 **Goal**: Full contact/deal lifecycle management in Slack
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | **Contact Commands** | | |
-| `/sixty contact` - Full contact card | ⏳ | Role, company, deals, last touch, next step, risk signals |
-| → "Create task" button | ⏳ | |
-| → "Draft follow-up" button (HITL) | ⏳ | |
-| → "Log activity" button | ⏳ | |
+| `/sixty contact` - Full contact card | ✅ | Role, company, deals, last touch, next step, risk signals |
+| → "Create task" button | ✅ | Opens modal with deal linking |
+| → "Draft follow-up" button (HITL) | ✅ | Triggers /sixty follow-up flow |
+| → "Log activity" button | ✅ | Reuses existing log activity modal |
 | → "Link to deal room" button | ⏳ | |
-| → Ambiguous match picker modal | ⏳ | |
-| → "Search CRM" fallback button | ⏳ | |
+| → Ambiguous match picker modal | ✅ | Shows when multiple results found |
+| → "Search CRM" fallback button | ✅ | HubSpot fallback in slackSearch.ts |
 | `/sixty enrich <email/domain/company>` | ⏳ | Enrich + propose merges/links |
 | → "Save" / "Create contact" buttons | ⏳ | |
 | → "Generate opener" button | ⏳ | |
 | → "Generate 3 questions" button | ⏳ | |
 | **Deal Commands** | | |
-| `/sixty deal` - Full deal snapshot | ⏳ | Stage, value, close date, risks |
-| → Update stage modal | ⏳ | |
-| → Log activity modal | ⏳ | |
-| → Create tasks button | ⏳ | |
-| → Draft check-in (HITL) | ⏳ | |
+| `/sixty deal` - Full deal snapshot | ✅ | Stage, value, close date, risks |
+| → Update stage modal | ✅ | Fetches pipeline stages dynamically |
+| → Log activity modal | ✅ | Reuses existing log activity flow |
+| → Create tasks button | ✅ | Opens modal with deal pre-linked |
+| → Draft check-in (HITL) | ✅ | Triggers /sixty follow-up flow |
 | `/sixty deal-room create <deal>` | ⏳ | |
 | `/sixty deal-room invite @user` | ⏳ | |
-| `/sixty risks` / `/sixty stale` | ⏳ | At-risk/stale deals with actions |
+| `/sixty risks` / `/sixty stale` | ✅ | At-risk/stale deals with filter buttons + overflow actions |
 | **Search Infrastructure** | | |
-| Unified entity search service | ⏳ | Local index + CRM connector |
-| "Active contacts" ranking signals | ⏳ | Open deals, recent meetings, email cats, activities |
-| CRM connector interface (HubSpot/SF) | ⏳ | |
+| Unified entity search service | ✅ | Local index + CRM connector in slackSearch.ts |
+| "Active contacts" ranking signals | ✅ | Open deals, recent meetings, activities |
+| CRM connector interface (HubSpot/SF) | ✅ | HubSpot implemented in slackSearch.ts |
 | Entity resolution + de-dupe | ⏳ | |
 | CRM call caching + rate limiting | ⏳ | |
 
@@ -97,20 +97,25 @@ Step 3: Merge + de-dupe + show best matches with confidence + source badges
 
 ---
 
-## Phase 3: Meeting Workflows
+## Phase 3: Meeting Workflows ✅
 
 **Goal**: Complete pre/post meeting automation
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | **Pre-Meeting** | | |
-| `/sixty meeting-prep <next/today/name>` | ⏳ | Generate prep card via picker |
+| `/sixty meeting-prep <next/today/name>` | ✅ | Alias: meeting, prep - already in Phase 1 |
 | **Post-Meeting** | | |
-| `/sixty debrief <last/meeting>` | ⏳ | Post-meeting summary |
-| → "Add tasks" button | ⏳ | |
-| → "Draft follow-up" button | ⏳ | |
-| → "Update deal" button | ⏳ | |
-| → "Share to deal room" button | ⏳ | |
+| `/sixty debrief <last/today/name>` | ✅ | Post-meeting summary with picker |
+| → Sentiment analysis & talk time | ✅ | Auto-calculated from meeting data |
+| → Action items display | ✅ | Shows extracted or default action items |
+| → Deal linking | ✅ | Auto-links to related deal if found |
+| → Coaching insights | ✅ | AI-generated or contextual defaults |
+| → "Add task" individual buttons | ✅ | Creates task from single action item |
+| → "Add All Tasks" bulk button | ✅ | Creates all action items as tasks |
+| → "Draft follow-up" button | ✅ | Triggers /sixty follow-up command |
+| → "Update deal" button | ✅ | Opens update deal stage modal |
+| → "Share to deal room" button | ⏳ | Needs deal room implementation |
 | **Message Shortcuts** | | |
 | "Summarize thread" shortcut | ⏳ | |
 | "Log activity" shortcut | ⏳ | |
