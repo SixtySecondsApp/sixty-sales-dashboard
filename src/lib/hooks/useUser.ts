@@ -8,6 +8,7 @@ import logger from '@/lib/utils/logger';
 import { ViewModeContext } from '@/contexts/ViewModeContext';
 import { useAuthUser } from './useAuthUser';
 import { useUserProfileById } from './useUserProfile';
+import { apiMonitorService } from '@/lib/services/apiMonitorService';
 
 type UserProfile = Database['public']['Tables']['profiles']['Row'];
 
@@ -219,6 +220,16 @@ export function useUser() {
     }
   }, [isImpersonating]);
 
+  // Initialize API monitor service with user ID
+  useEffect(() => {
+    if (userData?.id) {
+      apiMonitorService.setUserId(userData.id);
+    } else {
+      apiMonitorService.setUserId(null);
+      apiMonitorService.cleanup();
+    }
+  }, [userData?.id]);
+
   // Handle mock user for development (only when no auth user)
   const userData = useMemo(() => {
     // If we have a profile from React Query, use it
@@ -283,10 +294,12 @@ export function useUser() {
       await supabase.auth.signOut();
       clearImpersonationData();
       clearAuditContext();
+      apiMonitorService.cleanup();
     } catch (error) {
       logger.error('Error signing out:', error);
       clearImpersonationData();
       clearAuditContext();
+      apiMonitorService.cleanup();
     }
   };
 

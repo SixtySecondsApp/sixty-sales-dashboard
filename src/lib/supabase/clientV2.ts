@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient, Session, User } from '@supabase/supabase-js';
 import { Database } from './database.types';
 import logger from '@/lib/utils/logger';
+import { apiMonitorService } from '@/lib/services/apiMonitorService';
 
 // Environment variables with validation
 // Supabase uses "Publishable key" (frontend-safe) and "Secret keys" (server-side only)
@@ -101,14 +102,31 @@ const clerkFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise
   }
 
   // Make the request
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  const method = init?.method || 'GET';
+  
   const response = await fetch(input, {
     ...init,
     headers,
   });
 
+  // Track request for API monitoring (non-blocking)
+  try {
+    // Extract endpoint from URL (remove query params and hash)
+    const urlObj = typeof input === 'string' ? new URL(input) : input instanceof URL ? input : new URL(input.url);
+    const endpoint = urlObj.pathname;
+    
+    // Only track REST API and RPC endpoints
+    if (endpoint.includes('/rest/v1/') || endpoint.includes('/rpc/')) {
+      apiMonitorService.trackRequest(endpoint, method, response.status);
+    }
+  } catch (err) {
+    // Silently fail - monitoring should not break requests
+    logger.warn('[clientV2] Failed to track request:', err);
+  }
+
   // Log error responses for debugging
   if (!response.ok) {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     // Clone response to read body without consuming it
     const clonedResponse = response.clone();
     try {
@@ -177,7 +195,27 @@ function getSupabaseClient(): TypedSupabaseClient {
       functions: functionsUrl ? { url: functionsUrl } : undefined,
       global: {
         // Use custom fetch when Clerk auth is enabled to inject JWT
-        fetch: USE_CLERK_AUTH ? clerkFetch : undefined,
+        // Also use custom fetch for API monitoring (wrap native fetch)
+        fetch: USE_CLERK_AUTH ? clerkFetch : async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = typeof input === 'string' ? input : input instanceof URL ? input : input.url;
+          const method = init?.method || 'GET';
+          
+          const response = await fetch(input, init);
+          
+          // Track request for API monitoring (non-blocking)
+          try {
+            const urlObj = typeof input === 'string' ? new URL(input) : input instanceof URL ? input : new URL(input.url);
+            const endpoint = urlObj.pathname;
+            
+            if (endpoint.includes('/rest/v1/') || endpoint.includes('/rpc/')) {
+              apiMonitorService.trackRequest(endpoint, method, response.status);
+            }
+          } catch (err) {
+            // Silently fail - monitoring should not break requests
+          }
+          
+          return response;
+        },
         headers: {
           'X-Client-Info': 'sales-dashboard-v2'
         }
