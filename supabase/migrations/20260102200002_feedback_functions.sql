@@ -208,6 +208,26 @@ GRANT EXECUTE ON FUNCTION record_notification_preference_feedback(UUID, TEXT) TO
 GRANT EXECUTE ON FUNCTION get_users_due_for_feedback(UUID, INTEGER) TO service_role;
 
 -- ============================================================================
+-- Schedule cron job for daily feedback requests
+-- ============================================================================
+
+-- Send feedback requests daily at 10 AM UTC (reasonable time for most users)
+SELECT cron.schedule(
+  'send-feedback-requests',
+  '0 10 * * *',  -- Every day at 10 AM UTC
+  $$
+  SELECT net.http_post(
+    url := current_setting('app.settings.supabase_url') || '/functions/v1/send-feedback-requests',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key')
+    ),
+    body := '{}'::jsonb
+  )
+  $$
+);
+
+-- ============================================================================
 -- Comments
 -- ============================================================================
 COMMENT ON FUNCTION adjust_notification_fatigue IS 'Adjust user notification fatigue level by given amount';

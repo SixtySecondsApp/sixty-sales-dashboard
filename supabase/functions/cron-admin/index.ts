@@ -207,6 +207,7 @@ serve(async (req) => {
             "compute-engagement-daily": "compute-engagement",
             "process-notification-queue": "process-notification-queue",
             "cancel-stale-notifications": "", // This is a database function
+            "send-feedback-requests": "send-feedback-requests",
           };
 
           const functionPath = functionMap[jobname];
