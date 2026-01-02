@@ -33,9 +33,13 @@ export async function executeAction(
       const email = params.email ? String(params.email) : undefined;
       const name = params.name ? String(params.name) : undefined;
       const contactId = params.contact_id ? String(params.contact_id) : undefined;
+      const dateFrom = params.date_from ? String(params.date_from) : undefined;
+      const dateTo = params.date_to ? String(params.date_to) : undefined;
+      const dateField = params.date_field ? String(params.date_field) : 'created_at'; // 'created_at' or 'meeting_start'
 
-      if (!email && !name && !contactId) {
-        return { success: false, data: null, error: 'get_lead requires email, name, or contact_id' };
+      // Allow date-only queries (e.g., "leads from today")
+      if (!email && !name && !contactId && !dateFrom && !dateTo) {
+        return { success: false, data: null, error: 'get_lead requires email, name, contact_id, or date filters (date_from/date_to)' };
       }
 
       let query = client
@@ -73,13 +77,21 @@ export async function executeAction(
         .is('deleted_at', null)
         .order('meeting_start', { ascending: false, nullsFirst: false });
 
-      // Apply filters
+      // Apply identity filters
       if (contactId) {
         query = query.eq('contact_id', contactId);
       } else if (email) {
         query = query.ilike('contact_email', `%${email}%`);
       } else if (name) {
         query = query.ilike('contact_name', `%${name}%`);
+      }
+
+      // Apply date filters (can be combined with identity filters)
+      if (dateFrom) {
+        query = query.gte(dateField, dateFrom);
+      }
+      if (dateTo) {
+        query = query.lte(dateField, dateTo);
       }
 
       const { data: leads, error: leadsError } = await query.limit(5);
@@ -215,6 +227,43 @@ export async function executeAction(
       return adapters.crm.getDeal({
         id: params.id ? String(params.id) : undefined,
         name: params.name ? String(params.name) : undefined,
+        close_date_from: params.close_date_from ? String(params.close_date_from) : undefined,
+        close_date_to: params.close_date_to ? String(params.close_date_to) : undefined,
+        status: params.status ? String(params.status) : undefined,
+        stage_id: params.stage_id ? String(params.stage_id) : undefined,
+        include_health: params.include_health === true,
+        limit: params.limit ? Number(params.limit) : undefined,
+      });
+
+    case 'get_pipeline_summary':
+      return adapters.crm.getPipelineSummary({});
+
+    case 'get_pipeline_deals':
+      return adapters.crm.getPipelineDeals({
+        filter: params.filter ? String(params.filter) as 'closing_soon' | 'at_risk' | 'stale' | 'needs_attention' : undefined,
+        days: params.days ? Number(params.days) : undefined,
+        period: params.period ? String(params.period) : undefined,
+        include_health: params.include_health === true,
+        limit: params.limit ? Number(params.limit) : undefined,
+      });
+
+    case 'get_pipeline_forecast':
+      return adapters.crm.getPipelineForecast({
+        period: params.period ? String(params.period) : undefined,
+      });
+
+    case 'get_contacts_needing_attention':
+      return adapters.crm.getContactsNeedingAttention({
+        days_since_contact: params.days_since_contact ? Number(params.days_since_contact) : undefined,
+        filter: params.filter ? String(params.filter) as 'at_risk' | 'ghost' | 'all' : undefined,
+        limit: params.limit ? Number(params.limit) : undefined,
+      });
+
+    case 'get_company_status':
+      return adapters.crm.getCompanyStatus({
+        company_id: params.company_id ? String(params.company_id) : undefined,
+        company_name: params.company_name ? String(params.company_name) : undefined,
+        domain: params.domain ? String(params.domain) : undefined,
       });
 
     case 'get_meetings':

@@ -2158,18 +2158,35 @@ const SKILLS_ROUTER_TOOLS = [
   },
   {
     name: 'execute_action',
-    description: `Execute an action to fetch CRM data, meetings, emails, or send notifications.
+    description: `Execute an action to fetch CRM data, meetings, emails, pipeline intelligence, or send notifications.
 
 ACTION PARAMETERS:
-• get_contact: { email?: string, name?: string, id?: string } - Search contacts by email (preferred), name, or id
-• get_lead: { email?: string, name?: string, contact_id?: string } - Get lead/prospect data including SavvyCal bookings, enrichment data, prep_summary, custom form fields, AND AI-generated insights (About the Prospect, Why Sixty Seconds?, etc). Returns structured contact, meeting, enrichment, and insights data. CRITICAL for meeting prep!
-• get_deal: { name?: string, id?: string } - Search deals by name or id
-• get_meetings: { contactEmail?: string, contactId?: string, limit?: number } - Get meetings with a contact. IMPORTANT: Always pass contactEmail when you have an email address!
-• get_booking_stats: { period?, filter_by?, source?, org_wide? } - Get meeting/booking statistics for a time period. period: "this_week"|"last_week"|"this_month"|"last_month"|"last_7_days"|"last_30_days" (default: "this_week"). filter_by: "meeting_date"|"booking_date" (default: "meeting_date"). source: "all"|"savvycal"|"calendar"|"meetings" (default: "all"). org_wide: boolean (default: false, admin only).
-• search_emails: { contact_email?: string, query?: string, limit?: number } - Search emails by contact email or query
-• draft_email: { to: string, subject?: string, context?: string, tone?: string } - Draft an email
-• update_crm: { entity: 'deal'|'contact'|'task'|'activity', id: string, updates: object, confirm: true } - Update CRM record (requires confirm=true)
-• send_notification: { channel: 'slack', message: string, blocks?: object } - Send a notification
+
+## Contact & Lead Lookup
+• get_contact: { email?, name?, id? } - Search contacts by email (preferred), name, or id
+• get_lead: { email?, name?, contact_id?, date_from?, date_to?, date_field? } - Get lead/prospect data including SavvyCal bookings, enrichment data, prep_summary, custom form fields, AND AI-generated insights. date_field: "created_at"|"meeting_start" (default: "created_at"). Use date_from/date_to for queries like "leads from today".
+
+## Deal & Pipeline
+• get_deal: { name?, id?, close_date_from?, close_date_to?, status?, stage_id?, include_health?, limit? } - Search deals with optional date range and health data. include_health=true adds health_status, risk_level, days_since_last_activity.
+• get_pipeline_summary: {} - Get aggregated pipeline metrics: total_value, weighted_value, deal_count, by_stage breakdown, at_risk_count, at_risk_value, closing_this_week, closing_this_month.
+• get_pipeline_deals: { filter?, days?, period?, include_health?, limit? } - Get filtered deal list. filter: "closing_soon"|"at_risk"|"stale"|"needs_attention". period: "this_week"|"this_month"|"this_quarter". days: for stale filter (default 14).
+• get_pipeline_forecast: { period? } - Get quarterly forecast with best_case, committed (>75% prob), most_likely (weighted), closed_won scenarios. period: "this_quarter"|"next_quarter" (default: "this_quarter").
+
+## Contacts & Relationships
+• get_contacts_needing_attention: { days_since_contact?, filter?, limit? } - Get contacts without recent follow-up. days_since_contact default: 14. filter: "at_risk"|"ghost"|"all" (default: "all").
+• get_company_status: { company_id?, company_name?, domain? } - Holistic company view: contacts, deals, recent meetings, health status, total deal value, relationship summary.
+
+## Meetings & Calendar
+• get_meetings: { contactEmail?, contactId?, limit? } - Get meetings with a contact. IMPORTANT: Always pass contactEmail when you have an email address!
+• get_booking_stats: { period?, filter_by?, source?, org_wide? } - Get meeting/booking statistics. period: "this_week"|"last_week"|"this_month"|"last_month"|"last_7_days"|"last_30_days" (default: "this_week").
+
+## Email & Notifications
+• search_emails: { contact_email?, query?, limit? } - Search emails by contact email or query
+• draft_email: { to, subject?, context?, tone? } - Draft an email
+• send_notification: { channel: 'slack', message, blocks? } - Send a Slack notification
+
+## CRM Updates
+• update_crm: { entity: 'deal'|'contact'|'task'|'activity', id, updates, confirm: true } - Update CRM record (requires confirm=true)
 
 Write actions require params.confirm=true.`,
     input_schema: {
@@ -2181,6 +2198,11 @@ Write actions require params.confirm=true.`,
             'get_contact',
             'get_lead',
             'get_deal',
+            'get_pipeline_summary',
+            'get_pipeline_deals',
+            'get_pipeline_forecast',
+            'get_contacts_needing_attention',
+            'get_company_status',
             'get_meetings',
             'get_booking_stats',
             'search_emails',
@@ -2194,16 +2216,36 @@ Write actions require params.confirm=true.`,
           type: 'object',
           description: 'Action-specific parameters (see tool description for each action)',
           properties: {
+            // Contact & Lead params
             email: { type: 'string', description: 'Contact email address (for get_contact, get_lead)' },
             name: { type: 'string', description: 'Name to search (for get_contact, get_lead, get_deal)' },
             id: { type: 'string', description: 'Record ID' },
-            contact_id: { type: 'string', description: 'Contact ID to find associated leads/bookings (for get_lead)' },
+            contact_id: { type: 'string', description: 'Contact ID (for get_lead)' },
+            date_from: { type: 'string', description: 'Start date in ISO format (for get_lead, get_deal)' },
+            date_to: { type: 'string', description: 'End date in ISO format (for get_lead, get_deal)' },
+            date_field: { type: 'string', enum: ['created_at', 'meeting_start'], description: 'Which date field to filter on (for get_lead)' },
+            // Deal params
+            close_date_from: { type: 'string', description: 'Deal close date start in ISO format (for get_deal)' },
+            close_date_to: { type: 'string', description: 'Deal close date end in ISO format (for get_deal)' },
+            status: { type: 'string', description: 'Deal status filter (for get_deal)' },
+            stage_id: { type: 'string', description: 'Stage ID filter (for get_deal)' },
+            include_health: { type: 'boolean', description: 'Include health scores (for get_deal, get_pipeline_deals)' },
+            // Pipeline params
+            filter: { type: 'string', enum: ['closing_soon', 'at_risk', 'stale', 'needs_attention', 'ghost', 'all'], description: 'Filter type (for get_pipeline_deals, get_contacts_needing_attention)' },
+            days: { type: 'number', description: 'Days threshold for stale filter (for get_pipeline_deals)' },
+            days_since_contact: { type: 'number', description: 'Days since last contact (for get_contacts_needing_attention, default: 14)' },
+            // Company params
+            company_id: { type: 'string', description: 'Company ID (for get_company_status)' },
+            company_name: { type: 'string', description: 'Company name to search (for get_company_status)' },
+            domain: { type: 'string', description: 'Company domain (for get_company_status)' },
+            // Meeting params
             contactEmail: { type: 'string', description: 'Email of the contact (for get_meetings) - PREFERRED method' },
             contactId: { type: 'string', description: 'Contact ID (for get_meetings)' },
-            period: { type: 'string', enum: ['this_week', 'last_week', 'this_month', 'last_month', 'last_7_days', 'last_30_days'], description: 'Time period for booking stats (for get_booking_stats)' },
+            period: { type: 'string', enum: ['this_week', 'last_week', 'this_month', 'last_month', 'this_quarter', 'next_quarter', 'last_7_days', 'last_30_days'], description: 'Time period (for get_booking_stats, get_pipeline_deals, get_pipeline_forecast)' },
             filter_by: { type: 'string', enum: ['meeting_date', 'booking_date'], description: 'Filter by when meeting is scheduled or when booking was created (for get_booking_stats)' },
             source: { type: 'string', enum: ['all', 'savvycal', 'calendar', 'meetings'], description: 'Data source to query (for get_booking_stats)' },
             org_wide: { type: 'boolean', description: 'If true and user is admin, show all org bookings (for get_booking_stats)' },
+            // Email params
             contact_email: { type: 'string', description: 'Contact email (for search_emails)' },
             query: { type: 'string', description: 'Search query (for search_emails)' },
             limit: { type: 'number', description: 'Max results to return' },
@@ -2211,9 +2253,11 @@ Write actions require params.confirm=true.`,
             subject: { type: 'string', description: 'Email subject (for draft_email)' },
             context: { type: 'string', description: 'Context for drafting (for draft_email)' },
             tone: { type: 'string', description: 'Email tone (for draft_email)' },
+            // CRM update params
             entity: { type: 'string', enum: ['deal', 'contact', 'task', 'activity'], description: 'CRM entity type (for update_crm)' },
             updates: { type: 'object', description: 'Fields to update (for update_crm)' },
             confirm: { type: 'boolean', description: 'Set to true to confirm write operations' },
+            // Notification params
             channel: { type: 'string', description: 'Notification channel (for send_notification)' },
             message: { type: 'string', description: 'Notification message (for send_notification)' },
             blocks: { type: 'object', description: 'Slack blocks (for send_notification)' },
@@ -2367,6 +2411,32 @@ DO NOT show a "Create Meeting" UI for prep requests.
 3. Use execute_action with enrich_contact or enrich_company if more data is needed
 4. Use get_skill with "lead-research" skill_id
 5. Follow the skill to compile research
+
+### Pipeline Queries (when user asks about deals, pipeline, or forecasts)
+
+**"What deals are closing this week/month?"**
+- Use execute_action with get_pipeline_deals { filter: "closing_soon", period: "this_week" } or { period: "this_month" }
+
+**"Show me stale opportunities" or "deals with no activity"**
+- Use execute_action with get_pipeline_deals { filter: "stale", days: 14 } (adjust days as needed)
+
+**"What's my pipeline value?" or "Pipeline summary"**
+- Use execute_action with get_pipeline_summary {} for total_value, weighted_value, by_stage breakdown
+
+**"Which leads came in today?"**
+- Use execute_action with get_lead { date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD" } using today's date
+
+**"Who haven't I followed up with?" or "Contacts needing attention"**
+- Use execute_action with get_contacts_needing_attention { days_since_contact: 14 }
+
+**"Show me deals at risk" or "At-risk opportunities"**
+- Use execute_action with get_pipeline_deals { filter: "at_risk", include_health: true }
+
+**"What's my forecast for this quarter?"**
+- Use execute_action with get_pipeline_forecast { period: "this_quarter" }
+
+**"What's the status with [company]?"**
+- Use execute_action with get_company_status { company_name: "X" } for holistic view
 
 ## Core Rules
 - Confirm before any CRM updates, notifications, or sends (execute_action write actions require params.confirm=true)

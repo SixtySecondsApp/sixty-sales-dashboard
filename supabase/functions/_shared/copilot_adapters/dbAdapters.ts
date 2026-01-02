@@ -324,18 +324,55 @@ export function createDbCrmAdapter(client: SupabaseClient, userId: string): CRMA
       try {
         const id = params.id ? String(params.id).trim() : null;
         const name = params.name ? String(params.name).trim() : null;
+        const closeDateFrom = params.close_date_from ? String(params.close_date_from).trim() : null;
+        const closeDateTo = params.close_date_to ? String(params.close_date_to).trim() : null;
+        const status = params.status ? String(params.status).trim() : null;
+        const stageId = params.stage_id ? String(params.stage_id).trim() : null;
+        const includeHealth = params.include_health === true;
+        const limit = Math.min(Math.max(Number(params.limit ?? 10) || 10, 1), 50);
+
+        // Base select - optionally include health data
+        const selectFields = includeHealth
+          ? `id,name,company,value,stage_id,status,expected_close_date,probability,created_at,updated_at,
+             deal_health_scores(health_status,risk_level,days_since_last_activity,days_in_current_stage,overall_health_score)`
+          : 'id,name,company,value,stage_id,status,expected_close_date,probability,created_at,updated_at';
 
         let q = client
           .from('deals')
-          .select('id,name,company,value,stage_id,status,expected_close_date,probability,created_at,updated_at')
+          .select(selectFields)
           .eq('owner_id', userId);
+
+        // Apply filters
         if (id) q = q.eq('id', id);
         if (name && !id) q = q.ilike('name', `%${name}%`);
+        if (status) q = q.eq('status', status);
+        if (stageId) q = q.eq('stage_id', stageId);
+        if (closeDateFrom) q = q.gte('expected_close_date', closeDateFrom);
+        if (closeDateTo) q = q.lte('expected_close_date', closeDateTo);
 
-        const { data, error } = await q.limit(10);
+        const { data, error } = await q.order('expected_close_date', { ascending: true, nullsFirst: false }).limit(limit);
         if (error) throw error;
 
-        return ok({ deals: data || [] }, this.source);
+        // Flatten health data if included
+        const deals = (data || []).map((deal: any) => {
+          if (includeHealth && deal.deal_health_scores) {
+            const health = Array.isArray(deal.deal_health_scores)
+              ? deal.deal_health_scores[0]
+              : deal.deal_health_scores;
+            return {
+              ...deal,
+              health_status: health?.health_status || null,
+              risk_level: health?.risk_level || null,
+              days_since_last_activity: health?.days_since_last_activity || null,
+              days_in_current_stage: health?.days_in_current_stage || null,
+              overall_health_score: health?.overall_health_score || null,
+              deal_health_scores: undefined,
+            };
+          }
+          return deal;
+        });
+
+        return ok({ deals }, this.source);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         return fail(msg, this.source);
@@ -409,6 +446,554 @@ export function createDbCrmAdapter(client: SupabaseClient, userId: string): CRMA
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         return fail(msg, source);
+      }
+    },
+
+    async getPipelineSummary(_params) {
+      try {
+        const now = new Date();
+        const weekEnd = new Date(now);
+        weekEnd.setDate(now.getDate() + (7 - now.getDay()));
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+        // Get deals with health scores and stage info
+        const { data: deals, error: dealsError } = await client
+          .from('deals')
+          .select(`
+            id, name, value, probability, stage_id, status, expected_close_date,
+            deal_stages(name, probability),
+            deal_health_scores(health_status, risk_level)
+          `)
+          .eq('owner_id', userId)
+          .eq('status', 'active');
+
+        if (dealsError) throw dealsError;
+
+        const dealList = deals || [];
+
+        // Calculate metrics
+        let totalValue = 0;
+        let weightedValue = 0;
+        let atRiskCount = 0;
+        let atRiskValue = 0;
+        let closingThisWeekCount = 0;
+        let closingThisWeekValue = 0;
+        let closingThisMonthCount = 0;
+        let closingThisMonthValue = 0;
+        const byStage: Record<string, { name: string; count: number; value: number }> = {};
+
+        for (const deal of dealList) {
+          const value = Number(deal.value) || 0;
+          totalValue += value;
+
+          // Probability: use deal probability if set, else stage probability
+          const stageData = Array.isArray(deal.deal_stages) ? deal.deal_stages[0] : deal.deal_stages;
+          const prob = deal.probability ?? stageData?.probability ?? 50;
+          weightedValue += value * (prob / 100);
+
+          // Health/risk
+          const healthData = Array.isArray(deal.deal_health_scores) ? deal.deal_health_scores[0] : deal.deal_health_scores;
+          if (healthData?.risk_level === 'high' || healthData?.risk_level === 'critical' ||
+              healthData?.health_status === 'warning' || healthData?.health_status === 'critical') {
+            atRiskCount++;
+            atRiskValue += value;
+          }
+
+          // Close date checks
+          if (deal.expected_close_date) {
+            const closeDate = new Date(deal.expected_close_date);
+            if (closeDate >= now && closeDate <= weekEnd) {
+              closingThisWeekCount++;
+              closingThisWeekValue += value;
+            }
+            if (closeDate >= now && closeDate <= monthEnd) {
+              closingThisMonthCount++;
+              closingThisMonthValue += value;
+            }
+          }
+
+          // By stage aggregation
+          const stageName = stageData?.name || 'Unknown';
+          if (!byStage[stageName]) {
+            byStage[stageName] = { name: stageName, count: 0, value: 0 };
+          }
+          byStage[stageName].count++;
+          byStage[stageName].value += value;
+        }
+
+        return ok({
+          deal_count: dealList.length,
+          total_value: totalValue,
+          weighted_value: Math.round(weightedValue),
+          at_risk_count: atRiskCount,
+          at_risk_value: atRiskValue,
+          closing_this_week: { count: closingThisWeekCount, value: closingThisWeekValue },
+          closing_this_month: { count: closingThisMonthCount, value: closingThisMonthValue },
+          by_stage: Object.values(byStage),
+        }, this.source);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return fail(msg, this.source);
+      }
+    },
+
+    async getPipelineDeals(params) {
+      try {
+        const filter = params.filter || 'closing_soon';
+        const days = Number(params.days) || 14;
+        const period = params.period || 'this_month';
+        const includeHealth = params.include_health !== false; // Default true
+        const limit = Math.min(Math.max(Number(params.limit ?? 20) || 20, 1), 50);
+
+        const now = new Date();
+        let startDate: Date;
+        let endDate: Date;
+
+        // Calculate period dates
+        switch (period) {
+          case 'this_week': {
+            const dayOfWeek = now.getDay();
+            startDate = new Date(now);
+            startDate.setDate(now.getDate() - dayOfWeek);
+            endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + 6);
+            break;
+          }
+          case 'this_quarter': {
+            const quarter = Math.floor(now.getMonth() / 3);
+            startDate = new Date(now.getFullYear(), quarter * 3, 1);
+            endDate = new Date(now.getFullYear(), quarter * 3 + 3, 0);
+            break;
+          }
+          default: // this_month
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        }
+
+        const selectFields = includeHealth
+          ? `id,name,company,value,stage_id,status,expected_close_date,probability,created_at,updated_at,
+             deal_stages(name),
+             deal_health_scores(health_status,risk_level,days_since_last_activity,days_in_current_stage,overall_health_score)`
+          : `id,name,company,value,stage_id,status,expected_close_date,probability,created_at,updated_at,
+             deal_stages(name)`;
+
+        let q = client
+          .from('deals')
+          .select(selectFields)
+          .eq('owner_id', userId)
+          .eq('status', 'active');
+
+        // Apply filter logic
+        switch (filter) {
+          case 'closing_soon':
+            q = q.gte('expected_close_date', startDate.toISOString().split('T')[0])
+                 .lte('expected_close_date', endDate.toISOString().split('T')[0]);
+            break;
+          case 'at_risk':
+            // Will filter after query based on health scores
+            break;
+          case 'stale':
+            // Will filter after query based on days_since_last_activity
+            break;
+          case 'needs_attention':
+            // Combines at_risk and stale
+            break;
+        }
+
+        const { data, error } = await q.order('expected_close_date', { ascending: true, nullsFirst: false }).limit(100);
+        if (error) throw error;
+
+        // Process and filter results
+        let deals = (data || []).map((deal: any) => {
+          const stageData = Array.isArray(deal.deal_stages) ? deal.deal_stages[0] : deal.deal_stages;
+          const healthData = Array.isArray(deal.deal_health_scores) ? deal.deal_health_scores[0] : deal.deal_health_scores;
+
+          return {
+            id: deal.id,
+            name: deal.name,
+            company: deal.company,
+            value: deal.value,
+            stage_name: stageData?.name || 'Unknown',
+            status: deal.status,
+            expected_close_date: deal.expected_close_date,
+            probability: deal.probability,
+            ...(includeHealth && {
+              health_status: healthData?.health_status || null,
+              risk_level: healthData?.risk_level || null,
+              days_since_last_activity: healthData?.days_since_last_activity || null,
+              days_in_current_stage: healthData?.days_in_current_stage || null,
+              overall_health_score: healthData?.overall_health_score || null,
+            }),
+          };
+        });
+
+        // Apply post-query filters
+        if (filter === 'at_risk') {
+          deals = deals.filter((d: any) =>
+            d.risk_level === 'high' || d.risk_level === 'critical' ||
+            d.health_status === 'warning' || d.health_status === 'critical' || d.health_status === 'stalled'
+          );
+        } else if (filter === 'stale') {
+          deals = deals.filter((d: any) =>
+            (d.days_since_last_activity !== null && d.days_since_last_activity >= days) ||
+            (d.days_in_current_stage !== null && d.days_in_current_stage >= days)
+          );
+        } else if (filter === 'needs_attention') {
+          deals = deals.filter((d: any) =>
+            d.risk_level === 'high' || d.risk_level === 'critical' ||
+            d.health_status === 'warning' || d.health_status === 'critical' || d.health_status === 'stalled' ||
+            (d.days_since_last_activity !== null && d.days_since_last_activity >= days)
+          );
+        }
+
+        return ok({
+          filter,
+          period,
+          count: deals.slice(0, limit).length,
+          deals: deals.slice(0, limit),
+        }, this.source);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return fail(msg, this.source);
+      }
+    },
+
+    async getPipelineForecast(params) {
+      try {
+        const period = params.period || 'this_quarter';
+        const now = new Date();
+
+        let startDate: Date;
+        let endDate: Date;
+        let periodLabel: string;
+
+        // Calculate period dates
+        switch (period) {
+          case 'this_month':
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            periodLabel = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+            break;
+          case 'next_quarter': {
+            const nextQuarter = Math.floor(now.getMonth() / 3) + 1;
+            const year = nextQuarter > 3 ? now.getFullYear() + 1 : now.getFullYear();
+            const qNum = nextQuarter > 3 ? 0 : nextQuarter;
+            startDate = new Date(year, qNum * 3, 1);
+            endDate = new Date(year, qNum * 3 + 3, 0);
+            periodLabel = `Q${qNum + 1} ${year}`;
+            break;
+          }
+          default: { // this_quarter
+            const quarter = Math.floor(now.getMonth() / 3);
+            startDate = new Date(now.getFullYear(), quarter * 3, 1);
+            endDate = new Date(now.getFullYear(), quarter * 3 + 3, 0);
+            periodLabel = `Q${quarter + 1} ${now.getFullYear()}`;
+          }
+        }
+
+        // Get all deals with expected close date in period
+        const { data: deals, error: dealsError } = await client
+          .from('deals')
+          .select(`
+            id, name, value, probability, stage_id, status, expected_close_date,
+            deal_stages(probability)
+          `)
+          .eq('owner_id', userId)
+          .gte('expected_close_date', startDate.toISOString().split('T')[0])
+          .lte('expected_close_date', endDate.toISOString().split('T')[0]);
+
+        if (dealsError) throw dealsError;
+
+        const dealList = deals || [];
+
+        // Calculate forecast scenarios
+        let bestCaseValue = 0;
+        let bestCaseCount = 0;
+        let committedValue = 0;
+        let committedCount = 0;
+        let mostLikelyValue = 0;
+        let closedWonValue = 0;
+        let closedWonCount = 0;
+
+        // By month aggregation
+        const byMonth: Record<string, { month: string; forecast: number; closed: number; deal_count: number }> = {};
+
+        for (const deal of dealList) {
+          const value = Number(deal.value) || 0;
+          const stageData = Array.isArray(deal.deal_stages) ? deal.deal_stages[0] : deal.deal_stages;
+
+          // Probability: use deal probability if set, else stage probability
+          const prob = deal.probability ?? stageData?.probability ?? 50;
+
+          if (deal.status === 'won') {
+            closedWonValue += value;
+            closedWonCount++;
+          } else if (deal.status === 'active') {
+            bestCaseValue += value;
+            bestCaseCount++;
+            mostLikelyValue += value * (prob / 100);
+
+            if (prob >= 75) {
+              committedValue += value;
+              committedCount++;
+            }
+          }
+
+          // By month
+          if (deal.expected_close_date) {
+            const closeDate = new Date(deal.expected_close_date);
+            const monthKey = closeDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+            if (!byMonth[monthKey]) {
+              byMonth[monthKey] = { month: monthKey, forecast: 0, closed: 0, deal_count: 0 };
+            }
+            if (deal.status === 'won') {
+              byMonth[monthKey].closed += value;
+            } else {
+              byMonth[monthKey].forecast += value * (prob / 100);
+            }
+            byMonth[monthKey].deal_count++;
+          }
+        }
+
+        return ok({
+          period: periodLabel,
+          start_date: startDate.toISOString().split('T')[0],
+          end_date: endDate.toISOString().split('T')[0],
+          best_case: { value: bestCaseValue, deal_count: bestCaseCount },
+          committed: { value: committedValue, deal_count: committedCount },
+          most_likely: { value: Math.round(mostLikelyValue), deal_count: bestCaseCount },
+          closed_won: { value: closedWonValue, deal_count: closedWonCount },
+          by_month: Object.values(byMonth),
+        }, this.source);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return fail(msg, this.source);
+      }
+    },
+
+    async getContactsNeedingAttention(params) {
+      try {
+        const daysSinceContact = Number(params.days_since_contact) || 14;
+        const filter = params.filter || 'all';
+        const limit = Math.min(Math.max(Number(params.limit ?? 20) || 20, 1), 50);
+
+        // Get contacts with health scores
+        const { data: contacts, error: contactsError } = await client
+          .from('contacts')
+          .select(`
+            id, email, first_name, last_name, full_name, title, company_id, last_interaction_at,
+            relationship_health_scores!inner(
+              health_status, risk_level, days_since_last_contact, days_since_last_response,
+              is_ghost_risk, ghost_probability_percent, risk_factors,
+              total_interactions_30_days, email_count_30_days, meeting_count_30_days
+            ),
+            companies(name)
+          `)
+          .eq('owner_id', userId);
+
+        if (contactsError) throw contactsError;
+
+        // Process and filter contacts
+        let contactList = (contacts || []).map((contact: any) => {
+          const health = Array.isArray(contact.relationship_health_scores)
+            ? contact.relationship_health_scores[0]
+            : contact.relationship_health_scores;
+          const company = Array.isArray(contact.companies) ? contact.companies[0] : contact.companies;
+
+          return {
+            id: contact.id,
+            email: contact.email,
+            name: contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim(),
+            title: contact.title,
+            company_name: company?.name || null,
+            last_interaction_at: contact.last_interaction_at,
+            health_status: health?.health_status || 'unknown',
+            risk_level: health?.risk_level || 'unknown',
+            days_since_last_contact: health?.days_since_last_contact || null,
+            is_ghost_risk: health?.is_ghost_risk || false,
+            ghost_probability_percent: health?.ghost_probability_percent || null,
+            risk_factors: health?.risk_factors || [],
+            interactions_30_days: health?.total_interactions_30_days || 0,
+          };
+        });
+
+        // Apply filters
+        if (filter === 'at_risk') {
+          contactList = contactList.filter((c: any) =>
+            c.health_status === 'at_risk' || c.health_status === 'critical' ||
+            c.risk_level === 'high' || c.risk_level === 'critical'
+          );
+        } else if (filter === 'ghost') {
+          contactList = contactList.filter((c: any) =>
+            c.is_ghost_risk || c.health_status === 'ghost'
+          );
+        } else {
+          // 'all' - filter by days since contact
+          contactList = contactList.filter((c: any) =>
+            c.days_since_last_contact === null ||
+            c.days_since_last_contact >= daysSinceContact ||
+            c.health_status === 'at_risk' || c.health_status === 'critical' || c.health_status === 'ghost'
+          );
+        }
+
+        // Sort by days since contact (descending)
+        contactList.sort((a: any, b: any) => {
+          const daysA = a.days_since_last_contact ?? 9999;
+          const daysB = b.days_since_last_contact ?? 9999;
+          return daysB - daysA;
+        });
+
+        return ok({
+          filter,
+          days_threshold: daysSinceContact,
+          count: contactList.slice(0, limit).length,
+          contacts: contactList.slice(0, limit),
+        }, this.source);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return fail(msg, this.source);
+      }
+    },
+
+    async getCompanyStatus(params) {
+      try {
+        const companyId = params.company_id ? String(params.company_id).trim() : null;
+        const companyName = params.company_name ? String(params.company_name).trim() : null;
+        const domain = params.domain ? String(params.domain).trim() : null;
+
+        if (!companyId && !companyName && !domain) {
+          return fail('company_id, company_name, or domain is required', this.source);
+        }
+
+        // Find company
+        let companyQuery = client
+          .from('companies')
+          .select('id, name, domain, website, industry, size, status, description')
+          .eq('owner_id', userId);
+
+        if (companyId) {
+          companyQuery = companyQuery.eq('id', companyId);
+        } else if (companyName) {
+          companyQuery = companyQuery.ilike('name', `%${companyName}%`);
+        } else if (domain) {
+          companyQuery = companyQuery.ilike('domain', `%${domain}%`);
+        }
+
+        const { data: companies, error: companyError } = await companyQuery.limit(1);
+        if (companyError) throw companyError;
+
+        if (!companies || companies.length === 0) {
+          return ok({
+            found: false,
+            message: `No company found matching: ${companyId || companyName || domain}`,
+          }, this.source);
+        }
+
+        const company = companies[0];
+
+        // Get contacts for this company
+        const { data: contacts, error: contactsError } = await client
+          .from('contacts')
+          .select(`
+            id, email, first_name, last_name, full_name, title,
+            relationship_health_scores(health_status, days_since_last_contact)
+          `)
+          .eq('company_id', company.id)
+          .eq('owner_id', userId)
+          .limit(10);
+
+        if (contactsError) throw contactsError;
+
+        // Get deals for this company
+        const { data: deals, error: dealsError } = await client
+          .from('deals')
+          .select(`
+            id, name, value, status, expected_close_date, probability,
+            deal_stages(name),
+            deal_health_scores(health_status, risk_level)
+          `)
+          .eq('company_id', company.id)
+          .eq('owner_id', userId)
+          .limit(10);
+
+        if (dealsError) throw dealsError;
+
+        // Get recent meetings
+        const { data: meetings, error: meetingsError } = await client
+          .from('meetings')
+          .select('id, title, meeting_start, duration_minutes, summary')
+          .eq('company_id', company.id)
+          .eq('owner_user_id', userId)
+          .order('meeting_start', { ascending: false })
+          .limit(5);
+
+        if (meetingsError) throw meetingsError;
+
+        // Process contacts
+        const contactList = (contacts || []).map((c: any) => {
+          const health = Array.isArray(c.relationship_health_scores)
+            ? c.relationship_health_scores[0]
+            : c.relationship_health_scores;
+          return {
+            id: c.id,
+            name: c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+            email: c.email,
+            title: c.title,
+            health_status: health?.health_status || null,
+            days_since_last_contact: health?.days_since_last_contact || null,
+          };
+        });
+
+        // Process deals
+        let totalDealValue = 0;
+        let activeDealValue = 0;
+        const dealList = (deals || []).map((d: any) => {
+          const stage = Array.isArray(d.deal_stages) ? d.deal_stages[0] : d.deal_stages;
+          const health = Array.isArray(d.deal_health_scores) ? d.deal_health_scores[0] : d.deal_health_scores;
+          totalDealValue += Number(d.value) || 0;
+          if (d.status === 'active') activeDealValue += Number(d.value) || 0;
+          return {
+            id: d.id,
+            name: d.name,
+            value: d.value,
+            status: d.status,
+            stage_name: stage?.name || null,
+            expected_close_date: d.expected_close_date,
+            health_status: health?.health_status || null,
+            risk_level: health?.risk_level || null,
+          };
+        });
+
+        // Calculate overall health
+        const atRiskDeals = dealList.filter((d: any) =>
+          d.risk_level === 'high' || d.risk_level === 'critical' ||
+          d.health_status === 'warning' || d.health_status === 'critical'
+        );
+
+        const contactHealth = contactList.map((c: any) => c.health_status).filter(Boolean);
+        const overallHealth = atRiskDeals.length > 0 || contactHealth.includes('critical')
+          ? 'at_risk'
+          : contactHealth.includes('at_risk')
+            ? 'needs_attention'
+            : 'healthy';
+
+        return ok({
+          found: true,
+          company,
+          contacts: contactList,
+          contact_count: contactList.length,
+          deals: dealList,
+          deal_count: dealList.length,
+          total_deal_value: totalDealValue,
+          active_deal_value: activeDealValue,
+          at_risk_deal_count: atRiskDeals.length,
+          recent_meetings: meetings || [],
+          meeting_count: (meetings || []).length,
+          overall_health: overallHealth,
+        }, this.source);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return fail(msg, this.source);
       }
     },
   };
