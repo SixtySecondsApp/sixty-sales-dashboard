@@ -322,11 +322,12 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
   {
     path: '/platform/engagement',
     access: 'platformAdmin',
-    label: 'Engagement Dashboard',
+    label: 'Engagement',
     icon: HeartPulse,
-    showInNav: false,
+    showInNav: true,
     navSection: 'platform',
     order: 3.7,
+    badge: 'New',
   },
   {
     path: '/platform/usage',
