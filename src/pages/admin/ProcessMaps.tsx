@@ -207,6 +207,13 @@ const AVAILABLE_PROCESSES: Array<{
     icon: <Zap className="h-4 w-4 text-teal-500" />,
     description: 'Proactive deal clarity + execution tracking with Slack nudges',
   },
+  {
+    type: 'workflow',
+    name: 'smart_engagement',
+    label: 'Smart Engagement',
+    icon: <Zap className="h-4 w-4 text-blue-500" />,
+    description: 'Adaptive notification timing, frequency, and re-engagement',
+  },
 ];
 
 export default function ProcessMaps() {
