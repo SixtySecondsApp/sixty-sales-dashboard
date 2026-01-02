@@ -78,6 +78,27 @@ async function processStripeEvent(
 
   console.log(`Processing Stripe event: ${eventType} (${eventId})`);
 
+  // Extract org_id early for event logging
+  let orgId: string | null = extractOrgIdFromEvent(event);
+
+  // Log event to billing_event_log BEFORE processing (idempotent)
+  // This ensures we have a record even if processing fails
+  try {
+    await logBillingEvent(supabase, event, orgId);
+  } catch (logError) {
+    // Log error but don't fail - we still want to process the event
+    console.error('Error logging billing event (non-fatal):', logError);
+    await captureException(logError as Error, {
+      tags: {
+        function: 'stripe-webhook',
+        event_type: eventType,
+        event_id: eventId,
+        integration: 'stripe',
+        phase: 'event_logging',
+      },
+    });
+  }
+
   try {
     switch (eventType) {
       case "checkout.session.completed":

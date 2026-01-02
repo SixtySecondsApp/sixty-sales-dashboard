@@ -303,31 +303,24 @@ $$ LANGUAGE plpgsql STABLE;
 -- ============================================================================
 -- VIEW: MRR Movement (New, Expansion, Contraction, Churned)
 -- ============================================================================
+-- Note: This view aggregates events from billing_event_log
+-- For accurate MRR movement, we'd need to compare subscription amounts before/after changes
+-- This is a simplified version that tracks event counts and amounts
 CREATE OR REPLACE VIEW mrr_movement_view AS
-WITH subscription_changes AS (
-  SELECT
-    bel.org_id,
-    bel.event_type,
-    bel.occurred_at::DATE as change_date,
-    bel.metadata->>'subscription_id' as subscription_id,
-    bel.metadata->>'amount' as amount,
-    bel.metadata->>'currency' as currency
-  FROM billing_event_log bel
-  WHERE bel.provider = 'stripe'
-    AND bel.event_type IN ('subscription_created', 'subscription_updated', 'subscription_canceled')
-    AND bel.processed_at IS NOT NULL
-)
 SELECT
-  sc.change_date,
-  sc.currency,
-  COUNT(*) FILTER (WHERE sc.event_type = 'subscription_created') as new_subscriptions,
-  SUM((sc.metadata->>'amount')::BIGINT) FILTER (WHERE sc.event_type = 'subscription_created') as new_mrr_cents,
-  COUNT(*) FILTER (WHERE sc.event_type = 'subscription_updated' AND (sc.metadata->>'plan_id') IS NOT NULL) as plan_changes,
-  COUNT(*) FILTER (WHERE sc.event_type = 'subscription_canceled') as canceled_subscriptions,
-  SUM((sc.metadata->>'amount')::BIGINT) FILTER (WHERE sc.event_type = 'subscription_canceled') as churned_mrr_cents
-FROM subscription_changes sc
-GROUP BY sc.change_date, sc.currency
-ORDER BY sc.change_date DESC, sc.currency;
+  bel.occurred_at::DATE as change_date,
+  COALESCE(bel.metadata->>'currency', 'GBP') as currency,
+  COUNT(*) FILTER (WHERE bel.event_type = 'subscription_created') as new_subscriptions,
+  COALESCE(SUM((bel.metadata->>'amount')::BIGINT) FILTER (WHERE bel.event_type = 'subscription_created'), 0) as new_mrr_cents,
+  COUNT(*) FILTER (WHERE bel.event_type = 'subscription_updated') as plan_changes,
+  COUNT(*) FILTER (WHERE bel.event_type = 'subscription_canceled') as canceled_subscriptions,
+  COALESCE(SUM((bel.metadata->>'amount')::BIGINT) FILTER (WHERE bel.event_type = 'subscription_canceled'), 0) as churned_mrr_cents
+FROM billing_event_log bel
+WHERE bel.provider = 'stripe'
+  AND bel.event_type IN ('subscription_created', 'subscription_updated', 'subscription_canceled')
+  AND bel.processed_at IS NOT NULL
+GROUP BY bel.occurred_at::DATE, COALESCE(bel.metadata->>'currency', 'GBP')
+ORDER BY bel.occurred_at::DATE DESC, currency;
 
 -- ============================================================================
 -- COMMENTS
