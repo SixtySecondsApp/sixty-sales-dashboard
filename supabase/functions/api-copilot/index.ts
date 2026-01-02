@@ -2249,8 +2249,9 @@ async function callClaudeAPI(
   }
 
   // Build messages array for Claude
-  // Resolve company name for minimal system prompt (orgId already passed as parameter)
+  // Resolve company name and available skills for system prompt
   let companyName = 'your company'
+  let availableSkills: { skill_id: string; name: string; category: string }[] = []
   try {
     // Use the orgId parameter if provided, otherwise look it up
     let resolvedOrgId = orgId
@@ -2287,24 +2288,50 @@ async function callClaudeAPI(
           .maybeSingle()
         if (org?.name) companyName = String(org.name)
       }
+      // Fetch available skills for this org to include in system prompt
+      const { data: orgSkills } = await client.rpc('get_organization_skills_for_agent', {
+        p_org_id: resolvedOrgId,
+        p_category: null
+      })
+      if (orgSkills && Array.isArray(orgSkills)) {
+        availableSkills = orgSkills.map((s: any) => ({
+          skill_id: s.skill_id,
+          name: s.skill_name,
+          category: s.category
+        }))
+      }
     }
   } catch {
     // fail open: keep default companyName
   }
+
+  // Format available skills for the system prompt
+  const skillsByCategory: Record<string, string[]> = {}
+  for (const skill of availableSkills) {
+    const cat = skill.category || 'other'
+    if (!skillsByCategory[cat]) skillsByCategory[cat] = []
+    skillsByCategory[cat].push(`${skill.skill_id} (${skill.name})`)
+  }
+  const skillsListText = Object.entries(skillsByCategory)
+    .map(([cat, skills]) => `  ${cat}: ${skills.join(', ')}`)
+    .join('\n')
 
   const systemPrompt = `You are a sales assistant for ${companyName}. You help sales reps prepare for calls, follow up after meetings, and manage their pipeline.
 
 ## How You Work
 You have access to skills - documents that contain instructions, context, and best practices specific to ${companyName}. Always retrieve the relevant skill before taking action.
 
+### Available Skills
+${skillsListText || '  No skills configured yet'}
+
 ### Your Tools
 1. list_skills - See available skills by category
-2. get_skill - Retrieve a skill document for guidance
+2. get_skill - Retrieve a skill document for guidance (use exact skill_id from list above)
 3. execute_action - Perform actions (query CRM, fetch meetings, search emails, etc.)
 
 ### Workflow Pattern
 1. Understand what the user needs
-2. Retrieve the relevant skill(s) with get_skill
+2. Retrieve the relevant skill(s) with get_skill using the exact skill_id
 3. Follow the skill's instructions
 4. Use execute_action to gather data or perform tasks
 5. Deliver results in the user's preferred channel

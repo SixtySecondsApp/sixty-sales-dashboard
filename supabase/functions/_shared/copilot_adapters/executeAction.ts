@@ -128,7 +128,8 @@ export async function executeAction(
           platform_skills:platform_skill_id(category, frontmatter, content_template, is_active)
         `)
         .eq('skill_id', skillKey)
-        .eq('org_id', orgId)
+        .eq('organization_id', orgId)
+        .eq('is_enabled', true)
         .maybeSingle();
 
       if (skillError || !skillData) {
