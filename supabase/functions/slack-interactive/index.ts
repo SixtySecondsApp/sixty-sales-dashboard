@@ -1282,6 +1282,108 @@ async function handleNotificationFeedback(
 }
 
 /**
+ * Handle per-notification feedback (Smart Engagement Algorithm)
+ * Processes thumbs up/down feedback on individual notifications
+ */
+async function handlePerNotificationFeedback(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload,
+  action: SlackAction
+): Promise<Response> {
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, payload.team?.id);
+  if (!ctx) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  try {
+    // Parse the feedback value
+    let feedbackData: { notification_id?: string; feedback: string };
+    try {
+      feedbackData = JSON.parse(action.value || '{}');
+    } catch {
+      // Handle simple action_id based feedback
+      feedbackData = {
+        feedback: action.action_id === 'notification_helpful' ? 'helpful' : 'not_helpful',
+      };
+    }
+
+    const { notification_id, feedback } = feedbackData;
+    const isHelpful = feedback === 'helpful';
+
+    // 1. Record the feedback
+    await supabase.from('notification_feedback').insert({
+      user_id: ctx.userId,
+      org_id: ctx.orgId,
+      feedback_type: 'per_notification',
+      feedback_value: feedback,
+      feedback_source: 'slack_button',
+      triggered_by_notification_id: notification_id || null,
+    });
+
+    // 2. Adjust fatigue level based on feedback
+    const fatigueAdjustment = isHelpful ? -5 : 10;
+    await supabase.rpc('adjust_notification_fatigue', {
+      p_user_id: ctx.userId,
+      p_adjustment: fatigueAdjustment,
+    });
+
+    // 3. Update notification interaction if we have the ID
+    if (notification_id) {
+      await supabase
+        .from('notification_interactions')
+        .update({
+          feedback_rating: feedback,
+          feedback_at: new Date().toISOString(),
+        })
+        .eq('id', notification_id);
+    }
+
+    // 4. Log activity for engagement tracking
+    await logSlackInteraction(supabase, {
+      userId: ctx.userId,
+      orgId: ctx.orgId || null,
+      actionType: `notification_${feedback}`,
+      actionCategory: 'notifications',
+      metadata: {
+        feedback_value: feedback,
+        notification_id: notification_id || null,
+      },
+    });
+
+    // 5. Send subtle confirmation (update the feedback buttons to show selected)
+    if (payload.response_url) {
+      const confirmationEmoji = isHelpful ? ':thumbsup:' : ':pray:';
+      const confirmationText = isHelpful
+        ? 'Thanks for the feedback!'
+        : "Got it, I'll try to do better.";
+
+      // Remove the feedback buttons and add a subtle confirmation
+      await fetch(payload.response_url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          replace_original: false,
+          response_type: 'ephemeral',
+          text: `${confirmationEmoji} ${confirmationText}`,
+        }),
+      });
+    }
+
+    console.log(`[Engagement] User ${ctx.userId} gave ${feedback} feedback on notification`);
+  } catch (error) {
+    console.error('Error handling per-notification feedback:', error);
+  }
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+/**
  * Handle HITL approve action
  */
 async function handleHITLApprove(
@@ -6054,8 +6156,15 @@ serve(async (req) => {
         } else if (action.action_id === 'log_activity') {
           return handleLogActivity(supabase, payload, action);
         } else if (action.action_id.startsWith('notification_feedback_')) {
-          // Smart Engagement Algorithm: Handle feedback buttons
+          // Smart Engagement Algorithm: Handle frequency feedback buttons
           return handleNotificationFeedback(supabase, payload, action);
+        } else if (
+          action.action_id === 'notification_helpful' ||
+          action.action_id === 'notification_not_helpful' ||
+          action.action_id === 'notification_overflow_feedback'
+        ) {
+          // Smart Engagement Algorithm: Handle per-notification feedback
+          return handlePerNotificationFeedback(supabase, payload, action);
         } else if (action.action_id.startsWith('view_')) {
           // View actions are typically handled by the URL in the button
           // Just acknowledge
