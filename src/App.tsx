@@ -13,6 +13,7 @@ import { UserPermissionsProvider } from '@/contexts/UserPermissionsContext';
 import { ViewModeProvider } from '@/contexts/ViewModeContext';
 import { CopilotProvider } from '@/lib/contexts/CopilotContext';
 import { useInitializeAuditSession } from '@/lib/hooks/useAuditSession';
+import { useActivityTracker } from '@/lib/hooks/useActivityTracker';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { InternalRouteGuard, OrgAdminRouteGuard, PlatformAdminRouteGuard } from '@/components/RouteGuard';
 import { RouteDebug } from '@/components/RouteDebug';
@@ -56,7 +57,7 @@ const FathomCallbackWrapper = () => <FathomCallback />;
 import {
   // Platform Admin
   MeetingsWaitlist, WaitlistSlackSettings, OnboardingSimulator, TrialTimelineSimulator, PricingControl, CostAnalysis, LaunchChecklist,
-  ActivationDashboard, PlatformDashboard, IntegrationRoadmap, VSLAnalytics, MetaAdsAnalytics, ErrorMonitoring, SentryBridge, SkillsAdmin, PlatformSkillViewPage, PlatformSkillEditPage, SkillDetailPage, Users, PipelineSettings,
+  ActivationDashboard, EngagementDashboard, PlatformDashboard, IntegrationRoadmap, VSLAnalytics, MetaAdsAnalytics, ErrorMonitoring, SentryBridge, SkillsAdmin, PlatformSkillViewPage, PlatformSkillEditPage, SkillDetailPage, Users, PipelineSettings,
   AuditLogs, SmartTasksAdmin, PipelineAutomationAdmin, EmailTemplates, FunctionTesting,
   AIProviderSettings, GoogleIntegrationTestsLegacy, GoogleIntegrationTests, SettingsSavvyCal,
   SettingsBookingSources, HealthRules, EmailCategorizationSettings, AdminModelSettings,
@@ -193,6 +194,13 @@ function App() {
 function AppContent({ performanceMetrics, measurePerformance }: any) {
   // Initialize audit session tracking - now inside AuthProvider
   useInitializeAuditSession();
+
+  // Initialize activity tracking for Smart Engagement Algorithm
+  useActivityTracker({
+    enabled: true,
+    trackPageViews: true,
+    trackSessionDuration: true,
+  });
 
   return (
     <>
@@ -387,6 +395,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/trial-timeline" element={<InternalRouteGuard><AppLayout><TrialTimelineSimulator /></AppLayout></InternalRouteGuard>} />
                 <Route path="/platform/launch-checklist" element={<PlatformAdminRouteGuard><AppLayout><LaunchChecklist /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/activation" element={<PlatformAdminRouteGuard><AppLayout><ActivationDashboard /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/engagement" element={<PlatformAdminRouteGuard><AppLayout><EngagementDashboard /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/vsl-analytics" element={<PlatformAdminRouteGuard><AppLayout><VSLAnalytics /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/meta-ads" element={<PlatformAdminRouteGuard><AppLayout><MetaAdsAnalytics /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/error-monitoring" element={<PlatformAdminRouteGuard><AppLayout><ErrorMonitoring /></AppLayout></PlatformAdminRouteGuard>} />

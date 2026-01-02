@@ -16,6 +16,7 @@ export const PricingControl = lazyWithRetry(() => import('@/pages/platform/Prici
 export const CostAnalysis = lazyWithRetry(() => import('@/pages/platform/CostAnalysis'));
 export const LaunchChecklist = lazyWithRetry(() => import('@/pages/platform/LaunchChecklist'));
 export const ActivationDashboard = lazyWithRetry(() => import('@/pages/platform/ActivationDashboard'));
+export const EngagementDashboard = lazyWithRetry(() => import('@/pages/platform/EngagementDashboard'));
 export const PlatformDashboard = lazyWithRetry(() => import('@/pages/platform/PlatformDashboard'));
 export const IntegrationRoadmap = lazyWithRetry(() => import('@/pages/platform/IntegrationRoadmap'));
 export const VSLAnalytics = lazyWithRetry(() => import('@/pages/platform/VSLAnalytics'));

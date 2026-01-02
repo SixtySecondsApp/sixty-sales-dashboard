@@ -320,6 +320,15 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     order: 3.6,
   },
   {
+    path: '/platform/engagement',
+    access: 'platformAdmin',
+    label: 'Engagement Dashboard',
+    icon: HeartPulse,
+    showInNav: false,
+    navSection: 'platform',
+    order: 3.7,
+  },
+  {
     path: '/platform/usage',
     access: 'platformAdmin',
     label: 'Usage',
@@ -502,11 +511,11 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     navSection: 'platform',
     order: 52,
   },
-  // Proactive notifications simulator (Slack + in-app)
+  // Agent simulator (Slack + in-app)
   {
-    path: '/platform/proactive-simulator',
+    path: '/platform/agent-simulator',
     access: 'platformAdmin',
-    label: 'Proactive Simulator',
+    label: 'Agent Simulator',
     icon: Bot,
     showInNav: true,
     navSection: 'platform',
