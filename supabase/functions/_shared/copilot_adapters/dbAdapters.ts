@@ -328,7 +328,7 @@ export function createDbNotificationAdapter(_client: SupabaseClient): Notificati
   };
 }
 
-const GEMINI_MODEL = Deno.env.get('GEMINI_FLASH_MODEL') ?? Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash';
+const GEMINI_MODEL = Deno.env.get('GEMINI_FLASH_MODEL') ?? Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.0-flash';
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') ?? Deno.env.get('GOOGLE_GEMINI_API_KEY') ?? '';
 
 /**
@@ -369,7 +369,7 @@ export function createEnrichmentAdapter(): EnrichmentAdapter {
 
       try {
         const name = params.name || params.email.split('@')[0];
-        const prompt = `You are a B2B sales data enrichment assistant. Given the following contact information, enrich it with accurate, professional data.
+        const prompt = `You are a B2B sales intelligence enrichment assistant. Given the following contact information, research and enrich it with comprehensive data for sales qualification and ICP matching.
 
 Contact Information:
 - Name: ${name}
@@ -377,13 +377,38 @@ Contact Information:
 - Current Title: ${params.title || 'Not provided'}
 - Company: ${params.company_name || 'Not provided'}
 
-Return ONLY valid JSON with these fields (omit any you cannot determine):
+Return ONLY valid JSON with these fields (use null for unknown, never omit required fields):
 {
   "title": "Accurate job title",
+  "seniority_level": "One of: C-Suite, VP, Director, Manager, Senior IC, IC, Unknown",
+  "department": "One of: Executive, Sales, Marketing, Engineering, Product, Operations, Finance, HR, Legal, IT, Customer Success, Unknown",
   "linkedin_url": "LinkedIn profile URL (format: https://linkedin.com/in/username)",
   "industry": "Industry classification",
-  "summary": "Brief professional summary (1-2 sentences)",
-  "confidence": 0.5
+  "years_in_role": "Estimated years in current role (number or null)",
+  "decision_maker_signals": {
+    "has_budget_authority": true/false,
+    "is_final_decision_maker": true/false,
+    "influences_purchases": true/false,
+    "reports_to": "Title of their likely manager"
+  },
+  "professional_background": {
+    "education": "Highest degree and institution if known",
+    "previous_companies": ["List of notable previous employers"],
+    "expertise_areas": ["Key skills and expertise areas"],
+    "certifications": ["Relevant certifications"]
+  },
+  "social_presence": {
+    "twitter_url": "Twitter/X profile URL if known",
+    "personal_website": "Personal website or blog if known"
+  },
+  "engagement_insights": {
+    "likely_pain_points": ["Common challenges for this role"],
+    "conversation_starters": ["Topics they likely care about"],
+    "best_contact_method": "One of: email, linkedin, phone, twitter"
+  },
+  "summary": "Brief professional summary (2-3 sentences including notable achievements)",
+  "confidence": 0.5,
+  "data_freshness": "estimated date of information accuracy (YYYY-MM or 'current')"
 }`;
 
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${GEMINI_API_KEY}`;
@@ -396,7 +421,7 @@ Return ONLY valid JSON with these fields (omit any you cannot determine):
             generationConfig: {
               temperature: 0.3,
               topP: 0.8,
-              maxOutputTokens: 800,
+              maxOutputTokens: 2000,
               responseMimeType: 'application/json',
             },
           }),
@@ -420,11 +445,41 @@ Return ONLY valid JSON with these fields (omit any you cannot determine):
         return ok(
           {
             enriched_contact: {
+              // Core fields
               title: enriched.title,
+              seniority_level: enriched.seniority_level,
+              department: enriched.department,
               linkedin_url: enriched.linkedin_url,
               industry: enriched.industry,
+              years_in_role: enriched.years_in_role,
+              // Decision maker signals for ICP matching
+              decision_maker_signals: enriched.decision_maker_signals || {
+                has_budget_authority: null,
+                is_final_decision_maker: null,
+                influences_purchases: null,
+                reports_to: null,
+              },
+              // Professional background
+              professional_background: enriched.professional_background || {
+                education: null,
+                previous_companies: [],
+                expertise_areas: [],
+                certifications: [],
+              },
+              // Social presence
+              social_presence: enriched.social_presence || {
+                twitter_url: null,
+                personal_website: null,
+              },
+              // Engagement insights for sales
+              engagement_insights: enriched.engagement_insights || {
+                likely_pain_points: [],
+                conversation_starters: [],
+                best_contact_method: 'email',
+              },
               summary: enriched.summary,
               confidence: enriched.confidence || 0.5,
+              data_freshness: enriched.data_freshness || 'current',
             },
             original: { email: params.email, name, title: params.title, company_name: params.company_name },
           },
@@ -442,22 +497,64 @@ Return ONLY valid JSON with these fields (omit any you cannot determine):
       }
 
       try {
-        const prompt = `You are a B2B sales data enrichment assistant. Given the following company information, enrich it with accurate data.
+        const prompt = `You are a B2B sales intelligence enrichment assistant. Given the following company information, research and enrich it with comprehensive data for sales qualification and ICP matching.
 
 Company Information:
 - Name: ${params.name}
 - Domain: ${params.domain || 'Not provided'}
 - Website: ${params.website || 'Not provided'}
 
-Return ONLY valid JSON with these fields (omit any you cannot determine):
+Return ONLY valid JSON with these fields (use null for unknown, never omit required fields):
 {
-  "industry": "Standardized industry classification",
-  "size": "Company size: startup, small, medium, large, or enterprise",
+  "industry": "Standardized industry classification (e.g., SaaS, Healthcare, FinTech, E-commerce)",
+  "sub_industry": "More specific industry vertical",
+  "size_category": "One of: Startup (1-10), Small (11-50), Medium (51-200), Large (201-1000), Enterprise (1000+)",
+  "employee_count": {
+    "estimate": "Number or range like 50-100",
+    "source": "LinkedIn, Crunchbase, Website, or estimated"
+  },
+  "revenue": {
+    "range": "One of: Pre-revenue, <$1M, $1-10M, $10-50M, $50-100M, $100M-500M, $500M+, Unknown",
+    "currency": "USD",
+    "source": "Crunchbase, estimate, or unknown"
+  },
+  "funding": {
+    "stage": "One of: Bootstrapped, Pre-seed, Seed, Series A, Series B, Series C+, Public, Private Equity, Unknown",
+    "total_raised": "Amount if known",
+    "last_round_date": "YYYY-MM if known",
+    "key_investors": ["Notable investors"]
+  },
+  "technology_stack": {
+    "categories": ["e.g., Cloud, CRM, Marketing Automation, Analytics"],
+    "known_tools": ["Specific tools like Salesforce, HubSpot, AWS"],
+    "tech_sophistication": "One of: Low, Medium, High, Enterprise"
+  },
+  "company_signals": {
+    "growth_indicators": ["Recent hires, expansion, new products"],
+    "challenges": ["Common pain points for this type of company"],
+    "buying_triggers": ["Events that might trigger purchases"],
+    "budget_cycle": "Fiscal year end if known (e.g., December, Q4)"
+  },
+  "market_position": {
+    "competitors": ["Key competitors"],
+    "differentiators": ["What makes them unique"],
+    "target_market": "Their target customer profile"
+  },
   "description": "Professional company description (2-3 sentences)",
   "linkedin_url": "LinkedIn company page URL",
-  "address": "Company headquarters address",
+  "website": "Official website URL",
+  "address": {
+    "headquarters": "HQ address",
+    "other_locations": ["Other office locations"]
+  },
   "phone": "Company phone number",
-  "confidence": 0.5
+  "founded_year": "Year founded",
+  "social_presence": {
+    "twitter_url": "Twitter/X company page",
+    "blog_url": "Company blog if exists"
+  },
+  "confidence": 0.5,
+  "data_freshness": "estimated date of information accuracy (YYYY-MM or 'current')"
 }`;
 
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${GEMINI_API_KEY}`;
@@ -470,7 +567,7 @@ Return ONLY valid JSON with these fields (omit any you cannot determine):
             generationConfig: {
               temperature: 0.3,
               topP: 0.8,
-              maxOutputTokens: 1000,
+              maxOutputTokens: 2500,
               responseMimeType: 'application/json',
             },
           }),
@@ -494,13 +591,63 @@ Return ONLY valid JSON with these fields (omit any you cannot determine):
         return ok(
           {
             enriched_company: {
+              // Core fields
               industry: enriched.industry,
-              size: enriched.size,
+              sub_industry: enriched.sub_industry,
+              size_category: enriched.size_category || enriched.size,
               description: enriched.description,
               linkedin_url: enriched.linkedin_url,
-              address: enriched.address,
+              website: enriched.website,
               phone: enriched.phone,
+              founded_year: enriched.founded_year,
+              // Employee count for ICP matching
+              employee_count: enriched.employee_count || {
+                estimate: null,
+                source: 'unknown',
+              },
+              // Revenue data for qualification
+              revenue: enriched.revenue || {
+                range: 'Unknown',
+                currency: 'USD',
+                source: 'unknown',
+              },
+              // Funding information
+              funding: enriched.funding || {
+                stage: 'Unknown',
+                total_raised: null,
+                last_round_date: null,
+                key_investors: [],
+              },
+              // Technology stack for targeting
+              technology_stack: enriched.technology_stack || {
+                categories: [],
+                known_tools: [],
+                tech_sophistication: 'Unknown',
+              },
+              // Buying signals and pain points
+              company_signals: enriched.company_signals || {
+                growth_indicators: [],
+                challenges: [],
+                buying_triggers: [],
+                budget_cycle: null,
+              },
+              // Competitive landscape
+              market_position: enriched.market_position || {
+                competitors: [],
+                differentiators: [],
+                target_market: null,
+              },
+              // Address information
+              address: typeof enriched.address === 'string'
+                ? { headquarters: enriched.address, other_locations: [] }
+                : enriched.address || { headquarters: null, other_locations: [] },
+              // Social presence
+              social_presence: enriched.social_presence || {
+                twitter_url: null,
+                blog_url: null,
+              },
               confidence: enriched.confidence || 0.5,
+              data_freshness: enriched.data_freshness || 'current',
             },
             original: { name: params.name, domain: params.domain, website: params.website },
           },
