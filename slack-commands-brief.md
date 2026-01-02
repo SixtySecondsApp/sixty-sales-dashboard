@@ -117,28 +117,38 @@ Step 3: Merge + de-dupe + show best matches with confidence + source badges
 | → "Update deal" button | ✅ | Opens update deal stage modal |
 | → "Share to deal room" button | ⏳ | Needs deal room implementation |
 | **Message Shortcuts** | | |
-| "Summarize thread" shortcut | ⏳ | |
-| "Log activity" shortcut | ⏳ | |
-| "Draft reply" shortcut | ⏳ | |
+| "Summarize thread" shortcut | ✅ | AI summary with key points + action items |
+| "Log activity" shortcut | ✅ | Link to contact/deal with backlink |
+| "Draft reply" shortcut | ✅ | AI-drafted reply with HITL edit flow |
 
 ---
 
-## Phase 4: Tasks & Personal Productivity
+## Phase 4: Tasks & Personal Productivity ✅
 
 **Goal**: Task execution without leaving Slack
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | **Task Commands** | | |
-| `/sixty task add <text>` | ⏳ | Parse "tomorrow", "next week", "re: deal" |
-| `/sixty task list` | ⏳ | Today/overdue with action buttons |
-| → Complete button | ⏳ | |
-| → Snooze button | ⏳ | |
-| → Log activity button | ⏳ | |
-| → Convert to follow-up button | ⏳ | |
+| `/sixty task add <text>` | ✅ | Parse "tomorrow", "next week", "in X days", "re: deal" |
+| `/sixty task list` | ✅ | Today/overdue with action buttons and filters |
+| → Complete button | ✅ | Marks task completed, updates message |
+| → Snooze button | ✅ | 1 day / 1 week options via overflow menu |
+| → Log activity button | ✅ | Opens activity logging via overflow |
+| → Convert to follow-up button | ✅ | Triggers follow-up flow via overflow |
+| → Edit button | ✅ | Opens modal for task editing |
+| → Overflow menu | ✅ | Complete, snooze, log, convert, view actions |
+| → Filter buttons | ✅ | Overdue, Today, This Week filters |
 | **Personal Commands** | | |
-| `/sixty focus` | ⏳ | Start focus block, pin top tasks |
-| → Done/Snooze buttons | ⏳ | |
+| `/sixty focus` | ✅ | Focus mode with top 3 priority tasks + next meeting |
+| → Done button | ✅ | Completes task, refreshes focus view |
+| → Snooze buttons | ✅ | 1 day / 1 week snooze options |
+| → Meeting prep button | ✅ | Links to /sixty meeting-brief command |
+| → View all tasks button | ✅ | Expands to full task list |
+| → Refresh button | ✅ | Refreshes focus view with latest data |
+| **Task Modals** | | |
+| Add task modal | ✅ | Title, due date picker, deal selector |
+| Edit task modal | ✅ | Update title, due date, deal link |
 
 ---
 
