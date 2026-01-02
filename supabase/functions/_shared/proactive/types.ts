@@ -10,6 +10,8 @@ export type ProactiveNotificationType =
   | 'pre_meeting_nudge'
   | 'post_call_summary'
   | 'stale_deal_alert'
+  | 'deal_momentum_nudge'
+  | 'deal_clarification_question'
   | 'email_reply_alert'
   | 'hitl_followup_email'
   | 'meeting_prep'

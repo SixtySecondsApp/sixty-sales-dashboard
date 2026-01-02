@@ -2390,3 +2390,392 @@ export const buildSearchResultsPickerMessage = (data: SearchResultsPickerData): 
     text: `Found ${data.results.length} ${label.toLowerCase()} matching "${data.query}"`,
   };
 };
+
+// =============================================================================
+// DEAL MOMENTUM CARD
+// =============================================================================
+
+/**
+ * Deal Truth Field for momentum card
+ */
+export interface DealMomentumTruthField {
+  fieldKey: string;
+  label: string;
+  value: string | null;
+  confidence: number; // 0-1
+  contactName?: string;
+  championStrength?: 'strong' | 'moderate' | 'weak' | 'unknown';
+  nextStepDate?: string;
+  isWarning?: boolean; // Low confidence or missing
+}
+
+/**
+ * Close Plan Milestone for momentum card
+ */
+export interface DealMomentumMilestone {
+  milestoneKey: string;
+  title: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'blocked' | 'skipped';
+  ownerName?: string;
+  dueDate?: string;
+  isOverdue?: boolean;
+  blockerNote?: string;
+}
+
+/**
+ * Deal Momentum Card Data
+ */
+export interface DealMomentumData {
+  deal: {
+    id: string;
+    name: string;
+    company: string | null;
+    value: number;
+    stage: string;
+    stageName?: string;
+  };
+  scores: {
+    momentum: number;      // 0-100 overall momentum
+    clarity: number;       // 0-100 clarity score
+    health?: number;       // 0-100 health score
+    risk?: number;         // 0-100 risk score (higher = more risky)
+  };
+  truthFields: DealMomentumTruthField[];
+  closePlan: {
+    completed: number;
+    total: number;
+    overdue: number;
+    blocked: number;
+    milestones: DealMomentumMilestone[];
+  };
+  recommendedActions: string[];
+  currencyCode?: string;
+  currencyLocale?: string;
+  appUrl: string;
+}
+
+/**
+ * Get momentum score indicator
+ */
+const getMomentumIndicator = (score: number): { emoji: string; label: string; color: string } => {
+  if (score >= 80) return { emoji: '🟢', label: 'Strong', color: 'good' };
+  if (score >= 60) return { emoji: '🟡', label: 'Fair', color: 'warning' };
+  if (score >= 40) return { emoji: '🟠', label: 'Needs Attention', color: 'warning' };
+  return { emoji: '🔴', label: 'At Risk', color: 'danger' };
+};
+
+/**
+ * Get confidence indicator
+ */
+const getConfidenceIndicator = (confidence: number): string => {
+  if (confidence >= 0.8) return '';       // High confidence, no indicator needed
+  if (confidence >= 0.6) return '❓';      // Medium confidence
+  return '⚠️';                             // Low confidence - needs attention
+};
+
+/**
+ * Format truth field value for display
+ */
+const formatTruthFieldValue = (field: DealMomentumTruthField): string => {
+  const indicator = getConfidenceIndicator(field.confidence);
+  const warning = field.isWarning ? ' ⚠️' : '';
+
+  if (!field.value) {
+    return `_Not defined_${warning}`;
+  }
+
+  // Special formatting for champion with strength
+  if (field.fieldKey === 'champion' && field.contactName) {
+    const strengthLabel = field.championStrength
+      ? ` (${field.championStrength})`
+      : '';
+    return `${field.contactName}${strengthLabel}${indicator}`;
+  }
+
+  // Special formatting for next step with date
+  if (field.fieldKey === 'next_step') {
+    if (field.nextStepDate) {
+      const date = new Date(field.nextStepDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return `"${truncate(field.value, 35)}" - ${date}${indicator}`;
+    }
+    return `"${truncate(field.value, 40)}" - _No date set_${warning}`;
+  }
+
+  // Special formatting for economic buyer
+  if (field.fieldKey === 'economic_buyer' && field.contactName) {
+    return `${field.contactName}${indicator}`;
+  }
+
+  // Default formatting
+  return `"${truncate(field.value, 50)}"${indicator}`;
+};
+
+/**
+ * Get milestone status icon
+ */
+const getMilestoneIcon = (milestone: DealMomentumMilestone): string => {
+  switch (milestone.status) {
+    case 'completed': return '✅';
+    case 'in_progress': return '🔄';
+    case 'blocked': return '🚫';
+    case 'skipped': return '⏭️';
+    default: return milestone.isOverdue ? '⚠️' : '⬜';
+  }
+};
+
+/**
+ * Build progress bar for close plan
+ */
+const buildProgressBar = (completed: number, total: number, width: number = 10): string => {
+  const pct = total > 0 ? completed / total : 0;
+  const filled = Math.round(pct * width);
+  const empty = width - filled;
+  return '█'.repeat(filled) + '░'.repeat(empty);
+};
+
+/**
+ * Build Deal Momentum Card for /sixty deal command and proactive notifications
+ */
+export const buildDealMomentumMessage = (data: DealMomentumData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const d = data.deal;
+  const dealValue = formatCurrency(d.value, data.currencyCode, data.currencyLocale);
+
+  // Header with deal info
+  const headerText = d.company
+    ? `${truncate(d.name, 40)} - ${truncate(d.company, 30)}`
+    : truncate(d.name, 75);
+  blocks.push(header(`💼 ${headerText}`));
+
+  // Momentum + Key metrics
+  const momentum = getMomentumIndicator(data.scores.momentum);
+  const metricsLine = [
+    `*${momentum.emoji} Momentum:* ${data.scores.momentum}%`,
+    `*💰 Value:* ${dealValue}`,
+    `*📊 Stage:* ${d.stageName || d.stage}`,
+  ].join('  •  ');
+  blocks.push(section(metricsLine));
+
+  blocks.push(divider());
+
+  // Deal Truth Section
+  const clarityPct = data.scores.clarity;
+  const clarityEmoji = clarityPct >= 70 ? '🟢' : clarityPct >= 40 ? '🟡' : '🔴';
+  blocks.push(section(`*${clarityEmoji} Deal Truth* (Clarity: ${clarityPct}%)`));
+
+  // Display truth fields with indicators
+  const truthFieldLines: string[] = [];
+  for (const field of data.truthFields) {
+    const value = formatTruthFieldValue(field);
+    truthFieldLines.push(`• *${field.label}:* ${value}`);
+  }
+  if (truthFieldLines.length > 0) {
+    blocks.push(section(truthFieldLines.join('\n')));
+  }
+
+  blocks.push(divider());
+
+  // Close Plan Section
+  const cp = data.closePlan;
+  const progressBar = buildProgressBar(cp.completed, cp.total);
+  const overdueText = cp.overdue > 0 ? ` ⚠️ ${cp.overdue} overdue` : '';
+  const blockedText = cp.blocked > 0 ? ` 🚫 ${cp.blocked} blocked` : '';
+  blocks.push(section(`*📋 Close Plan* (${cp.completed}/${cp.total}) ${progressBar}${overdueText}${blockedText}`));
+
+  // Display milestones
+  const milestoneLines: string[] = [];
+  for (const m of cp.milestones) {
+    const icon = getMilestoneIcon(m);
+    let line = `${icon} ${m.title}`;
+
+    // Add due date and owner for non-completed milestones
+    if (m.status !== 'completed' && m.status !== 'skipped') {
+      const parts: string[] = [];
+      if (m.dueDate) {
+        const date = new Date(m.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        parts.push(`Due: ${date}`);
+      }
+      if (m.ownerName) {
+        parts.push(`@${m.ownerName}`);
+      }
+      if (parts.length > 0) {
+        line += ` - ${parts.join(' ')}`;
+      }
+      if (m.status === 'blocked' && m.blockerNote) {
+        line += `\n    _Blocked: ${truncate(m.blockerNote, 50)}_`;
+      }
+    }
+    milestoneLines.push(line);
+  }
+  if (milestoneLines.length > 0) {
+    blocks.push(section(milestoneLines.join('\n')));
+  }
+
+  // Recommended Actions Section (if any)
+  if (data.recommendedActions.length > 0) {
+    blocks.push(divider());
+    blocks.push(section(`*💡 Recommended Actions:*`));
+    const actionLines = data.recommendedActions.slice(0, 3).map(a => `• ${truncate(a, 80)}`);
+    blocks.push(section(actionLines.join('\n')));
+  }
+
+  blocks.push(divider());
+
+  // Action buttons - Row 1: Primary actions
+  blocks.push(actions([
+    {
+      text: '📅 Set Next Step',
+      actionId: 'set_deal_next_step',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name }),
+      style: 'primary',
+    },
+    {
+      text: '✅ Mark Milestone',
+      actionId: 'complete_deal_milestone',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name }),
+    },
+    {
+      text: '📝 Log Activity',
+      actionId: 'log_deal_activity',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name }),
+    },
+  ]));
+
+  // Action buttons - Row 2: Secondary actions
+  blocks.push(actions([
+    {
+      text: '➕ Create Task',
+      actionId: 'create_task_for_deal',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name }),
+    },
+    {
+      text: '💼 View in App',
+      actionId: 'view_deal',
+      value: d.id,
+      url: `${data.appUrl}/deals/${d.id}`,
+    },
+  ]));
+
+  // Score context
+  const scoreContext: string[] = [];
+  if (data.scores.health !== undefined) {
+    scoreContext.push(`Health: ${data.scores.health}%`);
+  }
+  if (data.scores.risk !== undefined) {
+    const riskLevel = data.scores.risk >= 70 ? 'High' : data.scores.risk >= 40 ? 'Medium' : 'Low';
+    scoreContext.push(`Risk: ${riskLevel}`);
+  }
+  scoreContext.push(`Clarity: ${data.scores.clarity}%`);
+  blocks.push(context(scoreContext));
+
+  return {
+    blocks,
+    text: `Deal Momentum: ${d.name} - ${momentum.label} (${data.scores.momentum}%)`,
+  };
+};
+
+/**
+ * Build Clarification Question Card for Slack DM
+ * Used when we need user to confirm low-confidence fields
+ */
+export interface ClarificationQuestionData {
+  dealId: string;
+  dealName: string;
+  companyName?: string;
+  fieldKey: string;
+  fieldLabel: string;
+  question: string;
+  currentValue?: string;
+  suggestedOptions?: Array<{
+    id: string;
+    label: string;
+  }>;
+  appUrl: string;
+}
+
+export const buildClarificationQuestionMessage = (data: ClarificationQuestionData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+
+  // Header with deal context
+  const dealLabel = data.companyName
+    ? `${data.dealName} (${data.companyName})`
+    : data.dealName;
+  blocks.push(section(`❓ *Quick question about ${truncate(dealLabel, 50)}*`));
+
+  // The question
+  blocks.push(section(data.question));
+
+  // Show current value if we have one
+  if (data.currentValue) {
+    blocks.push(context([`Current value: "${truncate(data.currentValue, 50)}"`]));
+  }
+
+  // Build action buttons
+  const actionButtons: Array<{
+    text: string;
+    actionId: string;
+    value: string;
+    style?: 'primary' | 'danger';
+  }> = [];
+
+  // If we have suggested options, show them as buttons
+  if (data.suggestedOptions && data.suggestedOptions.length > 0) {
+    for (const option of data.suggestedOptions.slice(0, 3)) {
+      actionButtons.push({
+        text: truncate(option.label, 30),
+        actionId: `confirm_truth_field_${data.fieldKey}`,
+        value: JSON.stringify({
+          dealId: data.dealId,
+          fieldKey: data.fieldKey,
+          confirmedValue: option.id,
+          confirmedLabel: option.label,
+        }),
+        style: 'primary',
+      });
+    }
+  } else {
+    // Simple Yes/No/Unknown for confirmation
+    actionButtons.push({
+      text: '✅ Yes',
+      actionId: `confirm_truth_field_${data.fieldKey}`,
+      value: JSON.stringify({
+        dealId: data.dealId,
+        fieldKey: data.fieldKey,
+        confirmation: 'yes',
+        currentValue: data.currentValue,
+      }),
+      style: 'primary',
+    });
+    actionButtons.push({
+      text: '❌ No',
+      actionId: `confirm_truth_field_${data.fieldKey}`,
+      value: JSON.stringify({
+        dealId: data.dealId,
+        fieldKey: data.fieldKey,
+        confirmation: 'no',
+        currentValue: data.currentValue,
+      }),
+    });
+  }
+
+  // Always add "Unknown" option
+  actionButtons.push({
+    text: '❓ Unknown',
+    actionId: `confirm_truth_field_${data.fieldKey}`,
+    value: JSON.stringify({
+      dealId: data.dealId,
+      fieldKey: data.fieldKey,
+      confirmation: 'unknown',
+    }),
+  });
+
+  blocks.push(actions(actionButtons));
+
+  // Link to deal
+  blocks.push(context([`<${data.appUrl}/deals/${data.dealId}|View deal in Sixty>`]));
+
+  return {
+    blocks,
+    text: `Question about ${data.dealName}: ${data.question}`,
+  };
+};

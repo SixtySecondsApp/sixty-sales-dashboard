@@ -20,6 +20,8 @@ const DEFAULT_COOLDOWNS: Record<ProactiveNotificationType, CooldownConfig> = {
   pre_meeting_nudge: { windowMinutes: 60, keySuffix: 'entity' }, // 1 hour per meeting
   post_call_summary: { windowMinutes: 24 * 60, keySuffix: 'entity' }, // 1 day per meeting
   stale_deal_alert: { windowMinutes: 7 * 24 * 60, keySuffix: 'entity' }, // 7 days per deal
+  deal_momentum_nudge: { windowMinutes: 24 * 60, keySuffix: 'entity' }, // 1 day per deal
+  deal_clarification_question: { windowMinutes: 4 * 60, keySuffix: 'entity' }, // 4 hours per deal+field
   email_reply_alert: { windowMinutes: 60, keySuffix: 'entity' }, // 1 hour per thread
   hitl_followup_email: { windowMinutes: 24 * 60, keySuffix: 'entity' }, // 1 day per meeting
   meeting_prep: { windowMinutes: 60, keySuffix: 'entity' }, // 1 hour per meeting
