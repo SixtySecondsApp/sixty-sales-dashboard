@@ -31,7 +31,10 @@ interface SlackChannel {
 
 interface SlackMessage {
   ts: string;
+  text?: string;
   blocks?: unknown[];
+  user?: string;
+  permalink?: string;
 }
 
 interface SlackAction {
@@ -48,6 +51,7 @@ interface InteractivePayload {
   message?: SlackMessage;
   response_url?: string;
   trigger_id?: string;
+  callback_id?: string; // For shortcuts and message actions
   actions?: SlackAction[];
   view?: {
     id: string;
@@ -71,6 +75,55 @@ interface TaskData {
 }
 
 type SlackOrgConnection = { orgId: string; botToken: string };
+
+// ============================================================================
+// Activity Tracking for Smart Engagement Algorithm
+// ============================================================================
+
+/**
+ * Log Slack interaction to user_activity_events for the Smart Engagement Algorithm.
+ * This helps track user engagement with Slack notifications.
+ */
+async function logSlackInteraction(
+  supabase: ReturnType<typeof createClient>,
+  params: {
+    userId: string | null;
+    orgId: string | null;
+    actionType: string;
+    actionCategory?: string;
+    entityType?: string;
+    entityId?: string;
+    metadata?: Record<string, unknown>;
+  }
+): Promise<void> {
+  if (!params.userId || !params.orgId) {
+    console.log('[Activity] Skipping log - missing userId or orgId');
+    return;
+  }
+
+  try {
+    const now = new Date();
+    await supabase
+      .from('user_activity_events')
+      .insert({
+        user_id: params.userId,
+        org_id: params.orgId,
+        event_type: 'slack_button_click',
+        event_source: 'slack',
+        event_category: params.actionCategory || 'notifications',
+        entity_type: params.entityType || null,
+        entity_id: params.entityId || null,
+        action_detail: params.actionType,
+        day_of_week: now.getDay(),
+        hour_of_day: now.getHours(),
+        metadata: params.metadata || {},
+      });
+    console.log('[Activity] Logged Slack interaction:', params.actionType);
+  } catch (error) {
+    // Non-blocking - don't fail the main request if logging fails
+    console.error('[Activity] Failed to log Slack interaction:', error);
+  }
+}
 
 /**
  * Verify Slack request signature
@@ -316,6 +369,17 @@ async function handleAddTask(
     const taskData: TaskData = JSON.parse(action.value);
     const result = await createTask(supabase, ctx, taskData);
 
+    // Log activity for Smart Engagement Algorithm
+    await logSlackInteraction(supabase, {
+      userId: ctx.userId,
+      orgId: ctx.orgId || null,
+      actionType: 'add_task',
+      actionCategory: 'tasks',
+      entityType: taskData.dealId ? 'deal' : taskData.meetingId ? 'meeting' : 'task',
+      entityId: taskData.dealId || taskData.meetingId || result.taskId,
+      metadata: { source: 'slack_button', task_title: taskData.title },
+    });
+
     if (result.success && payload.response_url) {
       const confirmation = buildTaskAddedConfirmation(taskData.title);
       await sendEphemeral(payload.response_url, confirmation);
@@ -391,6 +455,17 @@ async function handleAddAllTasks(
       }
     }
 
+    // Log activity for Smart Engagement Algorithm
+    if (successCount > 0) {
+      await logSlackInteraction(supabase, {
+        userId: ctx.userId,
+        orgId: ctx.orgId || null,
+        actionType: 'add_all_tasks',
+        actionCategory: 'tasks',
+        metadata: { source: 'slack_button', tasks_added: successCount, tasks_failed: errors.length },
+      });
+    }
+
     if (payload.response_url) {
       if (successCount > 0) {
         const confirmation = buildTaskAddedConfirmation('', successCount);
@@ -424,9 +499,24 @@ async function handleAddAllTasks(
  * Handle dismiss action
  */
 async function handleDismiss(
+  supabase: ReturnType<typeof createClient>,
   payload: InteractivePayload,
   _action: SlackAction
 ): Promise<Response> {
+  // Get user context for activity logging
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, payload.team?.id);
+
+  // Log activity for Smart Engagement Algorithm (even if user not mapped - we track dismissals)
+  if (ctx) {
+    await logSlackInteraction(supabase, {
+      userId: ctx.userId,
+      orgId: ctx.orgId || null,
+      actionType: 'dismiss_tasks',
+      actionCategory: 'notifications',
+      metadata: { source: 'slack_button' },
+    });
+  }
+
   // Just acknowledge - optionally we could update the message
   if (payload.response_url) {
     await sendEphemeral(payload.response_url, {
@@ -479,6 +569,17 @@ async function handleCreateTaskFromAlert(
       dueInDays: 1, // Urgent
     });
     // (note: ctx includes orgId when available)
+
+    // Log activity for Smart Engagement Algorithm
+    await logSlackInteraction(supabase, {
+      userId: ctx.userId,
+      orgId: ctx.orgId || null,
+      actionType: 'create_task_from_alert',
+      actionCategory: 'tasks',
+      entityType: 'deal',
+      entityId: dealId,
+      metadata: { source: 'slack_button', alert_type: type, task_title: taskTitle },
+    });
 
     if (result.success && payload.response_url) {
       const confirmation = buildTaskAddedConfirmation(taskTitle);
@@ -535,6 +636,17 @@ async function handleCreateTaskFromAssistant(
       dealId: parsed.dealId,
       contactId: parsed.contactId,
       dueInDays,
+    });
+
+    // Log activity for Smart Engagement Algorithm
+    await logSlackInteraction(supabase, {
+      userId: ctx.userId,
+      orgId: ctx.orgId || null,
+      actionType: 'create_task_from_assistant',
+      actionCategory: 'tasks',
+      entityType: parsed.dealId ? 'deal' : parsed.contactId ? 'contact' : 'task',
+      entityId: parsed.dealId || parsed.contactId || result.taskId,
+      metadata: { source: parsed.source || 'slack_assistant', task_title: title },
     });
 
     if (payload.response_url) {
@@ -1035,6 +1147,134 @@ async function logHITLAction(
 }
 
 /**
+ * Handle notification frequency feedback (Smart Engagement Algorithm)
+ * Processes bi-weekly feedback buttons: "Want more" / "Just right" / "Too many"
+ */
+async function handleNotificationFeedback(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload,
+  action: SlackAction
+): Promise<Response> {
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, payload.team?.id);
+  if (!ctx) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Parse feedback from action_id: notification_feedback_more, notification_feedback_right, notification_feedback_less
+  const feedbackMap: Record<string, { value: string; frequency: string; emoji: string; message: string }> = {
+    'notification_feedback_more': {
+      value: 'more',
+      frequency: 'high',
+      emoji: '🚀',
+      message: "Got it! I'll send you more updates to keep you in the loop.",
+    },
+    'notification_feedback_right': {
+      value: 'just_right',
+      frequency: 'moderate',
+      emoji: '👍',
+      message: "Perfect! I'll keep the current frequency.",
+    },
+    'notification_feedback_less': {
+      value: 'less',
+      frequency: 'low',
+      emoji: '🔕',
+      message: "Understood! I'll dial back the notifications and only share the essentials.",
+    },
+  };
+
+  const feedback = feedbackMap[action.action_id];
+  if (!feedback) {
+    console.error('Unknown notification feedback action_id:', action.action_id);
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  try {
+    // 1. Record the feedback
+    await supabase.from('notification_feedback').insert({
+      user_id: ctx.userId,
+      org_id: ctx.orgId,
+      feedback_type: 'frequency_preference',
+      feedback_value: feedback.value,
+      feedback_source: 'slack_button',
+    });
+
+    // 2. Update user's preferred notification frequency
+    await supabase
+      .from('user_engagement_metrics')
+      .update({
+        preferred_notification_frequency: feedback.frequency,
+        last_feedback_requested_at: new Date().toISOString(),
+        notifications_since_last_feedback: 0,
+      })
+      .eq('user_id', ctx.userId);
+
+    // 3. Log activity for engagement tracking
+    await logSlackInteraction(supabase, {
+      userId: ctx.userId,
+      orgId: ctx.orgId || null,
+      actionType: `notification_feedback_${feedback.value}`,
+      actionCategory: 'notifications',
+      metadata: {
+        feedback_value: feedback.value,
+        new_frequency: feedback.frequency,
+      },
+    });
+
+    // 4. Update the original message to show confirmation
+    if (payload.response_url) {
+      await fetch(payload.response_url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          replace_original: true,
+          blocks: [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: `${feedback.emoji} ${feedback.message}`,
+              },
+            },
+            {
+              type: 'context',
+              elements: [
+                {
+                  type: 'mrkdwn',
+                  text: '_You can always change this in Settings → Notifications_',
+                },
+              ],
+            },
+          ],
+        }),
+      });
+    }
+
+    console.log(`[Engagement] User ${ctx.userId} set notification preference to: ${feedback.frequency}`);
+  } catch (error) {
+    console.error('Error handling notification feedback:', error);
+
+    // Send error ephemeral
+    if (payload.response_url) {
+      await sendEphemeral(payload.response_url, {
+        blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '❌ Something went wrong saving your preference. Please try again.' } }],
+        text: 'Error saving preference',
+      });
+    }
+  }
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+/**
  * Handle HITL approve action
  */
 async function handleHITLApprove(
@@ -1522,6 +1762,1172 @@ async function handleHITLEditSubmission(
   return new Response('', { status: 200, headers: corsHeaders });
 }
 
+// ============================================================================
+// Message Shortcut: Create Task from Message
+// ============================================================================
+
+/**
+ * Handle "Create task from message" shortcut
+ * Opens a modal pre-filled with the message text as task title
+ */
+async function handleCreateTaskFromMessage(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload
+): Promise<Response> {
+  const triggerId = payload.trigger_id;
+
+  if (!triggerId) {
+    console.error('No trigger_id for message shortcut');
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, payload.team?.id);
+  if (!ctx) {
+    // Open a simple modal explaining they need to link their account
+    const orgConnection = await getSlackOrgConnection(supabase, payload.team?.id);
+    if (orgConnection?.botToken) {
+      await fetch('https://slack.com/api/views.open', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${orgConnection.botToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          trigger_id: triggerId,
+          view: {
+            type: 'modal',
+            title: { type: 'plain_text', text: 'Account Not Linked' },
+            close: { type: 'plain_text', text: 'Close' },
+            blocks: [
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: '❌ Your Slack account is not linked to Sixty.\n\nPlease contact your admin to set up the mapping, or visit Sixty settings to connect your Slack account.',
+                },
+              },
+            ],
+          },
+        }),
+      });
+    }
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const orgConnection = await getSlackOrgConnection(supabase, payload.team?.id);
+  if (!orgConnection) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Extract message details
+  const messageText = payload.message?.text || '';
+  const messageTs = payload.message?.ts || '';
+  const channelId = payload.channel?.id || '';
+
+  // Build Slack permalink for backlink
+  const teamDomain = payload.team?.domain || '';
+  const slackPermalink = channelId && messageTs
+    ? `https://${teamDomain}.slack.com/archives/${channelId}/p${messageTs.replace('.', '')}`
+    : null;
+
+  // Truncate message for title (max 100 chars)
+  const suggestedTitle = messageText.length > 100
+    ? messageText.substring(0, 97) + '...'
+    : messageText;
+
+  // Fetch user's deals for optional association
+  const { data: deals } = await supabase
+    .from('deals')
+    .select('id, name')
+    .eq('user_id', ctx.userId)
+    .in('status', ['discovery', 'qualification', 'proposal', 'negotiation'])
+    .order('updated_at', { ascending: false })
+    .limit(20);
+
+  const dealOptions = (deals || []).map((deal: { id: string; name: string }) => ({
+    text: { type: 'plain_text', text: deal.name.substring(0, 75) },
+    value: deal.id,
+  }));
+
+  const privateMetadata = JSON.stringify({
+    channelId,
+    messageTs,
+    slackPermalink,
+    orgId: orgConnection.orgId,
+  });
+
+  // Build modal blocks
+  const modalBlocks: unknown[] = [
+    {
+      type: 'input',
+      block_id: 'task_title',
+      label: { type: 'plain_text', text: 'Task Title' },
+      element: {
+        type: 'plain_text_input',
+        action_id: 'title_input',
+        initial_value: suggestedTitle,
+        placeholder: { type: 'plain_text', text: 'What needs to be done?' },
+      },
+    },
+    {
+      type: 'input',
+      block_id: 'task_notes',
+      optional: true,
+      label: { type: 'plain_text', text: 'Notes' },
+      element: {
+        type: 'plain_text_input',
+        action_id: 'notes_input',
+        multiline: true,
+        placeholder: { type: 'plain_text', text: 'Additional context...' },
+      },
+    },
+    {
+      type: 'input',
+      block_id: 'due_date',
+      label: { type: 'plain_text', text: 'Due' },
+      element: {
+        type: 'static_select',
+        action_id: 'due_select',
+        initial_option: { text: { type: 'plain_text', text: 'In 3 days' }, value: '3' },
+        options: [
+          { text: { type: 'plain_text', text: 'Today' }, value: '0' },
+          { text: { type: 'plain_text', text: 'Tomorrow' }, value: '1' },
+          { text: { type: 'plain_text', text: 'In 3 days' }, value: '3' },
+          { text: { type: 'plain_text', text: 'In 1 week' }, value: '7' },
+          { text: { type: 'plain_text', text: 'In 2 weeks' }, value: '14' },
+        ],
+      },
+    },
+  ];
+
+  // Add deal selector if user has deals
+  if (dealOptions.length > 0) {
+    modalBlocks.push({
+      type: 'input',
+      block_id: 'deal_association',
+      optional: true,
+      label: { type: 'plain_text', text: 'Link to Deal (optional)' },
+      element: {
+        type: 'static_select',
+        action_id: 'deal_select',
+        placeholder: { type: 'plain_text', text: 'Select a deal...' },
+        options: dealOptions,
+      },
+    });
+  }
+
+  // Add context about the source message
+  if (slackPermalink) {
+    modalBlocks.push({
+      type: 'context',
+      elements: [
+        { type: 'mrkdwn', text: `📎 Task will include a link back to the <${slackPermalink}|original message>` },
+      ],
+    });
+  }
+
+  // Open the modal
+  const modalResponse = await fetch('https://slack.com/api/views.open', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${orgConnection.botToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      trigger_id: triggerId,
+      view: {
+        type: 'modal',
+        callback_id: 'create_task_from_message_modal',
+        private_metadata: privateMetadata,
+        title: { type: 'plain_text', text: 'Create Task' },
+        submit: { type: 'plain_text', text: 'Create Task' },
+        close: { type: 'plain_text', text: 'Cancel' },
+        blocks: modalBlocks,
+      },
+    }),
+  });
+
+  const modalResult = await modalResponse.json();
+  if (!modalResult.ok) {
+    console.error('Failed to open create task modal:', modalResult);
+  }
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Handle submission of "Create task from message" modal
+ */
+async function handleCreateTaskFromMessageSubmission(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload
+): Promise<Response> {
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, payload.team?.id);
+  if (!ctx) {
+    return new Response('', { status: 200, headers: corsHeaders });
+  }
+
+  let meta: {
+    channelId?: string;
+    messageTs?: string;
+    slackPermalink?: string;
+    orgId?: string;
+  } = {};
+
+  try {
+    meta = payload.view?.private_metadata ? JSON.parse(payload.view.private_metadata) : {};
+  } catch {
+    console.error('Failed to parse create task modal metadata');
+    return new Response('', { status: 200, headers: corsHeaders });
+  }
+
+  const values = (payload.view?.state?.values || {}) as Record<string, Record<string, { value?: string; selected_option?: { value: string } }>>;
+
+  const title = values['task_title']?.['title_input']?.value || 'Task from Slack';
+  const notes = values['task_notes']?.['notes_input']?.value || '';
+  const dueInDays = parseInt(values['due_date']?.['due_select']?.selected_option?.value || '3', 10);
+  const dealId = values['deal_association']?.['deal_select']?.selected_option?.value || null;
+
+  // Calculate due date
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + dueInDays);
+
+  // Build description with Slack backlink
+  let description = notes;
+  if (meta.slackPermalink) {
+    description = notes
+      ? `${notes}\n\n---\n📎 Created from Slack message: ${meta.slackPermalink}`
+      : `📎 Created from Slack message: ${meta.slackPermalink}`;
+  }
+
+  // Create the task
+  const { data: task, error: insertError } = await supabase
+    .from('tasks')
+    .insert({
+      title,
+      description: description || null,
+      assigned_to: ctx.userId,
+      created_by: ctx.userId,
+      ...(ctx.orgId ? { org_id: ctx.orgId } : {}),
+      deal_id: dealId,
+      due_date: dueDate.toISOString(),
+      status: 'pending',
+      source: 'slack_message_shortcut',
+      metadata: {
+        source: 'slack_message_shortcut',
+        slack_channel_id: meta.channelId,
+        slack_message_ts: meta.messageTs,
+        slack_permalink: meta.slackPermalink,
+      },
+    })
+    .select('id')
+    .single();
+
+  if (insertError) {
+    console.error('Failed to create task from message shortcut:', insertError);
+    return new Response(
+      JSON.stringify({
+        response_action: 'errors',
+        errors: {
+          task_title: 'Failed to create task. Please try again.',
+        },
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Log activity for Smart Engagement Algorithm
+  await logSlackInteraction(supabase, {
+    userId: ctx.userId,
+    orgId: ctx.orgId || null,
+    actionType: 'create_task_from_message',
+    actionCategory: 'tasks',
+    entityType: dealId ? 'deal' : 'task',
+    entityId: dealId || task?.id,
+    metadata: {
+      source: 'slack_message_shortcut',
+      task_title: title,
+      has_deal: !!dealId,
+    },
+  });
+
+  // Post ephemeral confirmation in the channel
+  const orgConnection = await getSlackOrgConnection(supabase, payload.team?.id);
+  if (orgConnection?.botToken && meta.channelId) {
+    const taskUrl = `${appUrl}/tasks/${task?.id}`;
+    await fetch('https://slack.com/api/chat.postEphemeral', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${orgConnection.botToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        channel: meta.channelId,
+        user: payload.user.id,
+        blocks: [
+          {
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: `✅ Task created: *${title}*\n📅 Due ${dueDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
+            },
+            accessory: {
+              type: 'button',
+              text: { type: 'plain_text', text: 'View in Sixty', emoji: true },
+              url: taskUrl,
+              action_id: 'view_task_in_sixty',
+            },
+          },
+        ],
+        text: `Task created: ${title}`,
+      }),
+    });
+  }
+
+  // Close the modal
+  return new Response('', { status: 200, headers: corsHeaders });
+}
+
+// ============================================================================
+// PHASE 2: Contact & Deal Action Handlers
+// ============================================================================
+
+/**
+ * Handle "Create Task" button from contact card
+ */
+async function handleCreateTaskForContact(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload,
+  action: SlackAction
+): Promise<Response> {
+  const triggerId = payload.trigger_id;
+  const teamId = payload.team?.id;
+  const channelId = payload.channel?.id;
+
+  if (!triggerId) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const orgConnection = await getSlackOrgConnection(supabase, teamId);
+  if (!orgConnection?.botToken) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, teamId);
+  if (!ctx) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  let contactData: { contactId?: string; contactName?: string } = {};
+  try {
+    contactData = JSON.parse(action.value);
+  } catch {
+    contactData = {};
+  }
+
+  // Get contact's active deal for the deal selector
+  let dealOptions: Array<{ text: { type: string; text: string }; value: string }> = [];
+  if (contactData.contactId) {
+    const { data: contactDeals } = await supabase
+      .from('deal_contacts')
+      .select('deal_id, deals!inner(id, name)')
+      .eq('contact_id', contactData.contactId)
+      .limit(5);
+
+    if (contactDeals && contactDeals.length > 0) {
+      dealOptions = contactDeals.map((dc: any) => ({
+        text: { type: 'plain_text', text: truncateText(dc.deals.name, 50) },
+        value: dc.deals.id,
+      }));
+    }
+  }
+
+  // Fallback: Get user's recent deals
+  if (dealOptions.length === 0) {
+    const { data: userDeals } = await supabase
+      .from('deals')
+      .select('id, name')
+      .eq('user_id', ctx.userId)
+      .not('status', 'eq', 'closed_won')
+      .not('status', 'eq', 'closed_lost')
+      .order('updated_at', { ascending: false })
+      .limit(10);
+
+    if (userDeals && userDeals.length > 0) {
+      dealOptions = userDeals.map((d: any) => ({
+        text: { type: 'plain_text', text: truncateText(d.name, 50) },
+        value: d.id,
+      }));
+    }
+  }
+
+  const privateMetadata = JSON.stringify({
+    contactId: contactData.contactId,
+    contactName: contactData.contactName,
+    channelId,
+    orgId: ctx.orgId,
+  });
+
+  const blocks: unknown[] = [
+    {
+      type: 'input',
+      block_id: 'task_title',
+      label: { type: 'plain_text', text: 'Task' },
+      element: {
+        type: 'plain_text_input',
+        action_id: 'title_input',
+        placeholder: { type: 'plain_text', text: `Follow up with ${contactData.contactName || 'contact'}` },
+      },
+    },
+    {
+      type: 'input',
+      block_id: 'task_notes',
+      optional: true,
+      label: { type: 'plain_text', text: 'Notes' },
+      element: {
+        type: 'plain_text_input',
+        action_id: 'notes_input',
+        multiline: true,
+        placeholder: { type: 'plain_text', text: 'Additional context...' },
+      },
+    },
+    {
+      type: 'input',
+      block_id: 'task_due',
+      label: { type: 'plain_text', text: 'Due' },
+      element: {
+        type: 'static_select',
+        action_id: 'due_select',
+        initial_option: { text: { type: 'plain_text', text: 'Tomorrow' }, value: '1' },
+        options: [
+          { text: { type: 'plain_text', text: 'Today' }, value: '0' },
+          { text: { type: 'plain_text', text: 'Tomorrow' }, value: '1' },
+          { text: { type: 'plain_text', text: 'In 3 days' }, value: '3' },
+          { text: { type: 'plain_text', text: 'In 1 week' }, value: '7' },
+          { text: { type: 'plain_text', text: 'In 2 weeks' }, value: '14' },
+        ],
+      },
+    },
+  ];
+
+  if (dealOptions.length > 0) {
+    blocks.push({
+      type: 'input',
+      block_id: 'task_deal',
+      optional: true,
+      label: { type: 'plain_text', text: 'Link to Deal' },
+      element: {
+        type: 'static_select',
+        action_id: 'deal_select',
+        placeholder: { type: 'plain_text', text: 'Select a deal...' },
+        options: dealOptions,
+      },
+    });
+  }
+
+  await fetch('https://slack.com/api/views.open', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${orgConnection.botToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      trigger_id: triggerId,
+      view: {
+        type: 'modal',
+        callback_id: 'create_task_for_contact_modal',
+        private_metadata: privateMetadata,
+        title: { type: 'plain_text', text: 'Create Task' },
+        submit: { type: 'plain_text', text: 'Create' },
+        close: { type: 'plain_text', text: 'Cancel' },
+        blocks,
+      },
+    }),
+  });
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Handle "Create Task" button from deal card
+ */
+async function handleCreateTaskForDeal(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload,
+  action: SlackAction
+): Promise<Response> {
+  const triggerId = payload.trigger_id;
+  const teamId = payload.team?.id;
+  const channelId = payload.channel?.id;
+
+  if (!triggerId) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const orgConnection = await getSlackOrgConnection(supabase, teamId);
+  if (!orgConnection?.botToken) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, teamId);
+  if (!ctx) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  let dealData: { dealId?: string; dealName?: string } = {};
+  try {
+    dealData = JSON.parse(action.value);
+  } catch {
+    dealData = {};
+  }
+
+  const privateMetadata = JSON.stringify({
+    dealId: dealData.dealId,
+    dealName: dealData.dealName,
+    channelId,
+    orgId: ctx.orgId,
+  });
+
+  await fetch('https://slack.com/api/views.open', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${orgConnection.botToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      trigger_id: triggerId,
+      view: {
+        type: 'modal',
+        callback_id: 'create_task_for_deal_modal',
+        private_metadata: privateMetadata,
+        title: { type: 'plain_text', text: 'Create Task' },
+        submit: { type: 'plain_text', text: 'Create' },
+        close: { type: 'plain_text', text: 'Cancel' },
+        blocks: [
+          {
+            type: 'section',
+            text: { type: 'mrkdwn', text: `*Deal:* ${dealData.dealName || 'Unknown'}` },
+          },
+          {
+            type: 'input',
+            block_id: 'task_title',
+            label: { type: 'plain_text', text: 'Task' },
+            element: {
+              type: 'plain_text_input',
+              action_id: 'title_input',
+              placeholder: { type: 'plain_text', text: 'What needs to be done?' },
+            },
+          },
+          {
+            type: 'input',
+            block_id: 'task_notes',
+            optional: true,
+            label: { type: 'plain_text', text: 'Notes' },
+            element: {
+              type: 'plain_text_input',
+              action_id: 'notes_input',
+              multiline: true,
+              placeholder: { type: 'plain_text', text: 'Additional context...' },
+            },
+          },
+          {
+            type: 'input',
+            block_id: 'task_due',
+            label: { type: 'plain_text', text: 'Due' },
+            element: {
+              type: 'static_select',
+              action_id: 'due_select',
+              initial_option: { text: { type: 'plain_text', text: 'Tomorrow' }, value: '1' },
+              options: [
+                { text: { type: 'plain_text', text: 'Today' }, value: '0' },
+                { text: { type: 'plain_text', text: 'Tomorrow' }, value: '1' },
+                { text: { type: 'plain_text', text: 'In 3 days' }, value: '3' },
+                { text: { type: 'plain_text', text: 'In 1 week' }, value: '7' },
+                { text: { type: 'plain_text', text: 'In 2 weeks' }, value: '14' },
+              ],
+            },
+          },
+        ],
+      },
+    }),
+  });
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Handle task creation modal submissions (for both contact and deal)
+ */
+async function handleCreateTaskModalSubmission(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload
+): Promise<Response> {
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, payload.team?.id);
+  if (!ctx) {
+    return new Response('', { status: 200, headers: corsHeaders });
+  }
+
+  let meta: { contactId?: string; contactName?: string; dealId?: string; dealName?: string; channelId?: string; orgId?: string } = {};
+  try {
+    meta = payload.view?.private_metadata ? JSON.parse(payload.view.private_metadata) : {};
+  } catch {
+    meta = {};
+  }
+
+  const values = (payload.view?.state?.values || {}) as any;
+  const title = values['task_title']?.['title_input']?.value || 'Follow up';
+  const notes = values['task_notes']?.['notes_input']?.value || '';
+  const dueDays = parseInt(values['task_due']?.['due_select']?.selected_option?.value || '1', 10);
+  const selectedDealId = values['task_deal']?.['deal_select']?.selected_option?.value;
+
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + dueDays);
+
+  const dealId = meta.dealId || selectedDealId || null;
+
+  // Create the task
+  const { data: task } = await supabase
+    .from('tasks')
+    .insert({
+      user_id: ctx.userId,
+      title,
+      notes,
+      due_date: dueDate.toISOString(),
+      status: 'pending',
+      contact_id: meta.contactId || null,
+      deal_id: dealId,
+      source: 'slack',
+      metadata: {
+        created_via: 'slack_action',
+        contact_name: meta.contactName || null,
+        deal_name: meta.dealName || null,
+      },
+    })
+    .select('id')
+    .single();
+
+  // Log activity for Smart Engagement Algorithm
+  await logSlackInteraction(supabase, {
+    userId: ctx.userId,
+    orgId: ctx.orgId || null,
+    actionType: meta.contactId ? 'create_task_for_contact' : 'create_task_for_deal',
+    actionCategory: 'tasks',
+    entityType: dealId ? 'deal' : 'contact',
+    entityId: dealId || meta.contactId,
+    metadata: {
+      source: 'slack_card_action',
+      task_title: title,
+    },
+  });
+
+  // Post ephemeral confirmation
+  const orgConnection = await getSlackOrgConnection(supabase, payload.team?.id);
+  const appUrl = Deno.env.get('PUBLIC_APP_URL') || 'https://app.use60.com';
+
+  if (orgConnection?.botToken && meta.channelId) {
+    const taskUrl = `${appUrl}/tasks/${task?.id}`;
+    await fetch('https://slack.com/api/chat.postEphemeral', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${orgConnection.botToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        channel: meta.channelId,
+        user: payload.user.id,
+        blocks: [
+          {
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: `✅ Task created: *${title}*\n📅 Due ${dueDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
+            },
+            accessory: {
+              type: 'button',
+              text: { type: 'plain_text', text: 'View in Sixty', emoji: true },
+              url: taskUrl,
+              action_id: 'view_task_in_sixty',
+            },
+          },
+        ],
+        text: `Task created: ${title}`,
+      }),
+    });
+  }
+
+  return new Response('', { status: 200, headers: corsHeaders });
+}
+
+/**
+ * Handle "Update Stage" button from deal card
+ */
+async function handleUpdateDealStage(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload,
+  action: SlackAction
+): Promise<Response> {
+  const triggerId = payload.trigger_id;
+  const teamId = payload.team?.id;
+  const channelId = payload.channel?.id;
+
+  if (!triggerId) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const orgConnection = await getSlackOrgConnection(supabase, teamId);
+  if (!orgConnection?.botToken) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, teamId);
+  if (!ctx) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  let dealData: { dealId?: string; dealName?: string } = {};
+  try {
+    dealData = JSON.parse(action.value);
+  } catch {
+    dealData = {};
+  }
+
+  // Get current deal and available stages
+  const { data: deal } = await supabase
+    .from('deals')
+    .select('id, name, stage_id, pipeline_id')
+    .eq('id', dealData.dealId)
+    .maybeSingle();
+
+  if (!deal) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Get stages for this pipeline
+  const { data: stages } = await supabase
+    .from('deal_stages')
+    .select('id, name, order_index')
+    .eq('pipeline_id', deal.pipeline_id)
+    .order('order_index', { ascending: true });
+
+  if (!stages || stages.length === 0) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const stageOptions = stages.map((s: any) => ({
+    text: { type: 'plain_text', text: s.name },
+    value: s.id,
+  }));
+
+  const currentStageOption = stageOptions.find((s: any) => s.value === deal.stage_id);
+
+  const privateMetadata = JSON.stringify({
+    dealId: deal.id,
+    dealName: deal.name,
+    channelId,
+    orgId: ctx.orgId,
+    currentStageId: deal.stage_id,
+  });
+
+  await fetch('https://slack.com/api/views.open', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${orgConnection.botToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      trigger_id: triggerId,
+      view: {
+        type: 'modal',
+        callback_id: 'update_deal_stage_modal',
+        private_metadata: privateMetadata,
+        title: { type: 'plain_text', text: 'Update Stage' },
+        submit: { type: 'plain_text', text: 'Update' },
+        close: { type: 'plain_text', text: 'Cancel' },
+        blocks: [
+          {
+            type: 'section',
+            text: { type: 'mrkdwn', text: `*Deal:* ${deal.name}` },
+          },
+          {
+            type: 'input',
+            block_id: 'stage_select',
+            label: { type: 'plain_text', text: 'New Stage' },
+            element: {
+              type: 'static_select',
+              action_id: 'stage_input',
+              initial_option: currentStageOption,
+              options: stageOptions,
+            },
+          },
+          {
+            type: 'input',
+            block_id: 'stage_notes',
+            optional: true,
+            label: { type: 'plain_text', text: 'Notes' },
+            element: {
+              type: 'plain_text_input',
+              action_id: 'notes_input',
+              multiline: true,
+              placeholder: { type: 'plain_text', text: 'Why is the stage changing?' },
+            },
+          },
+        ],
+      },
+    }),
+  });
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Handle stage update modal submission
+ */
+async function handleUpdateDealStageSubmission(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload
+): Promise<Response> {
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, payload.team?.id);
+  if (!ctx) {
+    return new Response('', { status: 200, headers: corsHeaders });
+  }
+
+  let meta: { dealId?: string; dealName?: string; channelId?: string; orgId?: string; currentStageId?: string } = {};
+  try {
+    meta = payload.view?.private_metadata ? JSON.parse(payload.view.private_metadata) : {};
+  } catch {
+    meta = {};
+  }
+
+  if (!meta.dealId) {
+    return new Response('', { status: 200, headers: corsHeaders });
+  }
+
+  const values = (payload.view?.state?.values || {}) as any;
+  const newStageId = values['stage_select']?.['stage_input']?.selected_option?.value;
+  const notes = values['stage_notes']?.['notes_input']?.value || '';
+
+  if (!newStageId || newStageId === meta.currentStageId) {
+    return new Response('', { status: 200, headers: corsHeaders });
+  }
+
+  // Get stage name for the activity log
+  const { data: stage } = await supabase
+    .from('deal_stages')
+    .select('name')
+    .eq('id', newStageId)
+    .maybeSingle();
+
+  // Update the deal
+  await supabase
+    .from('deals')
+    .update({
+      stage_id: newStageId,
+      stage_changed_at: new Date().toISOString(),
+    })
+    .eq('id', meta.dealId);
+
+  // Log the activity
+  await supabase
+    .from('activities')
+    .insert({
+      user_id: ctx.userId,
+      deal_id: meta.dealId,
+      activity_type: 'stage_change',
+      activity_date: new Date().toISOString(),
+      notes: notes || `Stage changed to ${stage?.name || 'Unknown'}`,
+      metadata: {
+        source: 'slack',
+        old_stage_id: meta.currentStageId,
+        new_stage_id: newStageId,
+        new_stage_name: stage?.name,
+      },
+    });
+
+  // Log for Smart Engagement
+  await logSlackInteraction(supabase, {
+    userId: ctx.userId,
+    orgId: ctx.orgId || null,
+    actionType: 'update_deal_stage',
+    actionCategory: 'deals',
+    entityType: 'deal',
+    entityId: meta.dealId,
+    metadata: {
+      source: 'slack_card_action',
+      new_stage: stage?.name,
+    },
+  });
+
+  // Post ephemeral confirmation
+  const orgConnection = await getSlackOrgConnection(supabase, payload.team?.id);
+  if (orgConnection?.botToken && meta.channelId) {
+    await fetch('https://slack.com/api/chat.postEphemeral', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${orgConnection.botToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        channel: meta.channelId,
+        user: payload.user.id,
+        text: `✅ ${meta.dealName} moved to *${stage?.name}*`,
+      }),
+    });
+  }
+
+  return new Response('', { status: 200, headers: corsHeaders });
+}
+
+/**
+ * Handle "Log Activity" button from deal card
+ */
+async function handleLogDealActivity(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload,
+  action: SlackAction
+): Promise<Response> {
+  // This reuses the existing handleLogActivity but parses deal info from the action value
+  let dealData: { dealId?: string; dealName?: string } = {};
+  try {
+    dealData = JSON.parse(action.value);
+  } catch {
+    dealData = {};
+  }
+
+  // Create a modified action with just the dealId
+  const modifiedAction: SlackAction = {
+    ...action,
+    value: dealData.dealId || '',
+  };
+
+  return handleLogActivity(supabase, payload, modifiedAction);
+}
+
+/**
+ * Handle "Draft Follow-up" button from contact card (HITL flow)
+ */
+async function handleDraftFollowupContact(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload,
+  action: SlackAction
+): Promise<Response> {
+  const teamId = payload.team?.id;
+  const channelId = payload.channel?.id;
+
+  const orgConnection = await getSlackOrgConnection(supabase, teamId);
+  if (!orgConnection?.botToken) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, teamId);
+  if (!ctx) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  let contactData: { contactId?: string; contactName?: string; email?: string } = {};
+  try {
+    contactData = JSON.parse(action.value);
+  } catch {
+    contactData = {};
+  }
+
+  // Post an ephemeral "generating" message
+  if (channelId) {
+    await fetch('https://slack.com/api/chat.postEphemeral', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${orgConnection.botToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        channel: channelId,
+        user: payload.user.id,
+        text: `✨ Drafting follow-up for ${contactData.contactName || 'contact'}...`,
+      }),
+    });
+  }
+
+  // Call the follow-up generation edge function
+  const appUrl = Deno.env.get('PUBLIC_APP_URL') || 'https://app.use60.com';
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/slack-slash-commands`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'x-slack-request-timestamp': Math.floor(Date.now() / 1000).toString(),
+      },
+      body: new URLSearchParams({
+        command: '/sixty',
+        text: `follow-up ${contactData.contactName || contactData.email || ''}`,
+        user_id: payload.user.id,
+        team_id: teamId || '',
+        channel_id: channelId || '',
+        trigger_id: payload.trigger_id || '',
+        response_url: payload.response_url || '',
+      }).toString(),
+    });
+
+    // The follow-up command will post its own HITL message
+  } catch (error) {
+    console.error('Error calling follow-up command:', error);
+  }
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Handle "Draft Check-in" button from deal card (HITL flow)
+ */
+async function handleDraftCheckinDeal(
+  supabase: ReturnType<typeof createClient>,
+  payload: InteractivePayload,
+  action: SlackAction
+): Promise<Response> {
+  const teamId = payload.team?.id;
+  const channelId = payload.channel?.id;
+
+  const orgConnection = await getSlackOrgConnection(supabase, teamId);
+  if (!orgConnection?.botToken) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const ctx = await getSixtyUserContext(supabase, payload.user.id, teamId);
+  if (!ctx) {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  let dealData: { dealId?: string; dealName?: string; contactEmail?: string } = {};
+  try {
+    dealData = JSON.parse(action.value);
+  } catch {
+    dealData = {};
+  }
+
+  // Post an ephemeral "generating" message
+  if (channelId) {
+    await fetch('https://slack.com/api/chat.postEphemeral', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${orgConnection.botToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        channel: channelId,
+        user: payload.user.id,
+        text: `✨ Drafting check-in for ${dealData.dealName || 'deal'}...`,
+      }),
+    });
+  }
+
+  // Call the follow-up generation edge function with deal context
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+
+  try {
+    await fetch(`${supabaseUrl}/functions/v1/slack-slash-commands`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'x-slack-request-timestamp': Math.floor(Date.now() / 1000).toString(),
+      },
+      body: new URLSearchParams({
+        command: '/sixty',
+        text: `follow-up ${dealData.dealName || ''}`,
+        user_id: payload.user.id,
+        team_id: teamId || '',
+        channel_id: channelId || '',
+        trigger_id: payload.trigger_id || '',
+        response_url: payload.response_url || '',
+      }).toString(),
+    });
+  } catch (error) {
+    console.error('Error calling follow-up command:', error);
+  }
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Helper to truncate text
+ */
+function truncateText(text: string, maxLength: number): string {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength - 3) + '...';
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -1604,13 +3010,16 @@ serve(async (req) => {
         } else if (action.action_id === 'add_all_tasks') {
           return handleAddAllTasks(supabase, payload, action);
         } else if (action.action_id === 'dismiss_tasks') {
-          return handleDismiss(payload, action);
+          return handleDismiss(supabase, payload, action);
         } else if (action.action_id === 'create_task_from_assistant') {
           return handleCreateTaskFromAssistant(supabase, payload, action);
         } else if (action.action_id === 'create_task_from_alert') {
           return handleCreateTaskFromAlert(supabase, payload, action);
         } else if (action.action_id === 'log_activity') {
           return handleLogActivity(supabase, payload, action);
+        } else if (action.action_id.startsWith('notification_feedback_')) {
+          // Smart Engagement Algorithm: Handle feedback buttons
+          return handleNotificationFeedback(supabase, payload, action);
         } else if (action.action_id.startsWith('view_')) {
           // View actions are typically handled by the URL in the button
           // Just acknowledge
@@ -1618,6 +3027,20 @@ serve(async (req) => {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
+        }
+        // Phase 2: Contact & Deal action handlers
+        else if (action.action_id === 'create_task_for_contact') {
+          return handleCreateTaskForContact(supabase, payload, action);
+        } else if (action.action_id === 'create_task_for_deal') {
+          return handleCreateTaskForDeal(supabase, payload, action);
+        } else if (action.action_id === 'update_deal_stage') {
+          return handleUpdateDealStage(supabase, payload, action);
+        } else if (action.action_id === 'log_deal_activity') {
+          return handleLogDealActivity(supabase, payload, action);
+        } else if (action.action_id === 'draft_followup_contact') {
+          return handleDraftFollowupContact(supabase, payload, action);
+        } else if (action.action_id === 'draft_checkin_deal') {
+          return handleDraftCheckinDeal(supabase, payload, action);
         }
 
         // Unknown action - just acknowledge
@@ -1637,13 +3060,36 @@ serve(async (req) => {
         if (payload.view?.callback_id === 'hitl_edit_modal') {
           return handleHITLEditSubmission(supabase, payload);
         }
+        if (payload.view?.callback_id === 'create_task_from_message_modal') {
+          return handleCreateTaskFromMessageSubmission(supabase, payload);
+        }
+        // Phase 2: Contact & Deal modal submissions
+        if (payload.view?.callback_id === 'create_task_for_contact_modal' ||
+            payload.view?.callback_id === 'create_task_for_deal_modal') {
+          return handleCreateTaskModalSubmission(supabase, payload);
+        }
+        if (payload.view?.callback_id === 'update_deal_stage_modal') {
+          return handleUpdateDealStageSubmission(supabase, payload);
+        }
         return new Response('', { status: 200, headers: corsHeaders });
       }
 
-      case 'shortcut':
       case 'message_action': {
-        // Handle shortcuts and message actions (future feature)
-        console.log('Shortcut/message action received');
+        // Handle message shortcuts (right-click on message → "Create task")
+        console.log('Message action received:', payload.callback_id);
+        if (payload.callback_id === 'create_task_from_message') {
+          return handleCreateTaskFromMessage(supabase, payload);
+        }
+        // Unknown message action - acknowledge
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      case 'shortcut': {
+        // Handle global shortcuts (future feature)
+        console.log('Global shortcut received:', payload.callback_id);
         return new Response(JSON.stringify({ ok: true }), {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },

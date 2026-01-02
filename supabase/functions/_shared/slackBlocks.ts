@@ -1777,3 +1777,597 @@ export const buildEmailReplyAlertMessage = (data: EmailReplyAlertData): SlackMes
     text: `Reply from ${fromDisplay}: ${data.email.subject}`,
   };
 };
+
+// =============================================================================
+// SLASH COMMAND BLOCK BUILDERS
+// =============================================================================
+
+/**
+ * Contact Card Data for /sixty contact
+ */
+export interface ContactCardData {
+  contact: {
+    id: string;
+    email: string | null;
+    full_name: string | null;
+    phone: string | null;
+    title: string | null;
+    company: string | null;
+    source: 'sixty' | 'hubspot';
+  };
+  dealContext?: {
+    id: string;
+    name: string;
+    value: number;
+    stage: string;
+  };
+  lastTouch?: {
+    date: string;
+    type: string;
+    summary?: string;
+  };
+  nextStep?: string;
+  riskSignals?: string[];
+  healthScore?: number;
+  totalMeetings?: number;
+  currencyCode?: string;
+  currencyLocale?: string;
+  appUrl: string;
+}
+
+/**
+ * Build Contact Card for /sixty contact command
+ */
+export const buildContactCardMessage = (data: ContactCardData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const c = data.contact;
+  const sourceBadge = c.source === 'hubspot' ? ' 🔄' : '';
+
+  // Header with name and company
+  const headerText = c.company
+    ? `👤 ${truncate(c.full_name || 'Unknown', 50)} - ${truncate(c.company, 40)}`
+    : `👤 ${truncate(c.full_name || 'Unknown', 80)}`;
+  blocks.push(header(headerText));
+
+  // Contact details as fields
+  const fields: Array<{ label: string; value: string }> = [];
+
+  if (c.email) {
+    fields.push({ label: '📧 Email', value: c.email });
+  }
+  if (c.phone) {
+    fields.push({ label: '📱 Phone', value: c.phone });
+  }
+  if (c.title) {
+    fields.push({ label: '💼 Title', value: c.title });
+  }
+  if (data.healthScore !== undefined) {
+    const healthEmoji = data.healthScore >= 80 ? '🟢' : data.healthScore >= 50 ? '🟡' : '🔴';
+    fields.push({ label: '❤️ Health', value: `${healthEmoji} ${data.healthScore}%` });
+  }
+
+  if (fields.length > 0) {
+    blocks.push(sectionWithFields(fields));
+  }
+
+  blocks.push(divider());
+
+  // Deal context
+  if (data.dealContext) {
+    const dealValue = formatCurrency(data.dealContext.value, data.currencyCode, data.currencyLocale);
+    blocks.push(section(`🔗 *Active Deal:* ${truncate(data.dealContext.name, 60)} - ${dealValue} (${data.dealContext.stage})`));
+  }
+
+  // Last touch
+  if (data.lastTouch) {
+    const touchDate = new Date(data.lastTouch.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const touchSummary = data.lastTouch.summary ? ` - ${truncate(data.lastTouch.summary, 60)}` : '';
+    blocks.push(section(`📅 *Last Touch:* ${touchDate} - ${data.lastTouch.type}${touchSummary}`));
+  }
+
+  // Next step
+  if (data.nextStep) {
+    blocks.push(section(`⏭️ *Next Step:* ${truncate(data.nextStep, 100)}`));
+  }
+
+  // Risk signals
+  if (data.riskSignals && data.riskSignals.length > 0) {
+    const riskLines = data.riskSignals.slice(0, 2).map(r => `⚠️ ${truncate(r, 80)}`);
+    blocks.push(section(riskLines.join('\n')));
+  }
+
+  blocks.push(divider());
+
+  // Action buttons
+  const buttonRow: Array<{ text: string; actionId: string; value: string; url?: string; style?: 'primary' }> = [];
+
+  buttonRow.push({
+    text: '➕ Create Task',
+    actionId: 'create_task_for_contact',
+    value: JSON.stringify({ contactId: c.id, contactName: c.full_name }),
+    style: 'primary',
+  });
+
+  buttonRow.push({
+    text: '✉️ Draft Follow-up',
+    actionId: 'draft_followup_contact',
+    value: JSON.stringify({ contactId: c.id, contactName: c.full_name, email: c.email }),
+  });
+
+  if (data.dealContext) {
+    buttonRow.push({
+      text: '💼 View Deal',
+      actionId: 'view_deal',
+      value: data.dealContext.id,
+      url: `${data.appUrl}/deals/${data.dealContext.id}`,
+    });
+  }
+
+  blocks.push(actions(buttonRow.slice(0, 3)));
+
+  // Source badge context
+  const contextItems: string[] = [];
+  if (data.totalMeetings) {
+    contextItems.push(`${data.totalMeetings} meeting${data.totalMeetings !== 1 ? 's' : ''}`);
+  }
+  contextItems.push(`Source: ${c.source === 'hubspot' ? 'HubSpot' : 'Sixty'}`);
+  blocks.push(context(contextItems));
+
+  return {
+    blocks,
+    text: `Contact: ${c.full_name || 'Unknown'} - ${c.company || 'No company'}`,
+  };
+};
+
+/**
+ * Deal Snapshot Data for /sixty deal
+ */
+export interface DealSnapshotData {
+  deal: {
+    id: string;
+    name: string;
+    company: string | null;
+    value: number;
+    stage: string;
+    stageName?: string;
+    expectedCloseDate: string | null;
+    probability?: number;
+    source: 'sixty' | 'hubspot';
+  };
+  primaryContact?: {
+    name: string;
+    email?: string;
+    title?: string;
+  };
+  daysInStage?: number;
+  nextSteps?: string;
+  recentActivity?: Array<{
+    date: string;
+    type: string;
+    summary?: string;
+  }>;
+  risks?: string[];
+  currencyCode?: string;
+  currencyLocale?: string;
+  appUrl: string;
+}
+
+/**
+ * Build Deal Snapshot for /sixty deal command
+ */
+export const buildDealSnapshotMessage = (data: DealSnapshotData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const d = data.deal;
+  const dealValue = formatCurrency(d.value, data.currencyCode, data.currencyLocale);
+  const sourceBadge = d.source === 'hubspot' ? ' 🔄' : '';
+
+  // Header
+  const headerText = d.company
+    ? `💼 ${truncate(d.name, 50)} - ${truncate(d.company, 40)}`
+    : `💼 ${truncate(d.name, 100)}`;
+  blocks.push(header(headerText));
+
+  // Key metrics as fields
+  const fields: Array<{ label: string; value: string }> = [];
+  fields.push({ label: '💰 Value', value: dealValue });
+  fields.push({ label: '📊 Stage', value: d.stageName || d.stage });
+
+  if (d.expectedCloseDate) {
+    const closeDate = new Date(d.expectedCloseDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    fields.push({ label: '📅 Expected Close', value: closeDate });
+  }
+
+  if (d.probability !== undefined) {
+    fields.push({ label: '🎯 Probability', value: `${d.probability}%` });
+  }
+
+  blocks.push(sectionWithFields(fields));
+
+  // Primary contact
+  if (data.primaryContact) {
+    const titlePart = data.primaryContact.title ? ` (${data.primaryContact.title})` : '';
+    blocks.push(section(`👤 *Primary:* ${truncate(data.primaryContact.name, 50)}${titlePart}`));
+  }
+
+  // Days in stage
+  if (data.daysInStage !== undefined) {
+    const emoji = data.daysInStage > 14 ? '⚠️' : '📈';
+    blocks.push(section(`${emoji} *Days in Stage:* ${data.daysInStage}`));
+  }
+
+  blocks.push(divider());
+
+  // Recent activity
+  if (data.recentActivity && data.recentActivity.length > 0) {
+    const activityLines = data.recentActivity.slice(0, 3).map(a => {
+      const date = new Date(a.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const summary = a.summary ? ` - ${truncate(a.summary, 40)}` : '';
+      return `• ${date} - ${a.type}${summary}`;
+    });
+    blocks.push(section(`*📋 Recent Activity:*\n${activityLines.join('\n')}`));
+  }
+
+  // Risks
+  if (data.risks && data.risks.length > 0) {
+    const riskLines = data.risks.slice(0, 2).map(r => `• ${truncate(r, 80)}`);
+    blocks.push(section(`*⚠️ Risks:*\n${riskLines.join('\n')}`));
+  }
+
+  blocks.push(divider());
+
+  // Action buttons
+  blocks.push(actions([
+    {
+      text: '📊 Update Stage',
+      actionId: 'update_deal_stage',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name }),
+      style: 'primary',
+    },
+    {
+      text: '📝 Log Activity',
+      actionId: 'log_deal_activity',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name }),
+    },
+    {
+      text: '➕ Create Task',
+      actionId: 'create_task_for_deal',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name }),
+    },
+  ]));
+
+  // More actions row
+  blocks.push(actions([
+    {
+      text: '✉️ Draft Check-in',
+      actionId: 'draft_checkin_deal',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name, contactEmail: data.primaryContact?.email }),
+    },
+    {
+      text: '💼 View in App',
+      actionId: 'view_deal',
+      value: d.id,
+      url: `${data.appUrl}/deals/${d.id}`,
+    },
+  ]));
+
+  // Source context
+  blocks.push(context([`Source: ${d.source === 'hubspot' ? 'HubSpot' : 'Sixty'}`]));
+
+  return {
+    blocks,
+    text: `Deal: ${d.name} - ${dealValue} (${d.stageName || d.stage})`,
+  };
+};
+
+/**
+ * Day at a Glance Data for /sixty today
+ */
+export interface DayAtGlanceData {
+  userName: string;
+  slackUserId?: string;
+  date: string;
+  currencyCode?: string;
+  currencyLocale?: string;
+  meetings: Array<{
+    time: string;
+    title: string;
+    companyName?: string;
+    dealValue?: number;
+    meetingId?: string;
+  }>;
+  tasks: {
+    overdue: Array<{ title: string; daysOverdue: number; dealName?: string }>;
+    dueToday: Array<{ title: string; dealName?: string }>;
+  };
+  dealsClosingThisWeek: Array<{
+    id: string;
+    name: string;
+    value: number;
+    stage: string;
+    daysUntilClose?: number;
+  }>;
+  emailsToRespond: number;
+  ghostRiskContacts?: number;
+  appUrl: string;
+}
+
+/**
+ * Build Day at a Glance for /sixty today command
+ */
+export const buildDayAtGlanceMessage = (data: DayAtGlanceData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const userMention = data.slackUserId ? `<@${data.slackUserId}>` : data.userName;
+
+  // Header
+  blocks.push(header(`📅 Today at a Glance`));
+  blocks.push(context([`${data.date} • ${userMention}`]));
+
+  blocks.push(divider());
+
+  // Meetings section
+  if (data.meetings.length > 0) {
+    const meetingLines = data.meetings.slice(0, 5).map(m => {
+      const company = m.companyName ? ` (${truncate(m.companyName, 20)})` : '';
+      const deal = m.dealValue ? ` - ${formatCurrency(m.dealValue, data.currencyCode, data.currencyLocale)}` : '';
+      return `• *${m.time}* - ${truncate(m.title, 40)}${company}${deal}`;
+    });
+    blocks.push(section(`*🗓️ ${data.meetings.length} Meeting${data.meetings.length !== 1 ? 's' : ''}*\n${meetingLines.join('\n')}`));
+  } else {
+    blocks.push(section(`*🗓️ No meetings today* - Focus time! 🎯`));
+  }
+
+  // Tasks section
+  const totalTasks = data.tasks.overdue.length + data.tasks.dueToday.length;
+  if (totalTasks > 0) {
+    const taskLines: string[] = [];
+
+    data.tasks.overdue.slice(0, 2).forEach(t => {
+      taskLines.push(`🔴 ${truncate(t.title, 50)} _(${t.daysOverdue}d overdue)_`);
+    });
+
+    data.tasks.dueToday.slice(0, 3).forEach(t => {
+      taskLines.push(`• ${truncate(t.title, 60)}`);
+    });
+
+    blocks.push(section(`*✅ ${totalTasks} Task${totalTasks !== 1 ? 's' : ''} Due*\n${taskLines.join('\n')}`));
+
+    if (data.tasks.overdue.length > 2 || data.tasks.dueToday.length > 3) {
+      const moreCount = Math.max(0, data.tasks.overdue.length - 2) + Math.max(0, data.tasks.dueToday.length - 3);
+      blocks.push(context([`+ ${moreCount} more tasks`]));
+    }
+  }
+
+  // Deals closing this week
+  if (data.dealsClosingThisWeek.length > 0) {
+    const dealLines = data.dealsClosingThisWeek.slice(0, 3).map(d => {
+      const closeInfo = d.daysUntilClose !== undefined && d.daysUntilClose >= 0
+        ? ` _(${d.daysUntilClose === 0 ? 'today' : `${d.daysUntilClose}d`})_`
+        : '';
+      return `• ${truncate(d.name, 35)} - ${formatCurrency(d.value, data.currencyCode, data.currencyLocale)} - ${d.stage}${closeInfo}`;
+    });
+    blocks.push(section(`*💰 ${data.dealsClosingThisWeek.length} Deal${data.dealsClosingThisWeek.length !== 1 ? 's' : ''} Closing This Week*\n${dealLines.join('\n')}`));
+  }
+
+  // Email and engagement alerts
+  const alerts: string[] = [];
+  if (data.emailsToRespond > 0) {
+    alerts.push(`📧 ${data.emailsToRespond} email${data.emailsToRespond !== 1 ? 's' : ''} need response`);
+  }
+  if (data.ghostRiskContacts && data.ghostRiskContacts > 0) {
+    alerts.push(`👻 ${data.ghostRiskContacts} contact${data.ghostRiskContacts !== 1 ? 's' : ''} going cold`);
+  }
+
+  if (alerts.length > 0) {
+    blocks.push(section(alerts.join('\n')));
+  }
+
+  blocks.push(divider());
+
+  // Action buttons
+  blocks.push(actions([
+    {
+      text: '📊 View Dashboard',
+      actionId: 'view_dashboard',
+      value: 'dashboard',
+      url: `${data.appUrl}/dashboard`,
+      style: 'primary',
+    },
+    {
+      text: '📋 All Tasks',
+      actionId: 'view_tasks',
+      value: 'tasks',
+      url: `${data.appUrl}/tasks`,
+    },
+    {
+      text: '🔄 Refresh',
+      actionId: 'refresh_today',
+      value: 'refresh',
+    },
+  ]));
+
+  return {
+    blocks,
+    text: `Today at a Glance: ${data.meetings.length} meetings, ${totalTasks} tasks`,
+  };
+};
+
+/**
+ * Follow-up Draft Data for /sixty follow-up HITL
+ */
+export interface FollowUpDraftData {
+  approvalId: string;
+  recipient: {
+    name: string;
+    email: string;
+    company?: string;
+  };
+  subject: string;
+  body: string;
+  context?: {
+    dealName?: string;
+    dealId?: string;
+    lastMeetingDate?: string;
+    lastMeetingTitle?: string;
+  };
+  confidence: number;
+  appUrl: string;
+}
+
+/**
+ * Build Follow-up Draft HITL for /sixty follow-up command
+ */
+export const buildFollowUpDraftMessage = (data: FollowUpDraftData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+
+  // Header
+  blocks.push(header(`✉️ Follow-up Draft`));
+
+  // Context
+  const contextParts: string[] = [];
+  if (data.recipient.company) {
+    contextParts.push(`👤 ${data.recipient.name} @ ${data.recipient.company}`);
+  } else {
+    contextParts.push(`👤 ${data.recipient.name}`);
+  }
+  if (data.context?.dealName) {
+    contextParts.push(`💼 ${truncate(data.context.dealName, 30)}`);
+  }
+  contextParts.push(`🎯 ${data.confidence}% confidence`);
+  blocks.push(context(contextParts));
+
+  blocks.push(divider());
+
+  // Email preview
+  blocks.push(section(`*To:* ${data.recipient.email}`));
+  blocks.push(section(`*Subject:* ${truncate(data.subject, 150)}`));
+  blocks.push(section(`*Message:*\n${truncate(data.body, 800)}`));
+
+  // Meeting context
+  if (data.context?.lastMeetingDate) {
+    const meetingDate = new Date(data.context.lastMeetingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    blocks.push(context([`📅 Last meeting: ${meetingDate}${data.context.lastMeetingTitle ? ` - ${truncate(data.context.lastMeetingTitle, 40)}` : ''}`]));
+  }
+
+  blocks.push(divider());
+
+  // HITL action buttons
+  const callbackValue = JSON.stringify({
+    approvalId: data.approvalId,
+    recipientEmail: data.recipient.email,
+    subject: data.subject,
+    body: data.body,
+    dealId: data.context?.dealId,
+  });
+
+  blocks.push({
+    type: 'actions',
+    block_id: `followup_actions::${data.approvalId}`,
+    elements: [
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: safeButtonText('✅ Approve & Send'), emoji: true },
+        style: 'primary',
+        action_id: `approve::follow_up::${data.approvalId}`,
+        value: safeButtonValue(callbackValue),
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: safeButtonText('✏️ Edit'), emoji: true },
+        action_id: `edit::follow_up::${data.approvalId}`,
+        value: safeButtonValue(callbackValue),
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: safeButtonText('❌ Reject'), emoji: true },
+        style: 'danger',
+        action_id: `reject::follow_up::${data.approvalId}`,
+        value: safeButtonValue(callbackValue),
+      },
+    ],
+  });
+
+  return {
+    blocks,
+    text: `Follow-up draft for ${data.recipient.name}: ${truncate(data.subject, 60)}`,
+  };
+};
+
+/**
+ * Search Results Picker for disambiguation
+ */
+export interface SearchResultsPickerData {
+  query: string;
+  entityType: 'contact' | 'deal';
+  results: Array<{
+    id: string;
+    displayName: string;
+    subtitle?: string;
+    source: 'sixty' | 'hubspot';
+  }>;
+  showCrmButton: boolean;
+  crmAvailable: boolean;
+}
+
+/**
+ * Build Search Results Picker for ambiguous queries
+ */
+export const buildSearchResultsPickerMessage = (data: SearchResultsPickerData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const emoji = data.entityType === 'contact' ? '👤' : '💼';
+  const label = data.entityType === 'contact' ? 'Contacts' : 'Deals';
+
+  blocks.push(header(`${emoji} ${label} matching "${truncate(data.query, 30)}"`));
+
+  if (data.results.length === 0) {
+    blocks.push(section(`No ${label.toLowerCase()} found matching your query.`));
+
+    if (data.crmAvailable && data.showCrmButton) {
+      blocks.push(actions([
+        {
+          text: '🔍 Search CRM',
+          actionId: `search_crm_${data.entityType}`,
+          value: JSON.stringify({ query: data.query, entityType: data.entityType }),
+          style: 'primary',
+        },
+      ]));
+    }
+  } else {
+    // Show results as buttons
+    const resultButtons = data.results.slice(0, 5).map((r, i) => {
+      const sourceBadge = r.source === 'hubspot' ? ' 🔄' : '';
+      return {
+        text: `${truncate(r.displayName, 35)}${sourceBadge}`,
+        actionId: `select_${data.entityType}_${i}`,
+        value: JSON.stringify({ id: r.id, source: r.source }),
+      };
+    });
+
+    blocks.push(actions(resultButtons));
+
+    // Show subtitles as context
+    const contextItems = data.results.slice(0, 5)
+      .filter(r => r.subtitle)
+      .map(r => `${truncate(r.displayName, 20)}: ${truncate(r.subtitle || '', 30)}`);
+
+    if (contextItems.length > 0) {
+      blocks.push(context(contextItems));
+    }
+
+    // CRM search fallback
+    if (data.crmAvailable && data.showCrmButton && data.results.every(r => r.source === 'sixty')) {
+      blocks.push(divider());
+      blocks.push(actions([
+        {
+          text: '🔍 Search CRM for more',
+          actionId: `search_crm_${data.entityType}`,
+          value: JSON.stringify({ query: data.query, entityType: data.entityType }),
+        },
+      ]));
+    }
+  }
+
+  return {
+    blocks,
+    text: `Found ${data.results.length} ${label.toLowerCase()} matching "${data.query}"`,
+  };
+};
