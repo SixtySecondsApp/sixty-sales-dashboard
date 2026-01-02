@@ -497,6 +497,14 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     order: 50,
   },
   {
+    path: '/platform/dev/api-monitor',
+    access: 'platformAdmin',
+    label: 'API Monitor',
+    showInNav: false,
+    navSection: 'platform',
+    order: 50.5,
+  },
+  {
     path: '/platform/dev/functions',
     access: 'platformAdmin',
     label: 'Function Testing',

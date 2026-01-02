@@ -63,7 +63,7 @@ import {
   SettingsBookingSources, HealthRules, EmailCategorizationSettings, AdminModelSettings,
   AdminPromptSettings, InternalDomainsSettings, SlackDemo, MeetingIntelligenceDemo,
   MeetingIntelligenceDemoSimple, TasksDemo, ProcessMaps, IntelligenceTestRunner, VSLAnalyticsTests,
-  CronJobsAdmin, SaasAdminDashboard, IntegrationsDashboard, FathomIntegrationTests,
+  CronJobsAdmin, ApiMonitor, SaasAdminDashboard, IntegrationsDashboard, FathomIntegrationTests,
   HubSpotIntegrationTests, SlackIntegrationTests, SavvyCalIntegrationTests,
   QuickAddSimulator, ProactiveSimulator,
   // Auth
@@ -389,6 +389,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/usage" element={<PlatformAdminRouteGuard><AppLayout><SaasAdminDashboard /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Platform Admin - Development Tools */}
                 <Route path="/platform/dev/api-testing" element={<PlatformAdminRouteGuard><AppLayout><ApiTesting /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/dev/api-monitor" element={<PlatformAdminRouteGuard><AppLayout><ApiMonitor /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/dev/functions" element={<PlatformAdminRouteGuard><AppLayout><FunctionTesting /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/dev/function-testing" element={<PlatformAdminRouteGuard><AppLayout><FunctionTesting /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/onboarding-simulator" element={<InternalRouteGuard><AppLayout><OnboardingSimulator /></AppLayout></InternalRouteGuard>} />
                 <Route path="/platform/quickadd-simulator" element={<PlatformAdminRouteGuard><AppLayout><QuickAddSimulator /></AppLayout></PlatformAdminRouteGuard>} />
