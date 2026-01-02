@@ -152,49 +152,70 @@ Step 3: Merge + de-dupe + show best matches with confidence + source badges
 
 ---
 
-## Phase 5: Team & Manager Operating Cadence
+## Phase 5: Team & Manager Operating Cadence ✅
 
 **Goal**: Team visibility and pipeline management
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | **Team Commands** | | |
-| `/sixty standup` | ⏳ | Channel digest: pipeline, risks, meetings, overdue |
-| `/sixty pipeline` | ⏳ | Summary with filters |
-| → "Show at-risk" filter | ⏳ | |
-| → "Show closing this week" filter | ⏳ | |
-| `/sixty approvals` | ⏳ | Pending HITL approvals with actions |
+| `/sixty standup` | ✅ | Channel digest: pipeline, risks, meetings, overdue |
+| `/sixty pipeline` | ✅ | Summary with filters |
+| → "Show at-risk" filter | ✅ | Filter buttons in response |
+| → "Show closing this week" filter | ✅ | Filter buttons in response |
+| → "Show stale" filter | ✅ | Filter buttons in response |
+| `/sixty approvals` | ✅ | Pending HITL approvals with actions |
+| → Approve/Edit/Reject overflow | ✅ | Per-item actions |
+| → Approve All button | ✅ | Bulk approve pending |
+| → Refresh button | ✅ | Refresh approvals list |
+| **Interactive Handlers** | | |
+| Pipeline filter handlers | ✅ | `handlers/phase5.ts` |
+| Standup view pipeline/risks | ✅ | Drill-down buttons |
+| Approval action handlers | ✅ | Approve/edit/reject flow |
 | **Deal Room Automation** | | |
-| Proactive deal room updates | ⏳ | |
-| Auto-share meeting summaries to rooms | ⏳ | |
+| Proactive deal room updates | ⏳ | Future enhancement |
+| Auto-share meeting summaries to rooms | ⏳ | Future enhancement |
 
 ---
 
-## Phase 6: Smart AI & Engagement
+## Phase 6: Smart AI & Engagement ✅
 
 **Goal**: AI that recommends actions with confidence routing
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | **Retrieval-First Context** | | |
-| Build context dossier before generation | ⏳ | Meetings, objections, deal data, email cats, CRM fields |
+| Build context dossier before generation | ✅ | `_shared/ai/contextBuilder.ts` |
+| Contact context retrieval | ✅ | Last activities, open deals, recent meetings |
+| Deal context retrieval | ✅ | Stage, contacts, risks, momentum signals |
+| Meeting context retrieval | ✅ | Transcript analysis, action items, sentiment |
+| Email context retrieval | ✅ | Threading, response patterns, categories |
+| Context quality scoring | ✅ | 0-100 score for generation confidence |
 | **AI Action Recommendations** | | |
-| Structured AI output | ⏳ | `recommended_action`, `why`, `draft`, `tasks`, `confidence` |
-| High confidence → primary action button | ⏳ | "Approve & send", "Create task" |
-| Medium confidence → require HITL | ⏳ | |
-| Low confidence → clarifying question modal | ⏳ | Not long chat |
+| Structured AI output | ✅ | `_shared/ai/types.ts` - full type system |
+| Confidence-based routing | ✅ | `_shared/ai/confidenceRouter.ts` |
+| High confidence → auto-execute | ✅ | >80% with user approval history |
+| Medium confidence → HITL approve | ✅ | 50-80% or high-risk actions |
+| Low confidence → clarify | ✅ | <50% shows clarifying modal |
+| Dynamic CTA generation | ✅ | Primary + secondary CTAs by confidence |
 | **AI Learning Loop** | | |
-| Track approve/edit/reject rates | ⏳ | |
-| Extract edit deltas | ⏳ | Tone, brevity, CTA style |
-| Store per-user/org preferences | ⏳ | |
-| Use outcomes to refine recommendations | ⏳ | Task completed, reply received, meeting booked |
-| **Smart Engagement (from algorithm doc)** | | |
-| Timing + frequency rules for DMs | ⏳ | Default: 2/hour max, 8/day |
-| "Send when most likely to act" logic | ⏳ | |
-| Feedback buttons in notifications | ⏳ | "Want more / Just right / Too many" |
-| Per-notification micro-feedback | ⏳ | "Helpful / Not helpful" |
-| Fatigue score + delivery cooldowns | ⏳ | |
-| Content-driven re-engagement | ⏳ | "Contact replied", "Prep ready", "Risk detected" |
+| Track approve/edit/reject rates | ✅ | `_shared/ai/learningLoop.ts` |
+| Extract edit deltas | ✅ | Tone shift, length change, CTA preferences |
+| Store per-user preferences | ✅ | `user_ai_preferences` table |
+| Store per-org preferences | ✅ | `org_ai_preferences` table |
+| Outcome tracking | ✅ | `ai_feedback.outcome_*` columns |
+| Feedback analytics | ✅ | `getFeedbackAnalytics()` function |
+| **Database Schema** | | |
+| `user_ai_preferences` table | ✅ | Learned preferences + stats |
+| `ai_feedback` table | ✅ | Action tracking + edit deltas |
+| `org_ai_preferences` table | ✅ | Brand voice, compliance, thresholds |
+| RLS policies | ✅ | User/admin access controls |
+| **Smart Engagement (existing infrastructure)** | | |
+| Timing + frequency rules | ✅ | Leveraged `_shared/engagement/timing.ts` |
+| "Send when most likely to act" logic | ✅ | `calculateOptimalSendTime()` |
+| Fatigue score + delivery cooldowns | ✅ | `calculateFatigueScore()` |
+| User segment-based delivery | ✅ | Power user, champion, casual, dormant |
+| Engagement config thresholds | ✅ | `_shared/engagement/config.ts` |
 
 ---
 

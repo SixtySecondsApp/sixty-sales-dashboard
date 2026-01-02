@@ -19,6 +19,16 @@ import {
   handleMomentumNextStepSubmission,
   handleMomentumMilestoneSubmission,
 } from './handlers/momentum.ts';
+import {
+  handlePipelineFilter,
+  handlePipelineViewStage,
+  handlePipelineDealOverflow,
+  handleStandupViewPipeline,
+  handleStandupViewRisks,
+  handleApprovalOverflow,
+  handleApprovalsApproveAll,
+  handleApprovalsRefresh,
+} from './handlers/phase5.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -6279,6 +6289,52 @@ serve(async (req) => {
           return handleFocusViewAll(supabase, payload);
         } else if (action.action_id === 'focus_meeting_prep') {
           return handleFocusMeetingPrep(supabase, payload, action);
+        }
+
+        // Phase 5: Pipeline action handlers
+        else if (action.action_id === 'pipeline_filter_all' ||
+                 action.action_id === 'pipeline_filter_risk' ||
+                 action.action_id === 'pipeline_filter_closing' ||
+                 action.action_id === 'pipeline_filter_stale') {
+          return handlePipelineFilter(supabase, payload, action);
+        } else if (action.action_id === 'pipeline_view_stage') {
+          return handlePipelineViewStage(supabase, payload, action);
+        } else if (action.action_id === 'pipeline_deal_actions') {
+          return handlePipelineDealOverflow(supabase, payload, action);
+        } else if (action.action_id === 'pipeline_add_deal') {
+          // Just acknowledge - the button has a URL
+          return new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        // Phase 5: Standup action handlers
+        else if (action.action_id === 'standup_view_pipeline') {
+          return handleStandupViewPipeline(supabase, payload);
+        } else if (action.action_id === 'standup_view_risks') {
+          return handleStandupViewRisks(supabase, payload);
+        } else if (action.action_id === 'standup_view_tasks') {
+          // Just acknowledge - the button has a URL
+          return new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        // Phase 5: Approvals action handlers
+        else if (action.action_id === 'approval_actions') {
+          return handleApprovalOverflow(supabase, payload, action);
+        } else if (action.action_id === 'approvals_approve_all') {
+          return handleApprovalsApproveAll(supabase, payload);
+        } else if (action.action_id === 'approvals_refresh') {
+          return handleApprovalsRefresh(supabase, payload);
+        } else if (action.action_id === 'approvals_settings') {
+          // Just acknowledge - the button has a URL
+          return new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
         }
 
         // Unknown action - just acknowledge
