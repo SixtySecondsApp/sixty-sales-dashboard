@@ -57,3 +57,24 @@ export {
   calculateNextSlotDelay,
   shouldDowngradePriority,
 } from "./frequency.ts";
+
+// Feedback loop
+export {
+  shouldRequestFeedback,
+  buildFeedbackRequestBlocks,
+  buildPerNotificationFeedbackButtons,
+  buildInlineFeedbackOverflow,
+  calculatePreferenceUpdate,
+  adjustFatigueFromNotificationFeedback,
+  calculateEngagementAdjustment,
+  buildFeedbackConfirmationBlocks,
+  FEEDBACK_RESPONSES,
+  PER_NOTIFICATION_RESPONSES,
+} from "./feedback.ts";
+
+export type {
+  FeedbackCheckResult,
+  FeedbackPreferenceUpdate,
+  FrequencyFeedback,
+  NotificationFeedback,
+} from "./feedback.ts";
