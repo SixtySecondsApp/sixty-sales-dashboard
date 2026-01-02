@@ -78,3 +78,40 @@ export type {
   FrequencyFeedback,
   NotificationFeedback,
 } from "./feedback.ts";
+
+// Segmentation
+export {
+  SEGMENT_TRANSITIONS,
+  REENGAGEMENT_TRIGGERS,
+  getDaysSinceLastActivity,
+  isEligibleForReengagement,
+  isEngagementDeclining,
+  getSuggestedTrigger,
+  calculateReengagementPriority,
+  getSegmentCooldownMultiplier,
+  isValidSegmentTransition,
+  getMessageTone,
+  getPreferredReengagementChannel,
+} from "./segmentation.ts";
+
+export type {
+  SegmentTransition,
+  ReengagementCandidate,
+  ReengagementContent,
+} from "./segmentation.ts";
+
+// Re-engagement
+export {
+  REENGAGEMENT_TYPES,
+  buildReengagementSlackBlocks,
+  buildReengagementEmailContent,
+  selectReengagementType,
+  isValidReengagementType,
+  getReengagementChannel,
+} from "./reengagement.ts";
+
+export type {
+  ReengagementType,
+  ReengagementConfig,
+  ReengagementContext,
+} from "./reengagement.ts";
