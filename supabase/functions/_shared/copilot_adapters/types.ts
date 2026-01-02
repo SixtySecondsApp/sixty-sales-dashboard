@@ -42,7 +42,9 @@ export type ExecuteActionName =
   | 'enrich_contact'
   | 'enrich_company'
   | 'invoke_skill'
-  | 'create_task';
+  | 'create_task'
+  | 'list_tasks'
+  | 'create_activity';
 
 /**
  * Parameters for invoke_skill action - enables skill composition
@@ -70,6 +72,36 @@ export interface CreateTaskParams {
   assignee_id?: string;
 }
 
+/**
+ * Parameters for list_tasks action
+ */
+export interface ListTasksParams {
+  status?: 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'overdue';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  contact_id?: string;
+  deal_id?: string;
+  company_id?: string;
+  due_before?: string;            // ISO date string - tasks due before this date
+  due_after?: string;             // ISO date string - tasks due after this date
+  limit?: number;                 // Default: 20
+}
+
+/**
+ * Parameters for create_activity action
+ */
+export interface CreateActivityParams {
+  type: 'outbound' | 'meeting' | 'proposal' | 'sale';
+  client_name: string;
+  details?: string;
+  amount?: number;
+  date?: string;                  // ISO date string - defaults to now
+  status?: 'pending' | 'completed' | 'cancelled';
+  priority?: 'low' | 'medium' | 'high';
+  contact_id?: string;
+  deal_id?: string;
+  company_id?: string;
+}
+
 export interface ExecuteActionRequest {
   action: ExecuteActionName;
   params: Record<string, unknown>;
@@ -82,6 +114,7 @@ export interface ActionResult {
   needs_confirmation?: boolean;
   preview?: unknown;
   source?: string;
+  delegate?: boolean;  // Signal that this adapter wants to delegate to another adapter
 }
 
 export interface AdapterContext {

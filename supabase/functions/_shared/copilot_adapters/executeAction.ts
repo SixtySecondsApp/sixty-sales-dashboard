@@ -308,20 +308,39 @@ export async function executeAction(
         ctx
       );
 
-    case 'enrich_contact':
+    case 'enrich_contact': {
+      // Input validation - email is required for enrichment
+      const email = params.email ? String(params.email).trim() : '';
+      if (!email) {
+        return { success: false, data: null, error: 'Email is required for contact enrichment' };
+      }
+      // Basic email format validation
+      if (!email.includes('@') || !email.includes('.')) {
+        return { success: false, data: null, error: 'Invalid email format for contact enrichment' };
+      }
       return adapters.enrichment.enrichContact({
-        email: params.email ? String(params.email) : '',
-        name: params.name ? String(params.name) : undefined,
-        title: params.title ? String(params.title) : undefined,
-        company_name: params.company_name ? String(params.company_name) : undefined,
+        email,
+        name: params.name ? String(params.name).trim() : undefined,
+        title: params.title ? String(params.title).trim() : undefined,
+        company_name: params.company_name ? String(params.company_name).trim() : undefined,
       });
+    }
 
-    case 'enrich_company':
+    case 'enrich_company': {
+      // Input validation - either name or domain is required
+      const name = params.name ? String(params.name).trim() : '';
+      const domain = params.domain ? String(params.domain).trim() : undefined;
+      const website = params.website ? String(params.website).trim() : undefined;
+
+      if (!name && !domain && !website) {
+        return { success: false, data: null, error: 'At least one of name, domain, or website is required for company enrichment' };
+      }
       return adapters.enrichment.enrichCompany({
-        name: params.name ? String(params.name) : '',
-        domain: params.domain ? String(params.domain) : undefined,
-        website: params.website ? String(params.website) : undefined,
+        name,
+        domain,
+        website,
       });
+    }
 
     case 'invoke_skill': {
       // Skill composition: allows skills to invoke other skills
@@ -575,6 +594,150 @@ export async function executeAction(
           message: `Task "${title}" created successfully`,
         },
         source: 'create_task',
+      };
+    }
+
+    case 'list_tasks': {
+      // Build query with filters
+      let query = client
+        .from('tasks')
+        .select('id, title, description, status, priority, due_date, task_type, contact_name, company, created_at')
+        .or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
+        .order('due_date', { ascending: true, nullsFirst: false });
+
+      // Apply optional filters
+      if (params.status) {
+        query = query.eq('status', String(params.status));
+      }
+      if (params.priority) {
+        query = query.eq('priority', String(params.priority));
+      }
+      if (params.contact_id) {
+        query = query.eq('contact_id', String(params.contact_id));
+      }
+      if (params.deal_id) {
+        query = query.eq('deal_id', String(params.deal_id));
+      }
+      if (params.company_id) {
+        query = query.eq('company_id', String(params.company_id));
+      }
+      if (params.due_before) {
+        query = query.lte('due_date', String(params.due_before));
+      }
+      if (params.due_after) {
+        query = query.gte('due_date', String(params.due_after));
+      }
+
+      // Apply limit (default 20, max 50)
+      const limit = Math.min(Number(params.limit) || 20, 50);
+      query = query.limit(limit);
+
+      const { data: tasks, error: tasksError } = await query;
+
+      if (tasksError) {
+        return { success: false, data: null, error: `Failed to list tasks: ${tasksError.message}` };
+      }
+
+      return {
+        success: true,
+        data: {
+          tasks: tasks || [],
+          count: tasks?.length || 0,
+          filters_applied: {
+            status: params.status || null,
+            priority: params.priority || null,
+            contact_id: params.contact_id || null,
+            deal_id: params.deal_id || null,
+            company_id: params.company_id || null,
+          },
+        },
+        source: 'list_tasks',
+      };
+    }
+
+    case 'create_activity': {
+      // Input validation
+      const activityType = params.type ? String(params.type) : '';
+      const validTypes = ['outbound', 'meeting', 'proposal', 'sale'];
+      if (!activityType || !validTypes.includes(activityType)) {
+        return { success: false, data: null, error: `type is required and must be one of: ${validTypes.join(', ')}` };
+      }
+
+      const clientName = params.client_name ? String(params.client_name).trim() : '';
+      if (!clientName) {
+        return { success: false, data: null, error: 'client_name is required for create_activity' };
+      }
+
+      const activityPreview = {
+        type: activityType,
+        client_name: clientName,
+        details: params.details ? String(params.details) : null,
+        amount: params.amount ? Number(params.amount) : null,
+        date: params.date ? String(params.date) : new Date().toISOString(),
+        status: params.status || 'completed',
+        priority: params.priority || 'medium',
+        contact_id: params.contact_id ? String(params.contact_id) : null,
+        deal_id: params.deal_id ? String(params.deal_id) : null,
+        company_id: params.company_id ? String(params.company_id) : null,
+      };
+
+      // Require confirmation for write operations
+      if (!ctx.confirm) {
+        return {
+          success: false,
+          data: null,
+          error: 'Confirmation required to create activity',
+          needs_confirmation: true,
+          preview: activityPreview,
+          source: 'create_activity',
+        };
+      }
+
+      const activityData: Record<string, unknown> = {
+        user_id: userId,
+        type: activityType,
+        client_name: clientName,
+        details: activityPreview.details,
+        amount: activityPreview.amount,
+        date: activityPreview.date,
+        status: activityPreview.status,
+        priority: activityPreview.priority,
+        created_at: new Date().toISOString(),
+      };
+
+      // Add optional relations
+      if (activityPreview.contact_id) {
+        activityData.contact_id = activityPreview.contact_id;
+      }
+      if (activityPreview.deal_id) {
+        activityData.deal_id = activityPreview.deal_id;
+      }
+      if (activityPreview.company_id) {
+        activityData.company_id = activityPreview.company_id;
+      }
+
+      const { data: newActivity, error: activityError } = await client
+        .from('activities')
+        .insert(activityData)
+        .select('id, type, client_name, status, amount, date')
+        .single();
+
+      if (activityError) {
+        return { success: false, data: null, error: `Failed to create activity: ${activityError.message}` };
+      }
+
+      return {
+        success: true,
+        data: {
+          activity_id: newActivity.id,
+          type: newActivity.type,
+          client_name: newActivity.client_name,
+          status: newActivity.status,
+          amount: newActivity.amount,
+          date: newActivity.date,
+          message: `Activity "${activityType}" for "${clientName}" created successfully`,
+        },
+        source: 'create_activity',
       };
     }
 

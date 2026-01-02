@@ -301,26 +301,26 @@ export function createHubSpotCrmAdapter(
       });
     },
 
-    // Pipeline methods - not implemented for HubSpot adapter yet
-    // These use the DB adapter implementation
+    // Pipeline methods - not implemented for HubSpot adapter
+    // Return null to signal delegation to DB adapter (composite adapter will handle fallback)
     async getPipelineSummary(_params) {
-      return fail('Pipeline summary not available through HubSpot adapter - use internal CRM', this.source);
+      return { success: false, data: null, delegate: true, source: this.source };
     },
 
     async getPipelineDeals(_params) {
-      return fail('Pipeline deals not available through HubSpot adapter - use internal CRM', this.source);
+      return { success: false, data: null, delegate: true, source: this.source };
     },
 
     async getPipelineForecast(_params) {
-      return fail('Pipeline forecast not available through HubSpot adapter - use internal CRM', this.source);
+      return { success: false, data: null, delegate: true, source: this.source };
     },
 
     async getContactsNeedingAttention(_params) {
-      return fail('Contacts needing attention not available through HubSpot adapter - use internal CRM', this.source);
+      return { success: false, data: null, delegate: true, source: this.source };
     },
 
     async getCompanyStatus(_params) {
-      return fail('Company status not available through HubSpot adapter - use internal CRM', this.source);
+      return { success: false, data: null, delegate: true, source: this.source };
     },
   };
 }
