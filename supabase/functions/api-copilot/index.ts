@@ -2162,6 +2162,7 @@ const SKILLS_ROUTER_TOOLS = [
 
 ACTION PARAMETERS:
 • get_contact: { email?: string, name?: string, id?: string } - Search contacts by email (preferred), name, or id
+• get_lead: { email?: string, name?: string, contact_id?: string } - Get lead/prospect data including SavvyCal bookings, enrichment data, prep_summary, custom form fields, AND AI-generated insights (About the Prospect, Why Sixty Seconds?, etc). Returns structured contact, meeting, enrichment, and insights data. CRITICAL for meeting prep!
 • get_deal: { name?: string, id?: string } - Search deals by name or id
 • get_meetings: { contactEmail?: string, contactId?: string, limit?: number } - Get meetings with a contact. IMPORTANT: Always pass contactEmail when you have an email address!
 • get_booking_stats: { period?, filter_by?, source?, org_wide? } - Get meeting/booking statistics for a time period. period: "this_week"|"last_week"|"this_month"|"last_month"|"last_7_days"|"last_30_days" (default: "this_week"). filter_by: "meeting_date"|"booking_date" (default: "meeting_date"). source: "all"|"savvycal"|"calendar"|"meetings" (default: "all"). org_wide: boolean (default: false, admin only).
@@ -2178,6 +2179,7 @@ Write actions require params.confirm=true.`,
           type: 'string',
           enum: [
             'get_contact',
+            'get_lead',
             'get_deal',
             'get_meetings',
             'get_booking_stats',
@@ -2192,9 +2194,10 @@ Write actions require params.confirm=true.`,
           type: 'object',
           description: 'Action-specific parameters (see tool description for each action)',
           properties: {
-            email: { type: 'string', description: 'Contact email address (for get_contact)' },
-            name: { type: 'string', description: 'Name to search (for get_contact, get_deal)' },
+            email: { type: 'string', description: 'Contact email address (for get_contact, get_lead)' },
+            name: { type: 'string', description: 'Name to search (for get_contact, get_lead, get_deal)' },
             id: { type: 'string', description: 'Record ID' },
+            contact_id: { type: 'string', description: 'Contact ID to find associated leads/bookings (for get_lead)' },
             contactEmail: { type: 'string', description: 'Email of the contact (for get_meetings) - PREFERRED method' },
             contactId: { type: 'string', description: 'Contact ID (for get_meetings)' },
             period: { type: 'string', enum: ['this_week', 'last_week', 'this_month', 'last_month', 'last_7_days', 'last_30_days'], description: 'Time period for booking stats (for get_booking_stats)' },
@@ -2341,21 +2344,29 @@ ${skillsListText || '  No skills configured yet'}
 ### Meeting Prep (when user says "prep me for meeting with X" or similar)
 This is NOT about creating a meeting - it's about preparing a briefing for an existing upcoming meeting.
 1. Use execute_action with get_contact to find the contact by name/email
-2. Use execute_action with get_meetings to find upcoming meetings with that contact
-3. Also use execute_action with get_booking_stats (source: "savvycal") to check for SavvyCal bookings
+2. CRITICAL: Use execute_action with get_lead to get ALL enrichment data including:
+   - SavvyCal booking info (meeting time, duration, conferencing link)
+   - Custom form fields (e.g., "Are you interested in creating videos?")
+   - prep_summary and enrichment_status
+   - AI-generated INSIGHTS (About the Prospect: role, background, location; Why Sixty Seconds?: primary fit analysis)
+   The get_lead action returns an "insights" array - USE THIS DATA in your briefing!
+3. Use execute_action with get_meetings to find upcoming meetings with that contact
 4. Use get_skill with "meeting-prep" or "meeting-prep-briefing" skill_id
 5. Follow the skill to generate a comprehensive briefing including:
-   - Contact/company background
+   - Contact/company background from get_lead insights (role, background, location)
+   - Why they're a good fit from get_lead insights (Primary Fit analysis)
+   - Meeting context from get_lead (custom form answers, meeting description)
    - Recent interactions and email history
    - Deal status if applicable
-   - Talking points and suggested agenda
+   - Talking points based on the prospect's stated interests and fit analysis
 DO NOT show a "Create Meeting" UI for prep requests.
 
 ### Lead Research (when user wants to learn about a contact/company)
-1. Use execute_action with get_contact or enrich_contact
-2. Use execute_action with enrich_company if needed
-3. Use get_skill with "lead-research" skill_id
-4. Follow the skill to compile research
+1. Use execute_action with get_contact to find basic contact info
+2. Use execute_action with get_lead to get enrichment data, prep_summary, and SavvyCal booking info
+3. Use execute_action with enrich_contact or enrich_company if more data is needed
+4. Use get_skill with "lead-research" skill_id
+5. Follow the skill to compile research
 
 ## Core Rules
 - Confirm before any CRM updates, notifications, or sends (execute_action write actions require params.confirm=true)

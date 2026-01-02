@@ -22,7 +22,13 @@ export interface SkillDoc {
 
 export type ExecuteActionName =
   | 'get_contact'
+  | 'get_lead'
   | 'get_deal'
+  | 'get_pipeline_summary'
+  | 'get_pipeline_deals'
+  | 'get_pipeline_forecast'
+  | 'get_contacts_needing_attention'
+  | 'get_company_status'
   | 'get_meetings'
   | 'get_booking_stats'
   | 'search_emails'
@@ -100,7 +106,35 @@ export interface MeetingAdapter {
 export interface CRMAdapter {
   source: string;
   getContact(params: { id?: string; email?: string; name?: string }): Promise<ActionResult>;
-  getDeal(params: { id?: string; name?: string }): Promise<ActionResult>;
+  getDeal(params: {
+    id?: string;
+    name?: string;
+    close_date_from?: string;
+    close_date_to?: string;
+    status?: string;
+    stage_id?: string;
+    include_health?: boolean;
+    limit?: number;
+  }): Promise<ActionResult>;
+  getPipelineSummary(params: Record<string, unknown>): Promise<ActionResult>;
+  getPipelineDeals(params: {
+    filter?: 'closing_soon' | 'at_risk' | 'stale' | 'needs_attention';
+    days?: number;
+    period?: string;
+    include_health?: boolean;
+    limit?: number;
+  }): Promise<ActionResult>;
+  getPipelineForecast(params: { period?: string }): Promise<ActionResult>;
+  getContactsNeedingAttention(params: {
+    days_since_contact?: number;
+    filter?: 'at_risk' | 'ghost' | 'all';
+    limit?: number;
+  }): Promise<ActionResult>;
+  getCompanyStatus(params: {
+    company_id?: string;
+    company_name?: string;
+    domain?: string;
+  }): Promise<ActionResult>;
   updateCRM(params: { entity: 'deal' | 'contact' | 'task' | 'activity'; id: string; updates: Record<string, unknown> }, ctx: AdapterContext): Promise<ActionResult>;
 }
 

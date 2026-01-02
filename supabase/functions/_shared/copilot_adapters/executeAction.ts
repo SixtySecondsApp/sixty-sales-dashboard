@@ -28,6 +28,189 @@ export async function executeAction(
         name: params.name ? String(params.name) : undefined,
       });
 
+    case 'get_lead': {
+      // Get lead with enrichment data from leads table (SavvyCal bookings, prep data, etc.)
+      const email = params.email ? String(params.email) : undefined;
+      const name = params.name ? String(params.name) : undefined;
+      const contactId = params.contact_id ? String(params.contact_id) : undefined;
+
+      if (!email && !name && !contactId) {
+        return { success: false, data: null, error: 'get_lead requires email, name, or contact_id' };
+      }
+
+      let query = client
+        .from('leads')
+        .select(`
+          id,
+          external_source,
+          status,
+          priority,
+          enrichment_status,
+          enrichment_provider,
+          prep_status,
+          prep_summary,
+          contact_id,
+          contact_name,
+          contact_first_name,
+          contact_last_name,
+          contact_email,
+          contact_phone,
+          contact_timezone,
+          domain,
+          meeting_title,
+          meeting_description,
+          meeting_start,
+          meeting_end,
+          meeting_duration_minutes,
+          meeting_timezone,
+          meeting_url,
+          conferencing_type,
+          conferencing_url,
+          metadata,
+          created_at,
+          updated_at
+        `)
+        .is('deleted_at', null)
+        .order('meeting_start', { ascending: false, nullsFirst: false });
+
+      // Apply filters
+      if (contactId) {
+        query = query.eq('contact_id', contactId);
+      } else if (email) {
+        query = query.ilike('contact_email', `%${email}%`);
+      } else if (name) {
+        query = query.ilike('contact_name', `%${name}%`);
+      }
+
+      const { data: leads, error: leadsError } = await query.limit(5);
+
+      if (leadsError) {
+        return { success: false, data: null, error: `Failed to fetch leads: ${leadsError.message}` };
+      }
+
+      if (!leads || leads.length === 0) {
+        return {
+          success: true,
+          data: {
+            found: false,
+            message: `No leads found for ${email || name || contactId}`
+          },
+          source: 'leads'
+        };
+      }
+
+      // Fetch prep notes/insights for all found leads
+      const leadIds = leads.map((l: any) => l.id);
+      const { data: prepNotes } = await client
+        .from('lead_prep_notes')
+        .select('lead_id, note_type, title, body, is_auto_generated, sort_order')
+        .in('lead_id', leadIds)
+        .order('sort_order', { ascending: true });
+
+      // Group prep notes by lead_id
+      const notesByLeadId: Record<string, any[]> = {};
+      if (prepNotes) {
+        prepNotes.forEach((note: any) => {
+          if (!notesByLeadId[note.lead_id]) {
+            notesByLeadId[note.lead_id] = [];
+          }
+          notesByLeadId[note.lead_id].push(note);
+        });
+      }
+
+      // Extract useful enrichment data from metadata
+      const enrichedLeads = leads.map((lead: any) => {
+        const metadata = lead.metadata || {};
+
+        // Extract custom fields from SavvyCal
+        const customFields: Record<string, string> = {};
+        if (metadata.savvycal?.fields?.attendee) {
+          metadata.savvycal.fields.attendee.forEach((field: any) => {
+            if (field.label && field.value) {
+              customFields[field.label] = field.value;
+            }
+          });
+        }
+        // Also check top-level question fields
+        if (metadata.question_1?.question && metadata.question_1?.answer) {
+          customFields[metadata.question_1.question] = metadata.question_1.answer;
+        }
+        if (metadata.question_2?.question && metadata.question_2?.answer) {
+          customFields[metadata.question_2.question] = metadata.question_2.answer;
+        }
+
+        return {
+          id: lead.id,
+          source: lead.external_source,
+          status: lead.status,
+          priority: lead.priority,
+
+          // Contact info
+          contact: {
+            id: lead.contact_id,
+            name: lead.contact_name,
+            first_name: lead.contact_first_name,
+            last_name: lead.contact_last_name,
+            email: lead.contact_email,
+            phone: lead.contact_phone || customFields['Phone'] || null,
+            timezone: lead.contact_timezone,
+          },
+
+          // Company/domain
+          domain: lead.domain,
+
+          // Meeting info
+          meeting: lead.meeting_start ? {
+            title: lead.meeting_title,
+            description: lead.meeting_description,
+            start: lead.meeting_start,
+            end: lead.meeting_end,
+            duration_minutes: lead.meeting_duration_minutes,
+            timezone: lead.meeting_timezone,
+            url: lead.meeting_url,
+            conferencing_type: lead.conferencing_type,
+            conferencing_url: lead.conferencing_url || metadata.conferencing?.join_url,
+          } : null,
+
+          // Enrichment data
+          enrichment: {
+            status: lead.enrichment_status,
+            provider: lead.enrichment_provider,
+            prep_status: lead.prep_status,
+            prep_summary: lead.prep_summary,
+            research_summary: metadata.prep_ai?.research_summary || null,
+          },
+
+          // Custom fields from booking form
+          custom_fields: Object.keys(customFields).length > 0 ? customFields : null,
+
+          // Raw metadata for additional context
+          booking_source: metadata.savvycal ? 'savvycal' : metadata.import_source || null,
+
+          // Prep notes and insights (from lead_prep_notes table)
+          prep_notes: notesByLeadId[lead.id]?.filter((n: any) => n.note_type !== 'insight') || [],
+          insights: notesByLeadId[lead.id]?.filter((n: any) => n.note_type === 'insight').map((n: any) => ({
+            title: n.title,
+            body: n.body,
+            is_auto_generated: n.is_auto_generated,
+          })) || [],
+
+          created_at: lead.created_at,
+          updated_at: lead.updated_at,
+        };
+      });
+
+      return {
+        success: true,
+        data: {
+          found: true,
+          count: enrichedLeads.length,
+          leads: enrichedLeads,
+        },
+        source: 'leads',
+      };
+    }
+
     case 'get_deal':
       return adapters.crm.getDeal({
         id: params.id ? String(params.id) : undefined,
