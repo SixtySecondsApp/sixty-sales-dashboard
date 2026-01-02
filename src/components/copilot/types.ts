@@ -100,14 +100,14 @@ export type CopilotResponsePayload = CopilotAPIResponse;
 // Structured Response Types
 // ============================================================================
 
-export type CopilotResponseType = 
-  | 'activity' 
-  | 'pipeline' 
-  | 'meeting' 
-  | 'email' 
-  | 'calendar' 
-  | 'lead' 
-  | 'task' 
+export type CopilotResponseType =
+  | 'activity'
+  | 'pipeline'
+  | 'meeting'
+  | 'email'
+  | 'calendar'
+  | 'lead'
+  | 'task'
   | 'contact'
   | 'roadmap'
   | 'sales_coach'
@@ -123,6 +123,10 @@ export type CopilotResponseType =
   | 'contact_relationship'
   | 'communication_history'
   | 'meeting_prep'
+  | 'meeting_count'
+  | 'meeting_briefing'
+  | 'meeting_list'
+  | 'time_breakdown'
   | 'data_quality'
   | 'pipeline_forecast'
   | 'activity_planning'

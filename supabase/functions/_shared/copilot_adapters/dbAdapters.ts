@@ -244,6 +244,497 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
         return fail(msg, this.source);
       }
     },
+
+    async getMeetingCount(params) {
+      try {
+        const period = params.period || 'this_week';
+        const timezone = params.timezone || 'UTC';
+        const weekStartsOn = params.weekStartsOn ?? 1;
+
+        const { startDate, endDate } = calculateDateRangeWithTimezone(period, timezone, weekStartsOn);
+
+        // Count from calendar_events (Google Calendar - primary source)
+        const { count: calendarCount, error: calendarError } = await client
+          .from('calendar_events')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .neq('status', 'cancelled')
+          .gte('start_time', startDate.toISOString())
+          .lte('start_time', endDate.toISOString());
+
+        if (calendarError) throw calendarError;
+
+        // Count from meetings (Fathom - recorded meetings)
+        const { count: meetingsCount, error: meetingsError } = await client
+          .from('meetings')
+          .select('id', { count: 'exact', head: true })
+          .eq('owner_user_id', userId)
+          .gte('meeting_start', startDate.toISOString())
+          .lte('meeting_start', endDate.toISOString());
+
+        if (meetingsError) throw meetingsError;
+
+        return ok({
+          period,
+          timezone,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          counts: {
+            calendar_events: calendarCount || 0,
+            recorded_meetings: meetingsCount || 0,
+          },
+          total: (calendarCount || 0), // Primary count from calendar
+          note: 'Total is from calendar events. Recorded meetings may overlap with calendar events.',
+        }, this.source);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return fail(msg, this.source);
+      }
+    },
+
+    async getNextMeeting(params) {
+      try {
+        const includeContext = params.includeContext ?? true;
+        const now = new Date();
+
+        // Get next upcoming calendar event
+        const { data: events, error: eventsError } = await client
+          .from('calendar_events')
+          .select(`
+            id, external_id, title, description, start_time, end_time, location, meeting_url,
+            attendees, attendees_count, status, is_recurring, organizer_email
+          `)
+          .eq('user_id', userId)
+          .neq('status', 'cancelled')
+          .gte('start_time', now.toISOString())
+          .order('start_time', { ascending: true })
+          .limit(1);
+
+        if (eventsError) throw eventsError;
+
+        if (!events || events.length === 0) {
+          return ok({
+            found: false,
+            message: 'No upcoming meetings found',
+          }, this.source);
+        }
+
+        const event = events[0];
+        const startTime = new Date(event.start_time);
+        const endTime = new Date(event.end_time);
+        const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
+
+        // Parse attendees
+        let attendees: Array<{ email: string; name?: string; isExternal: boolean }> = [];
+        if (event.attendees) {
+          try {
+            const attendeeList = typeof event.attendees === 'string'
+              ? JSON.parse(event.attendees)
+              : event.attendees;
+
+            if (Array.isArray(attendeeList)) {
+              attendees = attendeeList.map((a: { email?: string; displayName?: string }) => ({
+                email: a.email || '',
+                name: a.displayName || undefined,
+                isExternal: !a.email?.includes('@') || !a.email?.endsWith(event.organizer_email?.split('@')[1] || ''),
+              }));
+            }
+          } catch {
+            // Attendees not parseable
+          }
+        }
+
+        // Base meeting response
+        const meeting = {
+          id: event.id,
+          externalId: event.external_id,
+          title: event.title,
+          description: event.description,
+          startTime: event.start_time,
+          endTime: event.end_time,
+          durationMinutes,
+          location: event.location,
+          meetingUrl: event.meeting_url,
+          attendees,
+          attendeesCount: event.attendees_count || attendees.length,
+          status: event.status,
+          isRecurring: event.is_recurring,
+        };
+
+        // If context not requested, return basic meeting info
+        if (!includeContext) {
+          return ok({
+            found: true,
+            meeting,
+          }, this.source);
+        }
+
+        // CRM context enrichment
+        let context: {
+          company: unknown;
+          deals: unknown[];
+          contacts: unknown[];
+          recentMeetings: unknown[];
+          recentActivities: unknown[];
+        } = {
+          company: null,
+          deals: [],
+          contacts: [],
+          recentMeetings: [],
+          recentActivities: [],
+        };
+
+        // Extract external attendee emails for CRM lookup
+        const externalEmails = attendees
+          .filter(a => a.isExternal && a.email)
+          .map(a => a.email.toLowerCase());
+
+        if (externalEmails.length > 0) {
+          // Look up contacts by email
+          const { data: contacts } = await client
+            .from('contacts')
+            .select(`
+              id, email, first_name, last_name, full_name, title, company_id,
+              relationship_health_scores(health_status, days_since_last_contact)
+            `)
+            .eq('owner_id', userId)
+            .in('email', externalEmails);
+
+          if (contacts && contacts.length > 0) {
+            context.contacts = contacts.map((c: any) => {
+              const health = Array.isArray(c.relationship_health_scores)
+                ? c.relationship_health_scores[0]
+                : c.relationship_health_scores;
+              return {
+                id: c.id,
+                email: c.email,
+                name: c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+                title: c.title,
+                healthStatus: health?.health_status,
+                daysSinceLastContact: health?.days_since_last_contact,
+              };
+            });
+
+            // Get company from first contact with company_id
+            const contactWithCompany = contacts.find((c: any) => c.company_id);
+            if (contactWithCompany) {
+              const { data: company } = await client
+                .from('companies')
+                .select('id, name, domain, industry, size, status')
+                .eq('id', contactWithCompany.company_id)
+                .maybeSingle();
+
+              if (company) {
+                context.company = company;
+
+                // Get deals for this company
+                const { data: deals } = await client
+                  .from('deals')
+                  .select(`
+                    id, name, value, status, expected_close_date,
+                    deal_stages(name),
+                    deal_health_scores(health_status, risk_level)
+                  `)
+                  .eq('owner_id', userId)
+                  .eq('company_id', company.id)
+                  .eq('status', 'active')
+                  .limit(5);
+
+                if (deals) {
+                  context.deals = deals.map((d: any) => {
+                    const stage = Array.isArray(d.deal_stages) ? d.deal_stages[0] : d.deal_stages;
+                    const health = Array.isArray(d.deal_health_scores) ? d.deal_health_scores[0] : d.deal_health_scores;
+                    return {
+                      id: d.id,
+                      name: d.name,
+                      value: d.value,
+                      status: d.status,
+                      stageName: stage?.name,
+                      expectedCloseDate: d.expected_close_date,
+                      healthStatus: health?.health_status,
+                      riskLevel: health?.risk_level,
+                    };
+                  });
+                }
+
+                // Get recent meetings with this company
+                const { data: recentMeetings } = await client
+                  .from('meetings')
+                  .select('id, title, meeting_start, duration_minutes, summary')
+                  .eq('owner_user_id', userId)
+                  .eq('company_id', company.id)
+                  .order('meeting_start', { ascending: false })
+                  .limit(3);
+
+                if (recentMeetings) {
+                  context.recentMeetings = recentMeetings;
+                }
+
+                // Get recent activities for this company
+                const { data: recentActivities } = await client
+                  .from('activities')
+                  .select('id, type, description, created_at')
+                  .eq('owner_id', userId)
+                  .eq('company_id', company.id)
+                  .order('created_at', { ascending: false })
+                  .limit(5);
+
+                if (recentActivities) {
+                  context.recentActivities = recentActivities;
+                }
+              }
+            }
+          }
+        }
+
+        return ok({
+          found: true,
+          meeting,
+          context,
+        }, this.source);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return fail(msg, this.source);
+      }
+    },
+
+    async getMeetingsForPeriod(params) {
+      try {
+        const period = params.period || 'today';
+        const timezone = params.timezone || 'UTC';
+        const weekStartsOn = params.weekStartsOn ?? 1;
+        const includeContext = params.includeContext ?? false;
+        const limit = Math.min(Math.max(Number(params.limit ?? 20) || 20, 1), 50);
+
+        const { startDate, endDate } = calculateDateRangeWithTimezone(period, timezone, weekStartsOn);
+
+        // Get calendar events for the period
+        const { data: events, error: eventsError } = await client
+          .from('calendar_events')
+          .select(`
+            id, external_id, title, description, start_time, end_time, location, meeting_url,
+            attendees, attendees_count, status, is_recurring, organizer_email
+          `)
+          .eq('user_id', userId)
+          .neq('status', 'cancelled')
+          .gte('start_time', startDate.toISOString())
+          .lte('start_time', endDate.toISOString())
+          .order('start_time', { ascending: true })
+          .limit(limit);
+
+        if (eventsError) throw eventsError;
+
+        // Process meetings
+        const meetings = (events || []).map((event: any) => {
+          const startTime = new Date(event.start_time);
+          const endTime = new Date(event.end_time);
+          const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
+
+          // Parse attendees
+          let attendees: Array<{ email: string; name?: string }> = [];
+          if (event.attendees) {
+            try {
+              const attendeeList = typeof event.attendees === 'string'
+                ? JSON.parse(event.attendees)
+                : event.attendees;
+
+              if (Array.isArray(attendeeList)) {
+                attendees = attendeeList.map((a: { email?: string; displayName?: string }) => ({
+                  email: a.email || '',
+                  name: a.displayName || undefined,
+                }));
+              }
+            } catch {
+              // Attendees not parseable
+            }
+          }
+
+          return {
+            id: event.id,
+            externalId: event.external_id,
+            title: event.title,
+            startTime: event.start_time,
+            endTime: event.end_time,
+            durationMinutes,
+            location: event.location,
+            meetingUrl: event.meeting_url,
+            attendees,
+            attendeesCount: event.attendees_count || attendees.length,
+            status: event.status,
+          };
+        });
+
+        // If context requested, enrich with CRM data
+        if (includeContext && meetings.length > 0) {
+          // Collect all unique external emails
+          const allEmails = new Set<string>();
+          meetings.forEach((m: any) => {
+            m.attendees.forEach((a: { email: string }) => {
+              if (a.email) allEmails.add(a.email.toLowerCase());
+            });
+          });
+
+          if (allEmails.size > 0) {
+            // Look up contacts
+            const { data: contacts } = await client
+              .from('contacts')
+              .select('id, email, full_name, title, company_id')
+              .eq('owner_id', userId)
+              .in('email', Array.from(allEmails));
+
+            const contactsByEmail = new Map(
+              (contacts || []).map((c: any) => [c.email?.toLowerCase(), c])
+            );
+
+            // Enrich each meeting with contact info
+            meetings.forEach((m: any) => {
+              m.attendeeContext = m.attendees
+                .map((a: { email: string }) => {
+                  const contact = contactsByEmail.get(a.email?.toLowerCase());
+                  if (contact) {
+                    return {
+                      email: a.email,
+                      contactId: contact.id,
+                      name: contact.full_name,
+                      title: contact.title,
+                    };
+                  }
+                  return null;
+                })
+                .filter(Boolean);
+            });
+          }
+        }
+
+        return ok({
+          period,
+          timezone,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          count: meetings.length,
+          meetings,
+        }, this.source);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return fail(msg, this.source);
+      }
+    },
+
+    async getTimeBreakdown(params) {
+      try {
+        const period = params.period || 'this_week';
+        const timezone = params.timezone || 'UTC';
+        const weekStartsOn = params.weekStartsOn ?? 1;
+
+        const { startDate, endDate } = calculateDateRangeWithTimezone(period, timezone, weekStartsOn);
+
+        // Get calendar events for the period
+        const { data: events, error: eventsError } = await client
+          .from('calendar_events')
+          .select('id, title, start_time, end_time, attendees_count, status')
+          .eq('user_id', userId)
+          .neq('status', 'cancelled')
+          .gte('start_time', startDate.toISOString())
+          .lte('start_time', endDate.toISOString());
+
+        if (eventsError) throw eventsError;
+
+        // Calculate time breakdown
+        let totalMeetingMinutes = 0;
+        let internalMeetings = 0;
+        let internalMinutes = 0;
+        let externalMeetings = 0;
+        let externalMinutes = 0;
+        let oneOnOneMeetings = 0;
+        let oneOnOneMinutes = 0;
+        let groupMeetings = 0;
+        let groupMinutes = 0;
+        const byDayOfWeek: Record<string, { count: number; minutes: number }> = {};
+
+        for (const event of events || []) {
+          const startTime = new Date(event.start_time);
+          const endTime = new Date(event.end_time);
+          const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
+
+          totalMeetingMinutes += durationMinutes;
+
+          // Day of week breakdown
+          const dayName = startTime.toLocaleDateString('en-US', { weekday: 'short' });
+          if (!byDayOfWeek[dayName]) {
+            byDayOfWeek[dayName] = { count: 0, minutes: 0 };
+          }
+          byDayOfWeek[dayName].count++;
+          byDayOfWeek[dayName].minutes += durationMinutes;
+
+          // Categorize by attendee count (simple heuristic)
+          const attendeeCount = event.attendees_count || 0;
+
+          if (attendeeCount <= 2) {
+            oneOnOneMeetings++;
+            oneOnOneMinutes += durationMinutes;
+          } else {
+            groupMeetings++;
+            groupMinutes += durationMinutes;
+          }
+
+          // Simple internal/external heuristic based on title keywords
+          const title = (event.title || '').toLowerCase();
+          const isInternal = title.includes('internal') ||
+            title.includes('team') ||
+            title.includes('standup') ||
+            title.includes('sync') ||
+            title.includes('1:1') ||
+            title.includes('one on one');
+
+          if (isInternal) {
+            internalMeetings++;
+            internalMinutes += durationMinutes;
+          } else {
+            externalMeetings++;
+            externalMinutes += durationMinutes;
+          }
+        }
+
+        // Calculate period duration
+        const periodDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        const workingHoursPerDay = 8;
+        const totalWorkingMinutes = periodDays * workingHoursPerDay * 60;
+        const meetingPercentage = totalWorkingMinutes > 0
+          ? Math.round((totalMeetingMinutes / totalWorkingMinutes) * 100)
+          : 0;
+
+        return ok({
+          period,
+          timezone,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          periodDays,
+          summary: {
+            totalMeetings: (events || []).length,
+            totalMeetingMinutes,
+            totalMeetingHours: Math.round(totalMeetingMinutes / 60 * 10) / 10,
+            meetingPercentageOfWorkTime: meetingPercentage,
+            averageMeetingMinutes: (events || []).length > 0
+              ? Math.round(totalMeetingMinutes / (events || []).length)
+              : 0,
+          },
+          breakdown: {
+            internal: { count: internalMeetings, minutes: internalMinutes },
+            external: { count: externalMeetings, minutes: externalMinutes },
+            oneOnOne: { count: oneOnOneMeetings, minutes: oneOnOneMinutes },
+            group: { count: groupMeetings, minutes: groupMinutes },
+          },
+          byDayOfWeek: Object.entries(byDayOfWeek).map(([day, data]) => ({
+            day,
+            count: data.count,
+            minutes: data.minutes,
+          })),
+        }, this.source);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return fail(msg, this.source);
+      }
+    },
   };
 }
 
@@ -294,6 +785,175 @@ function calculateDateRange(period: string): { startDate: Date; endDate: Date } 
     }
     default:
       return { startDate: startOfDay(now), endDate: endOfDay(now) };
+  }
+}
+
+/**
+ * Timezone-aware date range calculation
+ * Converts relative periods (today, this_week) to UTC ranges for the user's timezone
+ */
+function calculateDateRangeWithTimezone(
+  period: string,
+  timezone: string = 'UTC',
+  weekStartsOn: 0 | 1 = 1 // 0 = Sunday, 1 = Monday
+): { startDate: Date; endDate: Date } {
+  // Get current time in user's timezone
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+
+  const nowUtc = new Date();
+  const parts = formatter.formatToParts(nowUtc);
+  const getPart = (type: string) => parts.find(p => p.type === type)?.value || '0';
+
+  // Construct the "now" in user's local date (but as a UTC Date object for calculation)
+  const localYear = parseInt(getPart('year'));
+  const localMonth = parseInt(getPart('month')) - 1;
+  const localDay = parseInt(getPart('day'));
+  const localHour = parseInt(getPart('hour'));
+  const localMinute = parseInt(getPart('minute'));
+
+  // Create a Date representing local midnight
+  const localMidnight = new Date(Date.UTC(localYear, localMonth, localDay, 0, 0, 0, 0));
+  const localEndOfDay = new Date(Date.UTC(localYear, localMonth, localDay, 23, 59, 59, 999));
+
+  // Calculate timezone offset to convert local times back to UTC
+  const localNow = new Date(Date.UTC(localYear, localMonth, localDay, localHour, localMinute));
+  const offsetMs = localNow.getTime() - nowUtc.getTime();
+  // Round to nearest minute to handle DST edge cases
+  const offsetMinutes = Math.round(offsetMs / 60000);
+
+  // Helper to convert local Date to UTC
+  const localToUtc = (localDate: Date): Date => {
+    return new Date(localDate.getTime() - offsetMinutes * 60000);
+  };
+
+  switch (period) {
+    case 'today':
+      return {
+        startDate: localToUtc(localMidnight),
+        endDate: localToUtc(localEndOfDay),
+      };
+
+    case 'tomorrow': {
+      const tomorrowStart = new Date(localMidnight);
+      tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
+      const tomorrowEnd = new Date(localEndOfDay);
+      tomorrowEnd.setUTCDate(tomorrowEnd.getUTCDate() + 1);
+      return {
+        startDate: localToUtc(tomorrowStart),
+        endDate: localToUtc(tomorrowEnd),
+      };
+    }
+
+    case 'this_week': {
+      // Get current day of week (0 = Sunday, 1 = Monday, etc.)
+      const currentDayOfWeek = new Date(Date.UTC(localYear, localMonth, localDay)).getUTCDay();
+
+      // Calculate days to subtract to get to week start
+      let daysToSubtract: number;
+      if (weekStartsOn === 1) {
+        // Monday start
+        daysToSubtract = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
+      } else {
+        // Sunday start
+        daysToSubtract = currentDayOfWeek;
+      }
+
+      const weekStart = new Date(localMidnight);
+      weekStart.setUTCDate(weekStart.getUTCDate() - daysToSubtract);
+
+      const weekEnd = new Date(weekStart);
+      weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+      weekEnd.setUTCHours(23, 59, 59, 999);
+
+      return {
+        startDate: localToUtc(weekStart),
+        endDate: localToUtc(weekEnd),
+      };
+    }
+
+    case 'next_week': {
+      const currentDayOfWeek = new Date(Date.UTC(localYear, localMonth, localDay)).getUTCDay();
+      let daysToSubtract: number;
+      if (weekStartsOn === 1) {
+        daysToSubtract = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
+      } else {
+        daysToSubtract = currentDayOfWeek;
+      }
+
+      const thisWeekStart = new Date(localMidnight);
+      thisWeekStart.setUTCDate(thisWeekStart.getUTCDate() - daysToSubtract);
+
+      const nextWeekStart = new Date(thisWeekStart);
+      nextWeekStart.setUTCDate(nextWeekStart.getUTCDate() + 7);
+
+      const nextWeekEnd = new Date(nextWeekStart);
+      nextWeekEnd.setUTCDate(nextWeekEnd.getUTCDate() + 6);
+      nextWeekEnd.setUTCHours(23, 59, 59, 999);
+
+      return {
+        startDate: localToUtc(nextWeekStart),
+        endDate: localToUtc(nextWeekEnd),
+      };
+    }
+
+    case 'last_week': {
+      const currentDayOfWeek = new Date(Date.UTC(localYear, localMonth, localDay)).getUTCDay();
+      let daysToSubtract: number;
+      if (weekStartsOn === 1) {
+        daysToSubtract = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
+      } else {
+        daysToSubtract = currentDayOfWeek;
+      }
+
+      const thisWeekStart = new Date(localMidnight);
+      thisWeekStart.setUTCDate(thisWeekStart.getUTCDate() - daysToSubtract);
+
+      const lastWeekStart = new Date(thisWeekStart);
+      lastWeekStart.setUTCDate(lastWeekStart.getUTCDate() - 7);
+
+      const lastWeekEnd = new Date(lastWeekStart);
+      lastWeekEnd.setUTCDate(lastWeekEnd.getUTCDate() + 6);
+      lastWeekEnd.setUTCHours(23, 59, 59, 999);
+
+      return {
+        startDate: localToUtc(lastWeekStart),
+        endDate: localToUtc(lastWeekEnd),
+      };
+    }
+
+    case 'this_month': {
+      const monthStart = new Date(Date.UTC(localYear, localMonth, 1, 0, 0, 0, 0));
+      const monthEnd = new Date(Date.UTC(localYear, localMonth + 1, 0, 23, 59, 59, 999));
+      return {
+        startDate: localToUtc(monthStart),
+        endDate: localToUtc(monthEnd),
+      };
+    }
+
+    case 'last_month': {
+      const lastMonthStart = new Date(Date.UTC(localYear, localMonth - 1, 1, 0, 0, 0, 0));
+      const lastMonthEnd = new Date(Date.UTC(localYear, localMonth, 0, 23, 59, 59, 999));
+      return {
+        startDate: localToUtc(lastMonthStart),
+        endDate: localToUtc(lastMonthEnd),
+      };
+    }
+
+    default:
+      // Default to today
+      return {
+        startDate: localToUtc(localMidnight),
+        endDate: localToUtc(localEndOfDay),
+      };
   }
 }
 

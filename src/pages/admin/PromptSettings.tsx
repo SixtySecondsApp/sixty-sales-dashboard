@@ -43,7 +43,6 @@ import {
   MessageSquare,
   ClipboardList,
   PenTool,
-  Zap,
   Database,
   Code,
   AlertCircle,
@@ -87,12 +86,8 @@ const PROMPT_CATEGORIES = {
     description: 'Prompts for creating proposals and SOWs',
     features: ['proposal_focus_areas', 'proposal_goals', 'proposal_sow', 'proposal_html', 'proposal_email', 'proposal_markdown'],
   },
-  workflow: {
-    label: 'Workflow Engine',
-    icon: Zap,
-    description: 'Dynamic prompts for workflow automation',
-    features: ['workflow_tools', 'workflow_mcp', 'workflow_json', 'workflow_few_shot'],
-  },
+  // NOTE: Workflow prompts (workflow_tools, workflow_mcp, workflow_json, workflow_few_shot)
+  // are internal infrastructure and not exposed in the admin UI
   search: {
     label: 'Search & Intelligence',
     icon: Database,
@@ -129,10 +124,7 @@ const FEATURE_LABELS: Record<string, string> = {
   proposal_html: 'HTML Proposal',
   proposal_email: 'Email Proposal',
   proposal_markdown: 'Markdown Proposal',
-  workflow_tools: 'Tool Instructions',
-  workflow_mcp: 'MCP Instructions',
-  workflow_json: 'JSON Output',
-  workflow_few_shot: 'Few-Shot Learning',
+  // Workflow prompts are internal infrastructure - not shown in UI
   search_query_parse: 'Search Query Parser',
   process_map_generation: 'Mermaid Diagram Generation',
   organization_data_collection: 'Organization Data Collection',
@@ -175,7 +167,6 @@ export default function PromptSettings() {
     meetings: false,
     actions: false,
     proposals: false,
-    workflow: false,
     search: false,
     processMaps: false,
     onboarding: false,

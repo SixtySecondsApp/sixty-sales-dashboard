@@ -2179,6 +2179,10 @@ ACTION PARAMETERS:
 ## Meetings & Calendar
 • get_meetings: { contactEmail?, contactId?, limit? } - Get meetings with a contact. IMPORTANT: Always pass contactEmail when you have an email address!
 • get_booking_stats: { period?, filter_by?, source?, org_wide? } - Get meeting/booking statistics. period: "this_week"|"last_week"|"this_month"|"last_month"|"last_7_days"|"last_30_days" (default: "this_week").
+• get_meeting_count: { period?, timezone?, week_starts_on? } - Count meetings for a period. period: "today"|"tomorrow"|"this_week"|"next_week"|"this_month" (default: "this_week"). Uses user's timezone for accurate date boundaries.
+• get_next_meeting: { include_context?, timezone? } - Get next upcoming meeting with CRM context. include_context (default: true) adds company, deal, previous meetings, and recent activities. HERO FEATURE for meeting prep.
+• get_meetings_for_period: { period?, timezone?, week_starts_on?, include_context?, limit? } - Get meeting list for today or tomorrow. period: "today"|"tomorrow" (default: "today"). Great for daily briefings.
+• get_time_breakdown: { period?, timezone?, week_starts_on? } - Analyze time spent in meetings. Returns total hours, internal vs external split, 1:1 vs group breakdown, and daily distribution.
 
 ## Email & Notifications
 • search_emails: { contact_email?, query?, limit? } - Search emails by contact email or query
@@ -2205,6 +2209,10 @@ Write actions require params.confirm=true.`,
             'get_company_status',
             'get_meetings',
             'get_booking_stats',
+            'get_meeting_count',
+            'get_next_meeting',
+            'get_meetings_for_period',
+            'get_time_breakdown',
             'search_emails',
             'draft_email',
             'update_crm',
@@ -2241,7 +2249,10 @@ Write actions require params.confirm=true.`,
             // Meeting params
             contactEmail: { type: 'string', description: 'Email of the contact (for get_meetings) - PREFERRED method' },
             contactId: { type: 'string', description: 'Contact ID (for get_meetings)' },
-            period: { type: 'string', enum: ['this_week', 'last_week', 'this_month', 'last_month', 'this_quarter', 'next_quarter', 'last_7_days', 'last_30_days'], description: 'Time period (for get_booking_stats, get_pipeline_deals, get_pipeline_forecast)' },
+            period: { type: 'string', enum: ['today', 'tomorrow', 'this_week', 'next_week', 'last_week', 'this_month', 'last_month', 'this_quarter', 'next_quarter', 'last_7_days', 'last_30_days'], description: 'Time period (for meeting queries, get_booking_stats, get_pipeline_deals, get_pipeline_forecast)' },
+            timezone: { type: 'string', description: 'IANA timezone (e.g., Europe/London, America/New_York) for timezone-aware date calculations (for get_meeting_count, get_next_meeting, get_meetings_for_period, get_time_breakdown). Auto-detected from user profile if not provided.' },
+            week_starts_on: { type: 'number', enum: [0, 1], description: 'Week start day: 0=Sunday, 1=Monday (default). Used for this_week/next_week/last_week calculations.' },
+            include_context: { type: 'boolean', description: 'Include CRM context (company, deal, activities) with meeting data (for get_next_meeting, get_meetings_for_period). Default: true for get_next_meeting.' },
             filter_by: { type: 'string', enum: ['meeting_date', 'booking_date'], description: 'Filter by when meeting is scheduled or when booking was created (for get_booking_stats)' },
             source: { type: 'string', enum: ['all', 'savvycal', 'calendar', 'meetings'], description: 'Data source to query (for get_booking_stats)' },
             org_wide: { type: 'boolean', description: 'If true and user is admin, show all org bookings (for get_booking_stats)' },

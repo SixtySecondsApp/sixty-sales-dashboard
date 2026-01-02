@@ -413,6 +413,60 @@ export async function executeAction(
       });
     }
 
+    case 'get_meeting_count': {
+      // Get count of meetings for a period with timezone awareness
+      const period = params.period ? String(params.period) as 'today' | 'tomorrow' | 'this_week' | 'next_week' | 'this_month' : 'this_week';
+      const timezone = params.timezone ? String(params.timezone) : undefined;
+      const weekStartsOn = params.week_starts_on !== undefined ? (Number(params.week_starts_on) as 0 | 1) : undefined;
+
+      return adapters.meetings.getMeetingCount({
+        period,
+        timezone,
+        weekStartsOn,
+      });
+    }
+
+    case 'get_next_meeting': {
+      // Get next upcoming meeting with optional CRM context enrichment
+      const includeContext = params.include_context !== false; // Default to true for hero feature
+      const timezone = params.timezone ? String(params.timezone) : undefined;
+
+      return adapters.meetings.getNextMeeting({
+        includeContext,
+        timezone,
+      });
+    }
+
+    case 'get_meetings_for_period': {
+      // Get list of meetings for today or tomorrow
+      const period = params.period ? String(params.period) as 'today' | 'tomorrow' : 'today';
+      const timezone = params.timezone ? String(params.timezone) : undefined;
+      const weekStartsOn = params.week_starts_on !== undefined ? (Number(params.week_starts_on) as 0 | 1) : undefined;
+      const includeContext = params.include_context === true;
+      const limit = params.limit ? Number(params.limit) : undefined;
+
+      return adapters.meetings.getMeetingsForPeriod({
+        period,
+        timezone,
+        weekStartsOn,
+        includeContext,
+        limit,
+      });
+    }
+
+    case 'get_time_breakdown': {
+      // Get time breakdown statistics (meetings vs other activities)
+      const period = params.period ? String(params.period) as 'this_week' | 'last_week' | 'this_month' | 'last_month' : 'this_week';
+      const timezone = params.timezone ? String(params.timezone) : undefined;
+      const weekStartsOn = params.week_starts_on !== undefined ? (Number(params.week_starts_on) as 0 | 1) : undefined;
+
+      return adapters.meetings.getTimeBreakdown({
+        period,
+        timezone,
+        weekStartsOn,
+      });
+    }
+
     case 'create_task': {
       // Create a task in the database
       const title = params.title ? String(params.title) : '';

@@ -105,6 +105,39 @@ export interface MeetingAdapter {
     isAdmin?: boolean;
     orgId?: string;
   }): Promise<ActionResult>;
+  /**
+   * Get count of meetings for a period with timezone awareness
+   */
+  getMeetingCount(params: {
+    period: 'today' | 'tomorrow' | 'this_week' | 'next_week' | 'this_month';
+    timezone?: string;
+    weekStartsOn?: 0 | 1;
+  }): Promise<ActionResult>;
+  /**
+   * Get next upcoming meeting with optional CRM context enrichment
+   */
+  getNextMeeting(params: {
+    includeContext?: boolean;
+    timezone?: string;
+  }): Promise<ActionResult>;
+  /**
+   * Get list of meetings for a specific period (today/tomorrow)
+   */
+  getMeetingsForPeriod(params: {
+    period: 'today' | 'tomorrow';
+    timezone?: string;
+    weekStartsOn?: 0 | 1;
+    includeContext?: boolean;
+    limit?: number;
+  }): Promise<ActionResult>;
+  /**
+   * Get time breakdown statistics (meetings vs other activities)
+   */
+  getTimeBreakdown(params: {
+    period: 'this_week' | 'last_week' | 'this_month' | 'last_month';
+    timezone?: string;
+    weekStartsOn?: 0 | 1;
+  }): Promise<ActionResult>;
 }
 
 export interface CRMAdapter {

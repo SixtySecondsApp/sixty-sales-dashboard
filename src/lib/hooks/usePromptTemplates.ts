@@ -1,23 +1,27 @@
 /**
  * usePromptTemplates Hook
  *
- * React hook for managing AI prompt templates.
- * Provides CRUD operations for user prompt customizations.
+ * React hook for managing AI prompt templates in the admin UI.
+ * Provides access to default and customized prompts with CRUD operations.
+ *
+ * @see /src/lib/services/promptService.ts for underlying service
+ * @see /src/pages/admin/PromptSettings.tsx for usage
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@/lib/contexts/AuthContext';
+import { useState, useCallback, useEffect } from 'react';
+import { useUser } from '@/lib/hooks/useUser';
 import {
   loadPrompt,
-  saveUserPrompt,
-  getUserPrompts,
-  deleteUserPrompt,
   getAllPromptTemplates,
   getDefaultTemplate,
+  saveUserPrompt,
+  resetPromptToDefault,
+  getUserPrompts,
   clearPromptCache,
-  type DBPromptTemplate,
   type LoadedPrompt,
+  type DBPromptTemplate,
 } from '@/lib/services/promptService';
+import type { PromptTemplate, ModelConfig } from '@/lib/prompts';
 
 // ============================================================================
 // Types
@@ -31,29 +35,52 @@ export interface PromptTemplateInfo {
   source: 'default' | 'database';
 }
 
+export interface SelectedPromptInfo {
+  template: PromptTemplate;
+  modelConfig: ModelConfig;
+  source: 'default' | 'database';
+  dbId?: string;
+}
+
+export interface PromptCustomizationData {
+  name: string;
+  description?: string;
+  systemPrompt: string;
+  userPrompt: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+}
+
 export interface UsePromptTemplatesReturn {
-  // Data
+  /** List of all available prompt templates with customization status */
   templates: PromptTemplateInfo[];
-  userCustomizations: DBPromptTemplate[];
-  selectedPrompt: LoadedPrompt | null;
+
+  /** Map of user customizations by feature key */
+  userCustomizations: Record<string, DBPromptTemplate>;
+
+  /** Currently selected/loaded prompt */
+  selectedPrompt: SelectedPromptInfo | null;
+
+  /** Loading state */
   isLoading: boolean;
+
+  /** Error message if any */
   error: string | null;
 
-  // Actions
+  /** Load a specific template by feature key */
   loadTemplate: (featureKey: string) => Promise<void>;
+
+  /** Save a customization for a prompt */
   saveCustomization: (
     featureKey: string,
-    data: {
-      name: string;
-      description?: string;
-      systemPrompt: string;
-      userPrompt: string;
-      model?: string;
-      temperature?: number;
-      maxTokens?: number;
-    }
+    data: PromptCustomizationData
   ) => Promise<void>;
+
+  /** Reset a prompt to its default state */
   resetToDefault: (featureKey: string) => Promise<void>;
+
+  /** Refresh the list of templates */
   refreshTemplates: () => Promise<void>;
 }
 
@@ -62,134 +89,155 @@ export interface UsePromptTemplatesReturn {
 // ============================================================================
 
 export function usePromptTemplates(): UsePromptTemplatesReturn {
-  const { user } = useAuth();
+  const { userData } = useUser();
+  const userId = userData?.id;
+
+  // State
   const [templates, setTemplates] = useState<PromptTemplateInfo[]>([]);
-  const [userCustomizations, setUserCustomizations] = useState<DBPromptTemplate[]>([]);
-  const [selectedPrompt, setSelectedPrompt] = useState<LoadedPrompt | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [userCustomizations, setUserCustomizations] = useState<
+    Record<string, DBPromptTemplate>
+  >({});
+  const [selectedPrompt, setSelectedPrompt] =
+    useState<SelectedPromptInfo | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load all templates on mount
+  // ============================================================================
+  // Load Templates List
+  // ============================================================================
+
   const refreshTemplates = useCallback(async () => {
-    if (!user?.id) {
-      setIsLoading(false);
-      return;
-    }
+    if (!userId) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const [allTemplates, customizations] = await Promise.all([
-        getAllPromptTemplates(user.id),
-        getUserPrompts(user.id),
-      ]);
-
+      // Get all templates with customization status
+      const allTemplates = await getAllPromptTemplates(userId);
       setTemplates(allTemplates);
-      setUserCustomizations(customizations);
+
+      // Get user's customizations for quick lookup
+      const customizations = await getUserPrompts(userId);
+      const customizationMap: Record<string, DBPromptTemplate> = {};
+      customizations.forEach((c) => {
+        if (c.category) {
+          customizationMap[c.category] = c;
+        }
+      });
+      setUserCustomizations(customizationMap);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load templates');
+      console.error('Failed to load prompt templates:', err);
+      setError(
+        err instanceof Error ? err.message : 'Failed to load templates'
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id]);
+  }, [userId]);
 
+  // Load templates on mount and when user changes
   useEffect(() => {
     refreshTemplates();
   }, [refreshTemplates]);
 
-  // Load a specific template
+  // ============================================================================
+  // Load Single Template
+  // ============================================================================
+
   const loadTemplate = useCallback(
     async (featureKey: string) => {
-      if (!user?.id) {
-        setError('User not authenticated');
-        return;
-      }
+      if (!userId) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const loaded = await loadPrompt(featureKey, user.id, true);
+        const loaded = await loadPrompt(featureKey, userId, true); // Skip cache for fresh data
         setSelectedPrompt(loaded);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load template');
+        console.error(`Failed to load template ${featureKey}:`, err);
+        setError(
+          err instanceof Error ? err.message : 'Failed to load template'
+        );
         setSelectedPrompt(null);
       } finally {
         setIsLoading(false);
       }
     },
-    [user?.id]
+    [userId]
   );
 
-  // Save a customization
+  // ============================================================================
+  // Save Customization
+  // ============================================================================
+
   const saveCustomization = useCallback(
-    async (
-      featureKey: string,
-      data: {
-        name: string;
-        description?: string;
-        systemPrompt: string;
-        userPrompt: string;
-        model?: string;
-        temperature?: number;
-        maxTokens?: number;
-      }
-    ) => {
-      if (!user?.id) {
+    async (featureKey: string, data: PromptCustomizationData) => {
+      if (!userId) {
         throw new Error('User not authenticated');
       }
 
-      setIsLoading(true);
-      setError(null);
-
       try {
-        await saveUserPrompt(user.id, featureKey, data);
-        clearPromptCache(featureKey, user.id);
+        // Get the default template for variables
+        const defaultTemplate = getDefaultTemplate(featureKey);
+        const variables = defaultTemplate?.variables || [];
+
+        await saveUserPrompt(userId, featureKey, {
+          name: data.name,
+          description: data.description,
+          systemPrompt: data.systemPrompt,
+          userPrompt: data.userPrompt,
+          model: data.model,
+          temperature: data.temperature,
+          maxTokens: data.maxTokens,
+          variables,
+        });
+
+        // Clear cache and refresh
+        clearPromptCache(featureKey, userId);
         await refreshTemplates();
 
-        // Reload the template to get updated data
-        const loaded = await loadPrompt(featureKey, user.id, true);
-        setSelectedPrompt(loaded);
+        // Reload the selected template to show updated data
+        await loadTemplate(featureKey);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to save customization';
-        setError(message);
-        throw new Error(message);
-      } finally {
-        setIsLoading(false);
+        console.error(`Failed to save customization for ${featureKey}:`, err);
+        throw err;
       }
     },
-    [user?.id, refreshTemplates]
+    [userId, refreshTemplates, loadTemplate]
   );
 
-  // Reset to default
+  // ============================================================================
+  // Reset to Default
+  // ============================================================================
+
   const resetToDefault = useCallback(
     async (featureKey: string) => {
-      if (!user?.id) {
+      if (!userId) {
         throw new Error('User not authenticated');
       }
 
-      setIsLoading(true);
-      setError(null);
-
       try {
-        await deleteUserPrompt(user.id, featureKey);
-        clearPromptCache(featureKey, user.id);
+        await resetPromptToDefault(userId, featureKey);
+
+        // Clear cache and refresh
+        clearPromptCache(featureKey, userId);
         await refreshTemplates();
 
-        // Reload to show default
-        const loaded = await loadPrompt(featureKey, user.id, true);
-        setSelectedPrompt(loaded);
+        // Reload the template to show default
+        await loadTemplate(featureKey);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to reset template';
-        setError(message);
-        throw new Error(message);
-      } finally {
-        setIsLoading(false);
+        console.error(`Failed to reset ${featureKey} to default:`, err);
+        throw err;
       }
     },
-    [user?.id, refreshTemplates]
+    [userId, refreshTemplates, loadTemplate]
   );
+
+  // ============================================================================
+  // Return Hook Value
+  // ============================================================================
 
   return {
     templates,
@@ -204,53 +252,5 @@ export function usePromptTemplates(): UsePromptTemplatesReturn {
   };
 }
 
-// ============================================================================
-// Utility Hook for Single Prompt
-// ============================================================================
-
-export function usePromptTemplate(featureKey: string) {
-  const { user } = useAuth();
-  const [prompt, setPrompt] = useState<LoadedPrompt | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function load() {
-      if (!featureKey) {
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const loaded = await loadPrompt(featureKey, user?.id);
-        setPrompt(loaded);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load prompt');
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    load();
-  }, [featureKey, user?.id]);
-
-  const refresh = useCallback(async () => {
-    if (!featureKey) return;
-
-    setIsLoading(true);
-    try {
-      clearPromptCache(featureKey, user?.id);
-      const loaded = await loadPrompt(featureKey, user?.id, true);
-      setPrompt(loaded);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to refresh prompt');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [featureKey, user?.id]);
-
-  return { prompt, isLoading, error, refresh };
-}
+// Re-export the getDefaultTemplate for use in components
+export { getDefaultTemplate } from '@/lib/services/promptService';
