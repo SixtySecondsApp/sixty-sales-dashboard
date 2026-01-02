@@ -513,6 +513,15 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     order: 50.5,
   },
   {
+    path: '/platform/dev/billing-analytics',
+    access: 'platformAdmin',
+    label: 'Billing Analytics',
+    icon: BarChart3,
+    showInNav: false,
+    navSection: 'platform',
+    order: 50.6,
+  },
+  {
     path: '/platform/dev/functions',
     access: 'platformAdmin',
     label: 'Function Testing',
