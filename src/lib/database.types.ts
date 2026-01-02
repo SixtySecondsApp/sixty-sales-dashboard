@@ -172,6 +172,8 @@ export interface Database {
           updated_at: string | null
           username: string | null
           website: string | null
+          timezone: string | null
+          week_starts_on: number | null
         }
         Insert: {
           id: string
@@ -188,6 +190,8 @@ export interface Database {
           updated_at?: string | null
           username?: string | null
           website?: string | null
+          timezone?: string | null
+          week_starts_on?: number | null
         }
         Update: {
           id?: string
@@ -204,6 +208,8 @@ export interface Database {
           updated_at?: string | null
           username?: string | null
           website?: string | null
+          timezone?: string | null
+          week_starts_on?: number | null
         }
         Relationships: []
       }

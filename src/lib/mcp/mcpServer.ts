@@ -267,7 +267,7 @@ export class CRMMCPServer extends MCPServer {
         const { data: contacts } = await supabase
           .from('contacts')
           .select('*')
-          .eq('user_id', this.userId)
+          .eq('owner_id', this.userId)  // contacts table uses owner_id, not user_id
           .limit(100);
         return { contents: contacts };
         

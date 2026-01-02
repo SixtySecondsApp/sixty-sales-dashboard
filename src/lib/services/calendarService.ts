@@ -521,7 +521,7 @@ class CalendarService {
       const { data: contacts, error: contactsError } = await supabase
         .from('contacts')
         .select('id, email')
-        .eq('user_id', user.user.id);
+        .eq('owner_id', user.user.id);  // contacts table uses owner_id, not user_id
 
       if (contactsError) {
         throw contactsError;

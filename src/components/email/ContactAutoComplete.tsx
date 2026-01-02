@@ -50,7 +50,7 @@ export function ContactAutoComplete({
       const { data, error } = await supabase
         .from('contacts')
         .select('id, full_name, email, company, title')
-        .eq('user_id', user.id)
+        .eq('owner_id', user.id)  // contacts table uses owner_id, not user_id
         .or(`full_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,company.ilike.%${searchQuery}%`)
         .limit(10);
 

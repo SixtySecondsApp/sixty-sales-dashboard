@@ -27,7 +27,7 @@ export function EmailIcon() {
       const { data, error } = await supabase
         .from('contacts')
         .select('id, email, first_name, last_name, full_name, company_id')
-        .eq('user_id', user.id)
+        .eq('owner_id', user.id)  // contacts table uses owner_id, not user_id
         .not('email', 'is', null);
       
       if (error) return [];
