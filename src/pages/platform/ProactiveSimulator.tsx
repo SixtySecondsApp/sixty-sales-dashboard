@@ -10,7 +10,7 @@
 
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Send, Bell, MessageSquare, CheckSquare, Mail, Activity, ShieldAlert } from 'lucide-react';
+import { Loader2, Send, Bell, MessageSquare, CheckSquare, Mail, Activity, ShieldAlert, Sparkles } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase/clientV2';
 import { useAuth } from '@/lib/contexts/AuthContext';
@@ -33,7 +33,8 @@ type ProactiveSimulateFeature =
   | 'post_call_summary'
   | 'stale_deal_alert'
   | 'email_reply_alert'
-  | 'hitl_followup_email';
+  | 'hitl_followup_email'
+  | 'ai_smart_suggestion';
 
 const FEATURE_META: Array<{
   key: ProactiveSimulateFeature;
@@ -83,6 +84,12 @@ const FEATURE_META: Array<{
     description: 'High urgency inbound reply summary + suggested next action.',
     icon: Mail,
   },
+  {
+    key: 'ai_smart_suggestion',
+    title: '60 Smart Suggestion (AI)',
+    description: 'Dynamic AI-powered suggestion, encouragement, or insight based on user activity.',
+    icon: Sparkles,
+  },
 ];
 
 interface ProactiveSimulateResponse {
@@ -109,6 +116,33 @@ interface ProactiveSimulateResponse {
   debug?: Record<string, unknown>;
 }
 
+const PROACTIVE_SIMULATE_RESPONSE_FORMAT = {
+  responseFormat: 'json' as const,
+  fields: {
+    success: 'boolean',
+    feature: 'string',
+    orgId: 'string',
+    targetUserId: 'string',
+    slack: {
+      attempted: 'boolean',
+      sent: 'boolean',
+      channelId: 'string?',
+      ts: 'string?',
+      error: 'string?',
+    },
+    inApp: {
+      attempted: 'boolean',
+      created: 'boolean',
+      notificationId: 'string?',
+      error: 'string?',
+    },
+    hitl: {
+      approvalId: 'string?',
+    },
+    debug: 'object?',
+  },
+};
+
 export default function ProactiveSimulator() {
   const { user } = useAuth();
   const { activeOrgId } = useOrg();
@@ -116,6 +150,7 @@ export default function ProactiveSimulator() {
   const [sendSlack, setSendSlack] = useState(true);
   const [createInApp, setCreateInApp] = useState(true);
   const [dryRun, setDryRun] = useState(false);
+  const [useRealData, setUseRealData] = useState(false);
   const [selected, setSelected] = useState<ProactiveSimulateFeature>('morning_brief');
   const [isSending, setIsSending] = useState(false);
   const [lastResult, setLastResult] = useState<ProactiveSimulateResponse | null>(null);
@@ -141,6 +176,7 @@ export default function ProactiveSimulator() {
           sendSlack,
           createInApp,
           dryRun,
+          simulationMode: !useRealData, // false = real data mode
         },
       });
 
@@ -157,16 +193,53 @@ export default function ProactiveSimulator() {
     }
   };
 
+  const copyResponseFormatJson = async () => {
+    try {
+      const example: ProactiveSimulateResponse =
+        lastResult ??
+        ({
+          success: true,
+          feature: selected,
+          orgId: activeOrgId || 'org_example',
+          targetUserId: user?.id || 'user_example',
+          slack: { attempted: true, sent: true, channelId: 'D123', ts: '1700000000.000000' },
+          inApp: { attempted: true, created: true, notificationId: 'notif_example' },
+        } as ProactiveSimulateResponse);
+
+      await navigator.clipboard.writeText(
+        JSON.stringify(
+          {
+            kind: 'agent-simulation-response-format',
+            generatedAt: new Date().toISOString(),
+            tool: 'proactive-simulate',
+            features: FEATURE_META.map((f) => ({
+              key: f.key,
+              title: f.title,
+              description: f.description,
+            })),
+            response: PROACTIVE_SIMULATE_RESPONSE_FORMAT,
+            examples: [example],
+          },
+          null,
+          2
+        )
+      );
+      toast.success('Copied response format JSON');
+    } catch {
+      toast.error('Failed to copy');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-              Proactive 60 Simulator
+              Agent Simulator
             </h1>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Simulate proactive Slack notifications and mirrored in-app notifications for the currently signed-in user.
+              Simulate agent-driven Slack notifications and mirrored in-app notifications for the currently signed-in user.
             </p>
           </div>
           <Badge variant="secondary">Platform Admin</Badge>
@@ -218,6 +291,14 @@ export default function ProactiveSimulator() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Dry run returns the payload and checks configuration, but does not post to Slack or create notifications.
+                </p>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <Label>Use real data</Label>
+                  <Switch checked={useRealData} onCheckedChange={setUseRealData} />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Fetch your actual meetings, tasks, deals, and contacts instead of demo data. Deep links will work!
                 </p>
               </CardContent>
             </Card>
@@ -304,21 +385,26 @@ export default function ProactiveSimulator() {
                   readOnly
                   className="min-h-[260px] font-mono text-xs"
                 />
-                {lastResult ? (
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(JSON.stringify(lastResult, null, 2));
-                        toast.success('Copied');
-                      } catch {
-                        toast.error('Failed to copy');
-                      }
-                    }}
-                  >
-                    Copy JSON
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="outline" onClick={copyResponseFormatJson}>
+                    Copy format + example JSON
                   </Button>
-                ) : null}
+                  {lastResult ? (
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(JSON.stringify(lastResult, null, 2));
+                          toast.success('Copied');
+                        } catch {
+                          toast.error('Failed to copy');
+                        }
+                      }}
+                    >
+                      Copy latest result JSON
+                    </Button>
+                  ) : null}
+                </div>
               </CardContent>
             </Card>
           </div>
