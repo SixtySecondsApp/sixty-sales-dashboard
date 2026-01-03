@@ -9,6 +9,7 @@ export type AuthContext = {
 };
 
 const DEFAULT_INTERNAL_DOMAIN = 'sixtyseconds.video';
+const EXTERNAL_EMAIL_OVERRIDES = new Set<string>(['app@sixtyseconds.video']);
 
 function extractEmailDomain(email: string | null | undefined): string | null {
   if (!email) return null;
@@ -22,6 +23,9 @@ async function isInternalEmailDomain(
   supabase: ReturnType<typeof createClient>,
   email: string | null | undefined
 ): Promise<boolean> {
+  const normalizedEmail = (email || '').trim().toLowerCase();
+  if (EXTERNAL_EMAIL_OVERRIDES.has(normalizedEmail)) return false;
+
   const domain = extractEmailDomain(email);
   if (!domain) return false;
 

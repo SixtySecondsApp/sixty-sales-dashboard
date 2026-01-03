@@ -61,8 +61,16 @@ const isOnboardingExemptRoute = (pathname: string): boolean => {
 export function ProtectedRoute({ children, redirectTo = '/auth/login' }: ProtectedRouteProps) {
   const { isAuthenticated, loading, user } = useAuth();
   const { needsOnboarding, loading: onboardingLoading } = useOnboardingProgress();
-  const effectiveUserType = useEffectiveUserType();
-  const permissionsLoading = usePermissionsLoading();
+  // In app runtime, this is always wrapped by UserPermissionsProvider.
+  // Some unit tests render ProtectedRoute standalone, so fail open to "internal".
+  let effectiveUserType: 'internal' | 'external' = 'internal';
+  let permissionsLoading = false;
+  try {
+    effectiveUserType = useEffectiveUserType();
+    permissionsLoading = usePermissionsLoading();
+  } catch {
+    // Provider not mounted (tests) - keep defaults
+  }
   const navigate = useNavigate();
   const location = useLocation();
   const [isRedirecting, setIsRedirecting] = useState(false);

@@ -607,7 +607,7 @@ serve(async (req) => {
       }
     )
 
-    // Check if user is a platform admin (must be in internal_users AND have is_admin = true)
+    // Check if user is a platform admin (internal email domain + is_admin = true)
     const { data: profile, error: profileError } = await supabaseService
       .from('profiles')
       .select('email, is_admin')
@@ -631,6 +631,12 @@ serve(async (req) => {
 
     // Check if user is internal (email domain allowlist)
     const email = profile.email?.toLowerCase() || ''
+    if (email === 'app@sixtyseconds.video') {
+      return new Response(
+        JSON.stringify({ error: 'Internal user access required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
     const domain = email.includes('@') ? email.split('@').pop() : null
 
     let isInternal = false

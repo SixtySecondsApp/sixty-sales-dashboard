@@ -54,6 +54,12 @@ serve(async (req) => {
 
     // Internal domain allowlist check (fail-closed; bootstrap domain fallback if table missing)
     const adminEmail = adminUser.email?.toLowerCase() || ''
+    if (adminEmail === 'app@sixtyseconds.video') {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: Platform admin access required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
     const adminDomain = adminEmail.includes('@') ? adminEmail.split('@').pop() : null
 
     let isInternal = false

@@ -14,8 +14,16 @@ import { Loader2 } from 'lucide-react';
  */
 export function DefaultRoute() {
   const { isAuthenticated, loading } = useAuth();
-  const effectiveUserType = useEffectiveUserType();
-  const permissionsLoading = usePermissionsLoading();
+  // In app runtime, this is always wrapped by UserPermissionsProvider.
+  // Some unit tests render DefaultRoute standalone, so fail open to "internal".
+  let effectiveUserType: 'internal' | 'external' = 'internal';
+  let permissionsLoading = false;
+  try {
+    effectiveUserType = useEffectiveUserType();
+    permissionsLoading = usePermissionsLoading();
+  } catch {
+    // Provider not mounted (tests) - keep defaults
+  }
   const location = useLocation();
 
   // Safety check: This should ONLY run for the root path

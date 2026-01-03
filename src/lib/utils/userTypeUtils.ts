@@ -25,6 +25,9 @@ let cacheTimestamp: number = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 const DEFAULT_INTERNAL_DOMAIN = 'sixtyseconds.video';
+// Explicit overrides: treat these emails as external even if their domain is internal.
+// Useful for signup/testing flows (e.g., app@sixtyseconds.video).
+const EXTERNAL_EMAIL_OVERRIDES = new Set<string>(['app@sixtyseconds.video']);
 
 function normalizeDomain(domain: string): string {
   return domain.trim().toLowerCase().replace(/^@/, '');
@@ -110,7 +113,10 @@ export function getCachedInternalDomainsSet(): Set<string> {
 export function getUserTypeFromEmail(email: string | null | undefined): UserType {
   if (!email) return 'external';
 
-  const domain = extractEmailDomain(email);
+  const normalizedEmail = email.trim().toLowerCase();
+  if (EXTERNAL_EMAIL_OVERRIDES.has(normalizedEmail)) return 'external';
+
+  const domain = extractEmailDomain(normalizedEmail);
   if (!domain) return 'external';
 
   const internalDomains = getCachedInternalDomainsSet();
@@ -125,7 +131,10 @@ export function getUserTypeFromEmail(email: string | null | undefined): UserType
 export async function getUserTypeFromEmailAsync(email: string | null | undefined): Promise<UserType> {
   if (!email) return 'external';
 
-  const domain = extractEmailDomain(email);
+  const normalizedEmail = email.trim().toLowerCase();
+  if (EXTERNAL_EMAIL_OVERRIDES.has(normalizedEmail)) return 'external';
+
+  const domain = extractEmailDomain(normalizedEmail);
   if (!domain) return 'external';
 
   const internalDomains = await loadInternalDomains();

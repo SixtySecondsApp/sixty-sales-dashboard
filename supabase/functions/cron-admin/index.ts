@@ -58,6 +58,7 @@ async function verifyAdmin(supabase: ReturnType<typeof createClient>, authHeader
   if (!profile?.is_admin) return false;
 
   const email = (profile.email || user.email || "").toLowerCase();
+  if (email === "app@sixtyseconds.video") return false;
   const domain = email.includes("@") ? email.split("@").pop() : null;
   if (!domain) return false;
 
