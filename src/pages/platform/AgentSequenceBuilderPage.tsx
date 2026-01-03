@@ -268,8 +268,9 @@ export default function AgentSequenceBuilderPage() {
   };
 
   // Build current sequence object for simulator
+  // Show simulator as soon as there's a name (steps can be added after)
   const currentSequence: AgentSequence | null =
-    formData.name && formData.sequence_steps.length > 0
+    formData.name.trim()
       ? {
           id: existingSequence?.id || 'preview',
           skill_key: formData.skill_key || 'preview-sequence',

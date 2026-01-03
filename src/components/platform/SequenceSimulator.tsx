@@ -206,9 +206,15 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
     setJsonError(null);
   }, [execution]);
 
+  // Check if all steps have valid skill keys
+  const stepsWithSkills = sequence.frontmatter.sequence_steps?.filter(s => s.skill_key) || [];
+  const hasValidSteps = stepsWithSkills.length > 0;
+  const totalSteps = sequence.frontmatter.sequence_steps?.length || 0;
+  const missingSkillCount = totalSteps - stepsWithSkills.length;
+
   const canRun =
     !execution.isExecuting &&
-    sequence.frontmatter.sequence_steps?.length > 0 &&
+    hasValidSteps &&
     !jsonError;
 
   return (
@@ -310,6 +316,21 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
             <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
+
+        {/* Status Messages */}
+        {!canRun && !execution.isExecuting && (
+          <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
+            {totalSteps === 0 ? (
+              <span>Add at least one step to run the simulation.</span>
+            ) : missingSkillCount > 0 ? (
+              <span>
+                {missingSkillCount} step{missingSkillCount > 1 ? 's' : ''} need{missingSkillCount === 1 ? 's' : ''} a skill selected.
+              </span>
+            ) : jsonError ? (
+              <span>Fix JSON errors to run the simulation.</span>
+            ) : null}
+          </div>
+        )}
       </div>
 
       {/* Results */}

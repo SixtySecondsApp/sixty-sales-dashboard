@@ -17,7 +17,7 @@ import type {
   HITLRequest,
 } from './useAgentSequences';
 import { useAuth } from '../contexts/AuthContext';
-import { useOrganization } from '../contexts/OrganizationContext';
+import { useOrg } from '../contexts/OrgContext';
 
 // =============================================================================
 // Types
@@ -156,7 +156,7 @@ export const DEFAULT_MOCK_DATA: Record<string, unknown> = {
 
 export function useSequenceExecution() {
   const { user } = useAuth();
-  const { currentOrganization } = useOrganization();
+  const { activeOrg } = useOrg();
   const queryClient = useQueryClient();
 
   const [state, setState] = useState<ExecutionState>({
@@ -229,7 +229,7 @@ export function useSequenceExecution() {
             body: {
               skill_key: step.skill_key,
               input,
-              organization_id: currentOrganization?.id,
+              organization_id: activeOrg?.id,
               user_id: user?.id,
             },
           });
@@ -266,7 +266,7 @@ export function useSequenceExecution() {
         };
       }
     },
-    [currentOrganization?.id, user?.id]
+    [activeOrg?.id, user?.id]
   );
 
   /**
@@ -281,7 +281,7 @@ export function useSequenceExecution() {
       context: Record<string, unknown>,
       mockData: Record<string, unknown>
     ): Promise<HITLRequest> => {
-      if (!user?.id || !currentOrganization?.id) {
+      if (!user?.id || !activeOrg?.id) {
         throw new Error('User and organization required');
       }
 
@@ -303,7 +303,7 @@ export function useSequenceExecution() {
           execution_id: executionId,
           sequence_key: sequenceKey,
           step_index: stepIndex,
-          organization_id: currentOrganization.id,
+          organization_id: activeOrg.id,
           requested_by_user_id: user.id,
           assigned_to_user_id: hitlConfig.assigned_to_user_id || null,
           request_type: hitlConfig.request_type,
@@ -340,7 +340,7 @@ export function useSequenceExecution() {
           .invoke('send-hitl-slack-notification', {
             body: {
               hitl_request_id: request.id,
-              organization_id: currentOrganization.id,
+              organization_id: activeOrg.id,
             },
           })
           .catch((err) => console.error('Failed to send Slack notification:', err));
@@ -348,7 +348,7 @@ export function useSequenceExecution() {
 
       return request as HITLRequest;
     },
-    [user?.id, currentOrganization?.id]
+    [user?.id, activeOrg?.id]
   );
 
   /**
@@ -394,7 +394,7 @@ export function useSequenceExecution() {
    */
   const execute = useCallback(
     async (sequence: AgentSequence, options: ExecutionOptions) => {
-      if (!user?.id || !currentOrganization?.id) {
+      if (!user?.id || !activeOrg?.id) {
         throw new Error('User and organization required');
       }
 
@@ -426,32 +426,40 @@ export function useSequenceExecution() {
         hitlPosition: null,
       });
 
-      // Create execution record in database
-      const { data: execution, error: createError } = await supabase
-        .from('sequence_executions')
-        .insert({
-          sequence_key: sequence.skill_key,
-          organization_id: currentOrganization.id,
-          user_id: user.id,
-          status: 'running',
-          input_context: options.inputContext,
-          is_simulation: options.isSimulation,
-          mock_data_used: options.isSimulation ? mockData : null,
-        })
-        .select()
-        .single();
+      // Create execution record in database (skip for simulations to avoid requiring DB setup)
+      let executionId: string;
 
-      if (createError) {
-        setState((prev) => ({
-          ...prev,
-          status: 'failed',
-          error: createError.message,
-          isExecuting: false,
-        }));
-        throw createError;
+      if (options.isSimulation) {
+        // For simulations, generate a temporary ID without hitting the database
+        executionId = `sim-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      } else {
+        const { data: execution, error: createError } = await supabase
+          .from('sequence_executions')
+          .insert({
+            sequence_key: sequence.skill_key,
+            organization_id: activeOrg.id,
+            user_id: user.id,
+            status: 'running',
+            input_context: options.inputContext,
+            is_simulation: false,
+            mock_data_used: null,
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          setState((prev) => ({
+            ...prev,
+            status: 'failed',
+            error: createError.message,
+            isExecuting: false,
+          }));
+          throw createError;
+        }
+        executionId = execution.id;
       }
 
-      setState((prev) => ({ ...prev, executionId: execution.id }));
+      setState((prev) => ({ ...prev, executionId }));
 
       let context = { ...options.inputContext };
       const results: StepResult[] = [];
@@ -633,7 +641,7 @@ export function useSequenceExecution() {
 
       return { success: true, results, context: finalOutput, error: null, waitingHITL: false };
     },
-    [user?.id, currentOrganization?.id, executeStep, createHITLRequest, queryClient]
+    [user?.id, activeOrg?.id, executeStep, createHITLRequest, queryClient]
   );
 
   /**
