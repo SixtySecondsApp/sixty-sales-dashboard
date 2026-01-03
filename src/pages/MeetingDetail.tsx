@@ -21,6 +21,9 @@ import { toast } from 'sonner';
 import { ProposalWizard } from '@/components/proposals/ProposalWizard';
 import { TalkTimeChart } from '@/components/meetings/analytics/TalkTimeChart';
 import { CoachingInsights } from '@/components/meetings/analytics/CoachingInsights';
+import { QuickActionsCard } from '@/components/meetings/QuickActionsCard';
+import EmailComposerModal from '@/components/contacts/EmailComposerModal';
+import { ShareMeetingModal } from '@/components/meetings/ShareMeetingModal';
 import { useActivationTracking } from '@/lib/hooks/useActivationTracking';
 import { useOnboardingProgress } from '@/lib/hooks/useOnboardingProgress';
 
@@ -211,6 +214,8 @@ export function MeetingDetail() {
   const [newlyAddedTaskId, setNewlyAddedTaskId] = useState<string | null>(null);
   const [showProposalWizard, setShowProposalWizard] = useState(false);
   const [isReprocessing, setIsReprocessing] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   // Clear newly added task highlight after animation completes
   useEffect(() => {
@@ -1285,6 +1290,17 @@ export function MeetingDetail() {
 
         {/* Right Column - Sidebar */}
         <div className="lg:col-span-4 space-y-3 sm:space-y-4 min-w-0">
+          {/* Quick Actions */}
+          {meeting && (
+            <QuickActionsCard
+              meeting={meeting}
+              onEmailClick={() => setShowEmailModal(true)}
+              onBookCallClick={() => toast.info('Book call feature coming soon')}
+              onShareClick={() => setShowShareModal(true)}
+              onProposalClick={() => setShowProposalWizard(true)}
+            />
+          )}
+
           {/* Unified Tasks Section - Static container, only task cards animate */}
           <div className="section-card min-w-0">
             <div className="flex items-center justify-between mb-4 min-w-0 gap-2">
@@ -1695,6 +1711,29 @@ export function MeetingDetail() {
           meetingIds={[meeting.id]}
           contactName={meeting.contact?.email || undefined}
           companyName={meeting.company?.name}
+        />
+      )}
+      {/* Email Composer Modal for follow-up emails */}
+      <EmailComposerModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        contactEmail={primaryExternal?.email || undefined}
+        contactName={primaryExternal?.name || meeting?.title}
+        defaultSubject={meeting ? `Follow-up: ${meeting.title}` : undefined}
+      />
+      {/* Share Meeting Modal */}
+      {meeting && (
+        <ShareMeetingModal
+          open={showShareModal}
+          onOpenChange={setShowShareModal}
+          meetingId={meeting.id}
+          meetingTitle={meeting.title}
+          sourceType={meeting.source_type || null}
+          fathomShareUrl={meeting.share_url}
+          voiceRecordingId={meeting.voice_recording_id}
+          hasSummary={!!meeting.summary}
+          hasActionItems={actionItems.length > 0}
+          hasTranscript={!!meeting.transcript_text}
         />
       )}
     </div>

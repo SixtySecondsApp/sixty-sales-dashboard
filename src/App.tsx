@@ -42,6 +42,7 @@ import MeetingThumbnail from '@/pages/MeetingThumbnail';
 import BrowserlessTest from '@/pages/BrowserlessTest';
 import PublicProposal from '@/pages/PublicProposal';
 import PublicVoiceRecording from '@/pages/PublicVoiceRecording';
+import PublicMeetingShare from '@/pages/PublicMeetingShare';
 import DrueLanding from '@/pages/DrueLanding';
 import FathomCallback from '@/pages/auth/FathomCallback';
 
@@ -217,6 +218,9 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
 
         {/* Public voice recording sharing - allows anyone with link to view */}
         <Route path="/share/voice/:token" element={<PublicVoiceRecording />} />
+
+        {/* Public meeting sharing - allows anyone with link to view meeting analysis */}
+        <Route path="/share/meeting/:token" element={<PublicMeetingShare />} />
 
         {/* Drue Landing Page - public access */}
         <Route path="/landing-drue" element={<DrueLanding />} />
