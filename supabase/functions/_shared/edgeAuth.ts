@@ -8,6 +8,48 @@ export type AuthContext = {
   isPlatformAdmin: boolean;
 };
 
+const DEFAULT_INTERNAL_DOMAIN = 'sixtyseconds.video';
+
+function extractEmailDomain(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const normalized = email.trim().toLowerCase();
+  const at = normalized.lastIndexOf('@');
+  if (at <= 0 || at === normalized.length - 1) return null;
+  return normalized.slice(at + 1);
+}
+
+async function isInternalEmailDomain(
+  supabase: ReturnType<typeof createClient>,
+  email: string | null | undefined
+): Promise<boolean> {
+  const domain = extractEmailDomain(email);
+  if (!domain) return false;
+
+  try {
+    const { data, error } = await supabase
+      .from('internal_email_domains')
+      .select('domain')
+      .eq('domain', domain)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (error) {
+      // If table doesn't exist yet, use the bootstrap domain as the safe default.
+      if ((error as any)?.code === '42P01') {
+        return domain === DEFAULT_INTERNAL_DOMAIN;
+      }
+      console.error('[edgeAuth] Failed to check internal_email_domains:', error);
+      return false;
+    }
+
+    // If the table exists but is empty/missing this domain, treat as external.
+    return !!data;
+  } catch (e) {
+    console.error('[edgeAuth] Exception checking internal email domain:', e);
+    return false;
+  }
+}
+
 /**
  * Extract bearer token from Authorization header
  */
@@ -101,7 +143,12 @@ export async function getAuthContext(
     .eq('id', user.id)
     .single();
 
-  return { mode: 'user', userId: user.id, isPlatformAdmin: profile?.is_admin === true };
+  const isInternal = await isInternalEmailDomain(supabase, user.email);
+  return {
+    mode: 'user',
+    userId: user.id,
+    isPlatformAdmin: isInternal && profile?.is_admin === true,
+  };
 }
 
 /**

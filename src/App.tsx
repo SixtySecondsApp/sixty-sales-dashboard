@@ -19,6 +19,7 @@ import { InternalRouteGuard, OrgAdminRouteGuard, PlatformAdminRouteGuard } from 
 import { RouteDebug } from '@/components/RouteDebug';
 import { DefaultRoute } from '@/components/DefaultRoute';
 import { RouteLoader, ExternalRedirect } from '@/components/routing';
+import { ExternalAccessGate } from '@/components/ExternalAccessGate';
 import { usePerformanceOptimization } from '@/lib/hooks/usePerformanceOptimization';
 import { IntelligentPreloader } from '@/components/LazyComponents';
 import { webVitalsOptimizer } from '@/lib/utils/webVitals';
@@ -276,22 +277,23 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         {/* ========== PROTECTED ROUTES (Auth Required) ========== */}
         <Route path="/*" element={
           <ProtectedRoute>
-            <RouteDebug />
-            <Suspense fallback={<RouteLoader />}>
-              <Routes>
-                <Route path="/onboarding" element={<Onboarding />} />
-                <Route path="/debug-auth" element={<DebugAuth />} />
-                <Route path="/debug/auth" element={<AuthDebug />} />
-                <Route path="/debug-permissions" element={<DebugPermissions />} />
-                {/* Home route - redirects unauthenticated to /learnmore, authenticated to dashboard */}
-                <Route path="/" element={<DefaultRoute />} />
-                {/* Dashboard alias for backwards compatibility */}
-                <Route path="/dashboard" element={<InternalRouteGuard><AppLayout><Dashboard /></AppLayout></InternalRouteGuard>} />
-                {/* Internal-only routes - CRM and tools */}
-                <Route path="/copilot" element={<InternalRouteGuard><AppLayout><Copilot /></AppLayout></InternalRouteGuard>} />
-                <Route path="/activity" element={<InternalRouteGuard><AppLayout><ActivityLog /></AppLayout></InternalRouteGuard>} />
-                <Route path="/insights" element={<AppLayout><Insights /></AppLayout>} />
-                <Route path="/crm" element={<InternalRouteGuard><AppLayout><ElegantCRM /></AppLayout></InternalRouteGuard>} />
+            <ExternalAccessGate>
+              <RouteDebug />
+              <Suspense fallback={<RouteLoader />}>
+                <Routes>
+                  <Route path="/onboarding" element={<Onboarding />} />
+                  <Route path="/debug-auth" element={<InternalRouteGuard><DebugAuth /></InternalRouteGuard>} />
+                  <Route path="/debug/auth" element={<InternalRouteGuard><AuthDebug /></InternalRouteGuard>} />
+                  <Route path="/debug-permissions" element={<InternalRouteGuard><DebugPermissions /></InternalRouteGuard>} />
+                  {/* Home route - redirects unauthenticated to /learnmore, authenticated to dashboard */}
+                  <Route path="/" element={<DefaultRoute />} />
+                  {/* Dashboard alias for backwards compatibility */}
+                  <Route path="/dashboard" element={<InternalRouteGuard><AppLayout><Dashboard /></AppLayout></InternalRouteGuard>} />
+                  {/* Internal-only routes - CRM and tools */}
+                  <Route path="/copilot" element={<AppLayout><Copilot /></AppLayout>} />
+                  <Route path="/activity" element={<InternalRouteGuard><AppLayout><ActivityLog /></AppLayout></InternalRouteGuard>} />
+                  <Route path="/insights" element={<AppLayout><Insights /></AppLayout>} />
+                  <Route path="/crm" element={<InternalRouteGuard><AppLayout><ElegantCRM /></AppLayout></InternalRouteGuard>} />
                 <Route path="/crm/elegant" element={<Navigate to="/crm" replace />} />
                 {/* Legacy /admin routes - redirect to /platform (replaced by 3-tier architecture) */}
                 <Route path="/admin" element={<Navigate to="/platform" replace />} />
@@ -337,9 +339,9 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* Tier 3: Platform Admin Routes (Internal + is_admin only) */}
                 {/* Platform Admin - All specific routes MUST come before /platform route */}
                 {/* DEBUG: Test route to verify routing works */}
-                <Route path="/platform/test-route" element={<div style={{ padding: '50px', color: 'white', background: 'green' }}>TEST ROUTE WORKS! Path: /platform/test-route</div>} />
+                <Route path="/platform/test-route" element={<PlatformAdminRouteGuard><div style={{ padding: '50px', color: 'white', background: 'green' }}>TEST ROUTE WORKS! Path: /platform/test-route</div></PlatformAdminRouteGuard>} />
                 {/* DEBUG: Unguarded email templates to test if guards are the issue */}
-                <Route path="/platform/email-templates-test" element={<AppLayout><EmailTemplates /></AppLayout>} />
+                <Route path="/platform/email-templates-test" element={<PlatformAdminRouteGuard><AppLayout><EmailTemplates /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Platform Admin - Email Templates */}
                 <Route path="/platform/email-templates" element={<PlatformAdminRouteGuard><AppLayout><EmailTemplates /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Platform Admin - Customer Management */}
@@ -515,13 +517,14 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* Meeting detail is handled by nested routing in /meetings/* (src/pages/MeetingsPage.tsx) */}
                 <Route path="/calls" element={<AppLayout><Calls /></AppLayout>} />
                 <Route path="/calls/:id" element={<AppLayout><CallDetail /></AppLayout>} />
-                <Route path="/debug-meetings" element={<AppLayout><DebugMeetings /></AppLayout>} />
-                <Route path="/test-notifications" element={<AppLayout><TestNotifications /></AppLayout>} />
-                <Route path="/freepik-flow" element={<AppLayout><div className="h-[calc(100vh-4rem)]"><FreepikFlow /></div></AppLayout>} />
+                <Route path="/debug-meetings" element={<InternalRouteGuard><AppLayout><DebugMeetings /></AppLayout></InternalRouteGuard>} />
+                <Route path="/test-notifications" element={<InternalRouteGuard><AppLayout><TestNotifications /></AppLayout></InternalRouteGuard>} />
+                <Route path="/freepik-flow" element={<InternalRouteGuard><AppLayout><div className="h-[calc(100vh-4rem)]"><FreepikFlow /></div></AppLayout></InternalRouteGuard>} />
                 <Route path="/test-fallback" element={<ProtectedRoute><TestFallback /></ProtectedRoute>} />
-                <Route path="/test-google-tasks" element={<AppLayout><TestGoogleTasks /></AppLayout>} />
-              </Routes>
-            </Suspense>
+                <Route path="/test-google-tasks" element={<InternalRouteGuard><AppLayout><TestGoogleTasks /></AppLayout></InternalRouteGuard>} />
+                </Routes>
+              </Suspense>
+            </ExternalAccessGate>
           </ProtectedRoute>
         } />
       </Routes>

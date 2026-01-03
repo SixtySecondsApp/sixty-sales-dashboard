@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useOnboardingProgress } from '@/lib/hooks/useOnboardingProgress';
+import { useEffectiveUserType, usePermissionsLoading } from '@/contexts/UserPermissionsContext';
 import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -17,7 +18,6 @@ const publicRoutes = [
   '/auth/callback',
   '/auth/sso-callback',
   '/auth/verify-email',
-  '/debug-auth',
   '/auth/google/callback',
   '/oauth/fathom/callback',
   '/waitlist',
@@ -61,6 +61,8 @@ const isOnboardingExemptRoute = (pathname: string): boolean => {
 export function ProtectedRoute({ children, redirectTo = '/auth/login' }: ProtectedRouteProps) {
   const { isAuthenticated, loading, user } = useAuth();
   const { needsOnboarding, loading: onboardingLoading } = useOnboardingProgress();
+  const effectiveUserType = useEffectiveUserType();
+  const permissionsLoading = usePermissionsLoading();
   const navigate = useNavigate();
   const location = useLocation();
   const [isRedirecting, setIsRedirecting] = useState(false);
@@ -132,7 +134,7 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
 
   useEffect(() => {
     // Don't redirect while loading auth, onboarding status, or email verification
-    if (loading || onboardingLoading || isCheckingEmail) return;
+    if (loading || onboardingLoading || isCheckingEmail || permissionsLoading) return;
 
     // CRITICAL: If user is authenticated and on a protected route, NEVER redirect them away
     // This preserves the current page on refresh
@@ -162,7 +164,7 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
       if (needsOnboarding) {
         navigate('/onboarding', { replace: true });
       } else {
-        navigate('/dashboard', { replace: true });
+        navigate(effectiveUserType === 'external' ? '/meetings' : '/dashboard', { replace: true });
       }
       return;
     }
@@ -196,10 +198,10 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
       });
       return;
     }
-  }, [isAuthenticated, loading, onboardingLoading, isCheckingEmail, emailVerified, needsOnboarding, isPublicRoute, isVerifyEmailRoute, isPasswordRecovery, isDevModeBypass, isAuthRequiredRoute, isOnboardingExempt, navigate, redirectTo, location, isRedirecting, user?.email]);
+  }, [isAuthenticated, loading, onboardingLoading, isCheckingEmail, permissionsLoading, emailVerified, needsOnboarding, isPublicRoute, isVerifyEmailRoute, isPasswordRecovery, isDevModeBypass, isAuthRequiredRoute, isOnboardingExempt, navigate, redirectTo, location, isRedirecting, user?.email, effectiveUserType]);
 
   // Show loading spinner while checking authentication, onboarding status, email verification, or during redirect delay
-  if (loading || onboardingLoading || isCheckingEmail || isRedirecting) {
+  if (loading || onboardingLoading || isCheckingEmail || permissionsLoading || isRedirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.25),transparent)] pointer-events-none" />

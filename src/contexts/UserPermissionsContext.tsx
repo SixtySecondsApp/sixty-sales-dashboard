@@ -36,7 +36,7 @@ import {
   getFeatureAccess,
   isRouteAllowed,
   getUnauthorizedRedirect,
-  loadInternalUsers,
+  loadInternalDomains,
 } from '@/lib/utils/userTypeUtils';
 import { isUserAdmin } from '@/lib/utils/adminUtils';
 import {
@@ -57,7 +57,7 @@ import {
 // =====================================================
 
 interface UserPermissionsContextType {
-  // Loading state - true until internal users whitelist is loaded
+  // Loading state - true until internal domain allowlist is loaded
   isLoading: boolean;
 
   // User type
@@ -119,22 +119,22 @@ export function UserPermissionsProvider({ children }: UserPermissionsProviderPro
   const { userData, isLoading: isUserLoading } = useUser();
   const { userRole } = useOrg();
 
-  // Track when internal users whitelist is loaded
-  const [usersLoaded, setUsersLoaded] = useState(false);
+  // Track when internal domain allowlist is loaded
+  const [domainsLoaded, setDomainsLoaded] = useState(false);
 
-  // Load internal users whitelist from database on mount
+  // Load internal domain allowlist from database on mount
   useEffect(() => {
-    loadInternalUsers()
-      .then(() => setUsersLoaded(true))
+    loadInternalDomains()
+      .then(() => setDomainsLoaded(true))
       .catch(console.error);
   }, []);
 
   // Determine actual user type from email
-  // Re-evaluate when internal users whitelist is loaded
+  // Re-evaluate when internal domain allowlist is loaded
   const actualUserType = useMemo(() => {
     return getUserTypeFromEmail(user?.email);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.email, usersLoaded]);
+  }, [user?.email, domainsLoaded]);
 
   // View mode state - persisted in session storage
   const [isExternalViewActive, setIsExternalViewActive] = useState(() => {
@@ -269,9 +269,9 @@ export function UserPermissionsProvider({ children }: UserPermissionsProviderPro
   const value: UserPermissionsContextType = useMemo(
     () => ({
       // Loading state - permissions are loading until BOTH:
-      // 1. Internal users whitelist is loaded
+      // 1. Internal domain allowlist is loaded
       // 2. User profile data is loaded (needed for is_admin flag)
-      isLoading: !usersLoaded || isUserLoading,
+      isLoading: !domainsLoaded || isUserLoading,
 
       // User type
       userType: actualUserType,
@@ -310,7 +310,7 @@ export function UserPermissionsProvider({ children }: UserPermissionsProviderPro
       hasMinimumTier: checkHasMinimumTier,
     }),
     [
-      usersLoaded,
+      domainsLoaded,
       isUserLoading,
       actualUserType,
       viewMode,

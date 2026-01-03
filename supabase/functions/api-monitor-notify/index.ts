@@ -58,7 +58,7 @@ interface AIReview {
 async function getPlatformAdminsWithSlack(
   supabase: ReturnType<typeof createClient>
 ): Promise<Array<{ userId: string; slackUserId: string; email: string; orgId: string }>> {
-  // Get platform admins (is_admin = true and in internal_users)
+  // Get platform admins (internal email domain + is_admin = true)
   const { data: admins, error } = await supabase
     .from("profiles")
     .select("id, email, is_admin")
@@ -69,18 +69,27 @@ async function getPlatformAdminsWithSlack(
     return [];
   }
 
-  // Check if they're internal users (by email domain)
-  const { data: internalUsers } = await supabase
-    .from("internal_users")
-    .select("email")
-    .eq("is_active", true);
+  // Load internal domains allowlist
+  let internalDomainsSet = new Set<string>();
+  try {
+    const { data: domains, error: domainsError } = await supabase
+      .from("internal_email_domains")
+      .select("domain")
+      .eq("is_active", true);
 
-  // Extract domains from internal user emails
-  const internalDomainsSet = new Set(
-    (internalUsers || [])
-      .map((u) => u.email?.split("@")[1]?.toLowerCase())
-      .filter((d): d is string => !!d)
-  );
+    if (domainsError) {
+      // If table doesn't exist yet, use bootstrap domain.
+      if ((domainsError as any)?.code === '42P01') {
+        internalDomainsSet = new Set(["sixtyseconds.video"]);
+      } else {
+        console.warn("[api-monitor-notify] Failed to load internal_email_domains:", domainsError);
+      }
+    } else {
+      internalDomainsSet = new Set((domains || []).map((d: any) => String(d.domain || '').toLowerCase()));
+    }
+  } catch (e) {
+    console.warn("[api-monitor-notify] Exception loading internal_email_domains:", e);
+  }
 
   const platformAdmins = admins.filter((admin) => {
     if (!admin.email) return false;

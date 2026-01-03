@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useEffectiveUserType, usePermissionsLoading } from '@/contexts/UserPermissionsContext';
 import { Loader2 } from 'lucide-react';
 
 /**
@@ -13,6 +14,8 @@ import { Loader2 } from 'lucide-react';
  */
 export function DefaultRoute() {
   const { isAuthenticated, loading } = useAuth();
+  const effectiveUserType = useEffectiveUserType();
+  const permissionsLoading = usePermissionsLoading();
   const location = useLocation();
 
   // Safety check: This should ONLY run for the root path
@@ -22,8 +25,8 @@ export function DefaultRoute() {
     return null;
   }
 
-  // Show loading while checking auth status
-  if (loading) {
+  // Show loading while checking auth status / permissions
+  if (loading || permissionsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.25),transparent)] pointer-events-none" />
@@ -34,7 +37,7 @@ export function DefaultRoute() {
 
   // Redirect based on authentication status
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={effectiveUserType === 'external' ? '/meetings' : '/dashboard'} replace />;
   }
 
   return <Navigate to="/auth/login" replace />;

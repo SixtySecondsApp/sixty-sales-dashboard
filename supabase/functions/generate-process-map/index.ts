@@ -629,15 +629,28 @@ serve(async (req) => {
       )
     }
 
-    // Check if user is in internal_users whitelist
-    const { data: internalUser, error: internalError } = await supabaseService
-      .from('internal_users')
-      .select('email')
-      .eq('email', profile.email?.toLowerCase())
-      .eq('is_active', true)
-      .single()
+    // Check if user is internal (email domain allowlist)
+    const email = profile.email?.toLowerCase() || ''
+    const domain = email.includes('@') ? email.split('@').pop() : null
 
-    if (internalError || !internalUser) {
+    let isInternal = false
+    if (domain) {
+      const { data: internalDomain, error: domainError } = await supabaseService
+        .from('internal_email_domains')
+        .select('domain')
+        .eq('domain', domain)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      // If the table doesn't exist yet, fall back to the bootstrap domain.
+      if (domainError && (domainError as any)?.code === '42P01') {
+        isInternal = domain === 'sixtyseconds.video'
+      } else if (!domainError && internalDomain) {
+        isInternal = true
+      }
+    }
+
+    if (!isInternal) {
       return new Response(
         JSON.stringify({ error: 'Internal user access required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
