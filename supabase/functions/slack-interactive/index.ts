@@ -29,6 +29,7 @@ import {
   handleApprovalsApproveAll,
   handleApprovalsRefresh,
 } from './handlers/phase5.ts';
+import { handleHITLAction } from './handlers/hitl.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -6138,7 +6139,7 @@ serve(async (req) => {
 
         console.log('Processing action:', action.action_id);
 
-        // Check if this is a HITL action first
+        // Check if this is a HITL action first (legacy format: {action}::{resource_type}::{approval_id})
         const hitlAction = parseHITLActionId(action.action_id);
         if (hitlAction) {
           console.log('Processing HITL action:', hitlAction);
@@ -6149,6 +6150,34 @@ serve(async (req) => {
               return handleHITLReject(supabase, payload, action, hitlAction);
             case 'edit':
               return handleHITLEdit(supabase, payload, action, hitlAction);
+          }
+        }
+
+        // Check if this is a sequence HITL action (new format: hitl_*)
+        if (action.action_id.startsWith('hitl_')) {
+          console.log('[Sequence HITL] Processing action:', action.action_id);
+          const result = await handleHITLAction(action.action_id, payload, action);
+
+          if (result) {
+            if (result.success && result.responseBlocks && payload.response_url) {
+              // Update the original message with response confirmation
+              await updateMessage(payload.response_url, result.responseBlocks);
+            } else if (!result.success && payload.response_url) {
+              // Send error as ephemeral message
+              await sendEphemeral(payload.response_url, {
+                blocks: [
+                  {
+                    type: 'section',
+                    text: { type: 'mrkdwn', text: `❌ ${result.error || 'Failed to process HITL action'}` },
+                  },
+                ],
+                text: result.error || 'Failed to process HITL action',
+              });
+            }
+            return new Response(JSON.stringify({ ok: true }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
           }
         }
 

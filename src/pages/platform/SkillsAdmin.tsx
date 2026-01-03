@@ -24,6 +24,7 @@ import {
   Server,
   LayoutTemplate,
   Workflow,
+  GitBranch,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,7 @@ const CATEGORY_ICONS: Record<SkillCategory, React.ElementType> = {
   workflows: Workflow,
   'data-access': Server,
   'output-format': LayoutTemplate,
+  'agent-sequence': GitBranch,
 };
 
 // Valid category slugs for URL routing

@@ -29,6 +29,8 @@ export const SkillsAdmin = lazyWithRetry(() => import('@/pages/platform/SkillsAd
 export const PlatformSkillViewPage = lazyWithRetry(() => import('@/pages/platform/PlatformSkillViewPage'));
 export const PlatformSkillEditPage = lazyWithRetry(() => import('@/pages/platform/PlatformSkillEditPage'));
 export const SkillDetailPage = lazyWithRetry(() => import('@/pages/skills/SkillDetailPage'));
+export const AgentSequencesPage = lazyWithRetry(() => import('@/pages/platform/AgentSequencesPage'));
+export const AgentSequenceBuilderPage = lazyWithRetry(() => import('@/pages/platform/AgentSequenceBuilderPage'));
 
 // Admin Configuration
 export const Users = lazyWithRetry(() => import('@/pages/admin/Users'));
