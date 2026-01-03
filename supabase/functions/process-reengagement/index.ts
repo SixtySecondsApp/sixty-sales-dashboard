@@ -376,12 +376,20 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
+    // Parse from both URL params and body (body takes precedence)
     const url = new URL(req.url);
-    const orgId = url.searchParams.get("org_id");
-    const userId = url.searchParams.get("user_id");
-    const segment = url.searchParams.get("segment");
-    const limit = parseInt(url.searchParams.get("limit") || "50", 10);
-    const dryRun = url.searchParams.get("dry_run") === "true";
+    let body: Record<string, unknown> = {};
+    try {
+      body = await req.json();
+    } catch {
+      // No body or invalid JSON - use URL params only
+    }
+
+    const orgId = (body.org_id as string) || url.searchParams.get("org_id");
+    const userId = (body.user_id as string) || url.searchParams.get("user_id");
+    const segment = (body.segment as string) || url.searchParams.get("segment");
+    const limit = (body.limit as number) || parseInt(url.searchParams.get("limit") || "50", 10);
+    const dryRun = body.dry_run === true || url.searchParams.get("dry_run") === "true";
 
     console.log("[process-reengagement] Starting", { orgId, userId, segment, limit, dryRun });
 
