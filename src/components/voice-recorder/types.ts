@@ -19,12 +19,18 @@ export interface Speaker {
   color: string;
 }
 
+export type ActionItemPriority = 'high' | 'medium' | 'low';
+export type ActionItemCategory = 'follow_up' | 'deliverable' | 'research' | 'meeting' | 'communication' | 'decision' | 'other';
+
 export interface ActionItem {
   id: string;
   text: string;
   owner: string;
   deadline: string;
   done: boolean;
+  priority?: ActionItemPriority;
+  category?: ActionItemCategory;
+  linkedTaskId?: string; // ID of synced task in tasks table
 }
 
 export interface TranscriptSegment {

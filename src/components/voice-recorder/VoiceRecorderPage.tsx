@@ -48,6 +48,7 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
     uploadAndTranscribe,
     deleteRecording,
     toggleActionItem,
+    addActionItemToTask,
     getRecording,
     refetch,
     retryTranscription,
@@ -105,12 +106,15 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
       color: SPEAKER_COLORS[idx % SPEAKER_COLORS.length],
     }));
 
-    const actions: ActionItem[] = (rec.action_items || []).map((a: { id: string; text: string; owner?: string; deadline?: string; done?: boolean }) => ({
+    const actions: ActionItem[] = (rec.action_items || []).map((a: { id: string; text: string; owner?: string; deadline?: string; done?: boolean; priority?: 'high' | 'medium' | 'low'; category?: string; linkedTaskId?: string }) => ({
       id: a.id,
       text: a.text,
       owner: a.owner || 'Unassigned',
       deadline: a.deadline || '',
       done: a.done || false,
+      priority: a.priority,
+      category: a.category as ActionItem['category'],
+      linkedTaskId: a.linkedTaskId,
     }));
 
     return {
@@ -270,6 +274,32 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
     }
   }, [currentMeeting, toggleActionItem]);
 
+  // Handle adding action item to tasks
+  const handleAddActionItemToTasks = useCallback(async (actionId: string) => {
+    if (!currentMeeting) {
+      return { success: false, error: 'No meeting selected' };
+    }
+
+    const result = await addActionItemToTask(currentMeeting.id, actionId);
+
+    if (result.success && result.taskId) {
+      // Update local state with the linked task ID
+      setCurrentMeeting((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          actions: prev.actions.map((action: ActionItem) =>
+            action.id === actionId
+              ? { ...action, linkedTaskId: result.taskId }
+              : action
+          ),
+        };
+      });
+    }
+
+    return result;
+  }, [currentMeeting, addActionItemToTask]);
+
   // Show error if recording failed
   if (error) {
     toast.error(error);
@@ -340,6 +370,7 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
               onBookNextCall={handleBookNextCall}
               onViewTranscript={handleViewTranscript}
               onToggleActionItem={handleToggleActionItem}
+              onAddActionItemToTasks={handleAddActionItemToTasks}
               onRetryTranscription={handleRetryTranscription}
             />
           )}

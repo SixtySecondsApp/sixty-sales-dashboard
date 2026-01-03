@@ -6,6 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const GEMINI_MODEL = Deno.env.get("GEMINI_FLASH_MODEL") ?? Deno.env.get("GEMINI_MODEL") ?? "gemini-3-flash"
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("GOOGLE_GEMINI_API_KEY") ?? ""
+
 interface PollRequest {
   recording_id: string
 }
@@ -235,8 +238,12 @@ serve(async (req) => {
         confidence: u.confidence,
       }))
 
-      // Generate action items from summary (basic extraction)
-      const actionItems = extractActionItems(summary, speakers)
+      // Get recording type for context-aware extraction
+      const recordingType = recording.recording_type || 'meeting'
+
+      // Generate action items using Gemini AI (with fallback to basic)
+      const actionItems = await extractActionItemsWithGemini(fullTranscript, summary, speakers, recordingType)
+      console.log(`Extracted ${actionItems.length} action items using Gemini`)
 
       // Update recording with results
       const { error: updateError } = await supabase
@@ -300,14 +307,177 @@ serve(async (req) => {
 })
 
 /**
- * Extract action items from summary text
+ * Extract action items using Gemini 3 Flash for intelligent extraction
  */
-function extractActionItems(summary: string, speakers: { id: number; name: string }[]): Array<{
+async function extractActionItemsWithGemini(
+  transcript: string,
+  summary: string,
+  speakers: { id: number; name: string }[],
+  recordingType: string
+): Promise<Array<{
   id: string
   text: string
   owner: string
   deadline: string
   done: boolean
+  priority: 'high' | 'medium' | 'low'
+  category: string
+}>> {
+  // If no Gemini API key, fall back to basic extraction
+  if (!GEMINI_API_KEY) {
+    console.log('No Gemini API key, using basic extraction')
+    return extractActionItemsBasic(summary, speakers)
+  }
+
+  const speakerNames = speakers.map(s => s.name).join(', ') || 'Unknown speakers'
+  const today = new Date().toISOString().split('T')[0]
+
+  // Recording type context for better extraction
+  const typeContext = {
+    meeting: 'This is a business meeting recording. Focus on commitments, decisions, follow-ups, and deliverables.',
+    call: 'This is a phone/video call recording. Focus on promised actions, callbacks, and next steps.',
+    note: 'This is a voice note. Focus on personal action items, reminders, and self-assigned tasks.',
+    idea: 'This is an idea capture. Focus on research tasks, exploration items, and things to investigate.',
+  }[recordingType] || 'Focus on any actionable items mentioned.'
+
+  const prompt = `You are an expert at extracting actionable items from voice recordings. Analyze this transcript and extract ONLY clear, specific action items.
+
+CONTEXT:
+- Recording Type: ${recordingType}
+- ${typeContext}
+- Speakers: ${speakerNames}
+- Today's Date: ${today}
+
+TRANSCRIPT:
+${transcript.slice(0, 8000)}
+
+${summary ? `SUMMARY:\n${summary}` : ''}
+
+EXTRACTION RULES:
+1. Extract ONLY explicit commitments, promises, or assigned tasks
+2. Each action item must be specific and measurable
+3. Infer the owner from context (who said "I will" or was assigned the task)
+4. Estimate realistic deadlines based on context (today, this week, next week, this month)
+5. Assign priority: high (urgent/time-sensitive), medium (important), low (nice-to-have)
+6. Categorize: follow_up, deliverable, research, meeting, communication, decision, other
+7. Do NOT include vague intentions or general discussion points
+8. Maximum 7 action items, focus on the most important ones
+9. Write action items as clear imperative sentences (e.g., "Send proposal to client" not "They mentioned sending a proposal")
+
+RESPONSE FORMAT (JSON only, no markdown):
+{
+  "action_items": [
+    {
+      "text": "Clear action item description",
+      "owner": "Person name or 'Team'",
+      "deadline": "Today|This week|Next week|This month|[specific date]",
+      "priority": "high|medium|low",
+      "category": "follow_up|deliverable|research|meeting|communication|decision|other",
+      "context": "Brief quote or reference from transcript"
+    }
+  ]
+}
+
+Return ONLY valid JSON, no explanation.`
+
+  try {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${GEMINI_API_KEY}`
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.2,
+          topP: 0.8,
+          maxOutputTokens: 2000,
+          responseMimeType: 'application/json',
+        },
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Gemini API error:', errorText)
+      return extractActionItemsBasic(summary, speakers)
+    }
+
+    const result = await response.json()
+    const textContent = result.candidates?.[0]?.content?.parts?.[0]?.text || ''
+
+    // Parse the JSON response
+    const parsed = parseGeminiJSON(textContent)
+
+    if (!parsed?.action_items || !Array.isArray(parsed.action_items)) {
+      console.error('Invalid Gemini response format')
+      return extractActionItemsBasic(summary, speakers)
+    }
+
+    // Transform to our format
+    return parsed.action_items.slice(0, 7).map((item: any, index: number) => ({
+      id: `action-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 9)}`,
+      text: item.text || 'Action item',
+      owner: item.owner || speakers[0]?.name || 'Team',
+      deadline: item.deadline || 'This week',
+      done: false,
+      priority: item.priority || 'medium',
+      category: item.category || 'other',
+    }))
+  } catch (error) {
+    console.error('Gemini extraction error:', error)
+    return extractActionItemsBasic(summary, speakers)
+  }
+}
+
+/**
+ * Parse Gemini JSON response with error handling
+ */
+function parseGeminiJSON(text: string): any {
+  // Remove markdown code blocks if present
+  const jsonMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/)
+  let jsonString = jsonMatch ? jsonMatch[1] : text
+
+  // Find JSON object
+  if (!jsonString.trim().startsWith('{')) {
+    const objectMatch = jsonString.match(/\{[\s\S]*\}/)
+    if (objectMatch) jsonString = objectMatch[0]
+  }
+
+  jsonString = jsonString.trim()
+  const firstBrace = jsonString.indexOf('{')
+  const lastBrace = jsonString.lastIndexOf('}')
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    jsonString = jsonString.substring(firstBrace, lastBrace + 1)
+  }
+
+  try {
+    return JSON.parse(jsonString)
+  } catch {
+    // Try to repair common issues
+    let repaired = jsonString
+      .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+      .replace(/'/g, '"') // Replace single quotes
+
+    try {
+      return JSON.parse(repaired)
+    } catch {
+      return null
+    }
+  }
+}
+
+/**
+ * Basic fallback extraction using regex patterns
+ */
+function extractActionItemsBasic(summary: string, speakers: { id: number; name: string }[]): Array<{
+  id: string
+  text: string
+  owner: string
+  deadline: string
+  done: boolean
+  priority: 'high' | 'medium' | 'low'
+  category: string
 }> {
   const items: Array<{
     id: string
@@ -315,9 +485,10 @@ function extractActionItems(summary: string, speakers: { id: number; name: strin
     owner: string
     deadline: string
     done: boolean
+    priority: 'high' | 'medium' | 'low'
+    category: string
   }> = []
 
-  // Look for action-related patterns
   const patterns = [
     /(?:will|should|need to|must|going to)\s+(.+?)(?:\.|$)/gi,
     /action[:\s]+(.+?)(?:\.|$)/gi,
@@ -335,11 +506,12 @@ function extractActionItems(summary: string, speakers: { id: number; name: strin
           owner: speakers[0]?.name || 'Team',
           deadline: 'This week',
           done: false,
+          priority: 'medium',
+          category: 'other',
         })
       }
     }
   }
 
-  // Limit to 5 action items
   return items.slice(0, 5)
 }

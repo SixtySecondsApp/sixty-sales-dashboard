@@ -55,6 +55,8 @@ export interface ActionItem {
   deadline: string;
   done: boolean;
   priority?: 'high' | 'medium' | 'low';
+  category?: 'follow_up' | 'deliverable' | 'research' | 'meeting' | 'communication' | 'decision' | 'other';
+  linkedTaskId?: string;
 }
 
 export interface UploadResult {
@@ -482,6 +484,269 @@ export const voiceRecordingService = {
     }
 
     return data;
+  },
+
+  // =====================================================
+  // Action Item to Task Sync
+  // =====================================================
+
+  /**
+   * Create a task from a voice recording action item
+   * Returns the created task ID
+   */
+  async createTaskFromActionItem(
+    recordingId: string,
+    actionItem: ActionItem,
+    userId: string
+  ): Promise<{ success: boolean; taskId?: string; error?: string }> {
+    try {
+      // Get recording for context
+      const recording = await this.getRecording(recordingId);
+      if (!recording) {
+        return { success: false, error: 'Recording not found' };
+      }
+
+      // Calculate due date from deadline string
+      const dueDate = this.parseDealineToDate(actionItem.deadline);
+
+      // Map action item priority to task priority
+      const priorityMap: Record<string, string> = {
+        high: 'high',
+        medium: 'medium',
+        low: 'low',
+      };
+      const priority = priorityMap[actionItem.priority || 'medium'] || 'medium';
+
+      // Create the task
+      const { data: task, error: createError } = await supabase
+        .from('tasks')
+        .insert({
+          user_id: userId,
+          title: actionItem.text,
+          description: `From voice recording: ${recording.title}`,
+          due_date: dueDate?.toISOString() || null,
+          priority,
+          task_type: 'follow_up',
+          status: actionItem.done ? 'completed' : 'todo',
+          completed: actionItem.done,
+          source: 'voice_recording',
+          source_id: recordingId,
+          metadata: {
+            voice_recording_id: recordingId,
+            voice_action_item_id: actionItem.id,
+            recording_title: recording.title,
+            action_owner: actionItem.owner,
+            action_category: actionItem.category || 'other',
+          },
+        })
+        .select('id')
+        .single();
+
+      if (createError) {
+        console.error('Error creating task:', createError);
+        return { success: false, error: createError.message };
+      }
+
+      // Update the action item with the linked task ID
+      await this.linkActionItemToTask(recordingId, actionItem.id, task.id);
+
+      return { success: true, taskId: task.id };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create task';
+      console.error('Create task from action item error:', err);
+      return { success: false, error: message };
+    }
+  },
+
+  /**
+   * Link an action item to a task
+   */
+  async linkActionItemToTask(
+    recordingId: string,
+    actionItemId: string,
+    taskId: string
+  ): Promise<boolean> {
+    const recording = await this.getRecording(recordingId);
+    if (!recording || !recording.action_items) return false;
+
+    const updatedItems = recording.action_items.map((item: ActionItem) =>
+      item.id === actionItemId
+        ? { ...item, linkedTaskId: taskId }
+        : item
+    );
+
+    const { error } = await supabase
+      .from('voice_recordings')
+      .update({ action_items: updatedItems })
+      .eq('id', recordingId);
+
+    if (error) {
+      console.error('Error linking action item to task:', error);
+      return false;
+    }
+
+    return true;
+  },
+
+  /**
+   * Unlink an action item from a task
+   */
+  async unlinkActionItemFromTask(
+    recordingId: string,
+    actionItemId: string
+  ): Promise<boolean> {
+    const recording = await this.getRecording(recordingId);
+    if (!recording || !recording.action_items) return false;
+
+    const updatedItems = recording.action_items.map((item: ActionItem) =>
+      item.id === actionItemId
+        ? { ...item, linkedTaskId: undefined }
+        : item
+    );
+
+    const { error } = await supabase
+      .from('voice_recordings')
+      .update({ action_items: updatedItems })
+      .eq('id', recordingId);
+
+    if (error) {
+      console.error('Error unlinking action item from task:', error);
+      return false;
+    }
+
+    return true;
+  },
+
+  /**
+   * Sync action item completion status to linked task
+   * Call this after toggling action item status
+   */
+  async syncActionItemToTask(
+    recordingId: string,
+    actionItemId: string
+  ): Promise<boolean> {
+    const recording = await this.getRecording(recordingId);
+    if (!recording || !recording.action_items) return false;
+
+    const actionItem = recording.action_items.find(
+      (item: ActionItem) => item.id === actionItemId
+    );
+
+    if (!actionItem || !actionItem.linkedTaskId) return false;
+
+    const { error } = await supabase
+      .from('tasks')
+      .update({
+        completed: actionItem.done,
+        status: actionItem.done ? 'completed' : 'todo',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', actionItem.linkedTaskId);
+
+    if (error) {
+      console.error('Error syncing action item to task:', error);
+      return false;
+    }
+
+    return true;
+  },
+
+  /**
+   * Sync task completion status to linked action item
+   * Call this when task status changes
+   */
+  async syncTaskToActionItem(
+    taskId: string,
+    completed: boolean
+  ): Promise<boolean> {
+    // Find the recording with this linked task
+    const { data: recordings, error: fetchError } = await supabase
+      .from('voice_recordings')
+      .select('id, action_items')
+      .not('action_items', 'is', null);
+
+    if (fetchError || !recordings) {
+      console.error('Error fetching recordings:', fetchError);
+      return false;
+    }
+
+    // Find the recording and action item with this task
+    for (const recording of recordings) {
+      if (!recording.action_items) continue;
+
+      const actionItems = recording.action_items as ActionItem[];
+      const actionItem = actionItems.find(
+        (item) => item.linkedTaskId === taskId
+      );
+
+      if (actionItem) {
+        // Update the action item status
+        const updatedItems = actionItems.map((item) =>
+          item.id === actionItem.id ? { ...item, done: completed } : item
+        );
+
+        const { error: updateError } = await supabase
+          .from('voice_recordings')
+          .update({ action_items: updatedItems })
+          .eq('id', recording.id);
+
+        if (updateError) {
+          console.error('Error syncing task to action item:', updateError);
+          return false;
+        }
+
+        return true;
+      }
+    }
+
+    return false;
+  },
+
+  /**
+   * Parse deadline string to Date
+   */
+  parseDealineToDate(deadline: string): Date | null {
+    const now = new Date();
+    const lowered = deadline.toLowerCase();
+
+    if (lowered === 'today') {
+      return now;
+    }
+    if (lowered === 'tomorrow') {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return tomorrow;
+    }
+    if (lowered === 'this week') {
+      const endOfWeek = new Date(now);
+      const daysUntilFriday = 5 - now.getDay();
+      endOfWeek.setDate(now.getDate() + (daysUntilFriday > 0 ? daysUntilFriday : 7 + daysUntilFriday));
+      return endOfWeek;
+    }
+    if (lowered === 'next week') {
+      const nextWeek = new Date(now);
+      nextWeek.setDate(now.getDate() + 7);
+      return nextWeek;
+    }
+    if (lowered === 'this month') {
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return endOfMonth;
+    }
+    if (lowered === 'next month') {
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+      return nextMonth;
+    }
+
+    // Try to parse as date string
+    const parsed = new Date(deadline);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+
+    // Default to end of this week
+    const defaultDate = new Date(now);
+    defaultDate.setDate(now.getDate() + 5);
+    return defaultDate;
   },
 };
 

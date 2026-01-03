@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useOrgId } from '@/lib/contexts/OrgContext';
 import { voiceRecordingService, VoiceRecording, RecordingType } from '@/lib/services/voiceRecordingService';
+import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 
 // Set to true to use mock data for development without backend
@@ -14,6 +15,7 @@ interface UseVoiceRecordingsReturn {
   uploadAndTranscribe: (audioBlob: Blob, title?: string, recordingType?: RecordingType) => Promise<VoiceRecording | null>;
   deleteRecording: (id: string) => Promise<boolean>;
   toggleActionItem: (recordingId: string, actionItemId: string) => Promise<boolean>;
+  addActionItemToTask: (recordingId: string, actionItemId: string) => Promise<{ success: boolean; taskId?: string; error?: string }>;
   getRecording: (id: string) => Promise<VoiceRecording | null>;
   retryTranscription: (recordingId: string) => Promise<boolean>;
 }
@@ -477,6 +479,76 @@ export function useVoiceRecordings(): UseVoiceRecordingsReturn {
     []
   );
 
+  // Add action item to tasks
+  const addActionItemToTask = useCallback(
+    async (recordingId: string, actionItemId: string): Promise<{ success: boolean; taskId?: string; error?: string }> => {
+      if (USE_MOCK_DATA) {
+        // Simulate task creation
+        const mockTaskId = `task-${Date.now()}`;
+        mockRecordingsRef.current = mockRecordingsRef.current.map((r) => {
+          if (r.id === recordingId && r.action_items) {
+            return {
+              ...r,
+              action_items: r.action_items.map((item) =>
+                item.id === actionItemId ? { ...item, linkedTaskId: mockTaskId } : item
+              ),
+            };
+          }
+          return r;
+        });
+        setRecordings([...mockRecordingsRef.current]);
+        toast.success('Action item added to tasks');
+        return { success: true, taskId: mockTaskId };
+      }
+
+      // Get recording and action item
+      const recording = recordings.find((r) => r.id === recordingId);
+      if (!recording || !recording.action_items) {
+        return { success: false, error: 'Recording not found' };
+      }
+
+      const actionItem = recording.action_items.find((a) => a.id === actionItemId);
+      if (!actionItem) {
+        return { success: false, error: 'Action item not found' };
+      }
+
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return { success: false, error: 'Not authenticated' };
+      }
+
+      const result = await voiceRecordingService.createTaskFromActionItem(
+        recordingId,
+        actionItem,
+        user.id
+      );
+
+      if (result.success && result.taskId) {
+        // Update local state with linked task ID
+        setRecordings((prev) =>
+          prev.map((r) => {
+            if (r.id === recordingId && r.action_items) {
+              return {
+                ...r,
+                action_items: r.action_items.map((item) =>
+                  item.id === actionItemId ? { ...item, linkedTaskId: result.taskId } : item
+                ),
+              };
+            }
+            return r;
+          })
+        );
+        toast.success('Action item added to tasks');
+      } else {
+        toast.error(result.error || 'Failed to add task');
+      }
+
+      return result;
+    },
+    [recordings]
+  );
+
   // Get single recording
   const getRecording = useCallback(
     async (id: string): Promise<VoiceRecording | null> => {
@@ -567,6 +639,7 @@ export function useVoiceRecordings(): UseVoiceRecordingsReturn {
     uploadAndTranscribe,
     deleteRecording,
     toggleActionItem,
+    addActionItemToTask,
     getRecording,
     retryTranscription,
   };

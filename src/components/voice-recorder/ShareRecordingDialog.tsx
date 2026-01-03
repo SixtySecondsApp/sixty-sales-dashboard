@@ -176,13 +176,17 @@ export const ShareRecordingDialog = memo(function ShareRecordingDialog({
                 <div className="space-y-3">
                   {/* Copy link input */}
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-300 truncate">
-                      {shareUrl}
-                    </div>
+                    <input
+                      type="text"
+                      readOnly
+                      value={shareUrl}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                      className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    />
                     <button
                       onClick={handleCopyLink}
                       className={cn(
-                        'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all',
+                        'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all flex-shrink-0',
                         copied
                           ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400'
                           : 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100'

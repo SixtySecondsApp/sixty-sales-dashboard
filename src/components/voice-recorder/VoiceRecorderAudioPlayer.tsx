@@ -19,6 +19,10 @@ export interface AudioPlayerRef {
 }
 
 const formatTime = (seconds: number): string => {
+  // Handle invalid values
+  if (!seconds || !isFinite(seconds) || isNaN(seconds) || seconds < 0) {
+    return '0:00';
+  }
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -34,8 +38,9 @@ export const VoiceRecorderAudioPlayer = forwardRef<AudioPlayerRef, VoiceRecorder
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [currentTime, setCurrentTime] = useState(0);
-    const [duration, setDuration] = useState(durationSeconds);
+    const [duration, setDuration] = useState(durationSeconds || 0);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
+    const [isAudioReady, setIsAudioReady] = useState(false);
 
     // Expose methods to parent
     useImperativeHandle(ref, () => ({
@@ -132,7 +137,22 @@ export const VoiceRecorderAudioPlayer = forwardRef<AudioPlayerRef, VoiceRecorder
       };
 
       const handleLoadedMetadata = () => {
-        if (audio.duration && !isNaN(audio.duration)) {
+        if (audio.duration && isFinite(audio.duration) && !isNaN(audio.duration)) {
+          setDuration(audio.duration);
+          setIsAudioReady(true);
+        }
+      };
+
+      const handleCanPlay = () => {
+        setIsAudioReady(true);
+        // Try to get duration again when audio can play
+        if (audio.duration && isFinite(audio.duration) && !isNaN(audio.duration)) {
+          setDuration(audio.duration);
+        }
+      };
+
+      const handleDurationChange = () => {
+        if (audio.duration && isFinite(audio.duration) && !isNaN(audio.duration)) {
           setDuration(audio.duration);
         }
       };
@@ -160,6 +180,8 @@ export const VoiceRecorderAudioPlayer = forwardRef<AudioPlayerRef, VoiceRecorder
 
       audio.addEventListener('timeupdate', handleTimeUpdate);
       audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.addEventListener('canplay', handleCanPlay);
+      audio.addEventListener('durationchange', handleDurationChange);
       audio.addEventListener('play', handlePlay);
       audio.addEventListener('pause', handlePause);
       audio.addEventListener('ended', handleEnded);
@@ -168,6 +190,8 @@ export const VoiceRecorderAudioPlayer = forwardRef<AudioPlayerRef, VoiceRecorder
       return () => {
         audio.removeEventListener('timeupdate', handleTimeUpdate);
         audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        audio.removeEventListener('canplay', handleCanPlay);
+        audio.removeEventListener('durationchange', handleDurationChange);
         audio.removeEventListener('play', handlePlay);
         audio.removeEventListener('pause', handlePause);
         audio.removeEventListener('ended', handleEnded);
@@ -180,7 +204,10 @@ export const VoiceRecorderAudioPlayer = forwardRef<AudioPlayerRef, VoiceRecorder
       fetchAudioUrl();
     }, [fetchAudioUrl]);
 
-    const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
+    // Calculate progress percentage, ensuring valid values
+    const validDuration = duration > 0 && isFinite(duration) ? duration : 0;
+    const validCurrentTime = currentTime >= 0 && isFinite(currentTime) ? currentTime : 0;
+    const progressPercentage = validDuration > 0 ? Math.min((validCurrentTime / validDuration) * 100, 100) : 0;
 
     return (
       <div className={`flex items-center gap-4 ${className}`}>
@@ -229,8 +256,8 @@ export const VoiceRecorderAudioPlayer = forwardRef<AudioPlayerRef, VoiceRecorder
 
           {/* Time Display */}
           <div className="flex justify-between text-xs text-gray-400">
-            <span>{formatTime(currentTime)}</span>
-            <span>{formatTime(duration)}</span>
+            <span>{formatTime(validCurrentTime)}</span>
+            <span>{validDuration > 0 ? formatTime(validDuration) : '--:--'}</span>
           </div>
         </div>
 

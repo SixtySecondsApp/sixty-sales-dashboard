@@ -9,6 +9,10 @@ import {
   List,
   ChevronRight,
   RefreshCw,
+  Plus,
+  Link2,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SpeakerWaveform } from './SpeakerWaveform';
@@ -24,6 +28,7 @@ interface VoiceRecorderMeetingDetailProps {
   onBookNextCall?: () => void;
   onViewTranscript?: () => void;
   onToggleActionItem?: (id: string) => void;
+  onAddActionItemToTasks?: (actionId: string) => Promise<{ success: boolean; taskId?: string; error?: string }>;
   onRetryTranscription?: () => void;
   className?: string;
 }
@@ -40,6 +45,7 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
   onBookNextCall,
   onViewTranscript,
   onToggleActionItem,
+  onAddActionItemToTasks,
   onRetryTranscription,
   className,
 }: VoiceRecorderMeetingDetailProps) {
@@ -193,6 +199,7 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
                     key={action.id}
                     action={action}
                     onToggle={() => onToggleActionItem?.(action.id)}
+                    onAddToTasks={onAddActionItemToTasks ? () => onAddActionItemToTasks(action.id) : undefined}
                   />
                 ))}
               </div>
@@ -251,52 +258,149 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
 interface ActionItemCardProps {
   action: ActionItem;
   onToggle?: () => void;
+  onAddToTasks?: () => Promise<{ success: boolean; taskId?: string; error?: string }>;
 }
 
 const ActionItemCard = memo(function ActionItemCard({
   action,
   onToggle,
+  onAddToTasks,
 }: ActionItemCardProps) {
+  const [isAddingToTasks, setIsAddingToTasks] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const isLinked = !!action.linkedTaskId;
+
+  const handleAddToTasks = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent toggle from firing
+    if (!onAddToTasks || isLinked || isAddingToTasks) return;
+
+    setIsAddingToTasks(true);
+    setAddError(null);
+
+    try {
+      const result = await onAddToTasks();
+      if (!result.success) {
+        setAddError(result.error || 'Failed to add task');
+      }
+    } catch (err) {
+      setAddError('Failed to add task');
+      console.error('Error adding to tasks:', err);
+    } finally {
+      setIsAddingToTasks(false);
+    }
+  };
+
+  // Get priority badge color
+  const getPriorityBadge = () => {
+    if (!action.priority) return null;
+    const colors = {
+      high: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',
+      medium: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400',
+      low: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+    };
+    return (
+      <span className={cn('px-1.5 py-0.5 rounded text-[10px] lg:text-xs font-medium uppercase', colors[action.priority])}>
+        {action.priority}
+      </span>
+    );
+  };
+
   return (
-    <button
-      onClick={onToggle}
+    <div
       className={cn(
         'w-full p-4 lg:p-5 rounded-xl border transition-all text-left shadow-sm dark:shadow-none',
         action.done
           ? 'bg-gray-50 dark:bg-gray-900/40 border-gray-100 dark:border-gray-700/30'
-          : 'bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+          : 'bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm border-gray-200 dark:border-gray-700/50'
       )}
     >
       <div className="flex items-start gap-3">
-        <div
+        {/* Checkbox */}
+        <button
+          onClick={onToggle}
           className={cn(
-            'w-5 h-5 lg:w-6 lg:h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors',
+            'w-5 h-5 lg:w-6 lg:h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors hover:border-emerald-400',
             action.done
               ? 'border-emerald-500 bg-emerald-500'
               : 'border-gray-300 dark:border-gray-600'
           )}
+          aria-label={action.done ? 'Mark incomplete' : 'Mark complete'}
         >
           {action.done && <Check className="w-3 h-3 lg:w-4 lg:h-4 text-white" />}
-        </div>
+        </button>
+
+        {/* Content */}
         <div className="flex-1 min-w-0">
-          <p
-            className={cn(
-              'text-sm lg:text-base',
-              action.done
-                ? 'text-gray-500 dark:text-gray-500 line-through'
-                : 'text-gray-900 dark:text-gray-200'
-            )}
-          >
-            {action.text}
-          </p>
-          <div className="flex items-center gap-2 mt-1 text-xs lg:text-sm text-gray-500 dark:text-gray-400">
-            <span>{action.owner}</span>
+          <div className="flex items-start justify-between gap-2">
+            <p
+              className={cn(
+                'text-sm lg:text-base flex-1',
+                action.done
+                  ? 'text-gray-500 dark:text-gray-500 line-through'
+                  : 'text-gray-900 dark:text-gray-200'
+              )}
+            >
+              {action.text}
+            </p>
+            {getPriorityBadge()}
+          </div>
+
+          {/* Metadata row */}
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            <span className="text-xs lg:text-sm text-gray-500 dark:text-gray-400">
+              {action.owner}
+            </span>
             <span className="text-gray-300 dark:text-gray-600">&bull;</span>
-            <span>{action.deadline}</span>
+            <span className="text-xs lg:text-sm text-gray-500 dark:text-gray-400">
+              {action.deadline}
+            </span>
+            {action.category && (
+              <>
+                <span className="text-gray-300 dark:text-gray-600">&bull;</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500 capitalize">
+                  {action.category.replace('_', ' ')}
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* Task sync row */}
+          <div className="flex items-center gap-2 mt-2">
+            {isLinked ? (
+              <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+                <Link2 className="w-3.5 h-3.5" />
+                <span>Synced to Tasks</span>
+              </div>
+            ) : onAddToTasks ? (
+              <button
+                onClick={handleAddToTasks}
+                disabled={isAddingToTasks}
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors',
+                  isAddingToTasks
+                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
+                    : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20'
+                )}
+              >
+                {isAddingToTasks ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Plus className="w-3.5 h-3.5" />
+                )}
+                <span>Add to Tasks</span>
+              </button>
+            ) : null}
+
+            {addError && (
+              <div className="flex items-center gap-1 text-xs text-red-500 dark:text-red-400">
+                <AlertCircle className="w-3 h-3" />
+                <span>{addError}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 });
 
