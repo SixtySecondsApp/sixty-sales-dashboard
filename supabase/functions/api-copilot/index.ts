@@ -2197,6 +2197,16 @@ ACTION PARAMETERS:
 ## CRM Updates
 • update_crm: { entity: 'deal'|'contact'|'task'|'activity', id, updates, confirm: true } - Update CRM record (requires confirm=true)
 
+## Skill Execution
+• run_skill: { skill_key, skill_context? } - Execute an AI skill with processing. For research skills (lead-research, company-analysis, competitor-intel), uses Gemini with real-time web search.
+  - skill_key: The skill to execute (lead-research, company-analysis, competitor-intel, market-research, industry-trends, meeting-prep, etc.)
+  - skill_context: Variables for the skill (domain, company_name, contact_email, industry, etc.)
+
+  Examples:
+  - Research a company: run_skill { skill_key: "lead-research", skill_context: { domain: "stripe.com", company_name: "Stripe" } }
+  - Analyze competitors: run_skill { skill_key: "competitor-intel", skill_context: { competitor_name: "Salesforce", our_company: "HubSpot" } }
+  - Market research: run_skill { skill_key: "market-research", skill_context: { industry: "fintech", focus_areas: "payment processing" } }
+
 Write actions require params.confirm=true.`,
     input_schema: {
       type: 'object',
@@ -2222,6 +2232,7 @@ Write actions require params.confirm=true.`,
             'draft_email',
             'update_crm',
             'send_notification',
+            'run_skill',
           ],
           description: 'The action to execute',
         },
@@ -2277,6 +2288,9 @@ Write actions require params.confirm=true.`,
             channel: { type: 'string', description: 'Notification channel (for send_notification)' },
             message: { type: 'string', description: 'Notification message (for send_notification)' },
             blocks: { type: 'object', description: 'Slack blocks (for send_notification)' },
+            // Skill execution params
+            skill_key: { type: 'string', description: 'Skill to execute (for run_skill): lead-research, company-analysis, competitor-intel, market-research, industry-trends, meeting-prep, etc.' },
+            skill_context: { type: 'object', description: 'Context variables for the skill (for run_skill): domain, company_name, competitor_name, industry, etc.' },
           },
         },
       },
@@ -2422,11 +2436,24 @@ This is NOT about creating a meeting - it's about preparing a briefing for an ex
 DO NOT show a "Create Meeting" UI for prep requests.
 
 ### Lead Research (when user wants to learn about a contact/company)
+For quick lookups from CRM data:
 1. Use execute_action with get_contact to find basic contact info
 2. Use execute_action with get_lead to get enrichment data, prep_summary, and SavvyCal booking info
 3. Use execute_action with enrich_contact or enrich_company if more data is needed
-4. Use get_skill with "lead-research" skill_id
-5. Follow the skill to compile research
+
+For DEEP research with real-time web search (when user says "research X" or "tell me about X company"):
+1. Use execute_action with run_skill { skill_key: "lead-research", skill_context: { domain: "company.com", company_name: "Company Name" } }
+2. This uses Gemini with Google Search to find current news, stakeholders, technology stack, and outreach angles
+3. The result includes sources from web search for credibility
+
+### Company Analysis & Competitive Intel
+When users ask about competitors or want strategic analysis:
+- Competitor intel: execute_action with run_skill { skill_key: "competitor-intel", skill_context: { competitor_name: "Competitor", our_company: "Our Company" } }
+- Company analysis: execute_action with run_skill { skill_key: "company-analysis", skill_context: { company_name: "Target", domain: "target.com" } }
+- Market research: execute_action with run_skill { skill_key: "market-research", skill_context: { industry: "SaaS", focus_areas: "AI automation" } }
+- Industry trends: execute_action with run_skill { skill_key: "industry-trends", skill_context: { industry: "fintech", time_frame: "90" } }
+
+These skills use real-time web search and return structured JSON with sources.
 
 ### Pipeline Queries (when user asks about deals, pipeline, or forecasts)
 

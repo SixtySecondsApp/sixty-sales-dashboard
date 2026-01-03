@@ -42,6 +42,7 @@ export type ExecuteActionName =
   | 'enrich_contact'
   | 'enrich_company'
   | 'invoke_skill'
+  | 'run_skill'
   | 'create_task'
   | 'list_tasks'
   | 'create_activity';
@@ -57,6 +58,14 @@ export interface InvokeSkillParams {
   return_format?: 'full' | 'data_only'; // Default: 'data_only' - what to return
   _invoke_depth?: number;               // Internal: tracks recursion depth
   _parent_skill?: string;               // Internal: tracks calling skill
+}
+
+/**
+ * Parameters for run_skill action - executes a skill with AI processing
+ */
+export interface RunSkillParams {
+  skill_key: string;                    // Skill to execute (lead-research, meeting-prep, etc.)
+  context?: Record<string, unknown>;    // Context variables (domain, company_name, contact_email, etc.)
 }
 
 /**

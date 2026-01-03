@@ -342,6 +342,34 @@ export async function executeAction(
       });
     }
 
+    case 'run_skill': {
+      // Execute a skill with AI processing and return generated output
+      const skillKey = params.skill_key ? String(params.skill_key) : '';
+      if (!skillKey) {
+        return { success: false, data: null, error: 'skill_key is required for run_skill' };
+      }
+
+      if (!orgId) {
+        return { success: false, data: null, error: 'Organization context required to run skills' };
+      }
+
+      // Import runSkill from skillsRuntime
+      const { runSkill } = await import('../skillsRuntime.ts');
+
+      // Build context from params (support both skill_context and context for backwards compatibility)
+      const skillContext = (params.skill_context || params.context || {}) as Record<string, unknown>;
+
+      // Execute the skill with AI
+      const result = await runSkill(client, skillKey, skillContext, orgId, userId);
+
+      return {
+        success: result.success,
+        data: result.output,
+        error: result.error,
+        source: 'run_skill',
+      };
+    }
+
     case 'invoke_skill': {
       // Skill composition: allows skills to invoke other skills
       const skillKey = params.skill_key ? String(params.skill_key) : '';
