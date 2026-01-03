@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, useMemo } from 'react';
+import { useEffect, useContext, useMemo } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 import type { Database } from '@/lib/database.types';
@@ -9,6 +9,11 @@ import { ViewModeContext } from '@/contexts/ViewModeContext';
 import { useAuthUser } from './useAuthUser';
 import { useUserProfileById } from './useUserProfile';
 import { apiMonitorService } from '@/lib/services/apiMonitorService';
+import {
+  setImpersonationData,
+  clearImpersonationData,
+  getImpersonationData
+} from '@/lib/utils/impersonationUtils';
 
 type UserProfile = Database['public']['Tables']['profiles']['Row'];
 
@@ -20,26 +25,8 @@ export const USER_STAGES = [
   'Director'
 ];
 
-// Helper functions for managing impersonation state
-export const setImpersonationData = (adminId: string, adminEmail: string) => {
-  sessionStorage.setItem('originalUserId', adminId);
-  sessionStorage.setItem('originalUserEmail', adminEmail);
-  sessionStorage.setItem('isImpersonating', 'true');
-};
-
-export const clearImpersonationData = () => {
-  sessionStorage.removeItem('originalUserId');
-  sessionStorage.removeItem('originalUserEmail');
-  sessionStorage.removeItem('isImpersonating');
-};
-
-export const getImpersonationData = () => {
-  return {
-    originalUserId: sessionStorage.getItem('originalUserId'),
-    originalUserEmail: sessionStorage.getItem('originalUserEmail'),
-    isImpersonating: sessionStorage.getItem('isImpersonating') === 'true'
-  };
-};
+// Re-export impersonation helpers for backwards compatibility
+export { setImpersonationData, clearImpersonationData, getImpersonationData };
 
 export const stopImpersonating = async () => {
   try {

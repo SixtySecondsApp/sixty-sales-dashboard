@@ -21,22 +21,35 @@ interface ChatMessageProps {
 export const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, onActionClick }) => {
   const isUser = message.role === 'user';
   const { userData } = useUser();
-  const BOT_ICON_URL =
-    'https://ygdpgliavpxeugaajgrb.supabase.co/storage/v1/object/public/Logos/ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459/Icon.png';
+  // Avoid hardcoding a Supabase project ref here (projects can move).
+  // Prefer an explicit env override, else fall back to the currently configured Supabase URL.
+  const botIconUrl = (() => {
+    const override = import.meta.env.VITE_COPILOT_BOT_ICON_URL as string | undefined;
+    if (override) return override;
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+    if (!supabaseUrl) return undefined;
+
+    // Keep the same storage path; only derive the host from the configured project.
+    const base = supabaseUrl.replace(/\/$/, '');
+    return `${base}/storage/v1/object/public/Logos/ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459/Icon.png`;
+  })();
 
   return (
     <div className={cn('flex gap-3', isUser ? 'justify-end' : 'justify-start')}>
       {!isUser && (
         <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-800 border border-gray-700 flex items-center justify-center">
-          <img
-            src={BOT_ICON_URL}
-            alt="60"
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              // Fallback to sparkle avatar if the icon can’t load
-              (e.currentTarget as HTMLImageElement).style.display = 'none';
-            }}
-          />
+          {botIconUrl ? (
+            <img
+              src={botIconUrl}
+              alt="60"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                // Fallback to sparkle avatar if the icon can’t load
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          ) : null}
           <Sparkles className="w-4 h-4 text-white" />
         </div>
       )}

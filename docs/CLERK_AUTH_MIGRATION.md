@@ -74,13 +74,14 @@ VITE_CLERK_PUBLISHABLE_KEY="pk_test_xxxxx"
 CLERK_SECRET_KEY="sk_test_xxxxx"
 VITE_USE_CLERK_AUTH="true"
 
-# Internal Supabase Project
-VITE_SUPABASE_URL="https://ewtuefzeogytgmsnkpmb.supabase.co"
+# Supabase Project (primary)
+# Use your current Supabase project URL + publishable key (anon key)
+VITE_SUPABASE_URL="https://<your-project-ref>.supabase.co"
 VITE_SUPABASE_ANON_KEY="your-internal-anon-key"
 SUPABASE_SERVICE_ROLE_KEY="your-internal-service-role-key"
 
-# External Supabase Project
-VITE_EXTERNAL_SUPABASE_URL="https://cregubixyglvfzvtlgit.supabase.co"
+# Optional: External Supabase Project (only if you still run a 2-project architecture)
+VITE_EXTERNAL_SUPABASE_URL="https://<your-external-project-ref>.supabase.co"
 VITE_EXTERNAL_SUPABASE_ANON_KEY="your-external-anon-key"
 EXTERNAL_SUPABASE_SERVICE_ROLE_KEY="your-external-service-role-key"
 ```
@@ -145,7 +146,7 @@ supabase functions deploy clerk-user-sync
 Set the required secrets:
 
 ```bash
-supabase secrets set EXTERNAL_SUPABASE_URL=https://cregubixyglvfzvtlgit.supabase.co
+supabase secrets set EXTERNAL_SUPABASE_URL=https://<your-external-project-ref>.supabase.co
 supabase secrets set EXTERNAL_SUPABASE_SERVICE_ROLE_KEY=your-external-service-role-key
 ```
 
@@ -154,7 +155,7 @@ supabase secrets set EXTERNAL_SUPABASE_SERVICE_ROLE_KEY=your-external-service-ro
 To automatically sync user changes from Clerk to Supabase:
 
 1. Go to Clerk Dashboard → Webhooks
-2. Add endpoint: `https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1/clerk-user-sync`
+2. Add endpoint: `https://<your-project-ref>.supabase.co/functions/v1/clerk-user-sync`
 3. Select events:
    - `user.created`
    - `user.updated`

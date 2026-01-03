@@ -12,12 +12,14 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Old project (source) - read-only access needed
-const OLD_SUPABASE_URL = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
-const OLD_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+// Can be overridden via environment variables
+const OLD_SUPABASE_URL = process.env.OLD_SUPABASE_URL || 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+const OLD_SUPABASE_ANON_KEY = process.env.OLD_SUPABASE_ANON_KEY || process.env.OLD_SUPABASE_SERVICE_ROLE_KEY;
 
 // New project (destination) - need service role for storage writes
-const NEW_SUPABASE_URL = 'https://ygdpgliavpxeugaajgrb.supabase.co';
-const NEW_SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Uses current project configuration by default
+const NEW_SUPABASE_URL = process.env.NEW_SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://ygdpgliavpxeugaajgrb.supabase.co';
+const NEW_SUPABASE_SERVICE_KEY = process.env.NEW_SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!NEW_SUPABASE_SERVICE_KEY) {
   console.error('❌ Missing SUPABASE_SERVICE_ROLE_KEY env var (required).');

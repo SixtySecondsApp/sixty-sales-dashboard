@@ -1,6 +1,6 @@
 import React from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
-import { getImpersonationData } from '@/lib/hooks/useUser';
+import { getImpersonationData } from '@/lib/utils/impersonationUtils';
 import logger from '@/lib/utils/logger';
 
 /**

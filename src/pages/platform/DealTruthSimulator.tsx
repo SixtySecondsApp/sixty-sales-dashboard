@@ -832,7 +832,7 @@ export default function DealTruthSimulator() {
           company,
           companies:company_id(name)
         `)
-        .eq('org_id', activeOrgId)
+        .eq('clerk_org_id', activeOrgId)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(50);
@@ -843,7 +843,7 @@ export default function DealTruthSimulator() {
         const { data: fallbackData, error: fallbackError } = await supabase
           .from('deals')
           .select('id, name, value, company')
-          .eq('org_id', activeOrgId)
+          .eq('clerk_org_id', activeOrgId)
           .eq('status', 'active')
           .order('created_at', { ascending: false })
           .limit(50);

@@ -128,6 +128,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       badge: 'New',
     },
     {
+      id: 'billing-analytics',
+      title: 'Billing Analytics',
+      description: 'RevenueCat-inspired subscription metrics (MRR, churn, retention, LTV)',
+      icon: DollarSign,
+      href: '/platform/dev/billing-analytics',
+      color: 'text-green-600 bg-green-100 dark:bg-green-900/30',
+      badge: 'New',
+    },
+    {
       id: 'users',
       title: 'User Management',
       description: 'View all users, manage permissions, and admin access',

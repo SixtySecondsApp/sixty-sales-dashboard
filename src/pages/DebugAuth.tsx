@@ -11,6 +11,8 @@ export default function DebugAuth() {
         // Get environment variables
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const projectRef = supabaseUrl?.split('//')?.[1]?.split('.')?.[0] || null;
+        const authTokenStorageKey = projectRef ? `sb-${projectRef}-auth-token` : null;
         
         // Get session
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -31,7 +33,9 @@ export default function DebugAuth() {
           user: user?.email || null,
           error: error?.message || null,
           localStorage: {
-            hasAuthToken: !!localStorage.getItem('sb-ygdpgliavpxeugaajgrb-auth-token'),
+            supabaseProjectRef: projectRef,
+            authTokenStorageKey: authTokenStorageKey || 'UNKNOWN',
+            hasAuthToken: authTokenStorageKey ? !!localStorage.getItem(authTokenStorageKey) : false,
             keys: Object.keys(localStorage).filter(k => k.includes('sb-') || k.includes('supabase'))
           }
         });
