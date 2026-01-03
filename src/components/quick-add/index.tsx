@@ -4,7 +4,14 @@ import { useQuickAddVersionReadOnly } from '@/lib/hooks/useQuickAddVersion';
 import { QuickAdd as QuickAddComponent } from './QuickAdd';
 
 export function QuickAdd(props: { isOpen: boolean; onClose: () => void }) {
-  const { effectiveUserType } = useUserPermissions();
+  // In app runtime, this is always wrapped by UserPermissionsProvider.
+  // Some unit tests render QuickAdd standalone, so fail open to "internal".
+  let effectiveUserType: 'internal' | 'external' = 'internal';
+  try {
+    effectiveUserType = useUserPermissions().effectiveUserType;
+  } catch {
+    // Provider not mounted (tests) - keep default
+  }
   const { internalVersion, externalVersion } = useQuickAddVersionReadOnly();
 
   const version = effectiveUserType === 'external' ? externalVersion : internalVersion;

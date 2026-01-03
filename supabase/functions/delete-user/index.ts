@@ -45,16 +45,42 @@ serve(async (req) => {
       )
     }
 
-    // Verify admin user is an admin
+    // Verify admin user is a platform admin (internal + is_admin)
     const { data: adminProfile } = await supabaseAdmin
       .from('profiles')
       .select('is_admin')
       .eq('id', adminUser.id)
       .single()
 
-    if (!adminProfile?.is_admin) {
+    // Internal domain allowlist check (fail-closed; bootstrap domain fallback if table missing)
+    const adminEmail = adminUser.email?.toLowerCase() || ''
+    if (adminEmail === 'app@sixtyseconds.video') {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized: Admin access required' }),
+        JSON.stringify({ error: 'Unauthorized: Platform admin access required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    const adminDomain = adminEmail.includes('@') ? adminEmail.split('@').pop() : null
+
+    let isInternal = false
+    if (adminDomain) {
+      const { data: internalDomain, error: domainError } = await supabaseAdmin
+        .from('internal_email_domains')
+        .select('domain')
+        .eq('domain', adminDomain)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (domainError && (domainError as any)?.code === '42P01') {
+        isInternal = adminDomain === 'sixtyseconds.video'
+      } else if (!domainError && internalDomain) {
+        isInternal = true
+      }
+    }
+
+    if (!adminProfile?.is_admin || !isInternal) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: Platform admin access required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -79,14 +105,6 @@ serve(async (req) => {
         JSON.stringify({ error: 'User not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
-    }
-
-    // Delete from internal_users if exists
-    if (userProfile.email) {
-      await supabaseAdmin
-        .from('internal_users')
-        .update({ is_active: false, updated_at: new Date().toISOString() })
-        .eq('email', userProfile.email.toLowerCase())
     }
 
     // Delete from profiles (this will cascade to related records if foreign keys are set up)

@@ -193,7 +193,7 @@ export default function ViewModeSettings() {
                 </p>
               </div>
             </div>
-            <Link to="/admin/internal-domains">
+            <Link to="/platform/integrations/domains">
               <Button variant="outline" className="border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30">
                 <ExternalLink className="w-4 h-4 mr-2" />
                 Configure Domains

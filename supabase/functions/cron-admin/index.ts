@@ -51,11 +51,31 @@ async function verifyAdmin(supabase: ReturnType<typeof createClient>, authHeader
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("is_admin")
+    .select("is_admin, email")
     .eq("id", user.id)
     .single();
 
-  return profile?.is_admin === true;
+  if (!profile?.is_admin) return false;
+
+  const email = (profile.email || user.email || "").toLowerCase();
+  if (email === "app@sixtyseconds.video") return false;
+  const domain = email.includes("@") ? email.split("@").pop() : null;
+  if (!domain) return false;
+
+  const { data: internalDomain, error: domainError } = await supabase
+    .from("internal_email_domains")
+    .select("domain")
+    .eq("domain", domain)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (domainError && (domainError as any)?.code === "42P01") {
+    return domain === "sixtyseconds.video";
+  }
+
+  if (domainError) return false;
+
+  return !!internalDomain;
 }
 
 serve(async (req) => {

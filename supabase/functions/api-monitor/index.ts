@@ -502,46 +502,8 @@ serve(async (req) => {
       );
     }
 
-    // For user mode, also verify they're an internal user (platform admin = internal + is_admin)
-    if (authContext.mode === 'user' && authContext.userId) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('email, is_admin')
-        .eq('id', authContext.userId)
-        .single();
-      
-      if (!profile) {
-        return new Response(
-          JSON.stringify({ error: "Unauthorized: User profile not found" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Check if user is internal (check internal_users table)
-      const { data: internalUser } = await supabase
-        .from('internal_users')
-        .select('email')
-        .eq('email', profile.email?.toLowerCase())
-        .eq('is_active', true)
-        .maybeSingle();
-
-      const isInternalUser = !!internalUser;
-      const isPlatformAdmin = profile.is_admin === true && isInternalUser;
-
-      console.log("[api-monitor] User check:", { 
-        email: profile.email, 
-        is_admin: profile.is_admin, 
-        is_internal: isInternalUser,
-        is_platform_admin: isPlatformAdmin 
-      });
-
-      if (!isPlatformAdmin) {
-        return new Response(
-          JSON.stringify({ error: "Unauthorized: Platform admin access required (internal user + is_admin)" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-    } else if (!authContext.isPlatformAdmin) {
+    // Platform admin access required (internal + is_admin for user-mode, or service role)
+    if (!authContext.isPlatformAdmin) {
       return new Response(
         JSON.stringify({ error: "Unauthorized: Platform admin access required" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }

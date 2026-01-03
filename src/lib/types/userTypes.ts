@@ -8,8 +8,8 @@
 // User type - derived from email whitelist at runtime
 export type UserType = 'internal' | 'external';
 
-// Legacy: Internal email domains - no longer used, kept for backwards compatibility
-// Now using internal_users table whitelist instead
+// Legacy: Internal email domains constant (kept for backwards compatibility).
+// Runtime source of truth is `internal_email_domains` (plus bootstrap domain fallback).
 export const INTERNAL_DOMAINS = [] as const;
 
 // Feature access flags - what each user type can access
