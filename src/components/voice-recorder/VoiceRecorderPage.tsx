@@ -127,13 +127,16 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
         minute: '2-digit',
       }),
       duration: formatDurationDisplay(rec.duration_seconds),
+      durationSeconds: rec.duration_seconds || 0,
       speakers,
       actions,
       summary: rec.summary || 'Processing transcription...',
-      transcript: (rec.transcript_segments || []).map((seg: { speaker: string; start_time: number; text: string }) => ({
+      transcript: (rec.transcript_segments || []).map((seg: { speaker: string; start_time: number; end_time?: number; text: string }) => ({
         speaker: seg.speaker,
         time: formatDurationDisplay(Math.floor(seg.start_time)),
         text: seg.text,
+        start_time: seg.start_time,
+        end_time: seg.end_time,
       })),
       createdAt: new Date(rec.created_at),
       audioUrl: rec.audio_url,
