@@ -275,6 +275,14 @@ const platformSections: Record<string, PlatformSection[]> = {
       href: '/platform/integrations/booking-sources',
       color: 'text-cyan-600 bg-cyan-100 dark:bg-cyan-900/30',
     },
+    {
+      id: 'internal-domains',
+      title: 'Internal Access Allowlist',
+      description: 'Manage which email domains are treated as internal users',
+      icon: Shield,
+      href: '/platform/integrations/domains',
+      color: 'text-violet-600 bg-violet-100 dark:bg-violet-900/30',
+    },
   ],
   'Email & Communications': [
     {

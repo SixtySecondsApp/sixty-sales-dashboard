@@ -382,6 +382,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/integrations/savvycal/tests" element={<PlatformAdminRouteGuard><AppLayout><SavvyCalIntegrationTests /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/savvycal" element={<PlatformAdminRouteGuard><AppLayout><SettingsSavvyCal /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/booking-sources" element={<PlatformAdminRouteGuard><AppLayout><SettingsBookingSources /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/integrations/domains" element={<PlatformAdminRouteGuard><AppLayout><InternalDomainsSettings /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/roadmap/:integrationId" element={<PlatformAdminRouteGuard><AppLayout><IntegrationRoadmap /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/roadmap" element={<PlatformAdminRouteGuard><AppLayout><IntegrationRoadmap /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Integration Testing Dashboard - Main page */}
