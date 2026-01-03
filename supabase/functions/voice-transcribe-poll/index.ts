@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { createMeetingFromVoiceRecording } from "./meetingIntegration.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -245,11 +246,16 @@ serve(async (req) => {
       const actionItems = await extractActionItemsWithGemini(fullTranscript, summary, speakers, recordingType)
       console.log(`Extracted ${actionItems.length} action items using Gemini`)
 
+      // Generate AI-powered title based on transcript content
+      const aiTitle = await generateTitleWithGemini(fullTranscript, summary, recordingType)
+      console.log(`Generated AI title: ${aiTitle}`)
+
       // Update recording with results
       const { error: updateError } = await supabase
         .from('voice_recordings')
         .update({
           status: 'completed',
+          title: aiTitle,
           transcript_text: fullTranscript,
           transcript_segments: transcriptSegments,
           speakers: speakers,
@@ -268,6 +274,38 @@ serve(async (req) => {
         )
       }
 
+      // If recording type is 'meeting', create a linked meeting record with AI analysis
+      let meetingIntelligence = null
+      if (recordingType === 'meeting') {
+        console.log('Recording is type "meeting", creating linked meeting record...')
+
+        // Build recording object for meeting integration
+        const recordingForMeeting = {
+          id: recording_id,
+          user_id: recording.user_id,
+          org_id: recording.org_id,
+          title: aiTitle,
+          created_at: recording.created_at,
+          duration_seconds: pollResult.result?.metadata?.audio_duration || null,
+          recording_type: recordingType,
+        }
+
+        meetingIntelligence = await createMeetingFromVoiceRecording(
+          supabase,
+          recordingForMeeting,
+          fullTranscript,
+          summary || 'Voice recording transcription completed.',
+          speakers,
+          transcriptSegments
+        )
+
+        if (meetingIntelligence) {
+          console.log(`Created meeting ${meetingIntelligence.meeting_id} from voice recording`)
+        } else {
+          console.warn('Failed to create meeting from voice recording, continuing...')
+        }
+      }
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -277,6 +315,7 @@ serve(async (req) => {
           speakers: speakers,
           summary: summary,
           segments_count: transcriptSegments.length,
+          meeting_id: meetingIntelligence?.meeting_id || null,
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -427,6 +466,99 @@ Return ONLY valid JSON, no explanation.`
   } catch (error) {
     console.error('Gemini extraction error:', error)
     return extractActionItemsBasic(summary, speakers)
+  }
+}
+
+/**
+ * Generate a descriptive title using Gemini AI
+ */
+async function generateTitleWithGemini(
+  transcript: string,
+  summary: string,
+  recordingType: string
+): Promise<string> {
+  // Default fallback title with date
+  const today = new Date()
+  const dateStr = today.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit'
+  }).replace('/', '-')
+  const defaultTitle = `Recording ${dateStr}`
+
+  // If no Gemini API key, return default
+  if (!GEMINI_API_KEY) {
+    console.log('No Gemini API key, using default title')
+    return defaultTitle
+  }
+
+  // Recording type context for better titles
+  const typeContext = {
+    meeting: 'business meeting or discussion',
+    call: 'phone or video call',
+    note: 'voice note or memo',
+    idea: 'idea capture or brainstorm',
+  }[recordingType] || 'voice recording'
+
+  const prompt = `Generate a concise, descriptive title for this ${typeContext} recording.
+
+TRANSCRIPT EXCERPT:
+${transcript.slice(0, 3000)}
+
+${summary ? `SUMMARY:\n${summary}` : ''}
+
+TITLE REQUIREMENTS:
+1. Maximum 6 words
+2. Capture the main topic or purpose
+3. Use title case (capitalize main words)
+4. Do NOT include dates, times, or "Recording"
+5. Do NOT use generic phrases like "Discussion About" or "Meeting About"
+6. Be specific and descriptive
+7. Examples of good titles:
+   - "Q4 Sales Strategy Review"
+   - "Customer Onboarding Process"
+   - "Website Redesign Planning"
+   - "Team Performance Feedback"
+   - "Product Launch Timeline"
+
+RESPONSE FORMAT:
+Return ONLY the title text, nothing else. No quotes, no explanation.`
+
+  try {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${GEMINI_API_KEY}`
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.3,
+          topP: 0.8,
+          maxOutputTokens: 50,
+        },
+      }),
+    })
+
+    if (!response.ok) {
+      console.error('Gemini title generation failed:', response.status)
+      return defaultTitle
+    }
+
+    const result = await response.json()
+    const generatedTitle = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
+
+    // Validate and clean the title
+    if (generatedTitle && generatedTitle.length > 0 && generatedTitle.length <= 60) {
+      // Remove quotes if present
+      const cleanTitle = generatedTitle.replace(/^["']|["']$/g, '').trim()
+      // Append date for uniqueness
+      return `${cleanTitle} ${dateStr}`
+    }
+
+    return defaultTitle
+  } catch (error) {
+    console.error('Gemini title generation error:', error)
+    return defaultTitle
   }
 }
 

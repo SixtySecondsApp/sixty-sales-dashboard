@@ -39,7 +39,9 @@ import {
   Loader2,
   FileText,
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  Mic,
+  AudioLines
 } from 'lucide-react'
 import { MeetingUsageBar } from '@/components/MeetingUsageIndicator'
 
@@ -84,6 +86,9 @@ interface Meeting {
   next_actions_count: number | null
   meeting_type?: 'discovery' | 'demo' | 'negotiation' | 'closing' | 'follow_up' | 'general' | null
   classification_confidence?: number | null
+  // Source type for voice vs Fathom meetings
+  source_type?: 'fathom' | 'voice'
+  voice_recording_id?: string | null
   // Processing status columns for real-time UI updates
   thumbnail_status?: ProcessingStatus
   transcript_status?: ProcessingStatus
@@ -791,7 +796,14 @@ const MeetingsList: React.FC = () => {
                       className="border-gray-200/50 dark:border-gray-700/30 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors group"
                     >
                       <TableCell className="font-medium text-gray-900 dark:text-gray-200">
-                        {meeting.title || 'Untitled'}
+                        <div className="flex items-center gap-2">
+                          {meeting.source_type === 'voice' && (
+                            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-500/20 rounded text-emerald-600 dark:text-emerald-400">
+                              <Mic className="h-3 w-3" />
+                            </div>
+                          )}
+                          <span>{meeting.title || 'Untitled'}</span>
+                        </div>
                       </TableCell>
                       <TableCell className="text-gray-700 dark:text-gray-400">
                         {meeting.company?.name || '-'}
@@ -880,39 +892,103 @@ const MeetingsList: React.FC = () => {
                   className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl p-5 border border-gray-200/50 dark:border-gray-700/30 hover:border-gray-300/50 dark:hover:border-gray-600/40 transition-all duration-300 shadow-sm dark:shadow-lg dark:shadow-black/10 cursor-pointer group"
                   onClick={() => openMeeting(meeting.id)}
                 >
-                  {/* Video Thumbnail Area */}
+                  {/* Media Thumbnail Area - Voice or Video */}
                   <div className="relative aspect-video bg-gray-100/80 dark:bg-gray-800/40 rounded-xl mb-4 overflow-hidden border border-gray-200/30 dark:border-gray-700/20">
-                    {meeting.thumbnail_url && !meeting.thumbnail_url.includes('dummyimage.com') ? (
-                      <img
-                        src={meeting.thumbnail_url}
-                        alt={meeting.title}
-                        className="absolute inset-0 w-full h-full object-cover"
-                        loading="lazy"
-                        onError={(e) => {
-                          // Fallback to placeholder if image fails to load
-                          e.currentTarget.style.display = 'none'
-                        }}
-                      />
-                    ) : null}
-
-                    {/* Thumbnail Processing Indicator */}
-                    {meeting.thumbnail_status === 'processing' && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm">
-                        <div className="flex flex-col items-center gap-2">
-                          <Loader2 className="h-8 w-8 text-white animate-spin" />
-                          <span className="text-xs text-white/80">Generating thumbnail...</span>
+                    {meeting.source_type === 'voice' ? (
+                      /* Voice Meeting - Audio Waveform Display */
+                      <>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-emerald-500/10 via-emerald-600/5 to-teal-500/10 dark:from-emerald-500/20 dark:via-emerald-600/10 dark:to-teal-500/20">
+                          {/* Animated waveform bars */}
+                          <div className="flex items-end gap-1 h-12 mb-2">
+                            {[...Array(12)].map((_, i) => (
+                              <div
+                                key={i}
+                                className="w-1.5 bg-emerald-500/60 dark:bg-emerald-400/60 rounded-full"
+                                style={{
+                                  height: `${20 + Math.sin(i * 0.8) * 15 + Math.random() * 10}px`,
+                                  animation: `waveform ${0.5 + i * 0.1}s ease-in-out infinite alternate`,
+                                  animationDelay: `${i * 50}ms`,
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                            <Mic className="h-5 w-5" />
+                            <span className="text-sm font-medium">Voice Recording</span>
+                          </div>
                         </div>
-                      </div>
-                    )}
-
-                    {/* Thumbnail Pending (Queued) Indicator */}
-                    {meeting.thumbnail_status === 'pending' && !meeting.thumbnail_url && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="flex flex-col items-center gap-2 text-gray-400 dark:text-gray-500">
-                          <Video className="h-12 w-12" />
-                          <span className="text-xs">Queued</span>
+                        {/* Voice badge - top left */}
+                        <div className="absolute top-2 left-2">
+                          <div className="px-2 py-1 bg-emerald-500/90 backdrop-blur-sm rounded-md text-[10px] text-white flex items-center gap-1">
+                            <Mic className="h-3 w-3" />
+                            Voice
+                          </div>
                         </div>
-                      </div>
+                      </>
+                    ) : (
+                      /* Fathom/Video Meeting - Standard Thumbnail */
+                      <>
+                        {meeting.thumbnail_url && !meeting.thumbnail_url.includes('dummyimage.com') ? (
+                          <img
+                            src={meeting.thumbnail_url}
+                            alt={meeting.title}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            loading="lazy"
+                            onError={(e) => {
+                              // Fallback to placeholder if image fails to load
+                              e.currentTarget.style.display = 'none'
+                            }}
+                          />
+                        ) : null}
+
+                        {/* Thumbnail Processing Indicator */}
+                        {meeting.thumbnail_status === 'processing' && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm">
+                            <div className="flex flex-col items-center gap-2">
+                              <Loader2 className="h-8 w-8 text-white animate-spin" />
+                              <span className="text-xs text-white/80">Generating thumbnail...</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Thumbnail Pending (Queued) Indicator */}
+                        {meeting.thumbnail_status === 'pending' && !meeting.thumbnail_url && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="flex flex-col items-center gap-2 text-gray-400 dark:text-gray-500">
+                              <Video className="h-12 w-12" />
+                              <span className="text-xs">Queued</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Processing Status Badges (top-left) */}
+                        {(meeting.transcript_status === 'processing' || meeting.summary_status === 'processing') && (
+                          <div className="absolute top-2 left-2 flex flex-col gap-1">
+                            {meeting.transcript_status === 'processing' && (
+                              <div className="px-2 py-1 bg-blue-500/90 backdrop-blur-sm rounded-md text-[10px] text-white flex items-center gap-1.5">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <FileText className="h-3 w-3" />
+                              </div>
+                            )}
+                            {meeting.summary_status === 'processing' && (
+                              <div className="px-2 py-1 bg-purple-500/90 backdrop-blur-sm rounded-md text-[10px] text-white flex items-center gap-1.5">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <Sparkles className="h-3 w-3" />
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Queued Status Badge */}
+                        {meeting.transcript_status === 'pending' && meeting.summary_status === 'pending' && (
+                          <div className="absolute top-2 left-2">
+                            <div className="px-2 py-1 bg-gray-500/80 backdrop-blur-sm rounded-md text-[10px] text-white flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              Queued
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {/* Overlay gradient */}
@@ -928,34 +1004,6 @@ const MeetingsList: React.FC = () => {
                       <Clock className="h-3 w-3" />
                       {formatDuration(meeting.duration_minutes)}
                     </div>
-
-                    {/* Processing Status Badges (top-left) */}
-                    {(meeting.transcript_status === 'processing' || meeting.summary_status === 'processing') && (
-                      <div className="absolute top-2 left-2 flex flex-col gap-1">
-                        {meeting.transcript_status === 'processing' && (
-                          <div className="px-2 py-1 bg-blue-500/90 backdrop-blur-sm rounded-md text-[10px] text-white flex items-center gap-1.5">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            <FileText className="h-3 w-3" />
-                          </div>
-                        )}
-                        {meeting.summary_status === 'processing' && (
-                          <div className="px-2 py-1 bg-purple-500/90 backdrop-blur-sm rounded-md text-[10px] text-white flex items-center gap-1.5">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            <Sparkles className="h-3 w-3" />
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Queued Status Badge */}
-                    {meeting.transcript_status === 'pending' && meeting.summary_status === 'pending' && (
-                      <div className="absolute top-2 left-2">
-                        <div className="px-2 py-1 bg-gray-500/80 backdrop-blur-sm rounded-md text-[10px] text-white flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          Queued
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* Content */}
@@ -1132,6 +1180,14 @@ const MeetingsList: React.FC = () => {
           isSyncing={syncState?.sync_status === 'syncing' && totalCount === 0}
         />
       )}
+
+      {/* Waveform animation for voice meeting cards */}
+      <style>{`
+        @keyframes waveform {
+          0% { transform: scaleY(0.5); }
+          100% { transform: scaleY(1); }
+        }
+      `}</style>
     </div>
   )
 }

@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, ExternalLink, Loader2, AlertCircle, Play, FileText, MessageSquare, Sparkles, ListTodo, Trash2, CheckCircle2, Plus, X, RefreshCw, BarChart3, Clock } from 'lucide-react';
 import FathomPlayerV2, { FathomPlayerV2Handle } from '@/components/FathomPlayerV2';
+import { VoiceMeetingPlayer } from '@/components/meetings/VoiceMeetingPlayer';
 import { AskAIChat } from '@/components/meetings/AskAIChat';
 import { MeetingContent } from '@/components/meetings/MeetingContent';
 import { NextActionSuggestions } from '@/components/meetings/NextActionSuggestions';
@@ -56,6 +57,23 @@ interface Meeting {
   thumbnail_status?: ProcessingStatus;
   transcript_status?: ProcessingStatus;
   summary_status?: ProcessingStatus;
+  // Voice meeting fields
+  source_type?: 'fathom' | 'voice';
+  voice_recording_id?: string | null;
+}
+
+// Voice recording data for voice meetings
+interface VoiceRecordingData {
+  speakers: { id: number; name: string; initials?: string }[];
+  transcript_segments: {
+    speaker: string;
+    speaker_id: number;
+    text: string;
+    start_time: number;
+    end_time: number;
+    confidence?: number;
+  }[];
+  duration_seconds: number;
 }
 
 interface MeetingAttendee {
@@ -158,6 +176,8 @@ export function MeetingDetail() {
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [createTaskModalOpen, setCreateTaskModalOpen] = useState(false);
   const [summaryViewTracked, setSummaryViewTracked] = useState(false);
+  const [voiceRecordingData, setVoiceRecordingData] = useState<VoiceRecordingData | null>(null);
+  const [voiceCurrentTime, setVoiceCurrentTime] = useState(0);
 
   // Activation tracking for North Star metric
   const { trackFirstSummaryViewed } = useActivationTracking();
@@ -325,6 +345,41 @@ export function MeetingDetail() {
 
     fetchMeetingDetails();
   }, [id]);
+
+  // Fetch voice recording data for voice meetings
+  useEffect(() => {
+    const fetchVoiceRecordingData = async () => {
+      if (!meeting?.voice_recording_id || meeting.source_type !== 'voice') {
+        setVoiceRecordingData(null);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('voice_recordings')
+          .select('speakers, transcript_segments, duration_seconds')
+          .eq('id', meeting.voice_recording_id)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Error fetching voice recording data:', error);
+          return;
+        }
+
+        if (data) {
+          setVoiceRecordingData({
+            speakers: (data.speakers as VoiceRecordingData['speakers']) || [],
+            transcript_segments: (data.transcript_segments as VoiceRecordingData['transcript_segments']) || [],
+            duration_seconds: data.duration_seconds || 0,
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching voice recording data:', err);
+      }
+    };
+
+    fetchVoiceRecordingData();
+  }, [meeting?.voice_recording_id, meeting?.source_type]);
 
   // Real-time subscription for processing status updates
   useEffect(() => {
@@ -952,8 +1007,21 @@ export function MeetingDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 min-w-0">
         {/* Left Column - Video & Content */}
         <div className="lg:col-span-8 space-y-3 sm:space-y-4 min-w-0">
-          {/* Video Player */}
-          {(meeting.fathom_recording_id || meeting.share_url) && (
+          {/* Media Player - Voice or Fathom */}
+          {meeting.source_type === 'voice' && meeting.voice_recording_id ? (
+            /* Voice Meeting Player with Stacked Waveforms */
+            <div className="glassmorphism-card overflow-hidden">
+              <VoiceMeetingPlayer
+                voiceRecordingId={meeting.voice_recording_id}
+                speakers={voiceRecordingData?.speakers || []}
+                transcriptSegments={voiceRecordingData?.transcript_segments || []}
+                durationSeconds={voiceRecordingData?.duration_seconds || meeting.duration_minutes * 60}
+                onTimeUpdate={setVoiceCurrentTime}
+                className="p-4"
+              />
+            </div>
+          ) : (meeting.fathom_recording_id || meeting.share_url) ? (
+            /* Fathom Video Player */
             <div className="glassmorphism-card overflow-hidden">
               <FathomPlayerV2
                 ref={playerRef}
@@ -966,7 +1034,7 @@ export function MeetingDetail() {
                 onError={() => undefined}
               />
             </div>
-          )}
+          ) : null}
 
           {/* AI Insights Section */}
           <div className="space-y-4">
