@@ -13,7 +13,6 @@ interface UploadRequest {
   duration_seconds: number
   org_id: string
   title?: string
-  recording_type?: 'meeting' | 'voice_note' // Type of recording
 }
 
 /**
@@ -24,7 +23,7 @@ interface UploadRequest {
  * Required Environment Variables:
  * - AWS_ACCESS_KEY_ID
  * - AWS_SECRET_ACCESS_KEY
- * - VOICE_S3_BUCKET (S3 bucket name for voice recordings)
+ * - AWS_S3_BUCKET (S3 bucket name)
  * - AWS_REGION (optional, defaults to eu-west-2)
  * - SUPABASE_URL
  * - SUPABASE_SERVICE_ROLE_KEY
@@ -59,7 +58,7 @@ serve(async (req) => {
       )
     }
 
-    const { audio_data, file_name, duration_seconds, org_id, title, recording_type }: UploadRequest = await req.json()
+    const { audio_data, file_name, duration_seconds, org_id, title }: UploadRequest = await req.json()
 
     if (!audio_data || !file_name || !org_id) {
       return new Response(
@@ -72,7 +71,7 @@ serve(async (req) => {
     const awsAccessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID')
     const awsSecretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY')
     const awsRegion = Deno.env.get('AWS_REGION') || 'eu-west-2'
-    const awsBucket = Deno.env.get('VOICE_S3_BUCKET') || 'use60-voice-notes'
+    const awsBucket = Deno.env.get('AWS_S3_BUCKET') || 'user-upload'
 
     if (!awsAccessKeyId || !awsSecretAccessKey) {
       return new Response(
@@ -82,18 +81,7 @@ serve(async (req) => {
     }
 
     // Convert base64 to buffer
-    // Handle various mime type formats: data:audio/webm;base64,... or data:audio/webm;codecs=opus;base64,...
-    const base64Data = audio_data.replace(/^data:[^,]*;base64,/, '')
-
-    // Validate base64 before decoding
-    if (!base64Data || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64Data)) {
-      console.error('Invalid base64 data. First 100 chars:', audio_data.substring(0, 100))
-      return new Response(
-        JSON.stringify({ error: 'Invalid base64 audio data format' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
+    const base64Data = audio_data.replace(/^data:audio\/\w+;base64,/, '')
     const audioBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
 
     // Determine content type from file extension
@@ -144,7 +132,6 @@ serve(async (req) => {
         file_name,
         file_size_bytes: audioBuffer.length,
         status: 'uploaded',
-        recording_type: recording_type || 'meeting',
       })
       .select()
       .single()

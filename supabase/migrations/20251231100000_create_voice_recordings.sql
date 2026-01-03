@@ -4,7 +4,7 @@
 -- Create voice_recordings table
 CREATE TABLE IF NOT EXISTS voice_recordings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  org_id UUID NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
 
   -- Recording metadata
@@ -60,7 +60,7 @@ CREATE POLICY "Users can view org recordings"
   FOR SELECT
   USING (
     org_id IN (
-      SELECT org_id FROM organization_memberships WHERE user_id = auth.uid()
+      SELECT org_id FROM org_users WHERE user_id = auth.uid()
     )
   );
 
@@ -71,7 +71,7 @@ CREATE POLICY "Users can create recordings"
   WITH CHECK (
     user_id = auth.uid() AND
     org_id IN (
-      SELECT org_id FROM organization_memberships WHERE user_id = auth.uid()
+      SELECT org_id FROM org_users WHERE user_id = auth.uid()
     )
   );
 

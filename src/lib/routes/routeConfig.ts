@@ -171,7 +171,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
   {
     path: '/voice',
     access: 'internal',
-    label: 'Voice Notes',
+    label: 'Voice',
     icon: Mic,
     showInNav: true,
     navSection: 'main',
