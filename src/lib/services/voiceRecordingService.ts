@@ -521,13 +521,14 @@ export const voiceRecordingService = {
       const { data: task, error: createError } = await supabase
         .from('tasks')
         .insert({
-          user_id: userId,
+          assigned_to: userId,
+          created_by: userId,
           title: actionItem.text,
           description: `From voice recording: ${recording.title}`,
           due_date: dueDate?.toISOString() || null,
           priority,
           task_type: 'follow_up',
-          status: actionItem.done ? 'completed' : 'todo',
+          status: actionItem.done ? 'completed' : 'pending',
           completed: actionItem.done,
           source: 'voice_recording',
           source_id: recordingId,
