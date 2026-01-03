@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
+import { S3Client } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const corsHeaders = {
@@ -10,32 +11,20 @@ interface TranscribeRequest {
   recording_id: string
 }
 
-interface GladiaTranscriptionResult {
-  transcription: {
-    utterances: Array<{
-      speaker: number
-      text: string
-      start: number
-      end: number
-      confidence: number
-    }>
-    full_transcript: string
-  }
-  metadata: {
-    audio_duration: number
-    number_of_distinct_channels: number
-  }
-}
-
 /**
  * Voice Transcribe Edge Function
  *
- * Transcribes voice recordings using Gladia API with speaker diarization.
+ * Starts transcription via Gladia API and returns immediately.
+ * The result_url is saved to the database for polling.
  *
  * Required Environment Variables:
  * - GLADIA_API_KEY
  * - SUPABASE_URL
  * - SUPABASE_SERVICE_ROLE_KEY
+ * - AWS_ACCESS_KEY_ID
+ * - AWS_SECRET_ACCESS_KEY
+ * - VOICE_S3_BUCKET (defaults to use60-voice-notes)
+ * - AWS_REGION (defaults to eu-west-2)
  */
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -98,7 +87,7 @@ serve(async (req) => {
       )
     }
 
-    // Update status to processing
+    // Update status to transcribing
     await supabase
       .from('voice_recordings')
       .update({ status: 'transcribing' })
@@ -118,37 +107,55 @@ serve(async (req) => {
       )
     }
 
-    // Step 1: Upload audio to Gladia
-    console.log('Uploading audio to Gladia...')
-    const uploadResponse = await fetch('https://api.gladia.io/v2/upload', {
-      method: 'POST',
-      headers: {
-        'x-gladia-key': gladiaApiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        audio_url: recording.audio_url,
-      }),
-    })
+    // Get AWS credentials for S3 presigned URL
+    const awsAccessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID')
+    const awsSecretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY')
+    const awsRegion = Deno.env.get('AWS_REGION') || 'eu-west-2'
+    const awsBucket = Deno.env.get('VOICE_S3_BUCKET') || 'use60-voice-notes'
 
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text()
-      console.error('Gladia upload failed:', errorText)
+    if (!awsAccessKeyId || !awsSecretAccessKey) {
       await supabase
         .from('voice_recordings')
-        .update({ status: 'failed', error_message: `Upload failed: ${errorText}` })
+        .update({ status: 'failed', error_message: 'AWS credentials not configured' })
         .eq('id', recording_id)
 
       return new Response(
-        JSON.stringify({ error: 'Failed to upload audio for transcription' }),
+        JSON.stringify({ error: 'Storage credentials not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const uploadResult = await uploadResponse.json()
-    const audioUrl = uploadResult.audio_url
+    // Generate presigned URL for S3 audio file
+    const audioUrlParts = recording.audio_url.match(/https:\/\/[^/]+\/(.+)$/)
+    if (!audioUrlParts) {
+      await supabase
+        .from('voice_recordings')
+        .update({ status: 'failed', error_message: 'Invalid audio URL format' })
+        .eq('id', recording_id)
 
-    // Step 2: Start transcription with speaker diarization
+      return new Response(
+        JSON.stringify({ error: 'Invalid audio URL format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const s3Key = audioUrlParts[1]
+    console.log('Generating presigned URL for S3 key:', s3Key)
+
+    const s3Client = new S3Client({
+      endPoint: `s3.${awsRegion}.amazonaws.com`,
+      region: awsRegion,
+      accessKey: awsAccessKeyId,
+      secretKey: awsSecretAccessKey,
+      bucket: awsBucket,
+      useSSL: true,
+    })
+
+    // Generate a presigned URL valid for 1 hour
+    const presignedUrl = await s3Client.presignedGetObject(s3Key, { expirySeconds: 3600 })
+    console.log('Generated presigned URL for Gladia access')
+
+    // Start transcription with speaker diarization
     console.log('Starting transcription with diarization...')
     const transcriptionResponse = await fetch('https://api.gladia.io/v2/transcription', {
       method: 'POST',
@@ -157,10 +164,10 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        audio_url: audioUrl,
+        audio_url: presignedUrl,
         diarization: true,
         diarization_config: {
-          number_of_speakers: null, // Auto-detect
+          number_of_speakers: null,
           min_speakers: 1,
           max_speakers: 6,
         },
@@ -190,110 +197,24 @@ serve(async (req) => {
     const transcriptionResult = await transcriptionResponse.json()
     const resultUrl = transcriptionResult.result_url
 
-    // Step 3: Poll for results
-    console.log('Polling for transcription results...')
-    let result: GladiaTranscriptionResult | null = null
-    let attempts = 0
-    const maxAttempts = 60 // 5 minutes max wait (5 seconds * 60)
+    console.log('Transcription started, result_url:', resultUrl)
 
-    while (attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 5000)) // Wait 5 seconds
-
-      const pollResponse = await fetch(resultUrl, {
-        headers: {
-          'x-gladia-key': gladiaApiKey,
-        },
-      })
-
-      if (!pollResponse.ok) {
-        attempts++
-        continue
-      }
-
-      const pollResult = await pollResponse.json()
-
-      if (pollResult.status === 'done') {
-        result = pollResult
-        break
-      } else if (pollResult.status === 'error') {
-        console.error('Gladia transcription error:', pollResult.error)
-        await supabase
-          .from('voice_recordings')
-          .update({ status: 'failed', error_message: pollResult.error || 'Transcription failed' })
-          .eq('id', recording_id)
-
-        return new Response(
-          JSON.stringify({ error: 'Transcription failed' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      attempts++
-    }
-
-    if (!result) {
-      await supabase
-        .from('voice_recordings')
-        .update({ status: 'failed', error_message: 'Transcription timed out' })
-        .eq('id', recording_id)
-
-      return new Response(
-        JSON.stringify({ error: 'Transcription timed out' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Step 4: Process and save results
-    console.log('Processing transcription results...')
-    const utterances = result.transcription?.utterances || []
-    const fullTranscript = result.transcription?.full_transcript || ''
-
-    // Extract unique speakers
-    const speakerSet = new Set(utterances.map(u => u.speaker))
-    const speakers = Array.from(speakerSet).map((speakerId, index) => ({
-      id: speakerId,
-      name: `Speaker ${index + 1}`,
-      initials: `S${index + 1}`,
-    }))
-
-    // Format transcript segments
-    const transcriptSegments = utterances.map(u => ({
-      speaker: `Speaker ${u.speaker + 1}`,
-      speaker_id: u.speaker,
-      text: u.text,
-      start_time: u.start,
-      end_time: u.end,
-      confidence: u.confidence,
-    }))
-
-    // Update recording with transcription
-    const { error: updateError } = await supabase
+    // Save result_url to database for polling
+    await supabase
       .from('voice_recordings')
       .update({
-        status: 'completed',
-        transcript_text: fullTranscript,
-        transcript_segments: transcriptSegments,
-        speakers: speakers,
-        language: result.transcription?.language || 'en',
-        processed_at: new Date().toISOString(),
+        gladia_result_url: resultUrl,
+        status: 'transcribing'
       })
       .eq('id', recording_id)
 
-    if (updateError) {
-      console.error('Failed to update recording:', updateError)
-      return new Response(
-        JSON.stringify({ error: 'Failed to save transcription' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
+    // Return immediately - polling will be done by voice-transcribe-poll
     return new Response(
       JSON.stringify({
         success: true,
         recording_id,
-        transcript: fullTranscript,
-        speakers: speakers,
-        segments_count: transcriptSegments.length,
+        status: 'transcribing',
+        message: 'Transcription started. Poll for results.',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

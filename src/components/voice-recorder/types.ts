@@ -2,6 +2,15 @@
 
 export type RecordingScreen = 'home' | 'recording' | 'meeting';
 
+export type RecordingType = 'meeting' | 'voice_note';
+
+export interface RecordingTypeOption {
+  type: RecordingType;
+  label: string;
+  description: string;
+  icon: 'users' | 'mic';
+}
+
 export interface Speaker {
   id: number;
   name: string;
@@ -22,6 +31,10 @@ export interface TranscriptSegment {
   speaker: string;
   time: string;
   text: string;
+  start_time?: number; // seconds, for audio sync
+  end_time?: number;   // seconds, for audio sync
+  speaker_id?: number;
+  confidence?: number;
 }
 
 export interface VoiceRecording {
@@ -29,12 +42,19 @@ export interface VoiceRecording {
   title: string;
   date: string;
   duration: string;
+  durationSeconds?: number;
   speakers: Speaker[];
   actions: ActionItem[];
   summary: string;
   transcript: TranscriptSegment[];
   createdAt: Date;
   audioUrl?: string;
+  recordingType: RecordingType;
+  meetingId?: string; // Link to meetings table if type is 'meeting'
+  // Sharing fields
+  isPublic?: boolean;
+  shareToken?: string;
+  shareViews?: number;
 }
 
 export interface RecentRecording {
@@ -43,6 +63,7 @@ export interface RecentRecording {
   time: string;
   duration: string;
   actionsCount: number;
+  recordingType: RecordingType;
 }
 
 export interface UseVoiceRecorderReturn {

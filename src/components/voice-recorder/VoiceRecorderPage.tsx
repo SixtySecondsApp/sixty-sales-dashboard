@@ -6,8 +6,9 @@ import { useVoiceRecorder } from './useVoiceRecorder';
 import { VoiceRecorderHome } from './VoiceRecorderHome';
 import { VoiceRecorderRecording } from './VoiceRecorderRecording';
 import { VoiceRecorderMeetingDetail } from './VoiceRecorderMeetingDetail';
+import { ShareRecordingDialog } from './ShareRecordingDialog';
 import { useVoiceRecordings } from '@/lib/hooks/useVoiceRecordings';
-import type { RecordingScreen, VoiceRecording, ActionItem, RecentRecording, Speaker } from './types';
+import type { RecordingScreen, VoiceRecording, ActionItem, RecentRecording, Speaker, RecordingType } from './types';
 
 interface VoiceRecorderPageProps {
   className?: string;
@@ -37,6 +38,8 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
   const [screen, setScreen] = useState<RecordingScreen>('home');
   const [currentMeeting, setCurrentMeeting] = useState<VoiceRecording | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedRecordingType, setSelectedRecordingType] = useState<RecordingType>('meeting');
+  const [showShareDialog, setShowShareDialog] = useState(false);
 
   // Backend integration
   const {
@@ -47,6 +50,7 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
     toggleActionItem,
     getRecording,
     refetch,
+    retryTranscription,
   } = useVoiceRecordings();
 
   const {
@@ -74,12 +78,14 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
       }),
       duration: formatDurationDisplay(rec.duration_seconds),
       actionsCount: rec.action_items?.length || 0,
+      recordingType: rec.recording_type || 'meeting',
     }));
   }, [recordings]);
 
   // Handle start recording
-  const handleStartRecording = useCallback(async () => {
+  const handleStartRecording = useCallback(async (type: RecordingType) => {
     try {
+      setSelectedRecordingType(type);
       await startRecording();
       setScreen('recording');
     } catch (err) {
@@ -127,6 +133,7 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
       })),
       createdAt: new Date(rec.created_at),
       audioUrl: rec.audio_url,
+      recordingType: rec.recording_type || 'meeting',
     };
   }, []);
 
@@ -141,8 +148,8 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
         return;
       }
 
-      // Upload and start transcription
-      const recording = await uploadAndTranscribe(audioBlob);
+      // Upload and start transcription with selected type
+      const recording = await uploadAndTranscribe(audioBlob, undefined, selectedRecordingType);
 
       if (recording) {
         const transformed = transformRecording(recording);
@@ -161,7 +168,7 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
     } finally {
       setIsProcessing(false);
     }
-  }, [stopRecording, uploadAndTranscribe, transformRecording]);
+  }, [stopRecording, uploadAndTranscribe, transformRecording, selectedRecordingType]);
 
   // Handle selecting a recent recording
   const handleSelectRecording = useCallback(async (id: string) => {
@@ -194,8 +201,10 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
 
   // Handle sharing
   const handleShare = useCallback(() => {
-    toast.info('Share feature coming soon!');
-  }, []);
+    if (currentMeeting) {
+      setShowShareDialog(true);
+    }
+  }, [currentMeeting]);
 
   // Handle draft follow-up
   const handleDraftFollowUp = useCallback(() => {
@@ -211,6 +220,24 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
   const handleViewTranscript = useCallback(() => {
     toast.info('Full transcript view coming soon!');
   }, []);
+
+  // Handle retry transcription
+  const handleRetryTranscription = useCallback(async () => {
+    if (!currentMeeting) return;
+
+    const success = await retryTranscription(currentMeeting.id);
+    if (success) {
+      // Refresh the current meeting data
+      const updated = await getRecording(currentMeeting.id);
+      if (updated) {
+        // Transform the updated recording
+        const transformed = transformRecording(updated);
+        if (transformed) {
+          setCurrentMeeting(transformed);
+        }
+      }
+    }
+  }, [currentMeeting, retryTranscription, getRecording]);
 
   // Handle toggle action item
   const handleToggleActionItem = useCallback(async (actionId: string) => {
@@ -259,7 +286,7 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
                 <Mic className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Voice</h1>
+                <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Voice Notes</h1>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   Record meetings, get AI summaries and action items.
                 </p>
@@ -269,8 +296,8 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
         </div>
       )}
 
-      {/* Voice Recorder Container - responsive width */}
-      <div className="max-w-lg mx-auto lg:mx-0">
+      {/* Voice Recorder Container - full width on desktop */}
+      <div className="w-full">
         <div className="relative bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none overflow-hidden min-h-[600px]">
           {/* Loading Overlay */}
           {(isProcessing || isLoadingRecordings) && screen === 'home' && (
@@ -313,10 +340,21 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
               onBookNextCall={handleBookNextCall}
               onViewTranscript={handleViewTranscript}
               onToggleActionItem={handleToggleActionItem}
+              onRetryTranscription={handleRetryTranscription}
             />
           )}
         </div>
       </div>
+
+      {/* Share Recording Dialog */}
+      {currentMeeting && (
+        <ShareRecordingDialog
+          open={showShareDialog}
+          onOpenChange={setShowShareDialog}
+          recordingId={currentMeeting.id}
+          recordingTitle={currentMeeting.title}
+        />
+      )}
     </div>
   );
 }

@@ -41,6 +41,7 @@ import TestGoogleTasks from '@/pages/TestGoogleTasks';
 import MeetingThumbnail from '@/pages/MeetingThumbnail';
 import BrowserlessTest from '@/pages/BrowserlessTest';
 import PublicProposal from '@/pages/PublicProposal';
+import PublicVoiceRecording from '@/pages/PublicVoiceRecording';
 import DrueLanding from '@/pages/DrueLanding';
 import FathomCallback from '@/pages/auth/FathomCallback';
 
@@ -213,6 +214,9 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
 
         {/* Public proposal sharing - allows prospects to view shared proposals */}
         <Route path="/share/:token" element={<PublicProposal />} />
+
+        {/* Public voice recording sharing - allows anyone with link to view */}
+        <Route path="/share/voice/:token" element={<PublicVoiceRecording />} />
 
         {/* Drue Landing Page - public access */}
         <Route path="/landing-drue" element={<DrueLanding />} />

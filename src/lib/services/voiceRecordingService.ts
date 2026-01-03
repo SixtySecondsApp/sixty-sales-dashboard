@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase/clientV2';
 
+export type RecordingType = 'meeting' | 'voice_note';
+
 export interface VoiceRecording {
   id: string;
   org_id: string;
@@ -23,6 +25,7 @@ export interface VoiceRecording {
   contact_id: string | null;
   company_id: string | null;
   deal_id: string | null;
+  recording_type: RecordingType;
   recorded_at: string;
   processed_at: string | null;
   created_at: string;
@@ -66,6 +69,20 @@ export interface TranscribeResult {
   recording_id?: string;
   transcript?: string;
   speakers?: Speaker[];
+  status?: string;
+  message?: string;
+  error?: string;
+}
+
+export interface PollResult {
+  success: boolean;
+  recording_id?: string;
+  status?: string;
+  transcript?: string;
+  speakers?: Speaker[];
+  summary?: string;
+  gladia_status?: string;
+  message?: string;
   error?: string;
 }
 
@@ -80,7 +97,8 @@ export const voiceRecordingService = {
   async uploadRecording(
     audioBlob: Blob,
     orgId: string,
-    title?: string
+    title?: string,
+    recordingType: RecordingType = 'meeting'
   ): Promise<UploadResult> {
     try {
       // Convert blob to base64
@@ -107,12 +125,23 @@ export const voiceRecordingService = {
           duration_seconds: durationSeconds,
           org_id: orgId,
           title: title || `Recording ${new Date().toLocaleString()}`,
+          recording_type: recordingType,
         },
       });
 
       if (error) {
         console.error('Upload error:', error);
-        return { success: false, error: error.message };
+        // Try to extract detailed error from response context
+        const errorMessage = error.context?.body?.error
+          || error.message
+          || 'Upload failed';
+        return { success: false, error: errorMessage };
+      }
+
+      // Check if the response indicates failure (edge function returned error in body)
+      if (data && data.error) {
+        console.error('Upload error from edge function:', data.error);
+        return { success: false, error: data.error };
       }
 
       return {
@@ -128,7 +157,7 @@ export const voiceRecordingService = {
   },
 
   /**
-   * Start transcription for a recording
+   * Start transcription for a recording (async - returns immediately)
    */
   async transcribeRecording(recordingId: string): Promise<TranscribeResult> {
     try {
@@ -138,18 +167,65 @@ export const voiceRecordingService = {
 
       if (error) {
         console.error('Transcribe error:', error);
-        return { success: false, error: error.message };
+        const errorMessage = error.context?.body?.error
+          || error.message
+          || 'Transcription failed';
+        return { success: false, error: errorMessage };
+      }
+
+      if (data && data.error) {
+        console.error('Transcribe error from edge function:', data.error);
+        return { success: false, error: data.error };
       }
 
       return {
         success: true,
         recording_id: data.recording_id,
-        transcript: data.transcript,
-        speakers: data.speakers,
+        status: data.status,
+        message: data.message,
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Transcription failed';
       console.error('Transcribe error:', err);
+      return { success: false, error: message };
+    }
+  },
+
+  /**
+   * Poll for transcription results
+   */
+  async pollTranscription(recordingId: string): Promise<PollResult> {
+    try {
+      const { data, error } = await supabase.functions.invoke('voice-transcribe-poll', {
+        body: { recording_id: recordingId },
+      });
+
+      if (error) {
+        console.error('Poll error:', error);
+        const errorMessage = error.context?.body?.error
+          || error.message
+          || 'Poll failed';
+        return { success: false, error: errorMessage };
+      }
+
+      if (data && data.error) {
+        console.error('Poll error from edge function:', data.error);
+        return { success: false, error: data.error, status: data.status };
+      }
+
+      return {
+        success: data.success,
+        recording_id: data.recording_id,
+        status: data.status,
+        transcript: data.transcript,
+        speakers: data.speakers,
+        summary: data.summary,
+        gladia_status: data.gladia_status,
+        message: data.message,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Poll failed';
+      console.error('Poll error:', err);
       return { success: false, error: message };
     }
   },
@@ -285,6 +361,127 @@ export const voiceRecordingService = {
     }
 
     return true;
+  },
+
+  /**
+   * Get a presigned URL for audio playback
+   * Supports both authenticated access and public access via share_token
+   */
+  async getAudioPlaybackUrl(
+    recordingId: string,
+    shareToken?: string
+  ): Promise<{ url: string; expires_in: number } | null> {
+    try {
+      const { data, error } = await supabase.functions.invoke('voice-audio-url', {
+        body: { recording_id: recordingId, share_token: shareToken },
+      });
+
+      if (error) {
+        console.error('Audio URL error:', error);
+        return null;
+      }
+
+      if (data && data.error) {
+        console.error('Audio URL error from edge function:', data.error);
+        return null;
+      }
+
+      return {
+        url: data.url,
+        expires_in: data.expires_in,
+      };
+    } catch (err) {
+      console.error('Audio URL error:', err);
+      return null;
+    }
+  },
+
+  /**
+   * Enable public sharing for a recording
+   */
+  async enableSharing(recordingId: string): Promise<{ share_url: string } | null> {
+    try {
+      const { data, error } = await supabase.functions.invoke('voice-share', {
+        body: { recording_id: recordingId, enable: true },
+      });
+
+      if (error) {
+        console.error('Enable sharing error:', error);
+        return null;
+      }
+
+      if (data && data.error) {
+        console.error('Enable sharing error from edge function:', data.error);
+        return null;
+      }
+
+      return { share_url: data.share_url };
+    } catch (err) {
+      console.error('Enable sharing error:', err);
+      return null;
+    }
+  },
+
+  /**
+   * Disable public sharing for a recording
+   */
+  async disableSharing(recordingId: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabase.functions.invoke('voice-share', {
+        body: { recording_id: recordingId, enable: false },
+      });
+
+      if (error) {
+        console.error('Disable sharing error:', error);
+        return false;
+      }
+
+      return data?.success === true;
+    } catch (err) {
+      console.error('Disable sharing error:', err);
+      return false;
+    }
+  },
+
+  /**
+   * Get a public recording by share token (no auth required)
+   */
+  async getPublicRecording(shareToken: string): Promise<VoiceRecording | null> {
+    const { data, error } = await supabase
+      .from('voice_recordings')
+      .select('*')
+      .eq('share_token', shareToken)
+      .eq('is_public', true)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching public recording:', error);
+      return null;
+    }
+
+    return data;
+  },
+
+  /**
+   * Get sharing status for a recording
+   */
+  async getSharingStatus(recordingId: string): Promise<{
+    is_public: boolean;
+    share_token: string | null;
+    share_views: number;
+  } | null> {
+    const { data, error } = await supabase
+      .from('voice_recordings')
+      .select('is_public, share_token, share_views')
+      .eq('id', recordingId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching sharing status:', error);
+      return null;
+    }
+
+    return data;
   },
 };
 

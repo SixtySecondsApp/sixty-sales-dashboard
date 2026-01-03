@@ -1,18 +1,19 @@
-import { useState, memo } from 'react';
+import { useState, useRef, useCallback, memo } from 'react';
 import {
   ChevronLeft,
   Share2,
   Wand2,
-  Play,
-  Pause,
   Check,
   Mail,
   Clock,
   List,
   ChevronRight,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SpeakerWaveform } from './SpeakerWaveform';
+import { VoiceRecorderAudioPlayer, type AudioPlayerRef } from './VoiceRecorderAudioPlayer';
+import { TranscriptModal } from './TranscriptModal';
 import type { VoiceRecording, ActionItem } from './types';
 
 interface VoiceRecorderMeetingDetailProps {
@@ -23,6 +24,7 @@ interface VoiceRecorderMeetingDetailProps {
   onBookNextCall?: () => void;
   onViewTranscript?: () => void;
   onToggleActionItem?: (id: string) => void;
+  onRetryTranscription?: () => void;
   className?: string;
 }
 
@@ -38,25 +40,29 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
   onBookNextCall,
   onViewTranscript,
   onToggleActionItem,
+  onRetryTranscription,
   className,
 }: VoiceRecorderMeetingDetailProps) {
   const [activeSpeaker, setActiveSpeaker] = useState<number | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackProgress, setPlaybackProgress] = useState(0.33); // Mock progress
-
-  const handleTogglePlay = () => {
-    setIsPlaying((prev) => !prev);
-  };
+  const [currentTime, setCurrentTime] = useState(0);
+  const [showTranscriptModal, setShowTranscriptModal] = useState(false);
+  const audioPlayerRef = useRef<AudioPlayerRef>(null);
 
   const handleSpeakerTap = (speakerId: number) => {
     setActiveSpeaker((prev) => (prev === speakerId ? null : speakerId));
   };
 
+  // Handle seeking from transcript modal
+  const handleTranscriptSeek = useCallback((time: number) => {
+    audioPlayerRef.current?.seek(time);
+    audioPlayerRef.current?.play();
+  }, []);
+
   return (
     <div className={cn('min-h-full flex flex-col pb-6', className)}>
       {/* Header */}
       <header className="sticky top-0 z-10 bg-white/90 dark:bg-gray-950/90 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800/50">
-        <div className="p-4 pt-6 flex items-center gap-3">
+        <div className="p-4 pt-6 lg:px-8 flex items-center gap-3">
           <button
             onClick={onBack}
             className="p-2 -ml-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
@@ -65,10 +71,10 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
             <ChevronLeft className="w-6 h-6 text-gray-500 dark:text-gray-400" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="font-semibold text-gray-900 dark:text-gray-100 truncate">
+            <h1 className="font-semibold lg:text-lg text-gray-900 dark:text-gray-100 truncate">
               {recording.title}
             </h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs lg:text-sm text-gray-500 dark:text-gray-400">
               {recording.date} &bull; {recording.duration}
             </p>
           </div>
@@ -85,149 +91,159 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        {/* Speaker Waveforms */}
-        <section className="p-4 space-y-3">
-          <h2 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-1">
-            Speakers
-          </h2>
-          {recording.speakers.map((speaker) => (
-            <SpeakerWaveform
-              key={speaker.id}
-              speaker={speaker}
-              isActive={activeSpeaker === speaker.id}
-              onTap={() => handleSpeakerTap(speaker.id)}
-            />
-          ))}
-        </section>
-
-        {/* Playback Controls */}
-        <section className="px-4 py-3">
-          <div className="bg-gray-50 dark:bg-gray-900/80 dark:backdrop-blur-sm rounded-2xl p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleTogglePlay}
-                className="w-12 h-12 rounded-xl bg-[#37bd7e] hover:bg-[#2da76c] flex items-center justify-center transition-colors shrink-0 shadow-lg shadow-[#37bd7e]/20"
-                aria-label={isPlaying ? 'Pause' : 'Play'}
-              >
-                {isPlaying ? (
-                  <Pause className="w-5 h-5 text-white" />
-                ) : (
-                  <Play className="w-5 h-5 text-white ml-0.5" />
-                )}
-              </button>
-              <div className="flex-1">
-                <div className="h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#37bd7e] rounded-full transition-all duration-300"
-                    style={{ width: `${playbackProgress * 100}%` }}
+        {/* Desktop: Two column layout */}
+        <div className="lg:flex lg:gap-8 lg:p-6">
+          {/* Left Column: Speakers, Playback, Transcript */}
+          <div className="lg:flex-1 lg:max-w-xl">
+            {/* Speaker Waveforms */}
+            <section className="p-4 lg:p-0 lg:mb-6 space-y-3">
+              <h2 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-1 lg:px-0">
+                Speakers
+              </h2>
+              <div className="lg:grid lg:grid-cols-2 lg:gap-3 space-y-3 lg:space-y-0">
+                {recording.speakers.map((speaker) => (
+                  <SpeakerWaveform
+                    key={speaker.id}
+                    speaker={speaker}
+                    isActive={activeSpeaker === speaker.id}
+                    onTap={() => handleSpeakerTap(speaker.id)}
                   />
-                </div>
-                <div className="flex justify-between mt-1.5">
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {formatPlaybackTime(playbackProgress, recording.duration)}
-                  </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {recording.duration}
-                  </span>
-                </div>
+                ))}
               </div>
-            </div>
-          </div>
-        </section>
+            </section>
 
-        {/* AI Summary */}
-        <section className="px-4 py-3">
-          <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl p-4 border border-emerald-200 dark:border-emerald-500/20">
-            <div className="flex items-center gap-2 mb-3">
-              <Wand2 className="w-4 h-4 text-[#37bd7e] dark:text-emerald-400" />
-              <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
-                AI Summary
-              </span>
-            </div>
-            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-              {recording.summary}
-            </p>
-          </div>
-        </section>
-
-        {/* Action Items */}
-        <section className="px-4 py-3">
-          <div className="flex items-center justify-between mb-3 px-1">
-            <h2 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Action Items
-            </h2>
-            <span className="text-xs text-[#37bd7e] dark:text-emerald-400">
-              {recording.actions.length} item
-              {recording.actions.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-          <div className="space-y-2">
-            {recording.actions.map((action) => (
-              <ActionItemCard
-                key={action.id}
-                action={action}
-                onToggle={() => onToggleActionItem?.(action.id)}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* Quick Actions */}
-        <section className="px-4 py-3">
-          <h2 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-1">
-            Quick Actions
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={onDraftFollowUp}
-              className="p-4 rounded-xl bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left shadow-sm dark:shadow-none"
-            >
-              <Mail className="w-5 h-5 text-[#37bd7e] dark:text-emerald-400 mb-2" />
-              <p className="text-sm font-medium text-gray-900 dark:text-gray-200">
-                Draft Follow-up
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                AI-generated email
-              </p>
-            </button>
-            <button
-              onClick={onBookNextCall}
-              className="p-4 rounded-xl bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left shadow-sm dark:shadow-none"
-            >
-              <Clock className="w-5 h-5 text-purple-500 dark:text-purple-400 mb-2" />
-              <p className="text-sm font-medium text-gray-900 dark:text-gray-200">
-                Book Next Call
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Add to calendar
-              </p>
-            </button>
-          </div>
-        </section>
-
-        {/* Transcript Link */}
-        <section className="px-4 py-3">
-          <button
-            onClick={onViewTranscript}
-            className="w-full p-4 rounded-xl bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left shadow-sm dark:shadow-none"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <List className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-200">
-                    Full Transcript
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {recording.transcript.length} segments
-                  </p>
-                </div>
+            {/* Audio Player */}
+            <section className="px-4 lg:px-0 py-3 lg:py-0 lg:mb-6">
+              <div className="bg-gray-50 dark:bg-gray-900/80 dark:backdrop-blur-sm rounded-2xl p-4 lg:p-5 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
+                <VoiceRecorderAudioPlayer
+                  ref={audioPlayerRef}
+                  recordingId={recording.id}
+                  durationSeconds={recording.durationSeconds}
+                  onTimeUpdate={setCurrentTime}
+                />
               </div>
-              <ChevronRight className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-            </div>
-          </button>
-        </section>
+            </section>
+
+            {/* Transcript Link - Desktop: Shown inline */}
+            <section className="px-4 lg:px-0 py-3 lg:py-0">
+              <button
+                onClick={() => setShowTranscriptModal(true)}
+                className="w-full p-4 lg:p-5 rounded-xl bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left shadow-sm dark:shadow-none"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <List className="w-5 h-5 lg:w-6 lg:h-6 text-gray-500 dark:text-gray-400" />
+                    <div>
+                      <p className="text-sm lg:text-base font-medium text-gray-900 dark:text-gray-200">
+                        Full Transcript
+                      </p>
+                      <p className="text-xs lg:text-sm text-gray-500 dark:text-gray-400">
+                        {recording.transcript.length} segments
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                </div>
+              </button>
+            </section>
+          </div>
+
+          {/* Right Column: AI Summary, Actions, Quick Actions */}
+          <div className="lg:flex-1 lg:max-w-md">
+            {/* AI Summary */}
+            <section className="px-4 lg:px-0 py-3 lg:py-0 lg:mb-6">
+              <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl p-4 lg:p-5 border border-emerald-200 dark:border-emerald-500/20">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Wand2 className="w-4 h-4 lg:w-5 lg:h-5 text-[#37bd7e] dark:text-emerald-400" />
+                    <span className="text-sm lg:text-base font-medium text-emerald-700 dark:text-emerald-400">
+                      AI Summary
+                    </span>
+                  </div>
+                  {onRetryTranscription && recording.summary?.includes('Processing') && (
+                    <button
+                      onClick={onRetryTranscription}
+                      className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-500/30 transition-colors"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Retry
+                    </button>
+                  )}
+                </div>
+                <p className="text-sm lg:text-base text-gray-700 dark:text-gray-300 leading-relaxed">
+                  {recording.summary}
+                </p>
+              </div>
+            </section>
+
+            {/* Action Items */}
+            <section className="px-4 lg:px-0 py-3 lg:py-0 lg:mb-6">
+              <div className="flex items-center justify-between mb-3 px-1 lg:px-0">
+                <h2 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Action Items
+                </h2>
+                <span className="text-xs lg:text-sm text-[#37bd7e] dark:text-emerald-400 font-medium">
+                  {recording.actions.length} item
+                  {recording.actions.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="space-y-2 lg:space-y-3">
+                {recording.actions.map((action) => (
+                  <ActionItemCard
+                    key={action.id}
+                    action={action}
+                    onToggle={() => onToggleActionItem?.(action.id)}
+                  />
+                ))}
+              </div>
+            </section>
+
+            {/* Quick Actions */}
+            <section className="px-4 lg:px-0 py-3 lg:py-0">
+              <h2 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-1 lg:px-0">
+                Quick Actions
+              </h2>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={onDraftFollowUp}
+                  className="p-4 lg:p-5 rounded-xl bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:border-[#37bd7e]/30 transition-all text-left shadow-sm dark:shadow-none group"
+                >
+                  <Mail className="w-5 h-5 lg:w-6 lg:h-6 text-[#37bd7e] dark:text-emerald-400 mb-2" />
+                  <p className="text-sm lg:text-base font-medium text-gray-900 dark:text-gray-200 group-hover:text-[#37bd7e] dark:group-hover:text-emerald-400 transition-colors">
+                    Draft Follow-up
+                  </p>
+                  <p className="text-xs lg:text-sm text-gray-500 dark:text-gray-400">
+                    AI-generated email
+                  </p>
+                </button>
+                <button
+                  onClick={onBookNextCall}
+                  className="p-4 lg:p-5 rounded-xl bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:border-purple-500/30 transition-all text-left shadow-sm dark:shadow-none group"
+                >
+                  <Clock className="w-5 h-5 lg:w-6 lg:h-6 text-purple-500 dark:text-purple-400 mb-2" />
+                  <p className="text-sm lg:text-base font-medium text-gray-900 dark:text-gray-200 group-hover:text-purple-500 dark:group-hover:text-purple-400 transition-colors">
+                    Book Next Call
+                  </p>
+                  <p className="text-xs lg:text-sm text-gray-500 dark:text-gray-400">
+                    Add to calendar
+                  </p>
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
       </div>
+
+      {/* Transcript Modal */}
+      <TranscriptModal
+        open={showTranscriptModal}
+        onOpenChange={setShowTranscriptModal}
+        transcript={recording.transcript}
+        speakers={recording.speakers}
+        currentTime={currentTime}
+        onSeek={handleTranscriptSeek}
+        title={`${recording.title} - Transcript`}
+      />
     </div>
   );
 });
@@ -245,7 +261,7 @@ const ActionItemCard = memo(function ActionItemCard({
     <button
       onClick={onToggle}
       className={cn(
-        'w-full p-4 rounded-xl border transition-all text-left shadow-sm dark:shadow-none',
+        'w-full p-4 lg:p-5 rounded-xl border transition-all text-left shadow-sm dark:shadow-none',
         action.done
           ? 'bg-gray-50 dark:bg-gray-900/40 border-gray-100 dark:border-gray-700/30'
           : 'bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm border-gray-200 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800/50'
@@ -254,18 +270,18 @@ const ActionItemCard = memo(function ActionItemCard({
       <div className="flex items-start gap-3">
         <div
           className={cn(
-            'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors',
+            'w-5 h-5 lg:w-6 lg:h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors',
             action.done
               ? 'border-emerald-500 bg-emerald-500'
               : 'border-gray-300 dark:border-gray-600'
           )}
         >
-          {action.done && <Check className="w-3 h-3 text-white" />}
+          {action.done && <Check className="w-3 h-3 lg:w-4 lg:h-4 text-white" />}
         </div>
         <div className="flex-1 min-w-0">
           <p
             className={cn(
-              'text-sm',
+              'text-sm lg:text-base',
               action.done
                 ? 'text-gray-500 dark:text-gray-500 line-through'
                 : 'text-gray-900 dark:text-gray-200'
@@ -273,7 +289,7 @@ const ActionItemCard = memo(function ActionItemCard({
           >
             {action.text}
           </p>
-          <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-2 mt-1 text-xs lg:text-sm text-gray-500 dark:text-gray-400">
             <span>{action.owner}</span>
             <span className="text-gray-300 dark:text-gray-600">&bull;</span>
             <span>{action.deadline}</span>
@@ -283,16 +299,6 @@ const ActionItemCard = memo(function ActionItemCard({
     </button>
   );
 });
-
-// Helper to format current playback position
-function formatPlaybackTime(progress: number, totalDuration: string): string {
-  const [minutes, seconds] = totalDuration.split(':').map(Number);
-  const totalSeconds = minutes * 60 + seconds;
-  const currentSeconds = Math.floor(progress * totalSeconds);
-  const currentMinutes = Math.floor(currentSeconds / 60);
-  const remainingSeconds = currentSeconds % 60;
-  return `${currentMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-}
 
 // Sample meeting data for development/testing
 export const SAMPLE_MEETING: VoiceRecording = {
@@ -358,4 +364,5 @@ export const SAMPLE_MEETING: VoiceRecording = {
     },
   ],
   createdAt: new Date(),
+  recordingType: 'meeting',
 };

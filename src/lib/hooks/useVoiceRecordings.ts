@@ -1,20 +1,21 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useOrgId } from '@/lib/contexts/OrgContext';
-import { voiceRecordingService, VoiceRecording } from '@/lib/services/voiceRecordingService';
+import { voiceRecordingService, VoiceRecording, RecordingType } from '@/lib/services/voiceRecordingService';
 import { toast } from 'sonner';
 
-// Set to true to use mock data (until S3/Gladia are configured)
-const USE_MOCK_DATA = true;
+// Set to true to use mock data for development without backend
+const USE_MOCK_DATA = false;
 
 interface UseVoiceRecordingsReturn {
   recordings: VoiceRecording[];
   isLoading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
-  uploadAndTranscribe: (audioBlob: Blob, title?: string) => Promise<VoiceRecording | null>;
+  uploadAndTranscribe: (audioBlob: Blob, title?: string, recordingType?: RecordingType) => Promise<VoiceRecording | null>;
   deleteRecording: (id: string) => Promise<boolean>;
   toggleActionItem: (recordingId: string, actionItemId: string) => Promise<boolean>;
   getRecording: (id: string) => Promise<VoiceRecording | null>;
+  retryTranscription: (recordingId: string) => Promise<boolean>;
 }
 
 // Mock data generator
@@ -123,6 +124,7 @@ function generateMockRecording(durationSeconds: number): VoiceRecording {
     speakers,
     summary: summaryOptions[Math.floor(Math.random() * summaryOptions.length)],
     action_items: actionItems,
+    recording_type: 'meeting' as const,
     created_at: now.toISOString(),
     updated_at: now.toISOString(),
   };
@@ -155,6 +157,7 @@ const SAMPLE_RECORDINGS: VoiceRecording[] = [
       { id: 'a2', text: 'Share implementation timeline', owner: 'You', deadline: 'Tomorrow', done: false },
       { id: 'a3', text: 'Connect with David Kim (Legal)', owner: 'Sarah', deadline: 'EOD', done: true },
     ],
+    recording_type: 'meeting',
     created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
     updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
   },
@@ -185,6 +188,7 @@ const SAMPLE_RECORDINGS: VoiceRecording[] = [
       { id: 'b4', text: 'Update sprint board', owner: 'You', deadline: 'Today', done: true },
       { id: 'b5', text: 'Send status update to stakeholders', owner: 'You', deadline: 'EOD', done: false },
     ],
+    recording_type: 'voice_note',
     created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), // 5 hours ago
     updated_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
   },
@@ -213,6 +217,7 @@ const SAMPLE_RECORDINGS: VoiceRecording[] = [
       { id: 'c3', text: 'Prepare custom demo environment', owner: 'You', deadline: 'Before demo', done: false },
       { id: 'c4', text: 'Loop in solutions engineer', owner: 'You', deadline: 'Today', done: true },
     ],
+    recording_type: 'meeting',
     created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
     updated_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   },
@@ -264,7 +269,7 @@ export function useVoiceRecordings(): UseVoiceRecordingsReturn {
 
   // Upload and transcribe a recording
   const uploadAndTranscribe = useCallback(
-    async (audioBlob: Blob, title?: string): Promise<VoiceRecording | null> => {
+    async (audioBlob: Blob, title?: string, recordingType: RecordingType = 'meeting'): Promise<VoiceRecording | null> => {
       if (USE_MOCK_DATA) {
         // Simulate upload
         toast.loading('Uploading recording...', { id: 'voice-upload' });
@@ -304,7 +309,8 @@ export function useVoiceRecordings(): UseVoiceRecordingsReturn {
         const uploadResult = await voiceRecordingService.uploadRecording(
           audioBlob,
           orgId,
-          title
+          title,
+          recordingType
         );
 
         if (!uploadResult.success || !uploadResult.recording_id) {
@@ -314,33 +320,85 @@ export function useVoiceRecordings(): UseVoiceRecordingsReturn {
 
         toast.success('Recording uploaded!', { id: 'voice-upload' });
 
-        // Step 2: Start transcription (async, don't wait)
-        toast.loading('Transcribing with AI...', { id: 'voice-transcribe' });
-        voiceRecordingService
-          .transcribeRecording(uploadResult.recording_id)
-          .then((transcribeResult) => {
-            if (transcribeResult.success) {
-              toast.success('Transcription complete!', { id: 'voice-transcribe' });
-              refetch(); // Refresh the list
-            } else {
-              toast.error(transcribeResult.error || 'Transcription failed', {
-                id: 'voice-transcribe',
-              });
-            }
-          })
-          .catch((err) => {
-            console.error('Transcription error:', err);
-            toast.error('Transcription failed', { id: 'voice-transcribe' });
-          });
-
-        // Return the recording immediately (before transcription completes)
-        const recording = await voiceRecordingService.getRecording(
+        // Step 2: Start transcription
+        toast.loading('Starting AI transcription...', { id: 'voice-transcribe' });
+        const transcribeResult = await voiceRecordingService.transcribeRecording(
           uploadResult.recording_id
         );
 
+        if (!transcribeResult.success) {
+          toast.error(transcribeResult.error || 'Failed to start transcription', {
+            id: 'voice-transcribe',
+          });
+          // Still return the recording even if transcription failed to start
+          const recording = await voiceRecordingService.getRecording(
+            uploadResult.recording_id
+          );
+          if (recording) {
+            setRecordings((prev) => [recording, ...prev]);
+          }
+          return recording;
+        }
+
+        // Step 3: Poll for transcription results
+        toast.loading('Transcribing with AI... This may take a minute.', {
+          id: 'voice-transcribe',
+        });
+
+        const recordingId = uploadResult.recording_id;
+        let pollAttempts = 0;
+        const maxPollAttempts = 60; // 5 minutes max (5s * 60)
+        let lastStatus = '';
+
+        const pollForResults = async (): Promise<VoiceRecording | null> => {
+          while (pollAttempts < maxPollAttempts) {
+            await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5s
+            pollAttempts++;
+
+            const pollResult = await voiceRecordingService.pollTranscription(recordingId);
+
+            if (pollResult.status === 'completed') {
+              toast.success('Transcription complete!', { id: 'voice-transcribe' });
+              await refetch();
+              return await voiceRecordingService.getRecording(recordingId);
+            }
+
+            if (pollResult.status === 'failed') {
+              toast.error(pollResult.error || 'Transcription failed', {
+                id: 'voice-transcribe',
+              });
+              return await voiceRecordingService.getRecording(recordingId);
+            }
+
+            // Update status message
+            if (pollResult.gladia_status && pollResult.gladia_status !== lastStatus) {
+              lastStatus = pollResult.gladia_status;
+              toast.loading(`Transcribing... (${lastStatus})`, {
+                id: 'voice-transcribe',
+              });
+            }
+          }
+
+          toast.error('Transcription timed out. Try refreshing later.', {
+            id: 'voice-transcribe',
+          });
+          return await voiceRecordingService.getRecording(recordingId);
+        };
+
+        // Start polling in the background, return recording immediately
+        const recording = await voiceRecordingService.getRecording(recordingId);
         if (recording) {
           setRecordings((prev) => [recording, ...prev]);
         }
+
+        // Continue polling in background
+        pollForResults().then((updatedRecording) => {
+          if (updatedRecording) {
+            setRecordings((prev) =>
+              prev.map((r) => (r.id === recordingId ? updatedRecording : r))
+            );
+          }
+        });
 
         return recording;
       } catch (err) {
@@ -432,6 +490,75 @@ export function useVoiceRecordings(): UseVoiceRecordingsReturn {
     []
   );
 
+  // Retry transcription for a recording
+  const retryTranscription = useCallback(
+    async (recordingId: string): Promise<boolean> => {
+      if (USE_MOCK_DATA) {
+        toast.success('Mock transcription completed');
+        return true;
+      }
+
+      try {
+        toast.loading('Starting transcription...', { id: 'voice-transcribe' });
+
+        // Start transcription
+        const result = await voiceRecordingService.transcribeRecording(recordingId);
+
+        if (!result.success) {
+          toast.error(result.error || 'Failed to start transcription', {
+            id: 'voice-transcribe',
+          });
+          return false;
+        }
+
+        // Poll for results
+        toast.loading('Transcribing with AI... This may take a minute.', {
+          id: 'voice-transcribe',
+        });
+
+        let pollAttempts = 0;
+        const maxPollAttempts = 60; // 5 minutes max
+        let lastStatus = '';
+
+        while (pollAttempts < maxPollAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+          pollAttempts++;
+
+          const pollResult = await voiceRecordingService.pollTranscription(recordingId);
+
+          if (pollResult.status === 'completed') {
+            toast.success('Transcription complete!', { id: 'voice-transcribe' });
+            await refetch();
+            return true;
+          }
+
+          if (pollResult.status === 'failed') {
+            toast.error(pollResult.error || 'Transcription failed', {
+              id: 'voice-transcribe',
+            });
+            return false;
+          }
+
+          if (pollResult.gladia_status && pollResult.gladia_status !== lastStatus) {
+            lastStatus = pollResult.gladia_status;
+            toast.loading(`Transcribing... (${lastStatus})`, {
+              id: 'voice-transcribe',
+            });
+          }
+        }
+
+        toast.error('Transcription timed out', { id: 'voice-transcribe' });
+        return false;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Transcription failed';
+        toast.error(message, { id: 'voice-transcribe' });
+        console.error('Retry transcription error:', err);
+        return false;
+      }
+    },
+    [refetch]
+  );
+
   return {
     recordings,
     isLoading,
@@ -441,6 +568,7 @@ export function useVoiceRecordings(): UseVoiceRecordingsReturn {
     deleteRecording,
     toggleActionItem,
     getRecording,
+    retryTranscription,
   };
 }
 
