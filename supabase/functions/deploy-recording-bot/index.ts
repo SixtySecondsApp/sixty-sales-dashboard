@@ -169,11 +169,50 @@ async function incrementUsageCount(
 }
 
 /**
- * Build webhook URL for this organization
+ * Build webhook URL for bot callbacks
+ * Note: The webhook handler now identifies orgs via bot_id lookup,
+ * so the token is optional but included for backward compatibility
  */
-function buildWebhookUrl(orgId: string, webhookToken: string): string {
+function buildWebhookUrl(webhookToken?: string): string {
   const baseUrl = Deno.env.get('SUPABASE_URL');
-  return `${baseUrl}/functions/v1/meetingbaas-webhook?org_id=${orgId}&token=${webhookToken}`;
+  // Token is optional - webhook handler can identify org from bot_id
+  if (webhookToken) {
+    return `${baseUrl}/functions/v1/meetingbaas-webhook?token=${webhookToken}`;
+  }
+  return `${baseUrl}/functions/v1/meetingbaas-webhook`;
+}
+
+/**
+ * Ensure org has a webhook token, generating one if needed
+ */
+async function ensureWebhookToken(
+  supabase: SupabaseClient,
+  orgId: string,
+  currentSettings: RecordingSettings | null
+): Promise<string> {
+  // Return existing token if available
+  if (currentSettings?.webhook_token) {
+    return currentSettings.webhook_token;
+  }
+
+  // Generate a new token
+  const newToken = crypto.randomUUID();
+
+  // Update org settings with new token
+  const updatedSettings = {
+    ...(currentSettings || {}),
+    webhook_token: newToken,
+    meetingbaas_enabled: true,
+  };
+
+  await supabase
+    .from('organizations')
+    .update({ recording_settings: updatedSettings })
+    .eq('id', orgId);
+
+  console.log(`[DeployBot] Generated webhook token for org: ${orgId}`);
+
+  return newToken;
 }
 
 // =============================================================================
@@ -365,23 +404,8 @@ serve(async (req) => {
       );
     }
 
-    // Get webhook token for this org
-    const webhookToken = settings?.webhook_token;
-    if (!webhookToken) {
-      console.error('[DeployBot] No webhook token configured for org:', orgId);
-      // Clean up recording record
-      await supabase.from('recordings').delete().eq('id', recording.id);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Recording not configured. Please set up recording settings first.',
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
+    // Ensure org has a webhook token (auto-generate if needed)
+    const webhookToken = await ensureWebhookToken(supabase, orgId, settings);
 
     // Build bot configuration
     const botConfig: MeetingBaaSBotConfig = {
@@ -390,7 +414,7 @@ serve(async (req) => {
       bot_image: botImageUrl || undefined,
       entry_message: entryMessage,
       recording_mode: 'speaker_view',
-      webhook_url: buildWebhookUrl(orgId, webhookToken),
+      webhook_url: buildWebhookUrl(webhookToken),
       deduplication_key: recording.id,
     };
 
