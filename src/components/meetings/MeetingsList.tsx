@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase/clientV2'
 import { useAuth } from '@/lib/contexts/AuthContext'
@@ -41,7 +41,9 @@ import {
   Sparkles,
   RefreshCw,
   Mic,
-  AudioLines
+  AudioLines,
+  Bot,
+  Radio
 } from 'lucide-react'
 import { MeetingUsageBar } from '@/components/MeetingUsageIndicator'
 
@@ -276,6 +278,7 @@ const ITEMS_PER_PAGE = 30
 
 const MeetingsList: React.FC = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const { activeOrgId } = useOrg()
   const { syncState, isConnected, isSyncing, triggerSync } = useFathomIntegration()
@@ -603,6 +606,40 @@ const MeetingsList: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Recording Source Tabs */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-2"
+      >
+        <Button
+          variant={location.pathname === '/meetings' || location.pathname === '/meetings/' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => navigate('/meetings')}
+          className={cn(
+            'gap-2',
+            (location.pathname === '/meetings' || location.pathname === '/meetings/') &&
+            'bg-emerald-600 hover:bg-emerald-700 text-white'
+          )}
+        >
+          <Radio className="h-4 w-4" />
+          External Recorders
+        </Button>
+        <Button
+          variant={location.pathname.startsWith('/meetings/recordings') ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => navigate('/meetings/recordings')}
+          className={cn(
+            'gap-2',
+            location.pathname.startsWith('/meetings/recordings') &&
+            'bg-emerald-600 hover:bg-emerald-700 text-white'
+          )}
+        >
+          <Bot className="h-4 w-4" />
+          60 Notetaker
+        </Button>
+      </motion.div>
+
       {/* Meeting Usage Bar - Shows for free tier users */}
       <MeetingUsageBar />
 

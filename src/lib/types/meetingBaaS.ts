@@ -289,6 +289,7 @@ export interface RecordingSettings {
   default_transcription_provider: 'gladia' | 'meetingbaas';
   recordings_enabled: boolean;
   auto_record_enabled: boolean;
+  join_all_meetings: boolean; // When true, record ALL meetings. When false, use custom rules.
 }
 
 export interface NotificationChannelSettings {
@@ -549,6 +550,7 @@ export const DEFAULT_RECORDING_SETTINGS: RecordingSettings = {
   default_transcription_provider: 'gladia',
   recordings_enabled: false,
   auto_record_enabled: false,
+  join_all_meetings: true, // Default: record all meetings when enabled
 };
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {

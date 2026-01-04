@@ -29,6 +29,7 @@ export interface NotetakerUserSettings {
   auto_record_internal: boolean;
   notify_before_join: boolean;
   notify_minutes_before: number;
+  selected_calendar_id: string; // Google Calendar ID to watch - defaults to 'primary'
   created_at: string;
   updated_at: string;
 }
@@ -166,6 +167,7 @@ export function useNotetakerIntegration() {
           auto_record_internal: false,
           notify_before_join: true,
           notify_minutes_before: 5,
+          selected_calendar_id: 'primary',
           updated_at: new Date().toISOString(),
         }, {
           onConflict: 'user_id,org_id',

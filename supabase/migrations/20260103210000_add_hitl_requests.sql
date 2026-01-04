@@ -66,7 +66,7 @@ CREATE POLICY "Users can view org HITL requests"
   FOR SELECT
   USING (
     organization_id IN (
-      SELECT organization_id FROM organization_members
+      SELECT org_id FROM organization_memberships
       WHERE user_id = auth.uid()
     )
   );
@@ -78,7 +78,7 @@ CREATE POLICY "Users can respond to HITL requests"
   USING (
     status = 'pending' AND
     organization_id IN (
-      SELECT organization_id FROM organization_members
+      SELECT org_id FROM organization_memberships
       WHERE user_id = auth.uid()
     ) AND
     (assigned_to_user_id IS NULL OR assigned_to_user_id = auth.uid())
