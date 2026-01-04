@@ -208,16 +208,25 @@ export class MeetingBaaSClient {
         body: body ? JSON.stringify(body) : undefined,
       });
 
-      const data = await response.json();
+      const responseData = await response.json();
 
       if (!response.ok) {
         return {
           error: {
-            code: data.code || 'API_ERROR',
-            message: data.message || `HTTP ${response.status}`,
-            details: data,
+            code: responseData.code || 'API_ERROR',
+            message: responseData.message || `HTTP ${response.status}`,
+            details: responseData,
           },
         };
+      }
+
+      // v2 API wraps responses in {success, data}
+      // Unwrap the data field if present
+      const data = responseData.data !== undefined ? responseData.data : responseData;
+
+      // v2 uses bot_id instead of id - normalize to id
+      if (data && data.bot_id && !data.id) {
+        data.id = data.bot_id;
       }
 
       return { data };
@@ -238,7 +247,7 @@ export class MeetingBaaSClient {
     data?: MeetingBaaSBotResponse;
     error?: MeetingBaaSError;
   }> {
-    return this.request<MeetingBaaSBotResponse>('POST', '/bots', config);
+    return this.request<MeetingBaaSBotResponse>('POST', '/v2/bots', config);
   }
 
   /**
@@ -248,7 +257,7 @@ export class MeetingBaaSClient {
     data?: { id: string; status: string; meeting_url: string };
     error?: MeetingBaaSError;
   }> {
-    return this.request('GET', `/bots/${botId}`);
+    return this.request('GET', `/v2/bots/${botId}`);
   }
 
   /**
@@ -258,7 +267,7 @@ export class MeetingBaaSClient {
     data?: { success: boolean };
     error?: MeetingBaaSError;
   }> {
-    return this.request('DELETE', `/bots/${botId}`);
+    return this.request('DELETE', `/v2/bots/${botId}`);
   }
 
   /**
@@ -268,7 +277,7 @@ export class MeetingBaaSClient {
     data?: MeetingBaaSRecordingResponse;
     error?: MeetingBaaSError;
   }> {
-    return this.request<MeetingBaaSRecordingResponse>('GET', `/bots/${botId}/recording`);
+    return this.request<MeetingBaaSRecordingResponse>('GET', `/v2/bots/${botId}/recording`);
   }
 
   /**
@@ -278,7 +287,7 @@ export class MeetingBaaSClient {
     data?: MeetingBaaSTranscriptResponse;
     error?: MeetingBaaSError;
   }> {
-    return this.request<MeetingBaaSTranscriptResponse>('GET', `/bots/${botId}/transcript`);
+    return this.request<MeetingBaaSTranscriptResponse>('GET', `/v2/bots/${botId}/transcript`);
   }
 }
 
