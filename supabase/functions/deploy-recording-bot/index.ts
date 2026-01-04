@@ -1,0 +1,512 @@
+/**
+ * Deploy Recording Bot Edge Function
+ *
+ * Deploys a MeetingBaaS bot to join and record a meeting.
+ * Handles quota checking, recording creation, and bot deployment.
+ *
+ * Endpoint: POST /functions/v1/deploy-recording-bot
+ *
+ * @see supabase/migrations/20260104100000_meetingbaas_core_tables.sql
+ */
+
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { corsHeaders, handleCorsPreflightWithResponse } from '../_shared/corsHelper.ts';
+import {
+  createMeetingBaaSClient,
+  MeetingBaaSClient,
+  detectMeetingPlatform,
+  isValidMeetingUrl,
+  formatEntryMessage,
+  checkRecordingQuota,
+  DEFAULT_BOT_NAME,
+  DEFAULT_ENTRY_MESSAGE,
+  ERROR_CODES,
+  ERROR_MESSAGES,
+  type MeetingBaaSBotConfig,
+  type RecordingSettings,
+} from '../_shared/meetingbaas.ts';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+interface DeployBotRequest {
+  meeting_url: string;
+  meeting_title?: string;
+  calendar_event_id?: string;
+  attendees?: Array<{
+    email: string;
+    name?: string;
+  }>;
+  scheduled_time?: string; // ISO timestamp for scheduled meetings
+}
+
+interface DeployBotResponse {
+  success: boolean;
+  recording_id?: string;
+  bot_id?: string;
+  error?: string;
+  error_code?: string;
+}
+
+interface RecordingInsert {
+  org_id: string;
+  user_id: string;
+  meeting_platform: string;
+  meeting_url: string;
+  meeting_title: string | null;
+  calendar_event_id: string | null;
+  status: string;
+}
+
+interface BotDeploymentInsert {
+  org_id: string;
+  recording_id: string;
+  bot_id: string;
+  status: string;
+  status_history: Array<{ status: string; timestamp: string }>;
+  meeting_url: string;
+  scheduled_join_time: string | null;
+  bot_name: string | null;
+  bot_image_url: string | null;
+  entry_message: string | null;
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Get recording settings for an organization
+ */
+async function getRecordingSettings(
+  supabase: SupabaseClient,
+  orgId: string
+): Promise<RecordingSettings | null> {
+  const { data } = await supabase
+    .from('organizations')
+    .select('recording_settings')
+    .eq('id', orgId)
+    .single();
+
+  return data?.recording_settings || null;
+}
+
+/**
+ * Get user profile for entry message formatting
+ */
+async function getUserProfile(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<{ full_name?: string; email?: string } | null> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('full_name, email')
+    .eq('id', userId)
+    .single();
+
+  return data;
+}
+
+/**
+ * Get organization name for entry message
+ */
+async function getOrgName(
+  supabase: SupabaseClient,
+  orgId: string
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('organizations')
+    .select('name')
+    .eq('id', orgId)
+    .single();
+
+  return data?.name || null;
+}
+
+/**
+ * Increment recording usage count
+ */
+async function incrementUsageCount(
+  supabase: SupabaseClient,
+  orgId: string
+): Promise<void> {
+  const periodStart = new Date();
+  periodStart.setDate(1);
+  periodStart.setHours(0, 0, 0, 0);
+
+  const periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0);
+
+  // Try to update existing record
+  const { data: existing } = await supabase
+    .from('recording_usage')
+    .select('id, recordings_count')
+    .eq('org_id', orgId)
+    .eq('period_start', periodStart.toISOString().split('T')[0])
+    .maybeSingle();
+
+  if (existing) {
+    await supabase
+      .from('recording_usage')
+      .update({
+        recordings_count: existing.recordings_count + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existing.id);
+  } else {
+    // Create new usage record
+    await supabase.from('recording_usage').insert({
+      org_id: orgId,
+      period_start: periodStart.toISOString().split('T')[0],
+      period_end: periodEnd.toISOString().split('T')[0],
+      recordings_count: 1,
+      recordings_limit: 20, // Default limit
+      total_duration_seconds: 0,
+      storage_used_bytes: 0,
+    });
+  }
+}
+
+/**
+ * Build webhook URL for this organization
+ */
+function buildWebhookUrl(orgId: string, webhookToken: string): string {
+  const baseUrl = Deno.env.get('SUPABASE_URL');
+  return `${baseUrl}/functions/v1/meetingbaas-webhook?org_id=${orgId}&token=${webhookToken}`;
+}
+
+// =============================================================================
+// Main Handler
+// =============================================================================
+
+serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return handleCorsPreflightWithResponse();
+  }
+
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  try {
+    // Get auth header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Create Supabase client with user's JWT
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      {
+        global: {
+          headers: { Authorization: authHeader },
+        },
+      }
+    );
+
+    // Get user info from JWT
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Parse request body
+    const body: DeployBotRequest = await req.json();
+
+    // Validate meeting URL
+    if (!body.meeting_url) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Meeting URL is required',
+          error_code: ERROR_CODES.INVALID_MEETING_URL,
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    if (!isValidMeetingUrl(body.meeting_url)) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: ERROR_MESSAGES.INVALID_MEETING_URL,
+          error_code: ERROR_CODES.INVALID_MEETING_URL,
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Get user's active organization
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('active_org_id')
+      .eq('id', user.id)
+      .single();
+
+    const orgId = profile?.active_org_id;
+    if (!orgId) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'No active organization',
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Check quota
+    const quota = await checkRecordingQuota(supabase, orgId);
+    if (!quota.allowed) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: ERROR_MESSAGES.LIMIT_REACHED,
+          error_code: ERROR_CODES.LIMIT_REACHED,
+          remaining: quota.remaining,
+          limit: quota.limit,
+        }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Get recording settings
+    const settings = await getRecordingSettings(supabase, orgId);
+    const botName = settings?.bot_name || DEFAULT_BOT_NAME;
+    const botImageUrl = settings?.bot_image_url || null;
+    const entryMessageEnabled = settings?.entry_message_enabled ?? true;
+
+    // Format entry message
+    let entryMessage: string | undefined;
+    if (entryMessageEnabled) {
+      const userProfile = await getUserProfile(supabase, user.id);
+      const orgName = await getOrgName(supabase, orgId);
+
+      const messageTemplate = settings?.entry_message || DEFAULT_ENTRY_MESSAGE;
+      entryMessage = formatEntryMessage(messageTemplate, {
+        rep_name: userProfile?.full_name || 'your rep',
+        company_name: orgName || undefined,
+        meeting_title: body.meeting_title || undefined,
+      });
+    }
+
+    // Detect platform
+    const platform = detectMeetingPlatform(body.meeting_url);
+    if (!platform) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: ERROR_MESSAGES.INVALID_MEETING_URL,
+          error_code: ERROR_CODES.INVALID_MEETING_URL,
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Create recording record
+    const recordingData: RecordingInsert = {
+      org_id: orgId,
+      user_id: user.id,
+      meeting_platform: platform,
+      meeting_url: body.meeting_url,
+      meeting_title: body.meeting_title || null,
+      calendar_event_id: body.calendar_event_id || null,
+      status: 'pending',
+    };
+
+    const { data: recording, error: recordingError } = await supabase
+      .from('recordings')
+      .insert(recordingData)
+      .select('id')
+      .single();
+
+    if (recordingError) {
+      console.error('[DeployBot] Failed to create recording:', recordingError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Failed to create recording record',
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Get webhook token for this org
+    const webhookToken = settings?.webhook_token;
+    if (!webhookToken) {
+      console.error('[DeployBot] No webhook token configured for org:', orgId);
+      // Clean up recording record
+      await supabase.from('recordings').delete().eq('id', recording.id);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Recording not configured. Please set up recording settings first.',
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Build bot configuration
+    const botConfig: MeetingBaaSBotConfig = {
+      meeting_url: body.meeting_url,
+      bot_name: botName,
+      bot_image: botImageUrl || undefined,
+      entry_message: entryMessage,
+      recording_mode: 'speaker_view',
+      webhook_url: buildWebhookUrl(orgId, webhookToken),
+      deduplication_key: recording.id,
+    };
+
+    // If scheduled, set reserved flag
+    if (body.scheduled_time) {
+      botConfig.reserved = true;
+    }
+
+    // Deploy bot to MeetingBaaS
+    let meetingBaaSClient: MeetingBaaSClient;
+    try {
+      meetingBaaSClient = createMeetingBaaSClient();
+    } catch (error) {
+      console.error('[DeployBot] MeetingBaaS client error:', error);
+      // Clean up recording record
+      await supabase.from('recordings').delete().eq('id', recording.id);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Recording service not configured',
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const { data: botResponse, error: botError } = await meetingBaaSClient.deployBot(botConfig);
+
+    if (botError || !botResponse) {
+      console.error('[DeployBot] MeetingBaaS API error:', botError);
+      // Update recording status to failed
+      await supabase
+        .from('recordings')
+        .update({
+          status: 'failed',
+          error_message: botError?.message || 'Failed to deploy bot',
+        })
+        .eq('id', recording.id);
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: ERROR_MESSAGES.BOT_JOIN_FAILED,
+          error_code: ERROR_CODES.BOT_JOIN_FAILED,
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Update recording with bot ID
+    await supabase
+      .from('recordings')
+      .update({
+        bot_id: botResponse.id,
+        status: 'bot_joining',
+      })
+      .eq('id', recording.id);
+
+    // Create bot deployment record
+    const deploymentData: BotDeploymentInsert = {
+      org_id: orgId,
+      recording_id: recording.id,
+      bot_id: botResponse.id,
+      status: 'joining',
+      status_history: [
+        {
+          status: 'joining',
+          timestamp: new Date().toISOString(),
+        },
+      ],
+      meeting_url: body.meeting_url,
+      scheduled_join_time: body.scheduled_time || null,
+      bot_name: botName,
+      bot_image_url: botImageUrl,
+      entry_message: entryMessage || null,
+    };
+
+    await supabase.from('bot_deployments').insert(deploymentData);
+
+    // Increment usage count
+    await incrementUsageCount(supabase, orgId);
+
+    console.log('[DeployBot] Bot deployed successfully:', {
+      recordingId: recording.id,
+      botId: botResponse.id,
+      platform,
+    });
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        recording_id: recording.id,
+        bot_id: botResponse.id,
+      } as DeployBotResponse),
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  } catch (error) {
+    console.error('[DeployBot] Error:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+});

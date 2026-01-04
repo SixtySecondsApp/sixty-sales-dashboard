@@ -112,6 +112,7 @@ export const HealthMonitoring = lazyWithRetry(() => import('@/pages/HealthMonito
 // ============================================================
 export const MeetingsPage = lazyWithRetry(() => import('@/pages/MeetingsPage'));
 export const MeetingIntelligence = lazyWithRetry(() => import('@/pages/MeetingIntelligence'));
+export const RecordingsPage = lazyWithRetry(() => import('@/pages/RecordingsPage'));
 export const MeetingSentimentAnalytics = lazyWithRetry(() => import('@/pages/MeetingSentimentAnalytics'));
 export const Calls = lazyWithRetry(() => import('@/pages/Calls'));
 export const CallDetail = lazyWithRetry(() => import('@/pages/CallDetail'));
