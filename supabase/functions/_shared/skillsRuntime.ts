@@ -21,6 +21,12 @@ const WEB_SEARCH_SKILLS = [
   'industry-trends',
 ];
 
+// Skills that generate images (routed to Gemini Imagen 3)
+const IMAGE_GENERATION_SKILLS = [
+  'image-generation',
+  'prospect-visual',
+];
+
 export interface SkillContext {
   [key: string]: any;
 }
@@ -32,6 +38,116 @@ export interface SkillExecutionResult {
   model?: string;
   tokensUsed?: number;
   sources?: Array<{ title?: string; uri?: string }>;
+}
+
+/**
+ * Execute a skill using Gemini Imagen 3 for image generation
+ *
+ * Used for image generation skills:
+ * - image-generation: General purpose image creation
+ * - prospect-visual: Personalized visuals for sales outreach
+ *
+ * @param supabase - Supabase client (service role)
+ * @param skillKey - Skill key
+ * @param context - Context variables for interpolation
+ * @returns Image URL and metadata
+ */
+export async function runSkillWithImagen(
+  supabase: SupabaseClient,
+  skillKey: string,
+  context: SkillContext
+): Promise<SkillExecutionResult> {
+  if (!GEMINI_API_KEY) {
+    console.warn('[skillsRuntime] GEMINI_API_KEY not set for Imagen');
+    return {
+      success: false,
+      error: 'Gemini API key not configured for image generation',
+    };
+  }
+
+  try {
+    // Load prompt configuration
+    const promptConfig = await loadPrompt(supabase, skillKey);
+
+    if (!promptConfig) {
+      return {
+        success: false,
+        error: `Image generation prompt not found: ${skillKey}`,
+      };
+    }
+
+    // Build the image prompt from user prompt template
+    const imagePrompt = interpolateVariables(promptConfig.userPrompt, context);
+
+    // Also apply system prompt context for better guidance
+    const systemGuidance = interpolateVariables(promptConfig.systemPrompt, context);
+    const fullPrompt = `${systemGuidance}\n\n${imagePrompt}`;
+
+    console.log(`[skillsRuntime] Calling Imagen 3 for ${skillKey}`);
+
+    // Imagen 3 API request format
+    const requestBody = {
+      instances: [
+        {
+          prompt: fullPrompt,
+        },
+      ],
+      parameters: {
+        sampleCount: 1,
+        aspectRatio: context.aspectRatio || '1:1',
+        personGeneration: 'dont_allow', // Safe for business use
+        safetySetting: 'block_some',
+      },
+    };
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Imagen API error: ${errorData.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    // Extract the generated image
+    const predictions = data.predictions || [];
+    if (predictions.length === 0) {
+      return {
+        success: false,
+        error: 'No image generated',
+      };
+    }
+
+    // Imagen 3 returns base64 encoded images
+    const imageData = predictions[0];
+    const output = {
+      imageBase64: imageData.bytesBase64Encoded,
+      mimeType: imageData.mimeType || 'image/png',
+      prompt: fullPrompt,
+      aspectRatio: context.aspectRatio || '1:1',
+    };
+
+    console.log(`[skillsRuntime] Imagen skill ${skillKey} completed successfully`);
+
+    return {
+      success: true,
+      output,
+      model: 'imagen-3.0-generate-002',
+    };
+  } catch (error) {
+    console.error(`[skillsRuntime] Imagen error for ${skillKey}:`, error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown Imagen error',
+    };
+  }
 }
 
 /**
@@ -203,6 +319,12 @@ export async function runSkill(
   orgId?: string,
   userId?: string
 ): Promise<SkillExecutionResult> {
+  // Route image generation skills to Gemini Imagen 3
+  if (IMAGE_GENERATION_SKILLS.includes(skillKey)) {
+    console.log(`[skillsRuntime] Routing ${skillKey} to Gemini Imagen 3`);
+    return await runSkillWithImagen(supabase, skillKey, context);
+  }
+
   // Route web search skills to Gemini with Google Search grounding
   if (WEB_SEARCH_SKILLS.includes(skillKey)) {
     console.log(`[skillsRuntime] Routing ${skillKey} to Gemini with web search`);

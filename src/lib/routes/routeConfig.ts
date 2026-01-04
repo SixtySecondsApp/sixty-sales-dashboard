@@ -481,6 +481,14 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     navSection: 'platform',
     order: 33,
   },
+  {
+    path: '/platform/copilot-tests',
+    access: 'platformAdmin',
+    label: 'Copilot Tests',
+    showInNav: false,
+    navSection: 'platform',
+    order: 34,
+  },
   // Integrations
   {
     path: '/platform/integrations/savvycal',
