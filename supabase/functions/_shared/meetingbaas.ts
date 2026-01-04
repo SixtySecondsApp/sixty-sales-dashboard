@@ -87,7 +87,7 @@ export const DEFAULT_BOT_NAME = '60 Notetaker';
 export const DEFAULT_ENTRY_MESSAGE =
   "Hi! I'm here to take notes so {rep_name} can focus on our conversation. 📝";
 
-export const MEETINGBAAS_API_BASE = 'https://api.meetingbaas.com/v1';
+export const MEETINGBAAS_API_BASE = 'https://api.meetingbaas.com';
 
 export const MEETING_URL_PATTERNS: Record<MeetingPlatform, RegExp[]> = {
   zoom: [
@@ -196,11 +196,13 @@ export class MeetingBaaSClient {
   ): Promise<{ data?: T; error?: MeetingBaaSError }> {
     const url = `${this.baseUrl}${endpoint}`;
 
+    console.log(`[MeetingBaaS] ${method} ${url}`);
+
     try {
       const response = await fetch(url, {
         method,
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'x-meeting-baas-api-key': this.apiKey,
           'Content-Type': 'application/json',
         },
         body: body ? JSON.stringify(body) : undefined,
