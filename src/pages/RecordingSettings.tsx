@@ -36,10 +36,13 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion'
 import { useRecordingSettings, useRecordingRules, useRecordingUsage } from '@/lib/hooks/useRecordings'
+import { useCalendarList } from '@/lib/hooks/useGoogleIntegration'
+import { useNotetakerIntegration } from '@/lib/hooks/useNotetakerIntegration'
 import { recordingService } from '@/lib/services/recordingService'
 import { useOrg } from '@/lib/contexts/OrgContext'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { DEFAULT_SIXTY_ICON_URL } from '@/lib/utils/sixtyBranding'
 import {
   ArrowLeft,
   Settings,
@@ -156,16 +159,21 @@ export const RecordingSettings: React.FC = () => {
   const { activeOrgId } = useOrg()
 
   // Fetch settings and rules
-  const { data: settings, isLoading: settingsLoading, refetch: refetchSettings } = useRecordingSettings()
-  const { data: rules, isLoading: rulesLoading, refetch: refetchRules } = useRecordingRules()
-  const { data: usage } = useRecordingUsage()
+  const { settings, isLoading: settingsLoading, refetch: refetchSettings } = useRecordingSettings()
+  const { rules, isLoading: rulesLoading, refetch: refetchRules } = useRecordingRules()
+  const { usage, remainingRecordings, usagePercent } = useRecordingUsage()
+
+  // Calendar list and notetaker integration
+  const { data: calendarsData, isLoading: calendarsLoading } = useCalendarList()
+  const { userSettings, updateSettings, isUpdating, googleConnected } = useNotetakerIntegration()
 
   // Local state for settings form
   const [botName, setBotName] = useState('')
-  const [botImageUrl, setBotImageUrl] = useState('')
   const [entryMessage, setEntryMessage] = useState('')
   const [entryMessageEnabled, setEntryMessageEnabled] = useState(true)
   const [autoRecord, setAutoRecord] = useState(false)
+  const [joinAllMeetings, setJoinAllMeetings] = useState(true)
+  const [selectedCalendarId, setSelectedCalendarId] = useState('primary')
   const [saving, setSaving] = useState(false)
 
   // Add Rule Modal state
@@ -183,23 +191,45 @@ export const RecordingSettings: React.FC = () => {
   React.useEffect(() => {
     if (settings) {
       setBotName(settings.bot_name || '')
-      setBotImageUrl(settings.bot_image_url || '')
       setEntryMessage(settings.entry_message || '')
       setEntryMessageEnabled(settings.entry_message_enabled ?? true)
-      setAutoRecord(settings.auto_record ?? false)
+      setAutoRecord(settings.auto_record_enabled ?? false)
+      setJoinAllMeetings(settings.join_all_meetings ?? true)
     }
   }, [settings])
 
+  // Initialize selected calendar from user settings
+  React.useEffect(() => {
+    if (userSettings?.selected_calendar_id) {
+      setSelectedCalendarId(userSettings.selected_calendar_id)
+    }
+  }, [userSettings])
+
+  // Save calendar selection
+  const handleSaveCalendarSelection = async () => {
+    try {
+      await updateSettings({ selected_calendar_id: selectedCalendarId })
+    } catch (error) {
+      console.error('Failed to save calendar selection:', error)
+      toast.error('Failed to save calendar selection')
+    }
+  }
+
   // Save settings
   const handleSaveSettings = async () => {
+    if (!activeOrgId) {
+      toast.error('No organization selected')
+      return
+    }
     setSaving(true)
     try {
-      await recordingService.updateRecordingSettings({
+      await recordingService.updateRecordingSettings(activeOrgId, {
         bot_name: botName || undefined,
-        bot_image_url: botImageUrl || undefined,
+        bot_image_url: DEFAULT_SIXTY_ICON_URL,
         entry_message: entryMessage || undefined,
         entry_message_enabled: entryMessageEnabled,
-        auto_record: autoRecord,
+        auto_record_enabled: autoRecord,
+        join_all_meetings: joinAllMeetings,
       })
       toast.success('Settings saved successfully')
       refetchSettings()
@@ -337,7 +367,7 @@ export const RecordingSettings: React.FC = () => {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                    {usage.used} / {usage.limit}
+                    {usage.recordings_count} / {usage.recordings_limit}
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     recordings used
@@ -345,7 +375,7 @@ export const RecordingSettings: React.FC = () => {
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                    {usage.remaining}
+                    {remainingRecordings}
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     remaining
@@ -356,11 +386,11 @@ export const RecordingSettings: React.FC = () => {
                 <div
                   className={cn(
                     "h-full rounded-full transition-all",
-                    usage.used / usage.limit > 0.9 ? 'bg-red-500' :
-                    usage.used / usage.limit > 0.7 ? 'bg-amber-500' :
+                    usagePercent > 90 ? 'bg-red-500' :
+                    usagePercent > 70 ? 'bg-amber-500' :
                     'bg-emerald-500'
                   )}
-                  style={{ width: `${Math.min(100, (usage.used / usage.limit) * 100)}%` }}
+                  style={{ width: `${Math.min(100, usagePercent)}%` }}
                 />
               </div>
             </CardContent>
@@ -385,29 +415,33 @@ export const RecordingSettings: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Bot Preview */}
+            <div className="flex items-center gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30">
+              <img
+                src={DEFAULT_SIXTY_ICON_URL}
+                alt="Bot Avatar"
+                className="h-12 w-12 rounded-lg shadow-sm"
+              />
+              <div className="flex-1">
+                <p className="font-medium text-gray-900 dark:text-gray-100">
+                  {botName || '60 Notetaker'}
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  This is how your bot will appear in meetings
+                </p>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="botName">Bot Name</Label>
               <Input
                 id="botName"
-                placeholder="Sixty Notetaker"
+                placeholder="60 Notetaker"
                 value={botName}
                 onChange={(e) => setBotName(e.target.value)}
               />
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 This name will appear in the meeting participant list
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="botImage">Bot Avatar URL</Label>
-              <Input
-                id="botImage"
-                placeholder="https://example.com/avatar.png"
-                value={botImageUrl}
-                onChange={(e) => setBotImageUrl(e.target.value)}
-              />
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Optional: A square image URL for the bot's avatar
               </p>
             </div>
 
@@ -462,7 +496,7 @@ export const RecordingSettings: React.FC = () => {
         </Card>
       </motion.div>
 
-      {/* Recording Rules */}
+      {/* Recording Mode */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -470,58 +504,202 @@ export const RecordingSettings: React.FC = () => {
       >
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-emerald-600" />
-                  Recording Rules
-                </CardTitle>
-                <CardDescription>
-                  Define which meetings should be automatically recorded
-                </CardDescription>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={() => setShowAddRuleModal(true)}
-              >
-                <Plus className="h-4 w-4" />
-                Add Rule
-              </Button>
-            </div>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-emerald-600" />
+              Recording Mode
+            </CardTitle>
+            <CardDescription>
+              Choose how the 60 Notetaker decides which meetings to record
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            {rules && rules.length > 0 ? (
-              <div className="space-y-3">
-                {rules.map((rule) => (
-                  <RuleCard
-                    key={rule.id}
-                    rule={rule}
-                    onDelete={handleDeleteRule}
-                    onToggle={handleToggleRule}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Shield className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-500 dark:text-gray-400 mb-4">
-                  No recording rules configured yet
+          <CardContent className="space-y-6">
+            {/* Join All Meetings Toggle */}
+            <div className="flex items-start justify-between p-4 rounded-lg bg-emerald-50/50 dark:bg-emerald-900/20 border border-emerald-200/50 dark:border-emerald-700/30">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="joinAll" className="text-base font-medium">
+                    Record All Meetings
+                  </Label>
+                  {joinAllMeetings && (
+                    <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+                      Active
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {joinAllMeetings
+                    ? "The 60 Notetaker will automatically join and record all meetings on your calendar."
+                    : "Use custom rules below to control which meetings are recorded."}
                 </p>
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => setShowAddRuleModal(true)}
-                >
-                  <Plus className="h-4 w-4" />
-                  Create Your First Rule
-                </Button>
+              </div>
+              <Switch
+                id="joinAll"
+                checked={joinAllMeetings}
+                onCheckedChange={setJoinAllMeetings}
+              />
+            </div>
+
+            {/* Custom Rules Section - Only show when joinAllMeetings is OFF */}
+            {!joinAllMeetings && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-gray-500" />
+                      Custom Recording Rules
+                    </h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Only meetings matching these rules will be recorded
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => setShowAddRuleModal(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Rule
+                  </Button>
+                </div>
+
+                {rules && rules.length > 0 ? (
+                  <div className="space-y-3">
+                    {rules.map((rule) => (
+                      <RuleCard
+                        key={rule.id}
+                        rule={rule}
+                        onDelete={handleDeleteRule}
+                        onToggle={handleToggleRule}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700">
+                    <Shield className="h-10 w-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                    <p className="text-gray-500 dark:text-gray-400 mb-3 text-sm">
+                      No recording rules configured yet.
+                      <br />
+                      Without rules, no meetings will be recorded.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setShowAddRuleModal(true)}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Create First Rule
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
+
+            {/* Info when Join All is ON */}
+            {joinAllMeetings && (
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-50/50 dark:bg-blue-900/20 border border-blue-200/50 dark:border-blue-700/30">
+                <Info className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
+                <div className="text-sm text-blue-700 dark:text-blue-300">
+                  <p className="font-medium mb-1">Recording all meetings</p>
+                  <p className="text-blue-600/80 dark:text-blue-400/80">
+                    To selectively record meetings based on specific criteria (like external participants only,
+                    or meetings with certain keywords), turn off "Record All Meetings" and configure custom rules.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={handleSaveSettings}
+              disabled={saving}
+              className="w-full bg-emerald-600 hover:bg-emerald-700"
+            >
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
+              Save Recording Mode
+            </Button>
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Calendar Selection */}
+      {googleConnected && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-emerald-600" />
+                Calendar Selection
+              </CardTitle>
+              <CardDescription>
+                Choose which calendar the 60 Notetaker should watch for meetings
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="calendarSelect">Active Calendar</Label>
+                {calendarsLoading ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select
+                    value={selectedCalendarId}
+                    onValueChange={setSelectedCalendarId}
+                  >
+                    <SelectTrigger id="calendarSelect">
+                      <SelectValue placeholder="Select a calendar" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="primary">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-blue-500" />
+                          Primary Calendar
+                        </div>
+                      </SelectItem>
+                      {calendarsData?.calendars?.map((calendar: { id: string; summary: string; backgroundColor?: string; primary?: boolean }) => (
+                        !calendar.primary && (
+                          <SelectItem key={calendar.id} value={calendar.id}>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="h-2 w-2 rounded-full"
+                                style={{ backgroundColor: calendar.backgroundColor || '#4285f4' }}
+                              />
+                              {calendar.summary}
+                            </div>
+                          </SelectItem>
+                        )
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Only meetings from the selected calendar will be recorded
+                </p>
+              </div>
+
+              <Button
+                onClick={handleSaveCalendarSelection}
+                disabled={isUpdating || selectedCalendarId === userSettings?.selected_calendar_id}
+                className="w-full bg-emerald-600 hover:bg-emerald-700"
+              >
+                {isUpdating ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="mr-2 h-4 w-4" />
+                )}
+                Save Calendar Selection
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* Help Section */}
       <motion.div

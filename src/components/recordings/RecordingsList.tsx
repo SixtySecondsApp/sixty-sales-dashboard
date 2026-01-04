@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useOrg } from '@/lib/contexts/OrgContext'
+import { useAuth } from '@/lib/contexts/AuthContext'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { useRecordings, useRecordingUsage, useActiveRecordings, useRecordingsRequiringAttention } from '@/lib/hooks/useRecordings'
+import { recordingService } from '@/lib/services/recordingService'
+import { JoinMeetingModal } from './JoinMeetingModal'
 import { toast } from 'sonner'
 import {
   Table,
@@ -39,7 +42,9 @@ import {
   Building2,
   Users,
   Search,
-  Filter
+  Filter,
+  Radio,
+  Plus
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
@@ -228,7 +233,7 @@ const RecordingsEmptyState: React.FC = () => {
         Set up automatic recording rules to capture your meetings, or manually start a recording when you join a call.
       </p>
       <Button
-        onClick={() => navigate('/recordings/settings')}
+        onClick={() => navigate('/meetings/recordings/settings')}
         className="bg-emerald-600 hover:bg-emerald-700 text-white"
       >
         <Settings className="mr-2 w-4 h-4" />
@@ -242,12 +247,16 @@ const ITEMS_PER_PAGE = 20
 
 const RecordingsList: React.FC = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { activeOrgId } = useOrg()
+  const { user } = useAuth()
   const [view, setView] = useState<'list' | 'grid'>('grid')
   const [currentPage, setCurrentPage] = useState(1)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<RecordingStatus | 'all'>('all')
   const [platformFilter, setPlatformFilter] = useState<MeetingPlatform | 'all'>('all')
+  const [joinModalOpen, setJoinModalOpen] = useState(false)
+  const [isJoining, setIsJoining] = useState(false)
 
   // Fetch recordings with React Query
   const { data: recordingsData, isLoading, error } = useRecordings({
@@ -283,7 +292,39 @@ const RecordingsList: React.FC = () => {
   }, [statusFilter, platformFilter, searchQuery])
 
   const openRecording = (recordingId: string) => {
-    navigate(`/recordings/${recordingId}`)
+    navigate(`/meetings/recordings/${recordingId}`)
+  }
+
+  // Handle join meeting from modal
+  const handleJoinMeeting = async (meetingUrl: string, meetingTitle?: string) => {
+    if (!activeOrgId || !user?.id) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    setIsJoining(true)
+    try {
+      const result = await recordingService.startRecording(activeOrgId, user.id, {
+        meetingUrl,
+        meetingTitle,
+      })
+
+      if (result.success) {
+        toast.success('Bot is joining the meeting', {
+          description: meetingTitle || 'Recording will start shortly',
+        })
+        // Recordings list will auto-refresh via React Query
+      }
+
+      return result
+    } catch (error) {
+      console.error('[RecordingsList] Join meeting error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to join meeting',
+      }
+    } finally {
+      setIsJoining(false)
+    }
   }
 
   if (isLoading) {
@@ -305,6 +346,40 @@ const RecordingsList: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Recording Source Tabs */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-2"
+      >
+        <Button
+          variant={location.pathname === '/meetings' || location.pathname === '/meetings/' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => navigate('/meetings')}
+          className={cn(
+            'gap-2',
+            (location.pathname === '/meetings' || location.pathname === '/meetings/') &&
+            'bg-emerald-600 hover:bg-emerald-700 text-white'
+          )}
+        >
+          <Radio className="h-4 w-4" />
+          External Recorders
+        </Button>
+        <Button
+          variant={location.pathname.startsWith('/meetings/recordings') ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => navigate('/meetings/recordings')}
+          className={cn(
+            'gap-2',
+            location.pathname.startsWith('/meetings/recordings') &&
+            'bg-emerald-600 hover:bg-emerald-700 text-white'
+          )}
+        >
+          <Bot className="h-4 w-4" />
+          60 Notetaker
+        </Button>
+      </motion.div>
+
       {/* Usage Banner */}
       {usageData && (
         <motion.div
@@ -390,7 +465,7 @@ const RecordingsList: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate(`/recordings/${attentionRecordings[0].id}`)}
+              onClick={() => navigate(`/meetings/recordings/${attentionRecordings[0].id}`)}
               className="border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
             >
               Review
@@ -420,11 +495,21 @@ const RecordingsList: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Join Meeting Button */}
+          <Button
+            size="sm"
+            onClick={() => setJoinModalOpen(true)}
+            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            <Plus className="h-4 w-4" />
+            Join Meeting
+          </Button>
+
           {/* Settings Button */}
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate('/recordings/settings')}
+            onClick={() => navigate('/meetings/recordings/settings')}
             className="gap-2"
           >
             <Settings className="h-4 w-4" />
@@ -757,6 +842,14 @@ const RecordingsList: React.FC = () => {
           </div>
         </motion.div>
       )}
+
+      {/* Join Meeting Modal */}
+      <JoinMeetingModal
+        open={joinModalOpen}
+        onOpenChange={setJoinModalOpen}
+        onJoin={handleJoinMeeting}
+        isLoading={isJoining}
+      />
     </div>
   )
 }
