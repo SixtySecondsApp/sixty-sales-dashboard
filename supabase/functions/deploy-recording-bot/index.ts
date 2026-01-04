@@ -299,14 +299,16 @@ serve(async (req) => {
       );
     }
 
-    // Get user's organization
-    const { data: profile } = await supabase
-      .from('profiles')
+    // Get user's organization from membership
+    const { data: membership } = await supabase
+      .from('organization_memberships')
       .select('org_id')
-      .eq('id', user.id)
-      .single();
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
-    const orgId = profile?.org_id;
+    const orgId = membership?.org_id;
     if (!orgId) {
       return new Response(
         JSON.stringify({
