@@ -11,7 +11,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders, handleCorsPreflightWithResponse } from '../_shared/corsHelper.ts';
+import { legacyCorsHeaders as corsHeaders, handleCorsPreflightRequest } from '../_shared/corsHelper.ts';
 import {
   createMeetingBaaSClient,
   MeetingBaaSClient,
@@ -221,8 +221,9 @@ async function ensureWebhookToken(
 
 serve(async (req) => {
   // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return handleCorsPreflightWithResponse();
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) {
+    return preflightResponse;
   }
 
   if (req.method !== 'POST') {
