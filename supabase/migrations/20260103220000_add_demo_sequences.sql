@@ -17,11 +17,11 @@ VALUES
   -- =============================================================================
   (
     'seq-prospecting-power',
-    'agent-sequence',
+    'workflows',
     '{
       "name": "Prospecting Power Package",
       "description": "Full prospecting workflow: research the company, generate a personalized visual, and draft outreach email. Perfect for impressing high-value prospects.",
-      "category": "agent-sequence",
+      "category": "workflows",
       "input_schema": {
         "domain": {"type": "string", "required": true, "description": "Company domain to research (e.g., stripe.com)"},
         "prospect_name": {"type": "string", "required": false, "description": "Name of the person to contact"},
@@ -91,11 +91,11 @@ VALUES
   -- =============================================================================
   (
     'seq-meeting-mastery',
-    'agent-sequence',
+    'workflows',
     '{
       "name": "Meeting Mastery",
       "description": "Complete meeting workflow: research attendees, generate talking points, and create follow-up email after the meeting.",
-      "category": "agent-sequence",
+      "category": "workflows",
       "input_schema": {
         "company_domain": {"type": "string", "required": true, "description": "Domain of the company you are meeting with"},
         "contact_name": {"type": "string", "required": true, "description": "Name of the primary contact"},
@@ -165,11 +165,11 @@ VALUES
   -- =============================================================================
   (
     'seq-deal-rescue',
-    'agent-sequence',
+    'workflows',
     '{
       "name": "Deal Rescue Mission",
       "description": "Revive stale or at-risk deals: analyze deal health, gather competitive intelligence, and craft a compelling re-engagement message.",
-      "category": "agent-sequence",
+      "category": "workflows",
       "input_schema": {
         "deal_id": {"type": "string", "required": true, "description": "ID of the deal to rescue"},
         "company_name": {"type": "string", "required": true, "description": "Name of the prospect company"},
@@ -241,11 +241,11 @@ VALUES
   -- =============================================================================
   (
     'seq-pipeline-intelligence',
-    'agent-sequence',
+    'workflows',
     '{
       "name": "Weekly Pipeline Intelligence",
       "description": "Comprehensive pipeline review: analyze all active deals, score their health, identify at-risk opportunities, and generate a visual summary.",
-      "category": "agent-sequence",
+      "category": "workflows",
       "input_schema": {
         "period": {"type": "string", "required": false, "description": "Time period for analysis (this_week, this_month)"},
         "include_forecast": {"type": "boolean", "required": false, "description": "Include forecast analysis"}
