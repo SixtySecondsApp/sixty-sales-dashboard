@@ -25,6 +25,94 @@ import {
 } from '../_shared/meetingbaas.ts';
 
 // =============================================================================
+// Storage Upload Helper
+// =============================================================================
+
+interface UploadRecordingResult {
+  success: boolean;
+  storageUrl?: string;
+  storagePath?: string;
+  error?: string;
+}
+
+/**
+ * Download recording from MeetingBaaS and upload to our storage bucket
+ * Folder structure: /{org_id}/{user_id}/{recording_id}/recording.mp4
+ */
+async function uploadRecordingToStorage(
+  supabase: SupabaseClient,
+  recordingUrl: string,
+  orgId: string,
+  userId: string,
+  recordingId: string
+): Promise<UploadRecordingResult> {
+  console.log('[ProcessRecording] Downloading recording from MeetingBaaS...');
+
+  try {
+    // Download the recording
+    const response = await fetch(recordingUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download recording: ${response.status}`);
+    }
+
+    // Get content type and determine file extension
+    const contentType = response.headers.get('content-type') || 'video/mp4';
+    let fileExtension = 'mp4';
+    if (contentType.includes('webm')) {
+      fileExtension = 'webm';
+    } else if (contentType.includes('audio')) {
+      fileExtension = contentType.includes('wav') ? 'wav' : 'mp3';
+    }
+
+    // Create storage path: /{org_id}/{user_id}/{recording_id}/recording.{ext}
+    const storagePath = `${orgId}/${userId}/${recordingId}/recording.${fileExtension}`;
+
+    console.log(`[ProcessRecording] Uploading to storage: ${storagePath}`);
+
+    // Get the recording data as a blob
+    const blob = await response.blob();
+
+    // Upload to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('recordings')
+      .upload(storagePath, blob, {
+        contentType,
+        upsert: true, // Overwrite if exists
+      });
+
+    if (uploadError) {
+      throw new Error(`Storage upload failed: ${uploadError.message}`);
+    }
+
+    // Get the public URL (or signed URL for private bucket)
+    const { data: urlData } = supabase.storage
+      .from('recordings')
+      .getPublicUrl(storagePath);
+
+    // For private bucket, generate a signed URL
+    const { data: signedUrlData } = await supabase.storage
+      .from('recordings')
+      .createSignedUrl(storagePath, 60 * 60 * 24 * 7); // 7 days
+
+    const storageUrl = signedUrlData?.signedUrl || urlData?.publicUrl;
+
+    console.log(`[ProcessRecording] Upload successful: ${storagePath}`);
+
+    return {
+      success: true,
+      storageUrl,
+      storagePath,
+    };
+  } catch (error) {
+    console.error('[ProcessRecording] Storage upload error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Upload failed',
+    };
+  }
+}
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -471,6 +559,21 @@ async function processRecording(
       throw new Error(recordingError?.message || 'Failed to get recording from MeetingBaaS');
     }
 
+    // Step 1.5: Upload recording to our storage
+    console.log('[ProcessRecording] Step 1.5: Uploading to storage...');
+    const uploadResult = await uploadRecordingToStorage(
+      supabase,
+      recordingData.url,
+      recording.org_id,
+      recording.user_id,
+      recordingId
+    );
+
+    if (!uploadResult.success) {
+      console.warn('[ProcessRecording] Storage upload failed, using MeetingBaaS URL:', uploadResult.error);
+      // Don't fail the whole pipeline - we can still process with MeetingBaaS URL
+    }
+
     // Step 2: Get transcript
     console.log('[ProcessRecording] Step 2: Getting transcript...');
     let transcript: TranscriptData;
@@ -543,12 +646,14 @@ async function processRecording(
       : null;
 
     // Step 7: Update recording with all results
-    console.log('[ProcessRecording] Step 6: Saving results...');
+    console.log('[ProcessRecording] Step 7: Saving results...');
     await supabase
       .from('recordings')
       .update({
         status: needsHITL ? 'ready' : 'ready', // Both cases are 'ready', HITL is tracked separately
-        recording_s3_url: recordingData.url,
+        // Use our storage URL if available, fallback to MeetingBaaS URL
+        recording_s3_url: uploadResult.storageUrl || recordingData.url,
+        recording_s3_key: uploadResult.storagePath || null,
         transcript_json: transcript,
         transcript_text: transcript.text,
         summary: analysis.summary,

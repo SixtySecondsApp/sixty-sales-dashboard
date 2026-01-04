@@ -84,6 +84,8 @@ export interface RecordingSettings {
 // =============================================================================
 
 export const DEFAULT_BOT_NAME = '60 Notetaker';
+export const DEFAULT_BOT_IMAGE =
+  'https://ygdpgliavpxeugaajgrb.supabase.co/storage/v1/object/public/Logos/ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459/Icon.png';
 export const DEFAULT_ENTRY_MESSAGE =
   "Hi! I'm here to take notes so {rep_name} can focus on our conversation. 📝";
 
@@ -197,6 +199,9 @@ export class MeetingBaaSClient {
     const url = `${this.baseUrl}${endpoint}`;
 
     console.log(`[MeetingBaaS] ${method} ${url}`);
+    if (body) {
+      console.log(`[MeetingBaaS] Request body:`, JSON.stringify(body, null, 2));
+    }
 
     try {
       const response = await fetch(url, {

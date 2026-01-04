@@ -20,6 +20,7 @@ import {
   formatEntryMessage,
   checkRecordingQuota,
   DEFAULT_BOT_NAME,
+  DEFAULT_BOT_IMAGE,
   DEFAULT_ENTRY_MESSAGE,
   ERROR_CODES,
   ERROR_MESSAGES,
@@ -342,9 +343,22 @@ serve(async (req) => {
 
     // Get recording settings
     const settings = await getRecordingSettings(supabase, orgId);
+    console.log('[DeployBot] Org settings fetched:', {
+      orgId,
+      hasSettings: !!settings,
+      settings: settings ? JSON.stringify(settings) : null,
+    });
+
     const botName = settings?.bot_name || DEFAULT_BOT_NAME;
-    const botImageUrl = settings?.bot_image_url || null;
+    const botImageUrl = settings?.bot_image_url || DEFAULT_BOT_IMAGE;
     const entryMessageEnabled = settings?.entry_message_enabled ?? true;
+
+    console.log('[DeployBot] Bot config values:', {
+      botName,
+      botImageUrl,
+      entryMessageEnabled,
+      hasEntryMessage: !!settings?.entry_message,
+    });
 
     // Format entry message
     let entryMessage: string | undefined;
@@ -425,6 +439,14 @@ serve(async (req) => {
     if (body.scheduled_time) {
       botConfig.reserved = true;
     }
+
+    console.log('[DeployBot] Final bot config being sent to MeetingBaaS:', {
+      bot_name: botConfig.bot_name,
+      bot_image: botConfig.bot_image,
+      entry_message: botConfig.entry_message,
+      recording_mode: botConfig.recording_mode,
+      webhook_url: botConfig.webhook_url ? '[set]' : '[not set]',
+    });
 
     // Deploy bot to MeetingBaaS
     let meetingBaaSClient: MeetingBaaSClient;
