@@ -248,16 +248,23 @@ export function useCalendarList(enabled = true) {
   return useQuery({
     queryKey: GOOGLE_QUERY_KEYS.calendar.calendars,
     queryFn: async () => {
+      const headers = await getAuthHeaders();
       // The Edge Function expects action as a query parameter
       const response = await supabase.functions.invoke('google-calendar?action=list-calendars', {
-        body: {}
+        body: {},
+        headers
       });
-      
-      if (response.error) throw response.error;
+
+      if (response.error) {
+        console.error('[useCalendarList] Error fetching calendars:', response.error);
+        throw response.error;
+      }
+
+      console.log('[useCalendarList] Fetched calendars:', response.data?.calendars?.length ?? 0);
       return response.data;
     },
     enabled,
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 2 * 60 * 1000, // 2 minutes (reduced from 10 to pick up changes faster)
     retry: 1,
   });
 }

@@ -163,9 +163,11 @@ export const RecordingSettings: React.FC = () => {
   const { rules, isLoading: rulesLoading, refetch: refetchRules } = useRecordingRules()
   const { usage, remainingRecordings, usagePercent } = useRecordingUsage()
 
-  // Calendar list and notetaker integration
-  const { data: calendarsData, isLoading: calendarsLoading } = useCalendarList()
+  // Notetaker integration (check Google connection first)
   const { userSettings, updateSettings, isUpdating, googleConnected } = useNotetakerIntegration()
+
+  // Calendar list - only fetch when Google is connected
+  const { data: calendarsData, isLoading: calendarsLoading, refetch: refetchCalendars } = useCalendarList(googleConnected)
 
   // Local state for settings form
   const [botName, setBotName] = useState('')

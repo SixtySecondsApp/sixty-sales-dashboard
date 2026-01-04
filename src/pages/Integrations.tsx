@@ -92,14 +92,19 @@ function IntegrationCardWithLogo({
   onToggleUpvote?: (args: { integrationId: string; integrationName: string; description?: string }) => Promise<void>;
   sixtyLogoUrl?: string | null;
 }) {
+  // Skip S3 fetch for 60-notetaker since it's our own product
+  const is60Notetaker = config.id === '60-notetaker';
   // Only warm the S3 cache for "built" integrations to avoid a request storm on the huge "coming soon" list.
-  const { logoUrl } = useIntegrationLogo(config.id, { enableFetch: isBuilt });
+  const { logoUrl } = useIntegrationLogo(config.id, { enableFetch: isBuilt && !is60Notetaker });
+
+  // Use DEFAULT_SIXTY_ICON_URL directly for 60 Notetaker
+  const finalLogoUrl = is60Notetaker ? DEFAULT_SIXTY_ICON_URL : logoUrl;
 
   return (
     <IntegrationCard
       name={config.name}
       description={config.description}
-      logoUrl={logoUrl}
+      logoUrl={finalLogoUrl}
       fallbackIcon={config.fallbackIcon}
       status={status}
       onAction={onAction}
