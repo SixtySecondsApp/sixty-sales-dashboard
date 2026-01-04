@@ -4,7 +4,13 @@
  * Processes webhook events from MeetingBaaS for white-labelled meeting recording.
  * Events include: bot lifecycle, recording ready, transcript ready
  *
- * Webhook URL format: /meetingbaas-webhook?token={org_webhook_token}
+ * Organization identification (in priority order):
+ * 1. URL token: /meetingbaas-webhook?token={org_webhook_token} (legacy)
+ * 2. Bot ID lookup: Find org from bot_deployments table using payload.bot_id
+ *
+ * Since MeetingBaaS webhooks are account-level (not per-org), we primarily
+ * use bot_id lookup to identify the organization. Token-based lookup is
+ * kept for backward compatibility.
  */
 
 import { serve } from 'https://deno.land/std@0.190.0/http/server.ts';
@@ -18,17 +24,29 @@ import { hmacSha256Hex, timingSafeEqual } from '../_shared/use60Signing.ts';
 // =============================================================================
 
 type MeetingBaaSEventType =
+  // Bot lifecycle events
   | 'bot.joining'
   | 'bot.in_meeting'
   | 'bot.left'
   | 'bot.failed'
+  // Recording/transcript events
   | 'recording.ready'
-  | 'transcript.ready';
+  | 'transcript.ready'
+  // Calendar events (from MeetingBaaS calendar sync)
+  | 'calendar.created'
+  | 'calendar.updated'
+  | 'calendar.deleted'
+  | 'calendar.error'
+  | 'calendar.sync_complete'
+  | 'calendar_event.created'
+  | 'calendar_event.updated'
+  | 'calendar_event.deleted';
 
 interface MeetingBaaSWebhookPayload {
   id?: string;
   type: MeetingBaaSEventType;
   bot_id: string;
+  calendar_id?: string; // For calendar-related events
   meeting_url?: string;
   timestamp?: string;
   // Error info
@@ -443,37 +461,10 @@ serve(async (req) => {
     // Get raw body for signature verification
     const rawBody = await req.text();
 
-    // Extract webhook token from URL
-    const url = new URL(req.url);
-    const webhookToken = url.searchParams.get('token');
-
-    if (!webhookToken) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing webhook token' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Find organization by webhook token
-    // We store the webhook token in organization settings
-    const { data: org } = await supabase
-      .from('organizations')
-      .select('id, recording_settings')
-      .eq('recording_settings->>webhook_token', webhookToken)
-      .maybeSingle();
-
-    if (!org) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid webhook token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const orgId = org.id;
-
-    // Verify signature (if secret configured)
-    const signatureHeader = req.headers.get('x-meetingbaas-signature');
-    const timestampHeader = req.headers.get('x-meetingbaas-timestamp');
+    // Verify signature first (if secret configured) - MeetingBaaS uses SVIX
+    const signatureHeader = req.headers.get('svix-signature') || req.headers.get('x-meetingbaas-signature');
+    const timestampHeader = req.headers.get('svix-timestamp') || req.headers.get('x-meetingbaas-timestamp');
+    const svixId = req.headers.get('svix-id');
 
     const verification = await verifyMeetingBaaSSignature(
       meetingbaasWebhookSecret,
@@ -483,13 +474,17 @@ serve(async (req) => {
     );
 
     if (!verification.ok) {
-      return new Response(
-        JSON.stringify({ success: false, error: verification.reason }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.warn('[MeetingBaaS Webhook] Signature verification failed:', verification.reason);
+      // Only fail if we have a secret configured - otherwise allow for development
+      if (meetingbaasWebhookSecret) {
+        return new Response(
+          JSON.stringify({ success: false, error: verification.reason }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
-    // Parse payload
+    // Parse payload early to get bot_id for org lookup
     let payload: MeetingBaaSWebhookPayload;
     try {
       payload = JSON.parse(rawBody);
@@ -504,6 +499,70 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ success: false, error: 'Missing required fields: type, bot_id' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Find organization - try multiple methods
+    let orgId: string | null = null;
+
+    // Method 1: URL token (legacy, for backward compatibility)
+    const url = new URL(req.url);
+    const webhookToken = url.searchParams.get('token');
+
+    if (webhookToken && webhookToken !== '{ORG_TOKEN}') {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('recording_settings->>webhook_token', webhookToken)
+        .maybeSingle();
+
+      if (org) {
+        orgId = org.id;
+        console.log(`[MeetingBaaS Webhook] Org identified via token: ${orgId}`);
+      }
+    }
+
+    // Method 2: Look up org from bot_id via bot_deployments
+    if (!orgId) {
+      const { data: deployment } = await supabase
+        .from('bot_deployments')
+        .select('org_id')
+        .eq('bot_id', payload.bot_id)
+        .maybeSingle();
+
+      if (deployment?.org_id) {
+        orgId = deployment.org_id;
+        console.log(`[MeetingBaaS Webhook] Org identified via bot_id: ${orgId}`);
+      }
+    }
+
+    // Method 3: Look up org from calendar_id if present in payload
+    if (!orgId && payload.calendar_id) {
+      const { data: calendar } = await supabase
+        .from('meetingbaas_calendars')
+        .select('org_id')
+        .eq('meetingbaas_calendar_id', payload.calendar_id)
+        .maybeSingle();
+
+      if (calendar?.org_id) {
+        orgId = calendar.org_id;
+        console.log(`[MeetingBaaS Webhook] Org identified via calendar_id: ${orgId}`);
+      }
+    }
+
+    if (!orgId) {
+      console.error('[MeetingBaaS Webhook] Could not identify organization', {
+        bot_id: payload.bot_id,
+        calendar_id: payload.calendar_id,
+        token_provided: !!webhookToken,
+      });
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Could not identify organization for this webhook',
+          hint: 'Ensure bot_deployments or meetingbaas_calendars has the org_id set'
+        }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 

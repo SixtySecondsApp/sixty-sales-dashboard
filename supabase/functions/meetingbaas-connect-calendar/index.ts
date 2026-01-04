@@ -230,12 +230,49 @@ serve(async (req) => {
       .eq('id', user_id)
       .single();
 
+    const orgId = profile?.org_id;
+
+    // Generate webhook token for the org if it doesn't exist
+    let webhookToken: string | null = null;
+    if (orgId) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('recording_settings')
+        .eq('id', orgId)
+        .single();
+
+      const currentSettings = org?.recording_settings || {};
+      webhookToken = currentSettings.webhook_token;
+
+      // Generate a new webhook token if one doesn't exist
+      if (!webhookToken) {
+        webhookToken = crypto.randomUUID();
+
+        const { error: updateError } = await supabase
+          .from('organizations')
+          .update({
+            recording_settings: {
+              ...currentSettings,
+              webhook_token: webhookToken,
+              meetingbaas_enabled: true,
+            }
+          })
+          .eq('id', orgId);
+
+        if (updateError) {
+          console.error('[MeetingBaaS Connect] Failed to save webhook token:', updateError);
+        } else {
+          console.log(`[MeetingBaaS Connect] Generated webhook token for org ${orgId}`);
+        }
+      }
+    }
+
     // Store the connection in our database
     const { error: insertError } = await supabase
       .from('meetingbaas_calendars')
       .upsert({
         user_id,
-        org_id: profile?.org_id,
+        org_id: orgId,
         meetingbaas_calendar_id: mbCalendar.id,
         raw_calendar_id: calendar_id,
         platform: 'google',
@@ -253,6 +290,12 @@ serve(async (req) => {
       // Don't fail - the MeetingBaaS connection is already made
     }
 
+    // Build webhook URL for reference
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const webhookUrl = webhookToken
+      ? `${supabaseUrl}/functions/v1/meetingbaas-webhook?token=${webhookToken}`
+      : null;
+
     console.log(`[MeetingBaaS Connect] Calendar connected: ${mbCalendar.id} for user ${user_id}`);
 
     return new Response(
@@ -264,7 +307,8 @@ serve(async (req) => {
           platform: mbCalendar.platform,
           raw_calendar_id: mbCalendar.raw_calendar_id,
           email: googleIntegration.email || mbCalendar.email,
-        }
+        },
+        webhook_url: webhookUrl,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
