@@ -80,7 +80,7 @@ class RecordingService {
   // ===========================================================================
 
   /**
-   * Start a manual recording
+   * Start a manual recording by deploying a bot to the meeting
    */
   async startRecording(
     orgId: string,
@@ -93,42 +93,47 @@ class RecordingService {
         return { success: false, error: "This meeting URL isn't supported" };
       }
 
-      // Check quota
-      const quota = await this.checkQuota(orgId);
-      if (!quota.allowed) {
+      // Call the deploy-recording-bot edge function
+      // This handles quota checking, recording creation, and bot deployment
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      if (!accessToken) {
+        return { success: false, error: 'Not authenticated' };
+      }
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/deploy-recording-bot`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          meeting_url: params.meetingUrl,
+          meeting_title: params.meetingTitle,
+          calendar_event_id: params.calendarEventId,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        logger.error('[RecordingService] Deploy bot failed:', result);
         return {
           success: false,
-          error: `You've reached your recording limit (${quota.limit}) for this month`,
+          error: result.error || 'Failed to start recording',
         };
       }
 
-      // Create recording record
-      const recordingData: RecordingInsert = {
-        org_id: orgId,
-        user_id: userId,
-        meeting_platform: platform,
-        meeting_url: params.meetingUrl,
-        meeting_title: params.meetingTitle || null,
-        calendar_event_id: params.calendarEventId || null,
-        status: 'pending',
-      };
-
-      const { data: recording, error } = await supabase
+      // Fetch the created recording to return it
+      const { data: recording } = await supabase
         .from('recordings')
-        .insert(recordingData)
-        .select()
+        .select('*')
+        .eq('id', result.recording_id)
         .single();
 
-      if (error) {
-        logger.error('[RecordingService] Failed to create recording:', error);
-        return { success: false, error: 'Failed to create recording' };
-      }
-
-      // TODO: Trigger edge function to deploy bot
-      // This would call a separate edge function that handles
-      // the MeetingBaaS API call
-
-      return { success: true, recording };
+      return { success: true, recording: recording || undefined };
     } catch (error) {
       logger.error('[RecordingService] startRecording error:', error);
       return {
