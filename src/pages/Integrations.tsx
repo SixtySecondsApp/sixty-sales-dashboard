@@ -33,6 +33,7 @@ import { SavvyCalConfigModal } from '@/components/integrations/SavvyCalConfigMod
 import { SlackConfigModal } from '@/components/integrations/SlackConfigModal';
 import { JustCallConfigModal } from '@/components/integrations/JustCallConfigModal';
 import { HubSpotConfigModal } from '@/components/integrations/HubSpotConfigModal';
+import { NotetakerConfigModal } from '@/components/integrations/NotetakerConfigModal';
 
 // Hooks and stores
 import { useGoogleIntegration } from '@/lib/stores/integrationStore';
@@ -41,6 +42,7 @@ import { useSlackIntegration } from '@/lib/hooks/useSlackIntegration';
 import { useJustCallIntegration } from '@/lib/hooks/useJustCallIntegration';
 import { useSavvyCalIntegration } from '@/lib/hooks/useSavvyCalIntegration';
 import { useHubSpotIntegration } from '@/lib/hooks/useHubSpotIntegration';
+import { useNotetakerIntegration } from '@/lib/hooks/useNotetakerIntegration';
 import { getIntegrationDomain, getLogoS3Url, useIntegrationLogo } from '@/lib/hooks/useIntegrationLogo';
 import { useUser } from '@/lib/hooks/useUser';
 import { IntegrationVoteState, useIntegrationUpvotes } from '@/lib/hooks/useIntegrationUpvotes';
@@ -337,6 +339,22 @@ const builtIntegrations: IntegrationConfig[] = [
     fallbackIcon: <Users className="w-6 h-6 text-orange-500" />,
     isBuilt: true,
   },
+  {
+    id: '60-notetaker',
+    name: '60 Notetaker',
+    description: 'Auto-record & transcribe your meetings.',
+    permissions: [
+      { title: 'Access calendar', description: 'View your meetings to know when to join.' },
+      { title: 'Join meetings', description: 'Bot joins as a participant to record.' },
+      { title: 'Transcribe audio', description: 'Convert speech to text with speaker identification.' },
+      { title: 'Generate insights', description: 'AI-powered summaries and action items.' },
+    ],
+    brandColor: 'emerald',
+    iconBgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
+    iconBorderColor: 'border-emerald-100 dark:border-emerald-800/40',
+    fallbackIcon: <Bot className="w-6 h-6 text-emerald-500" />,
+    isBuilt: true,
+  },
 ];
 
 // =====================================================
@@ -580,6 +598,14 @@ export default function Integrations() {
 
   const { isConnected: hubspotConnected, loading: hubspotLoading, connectHubSpot } = useHubSpotIntegration(hubspotEnabled);
 
+  const {
+    isConnected: notetakerConnected,
+    isLoading: notetakerLoading,
+    isOrgEnabled: notetakerOrgEnabled,
+    needsCalendar: notetakerNeedsCalendar,
+    status: notetakerStatus,
+  } = useNotetakerIntegration();
+
   // Modal states
   const [activeConnectModal, setActiveConnectModal] = useState<string | null>(null);
   const [activeConfigModal, setActiveConfigModal] = useState<string | null>(null);
@@ -640,6 +666,11 @@ export default function Integrations() {
         return justcallConnected ? 'active' : 'inactive';
       case 'hubspot':
         return hubspotConnected ? 'active' : 'inactive';
+      case '60-notetaker':
+        // Show as inactive if org hasn't enabled, or if user needs to set up
+        if (!notetakerOrgEnabled) return 'inactive';
+        if (notetakerNeedsCalendar) return 'syncing'; // Shows "needs setup" state
+        return notetakerConnected ? 'active' : 'inactive';
       default:
         return 'coming_soon';
     }
@@ -657,6 +688,11 @@ export default function Integrations() {
       // JustCall is API-key based (no OAuth flow) so go straight to config.
       if (integrationId === 'justcall') {
         setActiveConfigModal('justcall');
+        return;
+      }
+      // 60 Notetaker goes straight to config modal (handles its own enable flow)
+      if (integrationId === '60-notetaker') {
+        setActiveConfigModal('60-notetaker');
         return;
       }
       setActiveConnectModal(integrationId);
@@ -727,8 +763,9 @@ export default function Integrations() {
       justcall: justcallLoading,
       savvycal: savvycalLoading,
       hubspot: hubspotLoading,
+      '60-notetaker': notetakerLoading,
     }),
-    [googleLoading, fathomLoading, slackLoading, justcallLoading, savvycalLoading, hubspotLoading]
+    [googleLoading, fathomLoading, slackLoading, justcallLoading, savvycalLoading, hubspotLoading, notetakerLoading]
   );
 
   // Preload cached S3 logo URLs on page load to prevent any visible swap/flicker.
@@ -894,6 +931,10 @@ export default function Integrations() {
       />
       <HubSpotConfigModal
         open={hubspotEnabled && activeConfigModal === 'hubspot'}
+        onOpenChange={(open) => !open && setActiveConfigModal(null)}
+      />
+      <NotetakerConfigModal
+        open={activeConfigModal === '60-notetaker'}
         onOpenChange={(open) => !open && setActiveConfigModal(null)}
       />
     </div>
