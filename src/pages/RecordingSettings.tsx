@@ -38,6 +38,7 @@ import {
 import { useRecordingSettings, useRecordingRules, useRecordingUsage } from '@/lib/hooks/useRecordings'
 import { useCalendarList } from '@/lib/hooks/useGoogleIntegration'
 import { useNotetakerIntegration } from '@/lib/hooks/useNotetakerIntegration'
+import { useMeetingBaaSCalendar } from '@/lib/hooks/useMeetingBaaSCalendar'
 import { recordingService } from '@/lib/services/recordingService'
 import { useOrg } from '@/lib/contexts/OrgContext'
 import { toast } from 'sonner'
@@ -60,7 +61,9 @@ import {
   CheckCircle2,
   Info,
   ExternalLink,
-  Loader2
+  Loader2,
+  Link2,
+  Unlink
 } from 'lucide-react'
 import type { RecordingSettings as RecordingSettingsType, RecordingRule, DomainMode, RecordingRuleInsert } from '@/lib/types/meetingBaaS'
 
@@ -169,6 +172,24 @@ export const RecordingSettings: React.FC = () => {
   // Calendar list - only fetch when Google is connected
   const { data: calendarsData, isLoading: calendarsLoading, refetch: refetchCalendars } = useCalendarList(googleConnected)
 
+  // MeetingBaaS calendar connection
+  const {
+    hasConnectedCalendar: hasMeetingBaaSCalendar,
+    primaryCalendar: meetingBaaSCalendar,
+    isLoading: meetingBaaSLoading,
+    isConnecting: meetingBaaSConnecting,
+    connect: connectMeetingBaaSCalendar,
+    refetch: refetchMeetingBaaSCalendar,
+  } = useMeetingBaaSCalendar()
+
+  // Debug: Log calendar data when it changes
+  React.useEffect(() => {
+    if (calendarsData) {
+      console.log('[RecordingSettings] Calendar data received:', calendarsData)
+      console.log('[RecordingSettings] Calendars count:', calendarsData?.calendars?.length ?? 0)
+    }
+  }, [calendarsData])
+
   // Local state for settings form
   const [botName, setBotName] = useState('')
   const [entryMessage, setEntryMessage] = useState('')
@@ -200,12 +221,18 @@ export const RecordingSettings: React.FC = () => {
     }
   }, [settings])
 
-  // Initialize selected calendar from user settings
+  // Initialize selected calendar from user settings, with fallback to primary
   React.useEffect(() => {
     if (userSettings?.selected_calendar_id) {
       setSelectedCalendarId(userSettings.selected_calendar_id)
+    } else if (calendarsData?.calendars?.length) {
+      // If no saved preference, default to the primary calendar
+      const primaryCalendar = calendarsData.calendars.find((c: { primary?: boolean }) => c.primary)
+      if (primaryCalendar) {
+        setSelectedCalendarId(primaryCalendar.id)
+      }
     }
-  }, [userSettings])
+  }, [userSettings, calendarsData])
 
   // Save calendar selection
   const handleSaveCalendarSelection = async () => {
@@ -650,7 +677,7 @@ export const RecordingSettings: React.FC = () => {
                 <Label htmlFor="calendarSelect">Active Calendar</Label>
                 {calendarsLoading ? (
                   <Skeleton className="h-10 w-full" />
-                ) : (
+                ) : calendarsData?.calendars && calendarsData.calendars.length > 0 ? (
                   <Select
                     value={selectedCalendarId}
                     onValueChange={setSelectedCalendarId}
@@ -659,27 +686,45 @@ export const RecordingSettings: React.FC = () => {
                       <SelectValue placeholder="Select a calendar" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="primary">
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 w-2 rounded-full bg-blue-500" />
-                          Primary Calendar
-                        </div>
-                      </SelectItem>
-                      {calendarsData?.calendars?.map((calendar: { id: string; summary: string; backgroundColor?: string; primary?: boolean }) => (
-                        !calendar.primary && (
-                          <SelectItem key={calendar.id} value={calendar.id}>
-                            <div className="flex items-center gap-2">
-                              <div
-                                className="h-2 w-2 rounded-full"
-                                style={{ backgroundColor: calendar.backgroundColor || '#4285f4' }}
-                              />
-                              {calendar.summary}
-                            </div>
-                          </SelectItem>
-                        )
+                      {calendarsData.calendars.map((calendar: { id: string; summary: string; backgroundColor?: string; primary?: boolean }) => (
+                        <SelectItem key={calendar.id} value={calendar.id}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="h-2 w-2 rounded-full"
+                              style={{ backgroundColor: calendar.backgroundColor || '#4285f4' }}
+                            />
+                            {calendar.summary}
+                            {calendar.primary && (
+                              <span className="text-xs text-gray-500 ml-1">(Primary)</span>
+                            )}
+                          </div>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <Select
+                      value={selectedCalendarId}
+                      onValueChange={setSelectedCalendarId}
+                    >
+                      <SelectTrigger id="calendarSelect">
+                        <SelectValue placeholder="Select a calendar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="primary">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-blue-500" />
+                            Primary Calendar
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Unable to load calendars. Using default primary calendar.
+                    </p>
+                  </div>
                 )}
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Only meetings from the selected calendar will be recorded
@@ -703,11 +748,117 @@ export const RecordingSettings: React.FC = () => {
         </motion.div>
       )}
 
-      {/* Help Section */}
+      {/* MeetingBaaS Calendar Connection */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Link2 className="h-5 w-5 text-emerald-600" />
+              Bot Calendar Sync
+            </CardTitle>
+            <CardDescription>
+              Connect your calendar to enable automatic bot deployment for meetings
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!googleConnected ? (
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30">
+                <AlertCircle className="h-5 w-5 text-gray-400 mt-0.5 shrink-0" />
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="font-medium mb-1">Google Calendar required</p>
+                  <p>
+                    Please connect your Google Calendar in the{' '}
+                    <Button
+                      variant="link"
+                      className="h-auto p-0 text-emerald-600"
+                      onClick={() => navigate('/settings/integrations')}
+                    >
+                      Integrations page
+                    </Button>{' '}
+                    first to enable bot calendar sync.
+                  </p>
+                </div>
+              </div>
+            ) : meetingBaaSLoading ? (
+              <Skeleton className="h-20 w-full" />
+            ) : hasMeetingBaaSCalendar ? (
+              <div className="flex items-center justify-between p-4 rounded-lg bg-emerald-50/50 dark:bg-emerald-900/20 border border-emerald-200/50 dark:border-emerald-700/30">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-emerald-700 dark:text-emerald-300">
+                      Calendar Connected
+                    </p>
+                    <p className="text-sm text-emerald-600/80 dark:text-emerald-400/80">
+                      {meetingBaaSCalendar?.email || 'Primary Calendar'} •
+                      {meetingBaaSCalendar?.platform === 'google' ? ' Google Calendar' : ' Microsoft Calendar'}
+                    </p>
+                  </div>
+                </div>
+                <Badge variant="default" className="bg-emerald-600">
+                  Active
+                </Badge>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50/50 dark:bg-amber-900/20 border border-amber-200/50 dark:border-amber-700/30">
+                  <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+                  <div className="text-sm text-amber-700 dark:text-amber-300">
+                    <p className="font-medium mb-1">Calendar not connected</p>
+                    <p className="text-amber-600/80 dark:text-amber-400/80">
+                      Connect your calendar to enable the 60 Notetaker bot to automatically join your meetings.
+                      This uses your existing Google Calendar connection.
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={() => connectMeetingBaaSCalendar(selectedCalendarId)}
+                  disabled={meetingBaaSConnecting}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {meetingBaaSConnecting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Connecting Calendar...
+                    </>
+                  ) : (
+                    <>
+                      <Link2 className="mr-2 h-4 w-4" />
+                      Connect Calendar for Bot Deployment
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+
+            {hasMeetingBaaSCalendar && (
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-50/50 dark:bg-blue-900/20 border border-blue-200/50 dark:border-blue-700/30">
+                <Info className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
+                <div className="text-sm text-blue-700 dark:text-blue-300">
+                  <p className="font-medium mb-1">How it works</p>
+                  <p className="text-blue-600/80 dark:text-blue-400/80">
+                    When a meeting is scheduled on your calendar, the 60 Notetaker bot will automatically
+                    join at the meeting start time to record and transcribe your conversation.
+                  </p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Help Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
       >
         <Accordion type="single" collapsible className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-xl border border-gray-200/50 dark:border-gray-700/30">
           <AccordionItem value="how-it-works">
