@@ -22,13 +22,22 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
 import { useRecordingSettings, useRecordingRules, useRecordingUsage } from '@/lib/hooks/useRecordings'
-import { useServices } from '@/lib/services/ServiceLocator'
+import { recordingService } from '@/lib/services/recordingService'
+import { useOrg } from '@/lib/contexts/OrgContext'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
@@ -50,7 +59,7 @@ import {
   ExternalLink,
   Loader2
 } from 'lucide-react'
-import type { RecordingSettings as RecordingSettingsType, RecordingRule, DomainMode } from '@/lib/types/meetingBaaS'
+import type { RecordingSettings as RecordingSettingsType, RecordingRule, DomainMode, RecordingRuleInsert } from '@/lib/types/meetingBaaS'
 
 // Domain mode labels
 const domainModeLabels: Record<DomainMode, string> = {
@@ -144,7 +153,7 @@ const RuleCard: React.FC<{
 
 export const RecordingSettings: React.FC = () => {
   const navigate = useNavigate()
-  const { recordingService } = useServices()
+  const { activeOrgId } = useOrg()
 
   // Fetch settings and rules
   const { data: settings, isLoading: settingsLoading, refetch: refetchSettings } = useRecordingSettings()
@@ -158,6 +167,17 @@ export const RecordingSettings: React.FC = () => {
   const [entryMessageEnabled, setEntryMessageEnabled] = useState(true)
   const [autoRecord, setAutoRecord] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  // Add Rule Modal state
+  const [showAddRuleModal, setShowAddRuleModal] = useState(false)
+  const [newRuleName, setNewRuleName] = useState('')
+  const [newRuleDomainMode, setNewRuleDomainMode] = useState<DomainMode>('external_only')
+  const [newRuleSpecificDomains, setNewRuleSpecificDomains] = useState('')
+  const [newRuleMinAttendees, setNewRuleMinAttendees] = useState('1')
+  const [newRuleMaxAttendees, setNewRuleMaxAttendees] = useState('')
+  const [newRuleTitleKeywords, setNewRuleTitleKeywords] = useState('')
+  const [newRuleExcludeKeywords, setNewRuleExcludeKeywords] = useState('')
+  const [savingRule, setSavingRule] = useState(false)
 
   // Initialize form when settings load
   React.useEffect(() => {
@@ -215,6 +235,62 @@ export const RecordingSettings: React.FC = () => {
     }
   }
 
+  // Reset new rule form
+  const resetRuleForm = () => {
+    setNewRuleName('')
+    setNewRuleDomainMode('external_only')
+    setNewRuleSpecificDomains('')
+    setNewRuleMinAttendees('1')
+    setNewRuleMaxAttendees('')
+    setNewRuleTitleKeywords('')
+    setNewRuleExcludeKeywords('')
+  }
+
+  // Create new rule
+  const handleCreateRule = async () => {
+    if (!activeOrgId) {
+      toast.error('No organization selected')
+      return
+    }
+    if (!newRuleName.trim()) {
+      toast.error('Please enter a rule name')
+      return
+    }
+
+    setSavingRule(true)
+    try {
+      const rule: RecordingRuleInsert = {
+        org_id: activeOrgId,
+        name: newRuleName.trim(),
+        is_active: true,
+        priority: (rules?.length || 0) + 1,
+        domain_mode: newRuleDomainMode,
+        specific_domains: newRuleDomainMode === 'specific_domains' && newRuleSpecificDomains
+          ? newRuleSpecificDomains.split(',').map(d => d.trim()).filter(Boolean)
+          : null,
+        min_attendee_count: parseInt(newRuleMinAttendees) || 1,
+        max_attendee_count: newRuleMaxAttendees ? parseInt(newRuleMaxAttendees) : null,
+        title_keywords: newRuleTitleKeywords
+          ? newRuleTitleKeywords.split(',').map(k => k.trim()).filter(Boolean)
+          : null,
+        title_keywords_exclude: newRuleExcludeKeywords
+          ? newRuleExcludeKeywords.split(',').map(k => k.trim()).filter(Boolean)
+          : null,
+      }
+
+      await recordingService.createRecordingRule(rule)
+      toast.success('Recording rule created')
+      resetRuleForm()
+      setShowAddRuleModal(false)
+      refetchRules()
+    } catch (error) {
+      console.error('Failed to create rule:', error)
+      toast.error('Failed to create rule')
+    } finally {
+      setSavingRule(false)
+    }
+  }
+
   if (settingsLoading || rulesLoading) {
     return <SettingsSkeleton />
   }
@@ -230,16 +306,16 @@ export const RecordingSettings: React.FC = () => {
         <Button
           variant="outline"
           size="icon"
-          onClick={() => navigate('/recordings')}
+          onClick={() => navigate('/meetings/recordings')}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Recording Settings
+            60 Notetaker Settings
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Configure your recording bot and automation rules
+            Configure your 60 Notetaker bot and automation rules
           </p>
         </div>
       </motion.div>
@@ -404,7 +480,12 @@ export const RecordingSettings: React.FC = () => {
                   Define which meetings should be automatically recorded
                 </CardDescription>
               </div>
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => setShowAddRuleModal(true)}
+              >
                 <Plus className="h-4 w-4" />
                 Add Rule
               </Button>
@@ -428,7 +509,11 @@ export const RecordingSettings: React.FC = () => {
                 <p className="text-gray-500 dark:text-gray-400 mb-4">
                   No recording rules configured yet
                 </p>
-                <Button variant="outline" className="gap-2">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => setShowAddRuleModal(true)}
+                >
                   <Plus className="h-4 w-4" />
                   Create Your First Rule
                 </Button>
@@ -496,6 +581,150 @@ export const RecordingSettings: React.FC = () => {
           </AccordionItem>
         </Accordion>
       </motion.div>
+
+      {/* Add Rule Modal */}
+      <Dialog open={showAddRuleModal} onOpenChange={setShowAddRuleModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-emerald-600" />
+              Create Recording Rule
+            </DialogTitle>
+            <DialogDescription>
+              Define which meetings the 60 Notetaker should automatically record
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Rule Name */}
+            <div className="space-y-2">
+              <Label htmlFor="ruleName">Rule Name *</Label>
+              <Input
+                id="ruleName"
+                placeholder="e.g., External Sales Calls"
+                value={newRuleName}
+                onChange={(e) => setNewRuleName(e.target.value)}
+              />
+            </div>
+
+            {/* Domain Mode */}
+            <div className="space-y-2">
+              <Label htmlFor="domainMode">Who to Record</Label>
+              <Select
+                value={newRuleDomainMode}
+                onValueChange={(value) => setNewRuleDomainMode(value as DomainMode)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="external_only">External participants only</SelectItem>
+                  <SelectItem value="internal_only">Internal participants only</SelectItem>
+                  <SelectItem value="specific_domains">Specific domains</SelectItem>
+                  <SelectItem value="all">All meetings</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {newRuleDomainMode === 'external_only' && 'Only record when attendees are from outside your company'}
+                {newRuleDomainMode === 'internal_only' && 'Only record internal team meetings'}
+                {newRuleDomainMode === 'specific_domains' && 'Only record meetings with specific email domains'}
+                {newRuleDomainMode === 'all' && 'Record all meetings matching other criteria'}
+              </p>
+            </div>
+
+            {/* Specific Domains (conditional) */}
+            {newRuleDomainMode === 'specific_domains' && (
+              <div className="space-y-2">
+                <Label htmlFor="specificDomains">Domains (comma-separated)</Label>
+                <Input
+                  id="specificDomains"
+                  placeholder="e.g., acme.com, bigco.com"
+                  value={newRuleSpecificDomains}
+                  onChange={(e) => setNewRuleSpecificDomains(e.target.value)}
+                />
+              </div>
+            )}
+
+            {/* Attendee Count */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="minAttendees">Min Attendees</Label>
+                <Input
+                  id="minAttendees"
+                  type="number"
+                  min="1"
+                  placeholder="1"
+                  value={newRuleMinAttendees}
+                  onChange={(e) => setNewRuleMinAttendees(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="maxAttendees">Max Attendees</Label>
+                <Input
+                  id="maxAttendees"
+                  type="number"
+                  min="1"
+                  placeholder="No limit"
+                  value={newRuleMaxAttendees}
+                  onChange={(e) => setNewRuleMaxAttendees(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Title Keywords */}
+            <div className="space-y-2">
+              <Label htmlFor="titleKeywords">Title Keywords (optional)</Label>
+              <Input
+                id="titleKeywords"
+                placeholder="e.g., demo, discovery, sales"
+                value={newRuleTitleKeywords}
+                onChange={(e) => setNewRuleTitleKeywords(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Only record if meeting title contains these keywords (comma-separated)
+              </p>
+            </div>
+
+            {/* Exclude Keywords */}
+            <div className="space-y-2">
+              <Label htmlFor="excludeKeywords">Exclude Keywords (optional)</Label>
+              <Input
+                id="excludeKeywords"
+                placeholder="e.g., internal, 1:1, standup"
+                value={newRuleExcludeKeywords}
+                onChange={(e) => setNewRuleExcludeKeywords(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Skip recording if meeting title contains these keywords (comma-separated)
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                resetRuleForm()
+                setShowAddRuleModal(false)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateRule}
+              disabled={savingRule || !newRuleName.trim()}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {savingRule ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
+              Create Rule
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

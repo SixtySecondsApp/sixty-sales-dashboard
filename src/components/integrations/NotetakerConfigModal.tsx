@@ -3,6 +3,7 @@
  *
  * Configuration modal for 60 Notetaker integration.
  * Allows users to enable/disable the notetaker and manage per-user settings.
+ * Org admins can enable/disable the feature for the entire organization.
  */
 
 import React from 'react';
@@ -20,17 +21,18 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import {
-  Bot,
   Calendar,
   Settings,
   Video,
   ExternalLink,
   CheckCircle2,
   AlertCircle,
-  Info,
+  Building2,
 } from 'lucide-react';
 import { useNotetakerIntegration } from '@/lib/hooks/useNotetakerIntegration';
+import { useOrg } from '@/lib/contexts/OrgContext';
 import { cn } from '@/lib/utils';
+import { DEFAULT_SIXTY_ICON_URL } from '@/lib/utils/sixtyBranding';
 
 interface NotetakerConfigModalProps {
   open: boolean;
@@ -39,6 +41,7 @@ interface NotetakerConfigModalProps {
 
 export function NotetakerConfigModal({ open, onOpenChange }: NotetakerConfigModalProps) {
   const navigate = useNavigate();
+  const { permissions } = useOrg();
   const {
     isLoading,
     isConnected,
@@ -50,10 +53,16 @@ export function NotetakerConfigModal({ open, onOpenChange }: NotetakerConfigModa
     enable,
     disable,
     updateSettings,
+    enableOrg,
+    disableOrg,
     isEnabling,
     isDisabling,
     isUpdating,
+    isEnablingOrg,
+    isDisablingOrg,
   } = useNotetakerIntegration();
+
+  const isAdmin = permissions.isAdmin;
 
   const handleToggleEnabled = async () => {
     if (isUserEnabled) {
@@ -87,13 +96,21 @@ export function NotetakerConfigModal({ open, onOpenChange }: NotetakerConfigModa
     navigate('/integrations');
   };
 
+  const handleEnableForOrg = async () => {
+    await enableOrg();
+  };
+
+  const handleDisableForOrg = async () => {
+    await disableOrg();
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-900/30">
-              <Bot className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+              <img src={DEFAULT_SIXTY_ICON_URL} alt="60" className="h-6 w-6 rounded" />
             </div>
             <div>
               <DialogTitle className="text-xl">60 Notetaker</DialogTitle>
@@ -160,17 +177,40 @@ export function NotetakerConfigModal({ open, onOpenChange }: NotetakerConfigModa
             </div>
           )}
 
-          {/* Org not enabled notice */}
+          {/* Org not enabled notice - Admin can enable, non-admin sees info */}
           {!isOrgEnabled && (
             <div className="flex items-start gap-3 p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-              <Info className="h-5 w-5 text-gray-500 mt-0.5" />
-              <div>
+              <Building2 className="h-5 w-5 text-gray-500 mt-0.5" />
+              <div className="flex-1">
                 <p className="font-medium text-gray-900 dark:text-white">
-                  Feature Not Enabled
+                  {isAdmin ? 'Enable for Your Organization' : 'Feature Not Enabled'}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  60 Notetaker has not been enabled for your organization. Contact your administrator to enable this feature.
+                  {isAdmin
+                    ? '60 Notetaker is not yet enabled for your organization. Enable it to allow team members to automatically record and transcribe meetings.'
+                    : '60 Notetaker has not been enabled for your organization. Contact your administrator to enable this feature.'}
                 </p>
+                {isAdmin && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="mt-3 bg-emerald-600 hover:bg-emerald-700"
+                    onClick={handleEnableForOrg}
+                    disabled={isEnablingOrg}
+                  >
+                    {isEnablingOrg ? (
+                      <>
+                        <span className="animate-spin mr-2">⏳</span>
+                        Enabling...
+                      </>
+                    ) : (
+                      <>
+                        <Building2 className="h-4 w-4 mr-2" />
+                        Enable for Organization
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
           )}
@@ -270,6 +310,30 @@ export function NotetakerConfigModal({ open, onOpenChange }: NotetakerConfigModa
                 <Video className="h-4 w-4 mr-2" />
                 View Recordings
               </Button>
+            </>
+          )}
+
+          {/* Admin Section - Manage org-level settings */}
+          {isAdmin && isOrgEnabled && (
+            <>
+              <Separator />
+              <div className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Enabled for your organization
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+                  onClick={handleDisableForOrg}
+                  disabled={isDisablingOrg}
+                >
+                  {isDisablingOrg ? 'Disabling...' : 'Disable'}
+                </Button>
+              </div>
             </>
           )}
         </div>

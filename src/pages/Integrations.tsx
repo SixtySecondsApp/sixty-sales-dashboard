@@ -352,7 +352,7 @@ const builtIntegrations: IntegrationConfig[] = [
     brandColor: 'emerald',
     iconBgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
     iconBorderColor: 'border-emerald-100 dark:border-emerald-800/40',
-    fallbackIcon: <Bot className="w-6 h-6 text-emerald-500" />,
+    fallbackIcon: <img src={DEFAULT_SIXTY_ICON_URL} alt="60" className="w-6 h-6 rounded" />,
     isBuilt: true,
   },
 ];

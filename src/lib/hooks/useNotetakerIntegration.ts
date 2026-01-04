@@ -248,6 +248,88 @@ export function useNotetakerIntegration() {
     },
   });
 
+  // Enable notetaker for the organization (admin only)
+  const enableOrgMutation = useMutation({
+    mutationFn: async () => {
+      if (!orgId) throw new Error('No organization selected');
+
+      // Get current recording_settings
+      const { data: org, error: fetchError } = await supabase
+        .from('organizations')
+        .select('recording_settings')
+        .eq('id', orgId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Merge with existing settings
+      const currentSettings = (org?.recording_settings as Record<string, unknown>) || {};
+      const updatedSettings = {
+        ...currentSettings,
+        recordings_enabled: true,
+      };
+
+      // Update the organization
+      const { error: updateError } = await supabase
+        .from('organizations')
+        .update({ recording_settings: updatedSettings })
+        .eq('id', orgId);
+
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      toast.success('60 Notetaker enabled for organization', {
+        description: 'Team members can now enable it for their meetings.',
+      });
+      queryClient.invalidateQueries({ queryKey: notetakerKeys.orgSettings(orgId || '') });
+    },
+    onError: (error) => {
+      toast.error('Failed to enable 60 Notetaker', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    },
+  });
+
+  // Disable notetaker for the organization (admin only)
+  const disableOrgMutation = useMutation({
+    mutationFn: async () => {
+      if (!orgId) throw new Error('No organization selected');
+
+      // Get current recording_settings
+      const { data: org, error: fetchError } = await supabase
+        .from('organizations')
+        .select('recording_settings')
+        .eq('id', orgId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Merge with existing settings
+      const currentSettings = (org?.recording_settings as Record<string, unknown>) || {};
+      const updatedSettings = {
+        ...currentSettings,
+        recordings_enabled: false,
+      };
+
+      // Update the organization
+      const { error: updateError } = await supabase
+        .from('organizations')
+        .update({ recording_settings: updatedSettings })
+        .eq('id', orgId);
+
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      toast.success('60 Notetaker disabled for organization');
+      queryClient.invalidateQueries({ queryKey: notetakerKeys.orgSettings(orgId || '') });
+    },
+    onError: (error) => {
+      toast.error('Failed to disable 60 Notetaker', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    },
+  });
+
   // Computed states
   const isLoading = orgSettingsLoading || userSettingsLoading;
   const isOrgEnabled = orgSettings?.notetaker_enabled ?? false;
@@ -282,15 +364,21 @@ export function useNotetakerIntegration() {
     googleConnected,
     googleStatus,
 
-    // Actions
+    // User-level actions
     enable: enableMutation.mutateAsync,
     disable: disableMutation.mutateAsync,
     updateSettings: updateSettingsMutation.mutateAsync,
     refetch: refetchUserSettings,
 
+    // Org-level actions (admin only)
+    enableOrg: enableOrgMutation.mutateAsync,
+    disableOrg: disableOrgMutation.mutateAsync,
+
     // Loading states
     isEnabling: enableMutation.isPending,
     isDisabling: disableMutation.isPending,
     isUpdating: updateSettingsMutation.isPending,
+    isEnablingOrg: enableOrgMutation.isPending,
+    isDisablingOrg: disableOrgMutation.isPending,
   };
 }
