@@ -299,14 +299,14 @@ serve(async (req) => {
       );
     }
 
-    // Get user's active organization
+    // Get user's organization
     const { data: profile } = await supabase
       .from('profiles')
-      .select('active_org_id')
+      .select('org_id')
       .eq('id', user.id)
       .single();
 
-    const orgId = profile?.active_org_id;
+    const orgId = profile?.org_id;
     if (!orgId) {
       return new Response(
         JSON.stringify({
