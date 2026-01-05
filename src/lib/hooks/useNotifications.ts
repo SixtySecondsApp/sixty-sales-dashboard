@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { notificationService, type Notification, type NotificationCategory } from '@/lib/services/notificationService';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/clientV2';
@@ -17,9 +17,10 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch notifications
+  // Fetch notifications - stable function that uses current values from closure
   const fetchNotifications = useCallback(async () => {
-    if (!user) {
+    const currentUser = user;
+    if (!currentUser) {
       setNotifications([]);
       setUnreadCount(0);
       setIsLoading(false);
@@ -30,9 +31,10 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
       setIsLoading(true);
       setError(null);
 
+      // Use Promise.all but rely on service-level caching for getUnreadCount (30s cache)
       const [notificationsList, count] = await Promise.all([
-        notificationService.getNotifications({ limit, category }),
-        notificationService.getUnreadCount()
+        notificationService.getNotifications({ userId: currentUser.id, limit, category }),
+        notificationService.getUnreadCount(currentUser.id) // 30s cache prevents bursts
       ]);
 
       setNotifications(notificationsList);
@@ -42,7 +44,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     } finally {
       setIsLoading(false);
     }
-  }, [user, limit, category]);
+  }, [user, limit, category]); // Use full user object for stability
 
   // Mark notification as read
   const markAsRead = useCallback(async (notificationId: string) => {
@@ -125,10 +127,11 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
 
   // Set up real-time subscription
   useEffect(() => {
-    if (!user || !autoSubscribe) return;
+    const userId = user?.id;
+    if (!userId || !autoSubscribe) return;
 
     // Subscribe to real-time notifications
-    notificationService.subscribeToNotifications(user.id);
+    notificationService.subscribeToNotifications(userId);
 
     // Add listener for new notifications
     const handleNewNotification = (notification: Notification) => {
@@ -155,12 +158,37 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
       notificationService.removeUnreadCountListener(handleUnreadCountChange);
       notificationService.unsubscribe();
     };
-  }, [user, autoSubscribe, category]);
+  }, [user?.id, autoSubscribe, category]);
 
-  // Initial fetch
+  // Initial fetch - use ref to prevent unnecessary re-fetches when callback recreates
+  const lastFetchKeyRef = useRef<string>('');
+  const fetchNotificationsRef = useRef(fetchNotifications);
+  
+  // Keep ref updated with latest function
   useEffect(() => {
-    fetchNotifications();
+    fetchNotificationsRef.current = fetchNotifications;
   }, [fetchNotifications]);
+  
+  useEffect(() => {
+    if (!user?.id) {
+      // Clear state if no user
+      if (lastFetchKeyRef.current) {
+        setNotifications([]);
+        setUnreadCount(0);
+        lastFetchKeyRef.current = '';
+      }
+      return;
+    }
+    
+    // Create a stable key from dependencies
+    const currentKey = `${user.id}-${limit}-${category || 'all'}`;
+    
+    // Only fetch if key actually changed (prevents re-fetches when callback recreates)
+    if (lastFetchKeyRef.current !== currentKey) {
+      fetchNotificationsRef.current();
+      lastFetchKeyRef.current = currentKey;
+    }
+  }, [user?.id, limit, category]); // Only depend on actual values, not callback
 
   return {
     notifications,

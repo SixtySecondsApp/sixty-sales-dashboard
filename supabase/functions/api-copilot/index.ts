@@ -449,6 +449,9 @@ async function handleChat(
       })
 
     if (msgError) {
+      console.error('[Copilot] Failed to save user message:', msgError.message);
+      // Non-fatal: continue processing even if message save fails
+      // The conversation will work but history may be incomplete
     }
 
     // Fetch conversation history for context
@@ -460,6 +463,8 @@ async function handleChat(
       .limit(20) // Last 20 messages for context
 
     if (historyError) {
+      console.error('[Copilot] Failed to fetch conversation history:', historyError.message);
+      // Non-fatal: continue with empty history - AI will respond without context
     }
 
     // Ensure messages is an array and format correctly
@@ -2158,17 +2163,49 @@ const SKILLS_ROUTER_TOOLS = [
   },
   {
     name: 'execute_action',
-    description: `Execute an action to fetch CRM data, meetings, emails, or send notifications.
+    description: `Execute an action to fetch CRM data, meetings, emails, pipeline intelligence, or send notifications.
 
 ACTION PARAMETERS:
-• get_contact: { email?: string, name?: string, id?: string } - Search contacts by email (preferred), name, or id
-• get_deal: { name?: string, id?: string } - Search deals by name or id
-• get_meetings: { contactEmail?: string, contactId?: string, limit?: number } - Get meetings with a contact. IMPORTANT: Always pass contactEmail when you have an email address!
-• get_booking_stats: { period?, filter_by?, source?, org_wide? } - Get meeting/booking statistics for a time period. period: "this_week"|"last_week"|"this_month"|"last_month"|"last_7_days"|"last_30_days" (default: "this_week"). filter_by: "meeting_date"|"booking_date" (default: "meeting_date"). source: "all"|"savvycal"|"calendar"|"meetings" (default: "all"). org_wide: boolean (default: false, admin only).
-• search_emails: { contact_email?: string, query?: string, limit?: number } - Search emails by contact email or query
-• draft_email: { to: string, subject?: string, context?: string, tone?: string } - Draft an email
-• update_crm: { entity: 'deal'|'contact'|'task'|'activity', id: string, updates: object, confirm: true } - Update CRM record (requires confirm=true)
-• send_notification: { channel: 'slack', message: string, blocks?: object } - Send a notification
+
+## Contact & Lead Lookup
+• get_contact: { email?, name?, id? } - Search contacts by email (preferred), name, or id
+• get_lead: { email?, name?, contact_id?, date_from?, date_to?, date_field? } - Get lead/prospect data including SavvyCal bookings, enrichment data, prep_summary, custom form fields, AND AI-generated insights. date_field: "created_at"|"meeting_start" (default: "created_at"). Use date_from/date_to for queries like "leads from today".
+
+## Deal & Pipeline
+• get_deal: { name?, id?, close_date_from?, close_date_to?, status?, stage_id?, include_health?, limit? } - Search deals with optional date range and health data. include_health=true adds health_status, risk_level, days_since_last_activity.
+• get_pipeline_summary: {} - Get aggregated pipeline metrics: total_value, weighted_value, deal_count, by_stage breakdown, at_risk_count, at_risk_value, closing_this_week, closing_this_month.
+• get_pipeline_deals: { filter?, days?, period?, include_health?, limit? } - Get filtered deal list. filter: "closing_soon"|"at_risk"|"stale"|"needs_attention". period: "this_week"|"this_month"|"this_quarter". days: for stale filter (default 14).
+• get_pipeline_forecast: { period? } - Get quarterly forecast with best_case, committed (>75% prob), most_likely (weighted), closed_won scenarios. period: "this_quarter"|"next_quarter" (default: "this_quarter").
+
+## Contacts & Relationships
+• get_contacts_needing_attention: { days_since_contact?, filter?, limit? } - Get contacts without recent follow-up. days_since_contact default: 14. filter: "at_risk"|"ghost"|"all" (default: "all").
+• get_company_status: { company_id?, company_name?, domain? } - Holistic company view: contacts, deals, recent meetings, health status, total deal value, relationship summary.
+
+## Meetings & Calendar
+• get_meetings: { contactEmail?, contactId?, limit? } - Get meetings with a contact. IMPORTANT: Always pass contactEmail when you have an email address!
+• get_booking_stats: { period?, filter_by?, source?, org_wide? } - Get meeting/booking statistics. period: "this_week"|"last_week"|"this_month"|"last_month"|"last_7_days"|"last_30_days" (default: "this_week").
+• get_meeting_count: { period?, timezone?, week_starts_on? } - Count meetings for a period. period: "today"|"tomorrow"|"this_week"|"next_week"|"this_month" (default: "this_week"). Uses user's timezone for accurate date boundaries.
+• get_next_meeting: { include_context?, timezone? } - Get next upcoming meeting with CRM context. include_context (default: true) adds company, deal, previous meetings, and recent activities. HERO FEATURE for meeting prep.
+• get_meetings_for_period: { period?, timezone?, week_starts_on?, include_context?, limit? } - Get meeting list for today or tomorrow. period: "today"|"tomorrow" (default: "today"). Great for daily briefings.
+• get_time_breakdown: { period?, timezone?, week_starts_on? } - Analyze time spent in meetings. Returns total hours, internal vs external split, 1:1 vs group breakdown, and daily distribution.
+
+## Email & Notifications
+• search_emails: { contact_email?, query?, limit? } - Search emails by contact email or query
+• draft_email: { to, subject?, context?, tone? } - Draft an email
+• send_notification: { channel: 'slack', message, blocks? } - Send a Slack notification
+
+## CRM Updates
+• update_crm: { entity: 'deal'|'contact'|'task'|'activity', id, updates, confirm: true } - Update CRM record (requires confirm=true)
+
+## Skill Execution
+• run_skill: { skill_key, skill_context? } - Execute an AI skill with processing. For research skills (lead-research, company-analysis, competitor-intel), uses Gemini with real-time web search.
+  - skill_key: The skill to execute (lead-research, company-analysis, competitor-intel, market-research, industry-trends, meeting-prep, etc.)
+  - skill_context: Variables for the skill (domain, company_name, contact_email, industry, etc.)
+
+  Examples:
+  - Research a company: run_skill { skill_key: "lead-research", skill_context: { domain: "stripe.com", company_name: "Stripe" } }
+  - Analyze competitors: run_skill { skill_key: "competitor-intel", skill_context: { competitor_name: "Salesforce", our_company: "HubSpot" } }
+  - Market research: run_skill { skill_key: "market-research", skill_context: { industry: "fintech", focus_areas: "payment processing" } }
 
 Write actions require params.confirm=true.`,
     input_schema: {
@@ -2178,13 +2215,24 @@ Write actions require params.confirm=true.`,
           type: 'string',
           enum: [
             'get_contact',
+            'get_lead',
             'get_deal',
+            'get_pipeline_summary',
+            'get_pipeline_deals',
+            'get_pipeline_forecast',
+            'get_contacts_needing_attention',
+            'get_company_status',
             'get_meetings',
             'get_booking_stats',
+            'get_meeting_count',
+            'get_next_meeting',
+            'get_meetings_for_period',
+            'get_time_breakdown',
             'search_emails',
             'draft_email',
             'update_crm',
             'send_notification',
+            'run_skill',
           ],
           description: 'The action to execute',
         },
@@ -2192,15 +2240,39 @@ Write actions require params.confirm=true.`,
           type: 'object',
           description: 'Action-specific parameters (see tool description for each action)',
           properties: {
-            email: { type: 'string', description: 'Contact email address (for get_contact)' },
-            name: { type: 'string', description: 'Name to search (for get_contact, get_deal)' },
+            // Contact & Lead params
+            email: { type: 'string', description: 'Contact email address (for get_contact, get_lead)' },
+            name: { type: 'string', description: 'Name to search (for get_contact, get_lead, get_deal)' },
             id: { type: 'string', description: 'Record ID' },
+            contact_id: { type: 'string', description: 'Contact ID (for get_lead)' },
+            date_from: { type: 'string', description: 'Start date in ISO format (for get_lead, get_deal)' },
+            date_to: { type: 'string', description: 'End date in ISO format (for get_lead, get_deal)' },
+            date_field: { type: 'string', enum: ['created_at', 'meeting_start'], description: 'Which date field to filter on (for get_lead)' },
+            // Deal params
+            close_date_from: { type: 'string', description: 'Deal close date start in ISO format (for get_deal)' },
+            close_date_to: { type: 'string', description: 'Deal close date end in ISO format (for get_deal)' },
+            status: { type: 'string', description: 'Deal status filter (for get_deal)' },
+            stage_id: { type: 'string', description: 'Stage ID filter (for get_deal)' },
+            include_health: { type: 'boolean', description: 'Include health scores (for get_deal, get_pipeline_deals)' },
+            // Pipeline params
+            filter: { type: 'string', enum: ['closing_soon', 'at_risk', 'stale', 'needs_attention', 'ghost', 'all'], description: 'Filter type (for get_pipeline_deals, get_contacts_needing_attention)' },
+            days: { type: 'number', description: 'Days threshold for stale filter (for get_pipeline_deals)' },
+            days_since_contact: { type: 'number', description: 'Days since last contact (for get_contacts_needing_attention, default: 14)' },
+            // Company params
+            company_id: { type: 'string', description: 'Company ID (for get_company_status)' },
+            company_name: { type: 'string', description: 'Company name to search (for get_company_status)' },
+            domain: { type: 'string', description: 'Company domain (for get_company_status)' },
+            // Meeting params
             contactEmail: { type: 'string', description: 'Email of the contact (for get_meetings) - PREFERRED method' },
             contactId: { type: 'string', description: 'Contact ID (for get_meetings)' },
-            period: { type: 'string', enum: ['this_week', 'last_week', 'this_month', 'last_month', 'last_7_days', 'last_30_days'], description: 'Time period for booking stats (for get_booking_stats)' },
+            period: { type: 'string', enum: ['today', 'tomorrow', 'this_week', 'next_week', 'last_week', 'this_month', 'last_month', 'this_quarter', 'next_quarter', 'last_7_days', 'last_30_days'], description: 'Time period (for meeting queries, get_booking_stats, get_pipeline_deals, get_pipeline_forecast)' },
+            timezone: { type: 'string', description: 'IANA timezone (e.g., Europe/London, America/New_York) for timezone-aware date calculations (for get_meeting_count, get_next_meeting, get_meetings_for_period, get_time_breakdown). Auto-detected from user profile if not provided.' },
+            week_starts_on: { type: 'number', enum: [0, 1], description: 'Week start day: 0=Sunday, 1=Monday (default). Used for this_week/next_week/last_week calculations.' },
+            include_context: { type: 'boolean', description: 'Include CRM context (company, deal, activities) with meeting data (for get_next_meeting, get_meetings_for_period). Default: true for get_next_meeting.' },
             filter_by: { type: 'string', enum: ['meeting_date', 'booking_date'], description: 'Filter by when meeting is scheduled or when booking was created (for get_booking_stats)' },
             source: { type: 'string', enum: ['all', 'savvycal', 'calendar', 'meetings'], description: 'Data source to query (for get_booking_stats)' },
             org_wide: { type: 'boolean', description: 'If true and user is admin, show all org bookings (for get_booking_stats)' },
+            // Email params
             contact_email: { type: 'string', description: 'Contact email (for search_emails)' },
             query: { type: 'string', description: 'Search query (for search_emails)' },
             limit: { type: 'number', description: 'Max results to return' },
@@ -2208,12 +2280,17 @@ Write actions require params.confirm=true.`,
             subject: { type: 'string', description: 'Email subject (for draft_email)' },
             context: { type: 'string', description: 'Context for drafting (for draft_email)' },
             tone: { type: 'string', description: 'Email tone (for draft_email)' },
+            // CRM update params
             entity: { type: 'string', enum: ['deal', 'contact', 'task', 'activity'], description: 'CRM entity type (for update_crm)' },
             updates: { type: 'object', description: 'Fields to update (for update_crm)' },
             confirm: { type: 'boolean', description: 'Set to true to confirm write operations' },
+            // Notification params
             channel: { type: 'string', description: 'Notification channel (for send_notification)' },
             message: { type: 'string', description: 'Notification message (for send_notification)' },
             blocks: { type: 'object', description: 'Slack blocks (for send_notification)' },
+            // Skill execution params
+            skill_key: { type: 'string', description: 'Skill to execute (for run_skill): lead-research, company-analysis, competitor-intel, market-research, industry-trends, meeting-prep, etc.' },
+            skill_context: { type: 'object', description: 'Context variables for the skill (for run_skill): domain, company_name, competitor_name, industry, etc.' },
           },
         },
       },
@@ -2341,21 +2418,68 @@ ${skillsListText || '  No skills configured yet'}
 ### Meeting Prep (when user says "prep me for meeting with X" or similar)
 This is NOT about creating a meeting - it's about preparing a briefing for an existing upcoming meeting.
 1. Use execute_action with get_contact to find the contact by name/email
-2. Use execute_action with get_meetings to find upcoming meetings with that contact
-3. Also use execute_action with get_booking_stats (source: "savvycal") to check for SavvyCal bookings
+2. CRITICAL: Use execute_action with get_lead to get ALL enrichment data including:
+   - SavvyCal booking info (meeting time, duration, conferencing link)
+   - Custom form fields (e.g., "Are you interested in creating videos?")
+   - prep_summary and enrichment_status
+   - AI-generated INSIGHTS (About the Prospect: role, background, location; Why Sixty Seconds?: primary fit analysis)
+   The get_lead action returns an "insights" array - USE THIS DATA in your briefing!
+3. Use execute_action with get_meetings to find upcoming meetings with that contact
 4. Use get_skill with "meeting-prep" or "meeting-prep-briefing" skill_id
 5. Follow the skill to generate a comprehensive briefing including:
-   - Contact/company background
+   - Contact/company background from get_lead insights (role, background, location)
+   - Why they're a good fit from get_lead insights (Primary Fit analysis)
+   - Meeting context from get_lead (custom form answers, meeting description)
    - Recent interactions and email history
    - Deal status if applicable
-   - Talking points and suggested agenda
+   - Talking points based on the prospect's stated interests and fit analysis
 DO NOT show a "Create Meeting" UI for prep requests.
 
 ### Lead Research (when user wants to learn about a contact/company)
-1. Use execute_action with get_contact or enrich_contact
-2. Use execute_action with enrich_company if needed
-3. Use get_skill with "lead-research" skill_id
-4. Follow the skill to compile research
+For quick lookups from CRM data:
+1. Use execute_action with get_contact to find basic contact info
+2. Use execute_action with get_lead to get enrichment data, prep_summary, and SavvyCal booking info
+3. Use execute_action with enrich_contact or enrich_company if more data is needed
+
+For DEEP research with real-time web search (when user says "research X" or "tell me about X company"):
+1. Use execute_action with run_skill { skill_key: "lead-research", skill_context: { domain: "company.com", company_name: "Company Name" } }
+2. This uses Gemini with Google Search to find current news, stakeholders, technology stack, and outreach angles
+3. The result includes sources from web search for credibility
+
+### Company Analysis & Competitive Intel
+When users ask about competitors or want strategic analysis:
+- Competitor intel: execute_action with run_skill { skill_key: "competitor-intel", skill_context: { competitor_name: "Competitor", our_company: "Our Company" } }
+- Company analysis: execute_action with run_skill { skill_key: "company-analysis", skill_context: { company_name: "Target", domain: "target.com" } }
+- Market research: execute_action with run_skill { skill_key: "market-research", skill_context: { industry: "SaaS", focus_areas: "AI automation" } }
+- Industry trends: execute_action with run_skill { skill_key: "industry-trends", skill_context: { industry: "fintech", time_frame: "90" } }
+
+These skills use real-time web search and return structured JSON with sources.
+
+### Pipeline Queries (when user asks about deals, pipeline, or forecasts)
+
+**"What deals are closing this week/month?"**
+- Use execute_action with get_pipeline_deals { filter: "closing_soon", period: "this_week" } or { period: "this_month" }
+
+**"Show me stale opportunities" or "deals with no activity"**
+- Use execute_action with get_pipeline_deals { filter: "stale", days: 14 } (adjust days as needed)
+
+**"What's my pipeline value?" or "Pipeline summary"**
+- Use execute_action with get_pipeline_summary {} for total_value, weighted_value, by_stage breakdown
+
+**"Which leads came in today?"**
+- Use execute_action with get_lead { date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD" } using today's date
+
+**"Who haven't I followed up with?" or "Contacts needing attention"**
+- Use execute_action with get_contacts_needing_attention { days_since_contact: 14 }
+
+**"Show me deals at risk" or "At-risk opportunities"**
+- Use execute_action with get_pipeline_deals { filter: "at_risk", include_health: true }
+
+**"What's my forecast for this quarter?"**
+- Use execute_action with get_pipeline_forecast { period: "this_quarter" }
+
+**"What's the status with [company]?"**
+- Use execute_action with get_company_status { company_name: "X" } for holistic view
 
 ## Core Rules
 - Confirm before any CRM updates, notifications, or sends (execute_action write actions require params.confirm=true)

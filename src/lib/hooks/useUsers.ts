@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
-import { setImpersonationData } from './useUser';
+import { setImpersonationData } from '@/lib/utils/impersonationUtils';
 import { getSiteUrl } from '@/lib/utils/siteUrl';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import logger from '@/lib/utils/logger';

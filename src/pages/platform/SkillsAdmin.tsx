@@ -24,6 +24,7 @@ import {
   Server,
   LayoutTemplate,
   Workflow,
+  GitBranch,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -44,6 +45,8 @@ import {
   type SkillCategory,
 } from '@/lib/hooks/usePlatformSkills';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { toast } from 'sonner';
+import { buildSkillResponseFormatExport, writeJsonToClipboard } from '@/lib/utils/responseFormatExport';
 
 const CATEGORY_ICONS: Record<SkillCategory, React.ElementType> = {
   'sales-ai': Sparkles,
@@ -52,6 +55,7 @@ const CATEGORY_ICONS: Record<SkillCategory, React.ElementType> = {
   workflows: Workflow,
   'data-access': Server,
   'output-format': LayoutTemplate,
+  'agent-sequence': GitBranch,
 };
 
 // Valid category slugs for URL routing
@@ -72,7 +76,12 @@ export default function SkillsAdmin() {
   }, [urlCategory]);
 
   // Redirect to default category if no category in URL or invalid
+  // Redirect agent-sequence category to dedicated page
   useEffect(() => {
+    if (urlCategory === 'agent-sequence') {
+      navigate('/platform/agent-sequences', { replace: true });
+      return;
+    }
     if (!urlCategory || !VALID_CATEGORIES.includes(urlCategory as SkillCategory)) {
       navigate(`/platform/skills/${DEFAULT_CATEGORY}`, { replace: true });
     }
@@ -115,6 +124,21 @@ export default function SkillsAdmin() {
     }
   };
 
+  const handleCopyCategoryResponseFormats = async () => {
+    try {
+      const all = (skills || []).map((s) => buildSkillResponseFormatExport(s));
+      await writeJsonToClipboard({
+        kind: 'skill-response-formats',
+        generatedAt: new Date().toISOString(),
+        category: selectedCategory,
+        skills: all,
+      });
+      toast.success('Copied response formats JSON');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to copy');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
       {/* Header */}
@@ -137,6 +161,14 @@ export default function SkillsAdmin() {
             <div className="flex items-center gap-3">
               <Button
                 variant="outline"
+                onClick={handleCopyCategoryResponseFormats}
+                disabled={isLoading}
+                className="gap-2"
+              >
+                Copy formats JSON
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => refetch()}
                 disabled={isLoading}
                 className="gap-2"
@@ -144,6 +176,12 @@ export default function SkillsAdmin() {
                 <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
                 Refresh
               </Button>
+              <Link to="/platform/agent-sequences">
+                <Button variant="outline" className="gap-2">
+                  <GitBranch className="w-4 h-4" />
+                  Agent Sequences
+                </Button>
+              </Link>
               <Link to={`/platform/skills/${selectedCategory}/new`}>
                 <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700">
                   <Plus className="w-4 h-4" />
@@ -161,7 +199,7 @@ export default function SkillsAdmin() {
           <div className="flex items-center justify-between gap-4">
             {/* Category Links */}
             <nav className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800/50 rounded-lg">
-              {SKILL_CATEGORIES.map((cat) => {
+              {SKILL_CATEGORIES.filter(cat => cat.value !== 'agent-sequence').map((cat) => {
                 const Icon = CATEGORY_ICONS[cat.value];
                 const isActive = selectedCategory === cat.value;
                 return (

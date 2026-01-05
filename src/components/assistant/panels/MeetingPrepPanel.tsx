@@ -10,6 +10,7 @@ interface MeetingPrepPanelProps {
 
 export function MeetingPrepPanel({ data, onActionClick }: MeetingPrepPanelProps) {
   const { meeting, contact, deal } = data.data;
+  const hasContact = Boolean(contact?.id);
 
   return (
     <div className="space-y-4">
@@ -52,7 +53,11 @@ export function MeetingPrepPanel({ data, onActionClick }: MeetingPrepPanelProps)
         <button
           type="button"
           onClick={() => onActionClick?.('open_contact', { contactId: contact.id })}
-          className="rounded-xl border border-gray-700/60 bg-gray-800/30 hover:bg-gray-800/50 p-3 text-left transition-colors"
+          disabled={!hasContact}
+          className={cn(
+            'rounded-xl border border-gray-700/60 bg-gray-800/30 p-3 text-left transition-colors',
+            hasContact ? 'hover:bg-gray-800/50' : 'opacity-50 cursor-not-allowed'
+          )}
         >
           <div className="flex items-center gap-2">
             <User className="w-4 h-4 text-violet-400" />
@@ -86,7 +91,11 @@ export function MeetingPrepPanel({ data, onActionClick }: MeetingPrepPanelProps)
               meetingId: meeting.id,
             })
           }
-          className="rounded-xl border border-gray-700/60 bg-gray-800/30 hover:bg-gray-800/50 p-3 text-left transition-colors"
+          disabled={!hasContact}
+          className={cn(
+            'rounded-xl border border-gray-700/60 bg-gray-800/30 p-3 text-left transition-colors',
+            hasContact ? 'hover:bg-gray-800/50' : 'opacity-50 cursor-not-allowed'
+          )}
         >
           <div className="flex items-center gap-2">
             <CheckSquare className="w-4 h-4 text-emerald-400" />

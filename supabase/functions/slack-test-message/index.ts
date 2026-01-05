@@ -27,6 +27,13 @@ type SalesAssistantDigest = {
   upcomingMeetings: number;
 };
 
+type ProactiveSimMessage = {
+  title: string;
+  summary: string;
+  blocks: unknown[];
+  stats?: Record<string, number | string>;
+};
+
 const SALES_ASSISTANT_BLOCKS_PROMPT = `Slack Block Kit template for Sales Assistant DM:
 
 Design principles (from slack-blocks skill):
@@ -53,6 +60,15 @@ Notes:
 - High priority items appear first
 - Buttons handled by slack-interactive → creates tasks in Sixty
 - No URL on buttons, so value is included for interactivity`;
+
+const PROACTIVE_SIM_BLOCKS_PROMPT = `Slack Block Kit simulator messages for Proactive 60:
+
+Design principles:
+- Scannable header + short summary
+- 2–4 concrete next actions
+- Every action has an interactive button (Create Task / Open Deal / View Meeting)
+
+These are simulator messages used by the Proactive Simulator page to iterate quickly.`;
 
 async function getBotToken(supabase: ReturnType<typeof createClient>, orgId: string): Promise<string | null> {
   const { data } = await supabase
@@ -340,6 +356,108 @@ async function buildLiveDigest(supabase: ReturnType<typeof createClient>, userId
   };
 }
 
+function buildMorningBriefBlocks(message: ProactiveSimMessage): any[] {
+  const blocks: any[] = [];
+  blocks.push({ type: 'header', text: { type: 'plain_text', text: `☀️ Morning Brief`, emoji: true } });
+  blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${message.title}*\n${message.summary}` } });
+  if (message.stats) {
+    const fields = Object.entries(message.stats).slice(0, 6).map(([k, v]) => ({ type: 'mrkdwn', text: `*${k}*\n${v}` }));
+    if (fields.length) blocks.push({ type: 'section', fields });
+  }
+  blocks.push({ type: 'divider' });
+  blocks.push(...(message.blocks as any[]));
+  blocks.push({ type: 'divider' });
+  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: '⚡ _Proactive 60 Simulator • Morning Brief_' }] });
+  return blocks;
+}
+
+function buildStaleDealAlertBlocks(message: ProactiveSimMessage): any[] {
+  const blocks: any[] = [];
+  blocks.push({ type: 'header', text: { type: 'plain_text', text: '⏳ Stale Deal Alert', emoji: true } });
+  blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${message.title}*\n${message.summary}` } });
+  blocks.push({ type: 'divider' });
+  blocks.push(...(message.blocks as any[]));
+  blocks.push({ type: 'divider' });
+  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: '⚡ _Proactive 60 Simulator • Stale Deal_' }] });
+  return blocks;
+}
+
+function buildEmailReplyAlertBlocks(message: ProactiveSimMessage): any[] {
+  const blocks: any[] = [];
+  blocks.push({ type: 'header', text: { type: 'plain_text', text: '📨 Reply Received', emoji: true } });
+  blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${message.title}*\n${message.summary}` } });
+  blocks.push({ type: 'divider' });
+  blocks.push(...(message.blocks as any[]));
+  blocks.push({ type: 'divider' });
+  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: '⚡ _Proactive 60 Simulator • Email Reply_' }] });
+  return blocks;
+}
+
+function sampleMorningBrief(): ProactiveSimMessage {
+  return {
+    title: 'Here’s what matters today',
+    summary: '2 meetings, 1 deal at risk, and 3 emails needing a response. Focus on Acme first — they’re going quiet.',
+    stats: { '📅 Meetings': 2, '📧 To respond': 3, '👻 Ghost risks': 1, '💰 At-risk deals': 1 },
+    blocks: [
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: '🔴 *Top priority*: Follow up with *Acme (Demo)* — last reply 8 days ago.' },
+        accessory: {
+          type: 'button',
+          text: { type: 'plain_text', text: '➕ Create Task', emoji: true },
+          action_id: 'create_task_from_assistant',
+          value: JSON.stringify({ title: 'Follow up with Acme — confirm next steps', dueInDays: 1, source: 'proactive_morning_brief' }),
+          style: 'danger',
+        },
+      },
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: '🟡 *Prep*: 10:00 — Discovery with *TechStart* (ask about timeline + security).' },
+      },
+    ],
+  };
+}
+
+function sampleStaleDealAlert(dealId?: string | null): ProactiveSimMessage {
+  return {
+    title: dealId ? `Deal looks stale (${dealId})` : 'Deal looks stale',
+    summary: 'No activity in 14+ days. Suggested: send a quick “next steps” email and propose times.',
+    blocks: [
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: 'Suggested next step: *Send “next steps + timeline” email*' },
+        accessory: {
+          type: 'button',
+          text: { type: 'plain_text', text: '➕ Create Task', emoji: true },
+          action_id: 'create_task_from_assistant',
+          value: JSON.stringify({ title: 'Send next steps email + propose meeting times', dealId: dealId || undefined, dueInDays: 1, source: 'proactive_stale_deal' }),
+          style: 'primary',
+        },
+      },
+    ],
+  };
+}
+
+function sampleEmailReplyAlert(): ProactiveSimMessage {
+  return {
+    title: 'Prospect replied: “Sounds good — what does pricing look like?”',
+    summary: 'They’re asking about pricing. Suggested response: share the right tier + ask 1 qualifying question.',
+    blocks: [
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: '*Draft response idea*\n“Happy to share pricing — which team size are we scoping for?”' },
+        accessory: {
+          type: 'button',
+          text: { type: 'plain_text', text: '➕ Create Task', emoji: true },
+          action_id: 'create_task_from_assistant',
+          value: JSON.stringify({ title: 'Reply with pricing + ask team size', dueInDays: 0, source: 'proactive_email_reply' }),
+          style: 'primary',
+        },
+      },
+    ],
+  };
+}
+
 async function joinChannel(botToken: string, channel: string) {
   const res = await fetch('https://slack.com/api/conversations.join', {
     method: 'POST',
@@ -454,6 +572,91 @@ serve(async (req) => {
           digest,
           blocks,
           blocks_prompt: SALES_ASSISTANT_BLOCKS_PROMPT,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Proactive simulator messages (DM to self)
+    if (
+      action === 'preview_morning_brief' ||
+      action === 'send_morning_brief_dm' ||
+      action === 'preview_stale_deal_alert' ||
+      action === 'send_stale_deal_alert_dm' ||
+      action === 'preview_email_reply_alert' ||
+      action === 'send_email_reply_alert_dm'
+    ) {
+      if (auth.mode !== 'user' || !auth.userId) {
+        return new Response(JSON.stringify({ error: 'User auth required for proactive simulator actions' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { data: mapping } = await supabase
+        .from('slack_user_mappings')
+        .select('slack_user_id')
+        .eq('org_id', orgId)
+        .eq('sixty_user_id', auth.userId)
+        .maybeSingle();
+
+      const slackUserId = (body.slackUserId as string | undefined) || mapping?.slack_user_id;
+      if (!slackUserId) {
+        return new Response(JSON.stringify({ error: 'No Slack user mapping found for this user. Connect Slack + link user mapping first.' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const dealId = (body.dealId as string | null | undefined) ?? null;
+
+      let msg: ProactiveSimMessage;
+      let blocks: unknown[];
+      let text: string;
+
+      if (action === 'preview_morning_brief' || action === 'send_morning_brief_dm') {
+        msg = sampleMorningBrief();
+        blocks = buildMorningBriefBlocks(msg);
+        text = '☀️ Your Morning Brief is ready';
+      } else if (action === 'preview_stale_deal_alert' || action === 'send_stale_deal_alert_dm') {
+        msg = sampleStaleDealAlert(dealId);
+        blocks = buildStaleDealAlertBlocks(msg);
+        text = '⏳ Stale deal alert';
+      } else {
+        msg = sampleEmailReplyAlert();
+        blocks = buildEmailReplyAlertBlocks(msg);
+        text = '📨 Reply received';
+      }
+
+      if (action.startsWith('preview_')) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: msg,
+            blocks,
+            blocks_prompt: PROACTIVE_SIM_BLOCKS_PROMPT,
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const dmChannelId = await openDm(botToken, slackUserId);
+      const result = await postMessageWithBlocks(botToken, dmChannelId, text, blocks as any[]);
+      if (!result.ok) {
+        return new Response(JSON.stringify({ success: false, error: result.error || 'Slack API error' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          channelId: result.channel,
+          ts: result.ts,
+          message: msg,
+          blocks,
+          blocks_prompt: PROACTIVE_SIM_BLOCKS_PROMPT,
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

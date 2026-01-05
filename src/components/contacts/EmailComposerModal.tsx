@@ -47,6 +47,7 @@ interface EmailComposerModalProps {
   onClose: () => void;
   contactEmail?: string;
   contactName?: string;
+  defaultSubject?: string;
   onSent?: (messageId: string) => void;
 }
 
@@ -68,6 +69,7 @@ const EmailComposerModal: React.FC<EmailComposerModalProps> = ({
   onClose,
   contactEmail,
   contactName,
+  defaultSubject,
   onSent
 }) => {
   const [emailData, setEmailData] = useState<EmailData>({
@@ -83,15 +85,16 @@ const EmailComposerModal: React.FC<EmailComposerModalProps> = ({
   const [showCc, setShowCc] = useState(false);
   const [showBcc, setShowBcc] = useState(false);
 
-  // Initialize with contact email if provided
+  // Initialize with contact email and subject if provided
   useEffect(() => {
-    if (contactEmail && isOpen) {
+    if (isOpen) {
       setEmailData(prev => ({
         ...prev,
-        to: { value: contactEmail }
+        to: { value: contactEmail || prev.to.value },
+        subject: { value: defaultSubject || prev.subject.value }
       }));
     }
-  }, [contactEmail, isOpen]);
+  }, [contactEmail, defaultSubject, isOpen]);
 
   // Reset form when modal closes
   useEffect(() => {

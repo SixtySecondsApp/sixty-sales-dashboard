@@ -25,7 +25,7 @@ export interface PlatformSkillFrontmatter {
 export interface PlatformSkill {
   id: string;
   skill_key: string;
-  category: 'sales-ai' | 'writing' | 'enrichment' | 'workflows' | 'data-access' | 'output-format';
+  category: 'sales-ai' | 'writing' | 'enrichment' | 'workflows' | 'data-access' | 'output-format' | 'agent-sequence';
   frontmatter: PlatformSkillFrontmatter;
   content_template: string;
   version: number;
@@ -70,7 +70,8 @@ export type SkillCategory =
   | 'enrichment'
   | 'workflows'
   | 'data-access'
-  | 'output-format';
+  | 'output-format'
+  | 'agent-sequence';
 
 export const SKILL_CATEGORIES: { value: SkillCategory; label: string; description: string }[] = [
   { value: 'sales-ai', label: 'Sales AI', description: 'AI-powered sales intelligence and automation' },
@@ -79,6 +80,7 @@ export const SKILL_CATEGORIES: { value: SkillCategory; label: string; descriptio
   { value: 'workflows', label: 'Workflows', description: 'Automated process triggers' },
   { value: 'data-access', label: 'Data Access', description: 'How Copilot fetches contacts, deals, meetings, and emails' },
   { value: 'output-format', label: 'Output Format', description: 'How Copilot formats responses for Slack, email, and other channels' },
+  { value: 'agent-sequence', label: 'Agent Sequences', description: 'Multi-step skill chains that orchestrate other skills' },
 ];
 
 // ============================================================================

@@ -204,6 +204,11 @@ serve(async (req) => {
             "sync-savvycal-events-backup": "sync-savvycal-events?since_hours=2",
             "fathom-hourly-sync": "fathom-cron-sync",
             "check-cron-failures": "", // This is a database function, not an edge function
+            "compute-engagement-daily": "compute-engagement",
+            "process-notification-queue": "process-notification-queue",
+            "cancel-stale-notifications": "", // This is a database function
+            "send-feedback-requests": "send-feedback-requests",
+            "process-reengagement": "process-reengagement",
           };
 
           const functionPath = functionMap[jobname];

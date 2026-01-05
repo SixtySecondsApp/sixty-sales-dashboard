@@ -165,6 +165,10 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/cron/google-token-refresh",
+      "schedule": "30 */4 * * *"
+    },
+    {
       "path": "/api/cron/google-context-sync",
       "schedule": "*/15 * * * *"
     },
@@ -175,6 +179,26 @@
     {
       "path": "/api/cron/slack-daily-digest",
       "schedule": "5 8 * * *"
+    },
+    {
+      "path": "/api/cron/slack-morning-brief",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/slack-stale-deals",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/slack-email-reply-alert",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/slack-meeting-prep",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/slack-post-meeting",
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/slack-deal-room-archive",

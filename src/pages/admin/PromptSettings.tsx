@@ -43,7 +43,6 @@ import {
   MessageSquare,
   ClipboardList,
   PenTool,
-  Zap,
   Database,
   Code,
   AlertCircle,
@@ -57,6 +56,7 @@ import { getDefaultTemplate } from '@/lib/services/promptService';
 import { useUser } from '@/lib/hooks/useUser';
 import { isUserAdmin } from '@/lib/utils/adminUtils';
 import type { PromptTemplate } from '@/lib/prompts';
+import { buildPromptResponseFormatExport, writeJsonToClipboard } from '@/lib/utils/responseFormatExport';
 
 // ============================================================================
 // Category Configuration
@@ -87,12 +87,8 @@ const PROMPT_CATEGORIES = {
     description: 'Prompts for creating proposals and SOWs',
     features: ['proposal_focus_areas', 'proposal_goals', 'proposal_sow', 'proposal_html', 'proposal_email', 'proposal_markdown'],
   },
-  workflow: {
-    label: 'Workflow Engine',
-    icon: Zap,
-    description: 'Dynamic prompts for workflow automation',
-    features: ['workflow_tools', 'workflow_mcp', 'workflow_json', 'workflow_few_shot'],
-  },
+  // NOTE: Workflow prompts (workflow_tools, workflow_mcp, workflow_json, workflow_few_shot)
+  // are internal infrastructure and not exposed in the admin UI
   search: {
     label: 'Search & Intelligence',
     icon: Database,
@@ -129,10 +125,7 @@ const FEATURE_LABELS: Record<string, string> = {
   proposal_html: 'HTML Proposal',
   proposal_email: 'Email Proposal',
   proposal_markdown: 'Markdown Proposal',
-  workflow_tools: 'Tool Instructions',
-  workflow_mcp: 'MCP Instructions',
-  workflow_json: 'JSON Output',
-  workflow_few_shot: 'Few-Shot Learning',
+  // Workflow prompts are internal infrastructure - not shown in UI
   search_query_parse: 'Search Query Parser',
   process_map_generation: 'Mermaid Diagram Generation',
   organization_data_collection: 'Organization Data Collection',
@@ -175,7 +168,6 @@ export default function PromptSettings() {
     meetings: false,
     actions: false,
     proposals: false,
-    workflow: false,
     search: false,
     processMaps: false,
     onboarding: false,
@@ -194,6 +186,45 @@ export default function PromptSettings() {
   const [isSaving, setIsSaving] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [showVariablesInfo, setShowVariablesInfo] = useState(false);
+
+  const handleCopyAllResponseFormats = async () => {
+    try {
+      const featureKeys = Object.values(PROMPT_CATEGORIES).flatMap((c) => c.features);
+      const exports = featureKeys
+        .map((featureKey) => getDefaultTemplate(featureKey))
+        .filter((t): t is PromptTemplate => Boolean(t))
+        .map((t) => buildPromptResponseFormatExport(t));
+
+      await writeJsonToClipboard({
+        kind: 'prompt-response-formats',
+        generatedAt: new Date().toISOString(),
+        prompts: exports,
+      });
+      toast.success('Copied response formats JSON');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to copy');
+    }
+  };
+
+  const handleCopySelectedResponseFormat = async () => {
+    if (!selectedFeature) return;
+    try {
+      const template = getDefaultTemplate(selectedFeature);
+      if (!template) {
+        toast.error('No default template found for this prompt');
+        return;
+      }
+
+      await writeJsonToClipboard({
+        kind: 'prompt-response-format',
+        generatedAt: new Date().toISOString(),
+        prompt: buildPromptResponseFormatExport(template),
+      });
+      toast.success('Copied response format JSON');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to copy');
+    }
+  };
 
   // Admin access check
   useEffect(() => {
@@ -298,6 +329,11 @@ export default function PromptSettings() {
                   Customize AI prompts system-wide for all users
                 </p>
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={handleCopyAllResponseFormats}>
+                Copy response formats JSON
+              </Button>
             </div>
           </div>
         </div>
@@ -412,6 +448,13 @@ export default function PromptSettings() {
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCopySelectedResponseFormat}
+                      >
+                        Copy format JSON
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"

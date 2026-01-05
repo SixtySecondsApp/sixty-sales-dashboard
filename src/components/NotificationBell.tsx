@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNotifications } from '@/lib/hooks/useNotifications';
-import { NotificationPanel } from './NotificationPanel';
+import { NotificationCenter } from './notifications/NotificationCenter';
 import { cn } from '@/lib/utils';
 
 export function NotificationBell() {
@@ -122,7 +122,7 @@ export function NotificationBell() {
               left: `${panelPosition.left}px`,
             } : {}}
           >
-            <NotificationPanel onClose={() => setIsOpen(false)} />
+            <NotificationCenter onClose={() => setIsOpen(false)} />
           </motion.div>
         </AnimatePresence>,
         document.body

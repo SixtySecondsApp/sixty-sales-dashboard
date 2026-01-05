@@ -120,6 +120,27 @@ function createCompositeCrmAdapter(dbAdapter: CRMAdapter, hubspotAdapter: CRMAda
       // Updates go to local DB only for now
       return dbAdapter.updateCRM(params, ctx);
     },
+
+    // Pipeline methods - delegate to DB adapter (pipeline data is local only)
+    async getPipelineSummary(params) {
+      return dbAdapter.getPipelineSummary(params);
+    },
+
+    async getPipelineDeals(params) {
+      return dbAdapter.getPipelineDeals(params);
+    },
+
+    async getPipelineForecast(params) {
+      return dbAdapter.getPipelineForecast(params);
+    },
+
+    async getContactsNeedingAttention(params) {
+      return dbAdapter.getContactsNeedingAttention(params);
+    },
+
+    async getCompanyStatus(params) {
+      return dbAdapter.getCompanyStatus(params);
+    },
   };
 }
 

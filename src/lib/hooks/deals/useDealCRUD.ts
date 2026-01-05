@@ -34,7 +34,10 @@ export function useDealCRUD(
           logger.log('🔄 Trying basic deals query with service key...');
           let query = (supabaseAdmin as any)
             .from('deals')
-            .select('*');
+            .select(`
+              *,
+              deal_stages:stage_id(id, name, color, default_probability)
+            `);
           
           // Only filter by owner if effectiveOwnerId is provided
           if (effectiveOwnerId) {
@@ -70,25 +73,31 @@ export function useDealCRUD(
         // Try with regular client first (has user context)
         let query = (supabase as any)
           .from('deals')
-          .select('*');
-        
+          .select(`
+            *,
+            deal_stages:stage_id(id, name, color, default_probability)
+          `);
+
         // Only filter by owner if effectiveOwnerId is provided
         if (effectiveOwnerId) {
           query = query.eq('owner_id', effectiveOwnerId);
         }
-        
+
         const result = await query.order('created_at', { ascending: false });
-        
+
         dealsData = result.data;
         queryError = result.error;
-        
+
         if (queryError) {
           // If regular client fails, try admin client as fallback
           logger.warn('Regular client failed, trying admin client:', queryError);
-          
+
           let adminQuery = (supabaseAdmin as any)
             .from('deals')
-            .select('*');
+            .select(`
+              *,
+              deal_stages:stage_id(id, name, color, default_probability)
+            `);
           
           if (effectiveOwnerId) {
             adminQuery = adminQuery.eq('owner_id', effectiveOwnerId);

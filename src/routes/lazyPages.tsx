@@ -11,10 +11,14 @@ export const MeetingsWaitlist = lazyWithRetry(() => import('@/pages/platform/Mee
 export const WaitlistSlackSettings = lazyWithRetry(() => import('@/pages/platform/WaitlistSlackSettings'));
 export const OnboardingSimulator = lazyWithRetry(() => import('@/pages/platform/OnboardingSimulator'));
 export const TrialTimelineSimulator = lazyWithRetry(() => import('@/pages/platform/TrialTimelineSimulator'));
+export const ProactiveSimulator = lazyWithRetry(() => import('@/pages/platform/ProactiveSimulator'));
+export const DealTruthSimulator = lazyWithRetry(() => import('@/pages/platform/DealTruthSimulator'));
 export const PricingControl = lazyWithRetry(() => import('@/pages/platform/PricingControl'));
 export const CostAnalysis = lazyWithRetry(() => import('@/pages/platform/CostAnalysis'));
 export const LaunchChecklist = lazyWithRetry(() => import('@/pages/platform/LaunchChecklist'));
 export const ActivationDashboard = lazyWithRetry(() => import('@/pages/platform/ActivationDashboard'));
+export const EngagementDashboard = lazyWithRetry(() => import('@/pages/platform/EngagementDashboard'));
+export const EngagementSimulator = lazyWithRetry(() => import('@/pages/platform/EngagementSimulator'));
 export const PlatformDashboard = lazyWithRetry(() => import('@/pages/platform/PlatformDashboard'));
 export const IntegrationRoadmap = lazyWithRetry(() => import('@/pages/platform/IntegrationRoadmap'));
 export const VSLAnalytics = lazyWithRetry(() => import('@/pages/platform/VSLAnalytics'));
@@ -25,6 +29,9 @@ export const SkillsAdmin = lazyWithRetry(() => import('@/pages/platform/SkillsAd
 export const PlatformSkillViewPage = lazyWithRetry(() => import('@/pages/platform/PlatformSkillViewPage'));
 export const PlatformSkillEditPage = lazyWithRetry(() => import('@/pages/platform/PlatformSkillEditPage'));
 export const SkillDetailPage = lazyWithRetry(() => import('@/pages/skills/SkillDetailPage'));
+export const AgentSequencesPage = lazyWithRetry(() => import('@/pages/platform/AgentSequencesPage'));
+export const AgentSequenceBuilderPage = lazyWithRetry(() => import('@/pages/platform/AgentSequenceBuilderPage'));
+export const CopilotTestPage = lazyWithRetry(() => import('@/pages/platform/CopilotTestPage'));
 
 // Admin Configuration
 export const Users = lazyWithRetry(() => import('@/pages/admin/Users'));
@@ -57,6 +64,8 @@ export const ProcessMaps = lazyWithRetry(() => import('@/pages/admin/ProcessMaps
 export const IntelligenceTestRunner = lazyWithRetry(() => import('@/pages/admin/IntelligenceTestRunner'));
 export const VSLAnalyticsTests = lazyWithRetry(() => import('@/pages/admin/VSLAnalyticsTests'));
 export const CronJobsAdmin = lazyWithRetry(() => import('@/pages/admin/CronJobsAdmin'));
+export const ApiMonitor = lazyWithRetry(() => import('@/pages/admin/ApiMonitor'));
+export const BillingAnalytics = lazyWithRetry(() => import('@/pages/admin/BillingAnalytics'));
 export const SaasAdminDashboard = lazyWithRetry(() => import('@/pages/SaasAdminDashboard'));
 export const QuickAddSimulator = lazyWithRetry(() => import('@/pages/platform/QuickAddSimulator'));
 
@@ -106,6 +115,7 @@ export const MeetingIntelligence = lazyWithRetry(() => import('@/pages/MeetingIn
 export const MeetingSentimentAnalytics = lazyWithRetry(() => import('@/pages/MeetingSentimentAnalytics'));
 export const Calls = lazyWithRetry(() => import('@/pages/Calls'));
 export const CallDetail = lazyWithRetry(() => import('@/pages/CallDetail'));
+export const VoiceRecorder = lazyWithRetry(() => import('@/pages/VoiceRecorder'));
 export const TasksPage = lazyWithRetry(() => import('@/pages/TasksPage'));
 export const ProjectsHub = lazyWithRetry(() => import('@/pages/ProjectsHub'));
 export const GoogleTasksSettings = lazyWithRetry(() => import('@/pages/GoogleTasksSettings'));

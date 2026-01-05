@@ -27,7 +27,8 @@ export type ProcessName =
   | 'vsl_analytics'
   | 'sentry_bridge'
   | 'api_optimization'
-  | 'onboarding_v2';
+  | 'onboarding_v2'
+  | 'deal_health_momentum';
 
 interface ProcessMapButtonProps {
   processType: ProcessType;

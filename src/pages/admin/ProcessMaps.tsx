@@ -207,6 +207,20 @@ const AVAILABLE_PROCESSES: Array<{
     icon: <Workflow className="h-4 w-4 text-violet-500" />,
     description: 'Skills-based AI onboarding with 3 paths: corporate, personal+website, Q&A',
   },
+  {
+    type: 'workflow',
+    name: 'deal_health_momentum',
+    label: 'Deal Health Momentum',
+    icon: <Zap className="h-4 w-4 text-teal-500" />,
+    description: 'Proactive deal clarity + execution tracking with Slack nudges',
+  },
+  {
+    type: 'workflow',
+    name: 'smart_engagement',
+    label: 'Smart Engagement',
+    icon: <Zap className="h-4 w-4 text-blue-500" />,
+    description: 'Adaptive notification timing, frequency, and re-engagement',
+  },
 ];
 
 export default function ProcessMaps() {

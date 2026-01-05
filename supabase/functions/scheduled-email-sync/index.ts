@@ -15,6 +15,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { verifyCronSecret, isServiceRoleAuth } from '../_shared/edgeAuth.ts';
 import { getCorsHeaders, handleCorsPreflightRequest, errorResponse, jsonResponse } from '../_shared/corsHelper.ts';
+import { processEmailForDealTruth } from '../_shared/dealTruthExtraction.ts';
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -88,6 +89,7 @@ serve(async (req) => {
       usersProcessed: 0,
       emailsSynced: 0,
       contactsWithEmails: 0,
+      dealTruthUpdates: 0,
       errors: [] as string[],
     };
 
@@ -255,6 +257,24 @@ serve(async (req) => {
 
             if (!insertError) {
               emailsStoredForUser++;
+
+              // Process email for Deal Truth extraction
+              try {
+                const dealTruthResult = await processEmailForDealTruth(
+                  supabase,
+                  user.id,
+                  message.id,
+                  fromEmail || '',
+                  toEmails,
+                  subjectHeader?.value || ''
+                );
+                if (dealTruthResult.processed && dealTruthResult.updates.length > 0) {
+                  results.dealTruthUpdates += dealTruthResult.updates.length;
+                }
+              } catch (dealTruthError) {
+                console.error(`[scheduled-email-sync] Deal Truth extraction error:`, dealTruthError);
+                // Don't fail email sync for Deal Truth errors
+              }
             }
           } catch (emailError: any) {
             // Continue processing other emails even if one fails

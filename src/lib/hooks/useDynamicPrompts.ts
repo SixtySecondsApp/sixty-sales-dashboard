@@ -42,7 +42,7 @@ export function useDynamicPrompts(maxPrompts: number = 3): {
           supabase
             .from('contacts')
             .select('id, full_name, first_name, last_name, updated_at')
-            .eq('user_id', user.id)
+            .eq('owner_id', user.id)  // contacts table uses owner_id, not user_id
             .order('updated_at', { ascending: false })
             .limit(5),
 

@@ -21,6 +21,26 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
 
+// Confidence scores by source type (higher = more trustworthy)
+const SOURCE_CONFIDENCE: Record<string, number> = {
+  meeting_transcript: 0.85, // High confidence - direct from conversation
+  email: 0.70,              // Good confidence - written communication
+  crm_sync: 0.60,           // Moderate - may be outdated
+  manual: 0.95,             // Highest - user explicitly set
+  ai_inferred: 0.50,        // Lower - AI guessing
+};
+
+// Deal Truth field keys
+type DealTruthFieldKey = 'pain' | 'success_metric' | 'champion' | 'economic_buyer' | 'next_step' | 'top_risks';
+
+interface DealTruthExtraction {
+  field_key: DealTruthFieldKey;
+  value: string;
+  confidence: number;
+  champion_strength?: 'strong' | 'moderate' | 'weak' | 'unknown';
+  next_step_date?: string;
+}
+
 interface RequestBody {
   meetingId: string;
   forceReprocess?: boolean;
@@ -364,6 +384,260 @@ async function saveMeetingClassification(
   }
 }
 
+/**
+ * Extract Deal Truth fields from structured summary
+ * Maps meeting insights to the 6 core Deal Truth fields
+ */
+function extractDealTruthFromSummary(summary: StructuredSummary): DealTruthExtraction[] {
+  const extractions: DealTruthExtraction[] = [];
+  const baseConfidence = SOURCE_CONFIDENCE.meeting_transcript;
+
+  // 1. Extract next_step from outcome_signals
+  if (summary.outcome_signals.next_steps && summary.outcome_signals.next_steps.length > 0) {
+    const nextStep = summary.outcome_signals.next_steps[0];
+    // Try to extract date from next step text (e.g., "Demo on Friday", "Follow up next week")
+    const dateMatch = nextStep.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]?\d{0,4})|((next|this)\s+(monday|tuesday|wednesday|thursday|friday|week|month))/i);
+
+    extractions.push({
+      field_key: 'next_step',
+      value: nextStep,
+      confidence: summary.outcome_signals.forward_movement ? baseConfidence : baseConfidence * 0.8,
+      next_step_date: dateMatch ? undefined : undefined, // TODO: Parse date if found
+    });
+  }
+
+  // 2. Extract champion from stakeholders with positive sentiment
+  const positiveStakeholders = summary.stakeholders_mentioned.filter(s => s.sentiment === 'positive');
+  if (positiveStakeholders.length > 0) {
+    // Prefer stakeholders with roles
+    const champion = positiveStakeholders.find(s => s.role) || positiveStakeholders[0];
+    const championStrength = determineChampionStrength(champion, summary);
+
+    extractions.push({
+      field_key: 'champion',
+      value: champion.role ? `${champion.name} (${champion.role})` : champion.name,
+      confidence: baseConfidence * (championStrength === 'strong' ? 1.0 : championStrength === 'moderate' ? 0.85 : 0.7),
+      champion_strength: championStrength,
+    });
+  }
+
+  // 3. Extract economic_buyer from stakeholders with decision-maker roles
+  const decisionMakerRoles = ['ceo', 'cto', 'cfo', 'coo', 'vp', 'vice president', 'director', 'head of', 'decision', 'budget', 'owner', 'founder'];
+  const economicBuyer = summary.stakeholders_mentioned.find(s =>
+    s.role && decisionMakerRoles.some(role => s.role!.toLowerCase().includes(role))
+  );
+
+  if (economicBuyer) {
+    extractions.push({
+      field_key: 'economic_buyer',
+      value: economicBuyer.role ? `${economicBuyer.name} (${economicBuyer.role})` : economicBuyer.name,
+      confidence: baseConfidence * 0.9, // Slightly lower - role-based inference
+    });
+  }
+
+  // 4. Extract top_risks from objections
+  if (summary.objections && summary.objections.length > 0) {
+    const unresolvedObjections = summary.objections.filter(o => !o.resolved);
+    const topRisks = unresolvedObjections.length > 0
+      ? unresolvedObjections.slice(0, 3).map(o => o.objection)
+      : summary.objections.slice(0, 3).map(o => o.objection);
+
+    if (topRisks.length > 0) {
+      extractions.push({
+        field_key: 'top_risks',
+        value: topRisks.join('; '),
+        confidence: baseConfidence * 0.9,
+      });
+    }
+  }
+
+  // 5. Extract pain from technical requirements, pricing objections, or negative signals
+  const painIndicators: string[] = [];
+
+  // From pricing objections
+  if (summary.pricing_discussed.objections && summary.pricing_discussed.objections.length > 0) {
+    painIndicators.push(...summary.pricing_discussed.objections);
+  }
+
+  // From technical requirements (high priority = pain point)
+  const highPriorityReqs = summary.technical_requirements.filter(r => r.priority === 'high');
+  if (highPriorityReqs.length > 0) {
+    painIndicators.push(...highPriorityReqs.map(r => r.requirement));
+  }
+
+  // From stakeholder concerns
+  summary.stakeholders_mentioned.forEach(s => {
+    if (s.concerns && s.concerns.length > 0) {
+      painIndicators.push(...s.concerns);
+    }
+  });
+
+  if (painIndicators.length > 0) {
+    extractions.push({
+      field_key: 'pain',
+      value: painIndicators.slice(0, 3).join('; '),
+      confidence: baseConfidence * 0.75, // Inferred, so lower confidence
+    });
+  }
+
+  // 6. Extract success_metric from key decisions or positive signals
+  const successIndicators = [
+    ...summary.key_decisions.filter(d => d.importance === 'high').map(d => d.decision),
+    ...summary.outcome_signals.positive_signals.filter(s =>
+      s.toLowerCase().includes('roi') ||
+      s.toLowerCase().includes('save') ||
+      s.toLowerCase().includes('increase') ||
+      s.toLowerCase().includes('reduce') ||
+      s.toLowerCase().includes('improve') ||
+      s.toLowerCase().includes('%') ||
+      s.toLowerCase().includes('metric')
+    ),
+  ];
+
+  if (successIndicators.length > 0) {
+    extractions.push({
+      field_key: 'success_metric',
+      value: successIndicators[0], // Take the first one
+      confidence: baseConfidence * 0.7, // Inferred
+    });
+  }
+
+  return extractions;
+}
+
+/**
+ * Determine champion strength based on engagement signals
+ */
+function determineChampionStrength(
+  stakeholder: StructuredSummary['stakeholders_mentioned'][0],
+  summary: StructuredSummary
+): 'strong' | 'moderate' | 'weak' | 'unknown' {
+  // Strong indicators
+  const strongSignals = [
+    stakeholder.concerns.length === 0 && stakeholder.sentiment === 'positive',
+    summary.outcome_signals.forward_movement,
+    summary.outcome_signals.positive_signals.length > 3,
+    summary.rep_commitments.length > 0 && summary.prospect_commitments.length > 0,
+  ];
+
+  const strongCount = strongSignals.filter(Boolean).length;
+
+  if (strongCount >= 3) return 'strong';
+  if (strongCount >= 2) return 'moderate';
+  if (strongCount >= 1) return 'weak';
+  return 'unknown';
+}
+
+/**
+ * Upsert Deal Truth fields with confidence-aware logic
+ * Only updates if new confidence >= existing confidence
+ */
+async function upsertDealTruthFields(
+  supabase: ReturnType<typeof createClient>,
+  dealId: string,
+  orgId: string,
+  meetingId: string,
+  extractions: DealTruthExtraction[]
+): Promise<{ updated: number; skipped: number }> {
+  let updated = 0;
+  let skipped = 0;
+
+  for (const extraction of extractions) {
+    // Check existing field confidence
+    const { data: existing } = await supabase
+      .from('deal_truth_fields')
+      .select('id, confidence, source')
+      .eq('deal_id', dealId)
+      .eq('field_key', extraction.field_key)
+      .maybeSingle();
+
+    // Skip if existing has higher confidence (unless it's manual - manual always wins)
+    if (existing && existing.source === 'manual') {
+      console.log(`[deal-truth] Skipping ${extraction.field_key} - manual entry preserved`);
+      skipped++;
+      continue;
+    }
+
+    if (existing && existing.confidence > extraction.confidence) {
+      console.log(`[deal-truth] Skipping ${extraction.field_key} - existing confidence ${existing.confidence} > new ${extraction.confidence}`);
+      skipped++;
+      continue;
+    }
+
+    // Upsert the field
+    const { error } = await supabase
+      .from('deal_truth_fields')
+      .upsert({
+        deal_id: dealId,
+        org_id: orgId,
+        field_key: extraction.field_key,
+        value: extraction.value,
+        confidence: extraction.confidence,
+        source: 'meeting_transcript',
+        source_id: meetingId,
+        champion_strength: extraction.champion_strength,
+        next_step_date: extraction.next_step_date,
+        last_updated_at: new Date().toISOString(),
+      }, { onConflict: 'deal_id,field_key' });
+
+    if (error) {
+      console.error(`[deal-truth] Error upserting ${extraction.field_key}:`, error);
+    } else {
+      console.log(`[deal-truth] Updated ${extraction.field_key} with confidence ${extraction.confidence}`);
+      updated++;
+    }
+  }
+
+  return { updated, skipped };
+}
+
+/**
+ * Find deal associated with meeting
+ */
+async function findDealForMeeting(
+  supabase: ReturnType<typeof createClient>,
+  meetingId: string,
+  companyId: string | null,
+  companyName: string | null,
+  userId: string
+): Promise<{ dealId: string; orgId: string } | null> {
+  // First, try to find a deal by company_id
+  if (companyId) {
+    const { data: deal } = await supabase
+      .from('deals')
+      .select('id, org_id')
+      .eq('company_id', companyId)
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (deal) {
+      return { dealId: deal.id, orgId: deal.org_id };
+    }
+  }
+
+  // Fallback: Try to find by company name in deal title
+  if (companyName) {
+    const { data: deal } = await supabase
+      .from('deals')
+      .select('id, org_id')
+      .ilike('name', `%${companyName}%`)
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (deal) {
+      return { dealId: deal.id, orgId: deal.org_id };
+    }
+  }
+
+  return null;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -448,6 +722,38 @@ serve(async (req) => {
     // Save classification for aggregate queries
     await saveMeetingClassification(supabase, meetingId, meeting.org_id, summary);
 
+    // Extract and upsert Deal Truth fields
+    let dealTruthResult = { updated: 0, skipped: 0, dealId: null as string | null };
+    try {
+      const dealInfo = await findDealForMeeting(
+        supabase,
+        meetingId,
+        meeting.company_id,
+        meeting.company_name,
+        meeting.owner_user_id
+      );
+
+      if (dealInfo) {
+        const extractions = extractDealTruthFromSummary(summary);
+        if (extractions.length > 0) {
+          const result = await upsertDealTruthFields(
+            supabase,
+            dealInfo.dealId,
+            dealInfo.orgId,
+            meetingId,
+            extractions
+          );
+          dealTruthResult = { ...result, dealId: dealInfo.dealId };
+          console.log(`[deal-truth] Extracted ${extractions.length} fields for deal ${dealInfo.dealId}: ${result.updated} updated, ${result.skipped} skipped`);
+        }
+      } else {
+        console.log(`[deal-truth] No deal found for meeting ${meetingId}`);
+      }
+    } catch (dealTruthError) {
+      console.error('[deal-truth] Error extracting Deal Truth:', dealTruthError);
+      // Don't fail the whole process for Deal Truth extraction errors
+    }
+
     console.log(`Processed structured summary for meeting ${meetingId} in ${processingTimeMs}ms`);
 
     return new Response(
@@ -457,6 +763,7 @@ serve(async (req) => {
         summary,
         tokens_used: tokensUsed,
         processing_time_ms: processingTimeMs,
+        deal_truth: dealTruthResult,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

@@ -300,6 +300,28 @@ export function createHubSpotCrmAdapter(
         needs_confirmation: true,
       });
     },
+
+    // Pipeline methods - not implemented for HubSpot adapter
+    // Return null to signal delegation to DB adapter (composite adapter will handle fallback)
+    async getPipelineSummary(_params) {
+      return { success: false, data: null, delegate: true, source: this.source };
+    },
+
+    async getPipelineDeals(_params) {
+      return { success: false, data: null, delegate: true, source: this.source };
+    },
+
+    async getPipelineForecast(_params) {
+      return { success: false, data: null, delegate: true, source: this.source };
+    },
+
+    async getContactsNeedingAttention(_params) {
+      return { success: false, data: null, delegate: true, source: this.source };
+    },
+
+    async getCompanyStatus(_params) {
+      return { success: false, data: null, delegate: true, source: this.source };
+    },
   };
 }
 

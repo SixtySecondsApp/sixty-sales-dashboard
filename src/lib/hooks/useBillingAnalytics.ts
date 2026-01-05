@@ -1,0 +1,146 @@
+// src/lib/hooks/useBillingAnalytics.ts
+// React Query hooks for billing analytics
+
+import { useQuery } from '@tanstack/react-query';
+import {
+  getCurrentMRR,
+  getMRRByDateRange,
+  getChurnRate,
+  getRetentionCohorts,
+  getRealizedLTV,
+  getTrialConversionRate,
+  getMRRMovement,
+} from '../services/billingAnalyticsService';
+import type {
+  MRRData,
+  MRRByDate,
+  ChurnRate,
+  RetentionCohort,
+  RealizedLTV,
+  TrialConversion,
+  MRRMovement,
+} from '../services/billingAnalyticsService';
+
+// Query keys
+export const billingAnalyticsKeys = {
+  all: ['billing-analytics'] as const,
+  currentMRR: () => [...billingAnalyticsKeys.all, 'current-mrr'] as const,
+  mrrByDateRange: (start: Date, end: Date, currency?: string) =>
+    [...billingAnalyticsKeys.all, 'mrr-by-date', start.toISOString(), end.toISOString(), currency] as const,
+  churnRate: (start: Date, end: Date, currency?: string) =>
+    [...billingAnalyticsKeys.all, 'churn-rate', start.toISOString(), end.toISOString(), currency] as const,
+  retentionCohorts: (start: Date, end: Date, months: number[]) =>
+    [...billingAnalyticsKeys.all, 'retention-cohorts', start.toISOString(), end.toISOString(), months.join(',')] as const,
+  realizedLTV: (start?: Date, end?: Date, currency?: string) =>
+    [...billingAnalyticsKeys.all, 'realized-ltv', start?.toISOString(), end?.toISOString(), currency] as const,
+  trialConversion: (start: Date, end: Date) =>
+    [...billingAnalyticsKeys.all, 'trial-conversion', start.toISOString(), end.toISOString()] as const,
+  mrrMovement: (limit: number) =>
+    [...billingAnalyticsKeys.all, 'mrr-movement', limit] as const,
+};
+
+/**
+ * Get current MRR snapshot
+ */
+export function useCurrentMRR() {
+  return useQuery<MRRData[]>({
+    queryKey: billingAnalyticsKeys.currentMRR(),
+    queryFn: getCurrentMRR,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+}
+
+/**
+ * Get MRR by date range
+ */
+export function useMRRByDateRange(
+  startDate: Date,
+  endDate: Date,
+  currency?: string,
+  enabled: boolean = true
+) {
+  return useQuery<MRRByDate[]>({
+    queryKey: billingAnalyticsKeys.mrrByDateRange(startDate, endDate, currency),
+    queryFn: () => getMRRByDateRange(startDate, endDate, currency),
+    enabled: enabled && !!startDate && !!endDate,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+/**
+ * Get churn rate for a period
+ */
+export function useChurnRate(
+  startDate: Date,
+  endDate: Date,
+  currency?: string,
+  enabled: boolean = true
+) {
+  return useQuery<ChurnRate[]>({
+    queryKey: billingAnalyticsKeys.churnRate(startDate, endDate, currency),
+    queryFn: () => getChurnRate(startDate, endDate, currency),
+    enabled: enabled && !!startDate && !!endDate,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+/**
+ * Get retention cohorts
+ */
+export function useRetentionCohorts(
+  cohortStart: Date,
+  cohortEnd: Date,
+  retentionMonths: number[] = [1, 3, 6, 12],
+  enabled: boolean = true
+) {
+  return useQuery<RetentionCohort[]>({
+    queryKey: billingAnalyticsKeys.retentionCohorts(cohortStart, cohortEnd, retentionMonths),
+    queryFn: () => getRetentionCohorts(cohortStart, cohortEnd, retentionMonths),
+    enabled: enabled && !!cohortStart && !!cohortEnd,
+    staleTime: 1000 * 60 * 10, // 10 minutes - cohorts change less frequently
+  });
+}
+
+/**
+ * Get realized LTV
+ */
+export function useRealizedLTV(
+  cohortStart?: Date,
+  cohortEnd?: Date,
+  currency?: string,
+  enabled: boolean = true
+) {
+  return useQuery<RealizedLTV[]>({
+    queryKey: billingAnalyticsKeys.realizedLTV(cohortStart, cohortEnd, currency),
+    queryFn: () => getRealizedLTV(cohortStart, cohortEnd, currency),
+    enabled,
+    staleTime: 1000 * 60 * 10,
+  });
+}
+
+/**
+ * Get trial conversion rate
+ */
+export function useTrialConversionRate(
+  startDate: Date,
+  endDate: Date,
+  enabled: boolean = true
+) {
+  return useQuery<TrialConversion[]>({
+    queryKey: billingAnalyticsKeys.trialConversion(startDate, endDate),
+    queryFn: () => getTrialConversionRate(startDate, endDate),
+    enabled: enabled && !!startDate && !!endDate,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+/**
+ * Get MRR movement
+ */
+export function useMRRMovement(limit: number = 30) {
+  return useQuery<MRRMovement[]>({
+    queryKey: billingAnalyticsKeys.mrrMovement(limit),
+    queryFn: () => getMRRMovement(limit),
+    staleTime: 1000 * 60 * 5,
+  });
+}

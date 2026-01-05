@@ -12,6 +12,7 @@ import {
   Activity,
   Video,
   PhoneCall,
+  Mic,
   Sparkles,
   Layers,
   BarChart3,
@@ -168,6 +169,16 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     order: 11.5,
   },
   {
+    path: '/voice',
+    access: 'internal',
+    label: 'Voice',
+    icon: Mic,
+    showInNav: true,
+    navSection: 'main',
+    order: 11.7,
+    badge: 'New',
+  },
+  {
     path: '/activity',
     access: 'internal',
     label: 'Activity',
@@ -320,6 +331,24 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     order: 3.6,
   },
   {
+    path: '/platform/engagement',
+    access: 'platformAdmin',
+    label: 'Engagement',
+    icon: HeartPulse,
+    showInNav: true,
+    navSection: 'platform',
+    order: 3.7,
+    badge: 'New',
+  },
+  {
+    path: '/platform/engagement-simulator',
+    access: 'platformAdmin',
+    label: 'Engagement Simulator',
+    showInNav: false,
+    navSection: 'platform',
+    order: 3.8,
+  },
+  {
     path: '/platform/usage',
     access: 'platformAdmin',
     label: 'Usage',
@@ -452,6 +481,14 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     navSection: 'platform',
     order: 33,
   },
+  {
+    path: '/platform/copilot-tests',
+    access: 'platformAdmin',
+    label: 'Copilot Tests',
+    showInNav: false,
+    navSection: 'platform',
+    order: 34,
+  },
   // Integrations
   {
     path: '/platform/integrations/savvycal',
@@ -487,6 +524,23 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     order: 50,
   },
   {
+    path: '/platform/dev/api-monitor',
+    access: 'platformAdmin',
+    label: 'API Monitor',
+    showInNav: false,
+    navSection: 'platform',
+    order: 50.5,
+  },
+  {
+    path: '/platform/dev/billing-analytics',
+    access: 'platformAdmin',
+    label: 'Billing Analytics',
+    icon: BarChart3,
+    showInNav: false,
+    navSection: 'platform',
+    order: 50.6,
+  },
+  {
     path: '/platform/dev/functions',
     access: 'platformAdmin',
     label: 'Function Testing',
@@ -502,14 +556,16 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     navSection: 'platform',
     order: 52,
   },
-  // Slack Integration Demo
+  // Agent simulator (Slack + in-app)
   {
-    path: '/platform/slack-demo',
+    path: '/platform/agent-simulator',
     access: 'platformAdmin',
-    label: 'Slack Demo',
-    showInNav: false,
+    label: 'Agent Simulator',
+    icon: Bot,
+    showInNav: true,
     navSection: 'platform',
     order: 53,
+    badge: 'New',
   },
   // Process Maps - AI-generated process visualization
   {

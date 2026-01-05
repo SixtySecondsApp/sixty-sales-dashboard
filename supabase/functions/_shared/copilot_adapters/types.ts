@@ -22,9 +22,19 @@ export interface SkillDoc {
 
 export type ExecuteActionName =
   | 'get_contact'
+  | 'get_lead'
   | 'get_deal'
+  | 'get_pipeline_summary'
+  | 'get_pipeline_deals'
+  | 'get_pipeline_forecast'
+  | 'get_contacts_needing_attention'
+  | 'get_company_status'
   | 'get_meetings'
   | 'get_booking_stats'
+  | 'get_meeting_count'
+  | 'get_next_meeting'
+  | 'get_meetings_for_period'
+  | 'get_time_breakdown'
   | 'search_emails'
   | 'draft_email'
   | 'update_crm'
@@ -32,7 +42,10 @@ export type ExecuteActionName =
   | 'enrich_contact'
   | 'enrich_company'
   | 'invoke_skill'
-  | 'create_task';
+  | 'run_skill'
+  | 'create_task'
+  | 'list_tasks'
+  | 'create_activity';
 
 /**
  * Parameters for invoke_skill action - enables skill composition
@@ -48,6 +61,14 @@ export interface InvokeSkillParams {
 }
 
 /**
+ * Parameters for run_skill action - executes a skill with AI processing
+ */
+export interface RunSkillParams {
+  skill_key: string;                    // Skill to execute (lead-research, meeting-prep, etc.)
+  context?: Record<string, unknown>;    // Context variables (domain, company_name, contact_email, etc.)
+}
+
+/**
  * Parameters for create_task action
  */
 export interface CreateTaskParams {
@@ -58,6 +79,36 @@ export interface CreateTaskParams {
   deal_id?: string;
   priority?: 'low' | 'medium' | 'high';
   assignee_id?: string;
+}
+
+/**
+ * Parameters for list_tasks action
+ */
+export interface ListTasksParams {
+  status?: 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'overdue';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  contact_id?: string;
+  deal_id?: string;
+  company_id?: string;
+  due_before?: string;            // ISO date string - tasks due before this date
+  due_after?: string;             // ISO date string - tasks due after this date
+  limit?: number;                 // Default: 20
+}
+
+/**
+ * Parameters for create_activity action
+ */
+export interface CreateActivityParams {
+  type: 'outbound' | 'meeting' | 'proposal' | 'sale';
+  client_name: string;
+  details?: string;
+  amount?: number;
+  date?: string;                  // ISO date string - defaults to now
+  status?: 'pending' | 'completed' | 'cancelled';
+  priority?: 'low' | 'medium' | 'high';
+  contact_id?: string;
+  deal_id?: string;
+  company_id?: string;
 }
 
 export interface ExecuteActionRequest {
@@ -72,6 +123,7 @@ export interface ActionResult {
   needs_confirmation?: boolean;
   preview?: unknown;
   source?: string;
+  delegate?: boolean;  // Signal that this adapter wants to delegate to another adapter
 }
 
 export interface AdapterContext {
@@ -95,12 +147,73 @@ export interface MeetingAdapter {
     isAdmin?: boolean;
     orgId?: string;
   }): Promise<ActionResult>;
+  /**
+   * Get count of meetings for a period with timezone awareness
+   */
+  getMeetingCount(params: {
+    period: 'today' | 'tomorrow' | 'this_week' | 'next_week' | 'this_month';
+    timezone?: string;
+    weekStartsOn?: 0 | 1;
+  }): Promise<ActionResult>;
+  /**
+   * Get next upcoming meeting with optional CRM context enrichment
+   */
+  getNextMeeting(params: {
+    includeContext?: boolean;
+    timezone?: string;
+  }): Promise<ActionResult>;
+  /**
+   * Get list of meetings for a specific period (today/tomorrow)
+   */
+  getMeetingsForPeriod(params: {
+    period: 'today' | 'tomorrow';
+    timezone?: string;
+    weekStartsOn?: 0 | 1;
+    includeContext?: boolean;
+    limit?: number;
+  }): Promise<ActionResult>;
+  /**
+   * Get time breakdown statistics (meetings vs other activities)
+   */
+  getTimeBreakdown(params: {
+    period: 'this_week' | 'last_week' | 'this_month' | 'last_month';
+    timezone?: string;
+    weekStartsOn?: 0 | 1;
+  }): Promise<ActionResult>;
 }
 
 export interface CRMAdapter {
   source: string;
   getContact(params: { id?: string; email?: string; name?: string }): Promise<ActionResult>;
-  getDeal(params: { id?: string; name?: string }): Promise<ActionResult>;
+  getDeal(params: {
+    id?: string;
+    name?: string;
+    close_date_from?: string;
+    close_date_to?: string;
+    status?: string;
+    stage_id?: string;
+    include_health?: boolean;
+    limit?: number;
+  }): Promise<ActionResult>;
+  getPipelineSummary(params: Record<string, unknown>): Promise<ActionResult>;
+  getPipelineDeals(params: {
+    filter?: 'closing_soon' | 'at_risk' | 'stale' | 'needs_attention';
+    days?: number;
+    period?: string;
+    include_health?: boolean;
+    limit?: number;
+  }): Promise<ActionResult>;
+  getPipelineForecast(params: { period?: string }): Promise<ActionResult>;
+  getContactsNeedingAttention(params: {
+    days_since_contact?: number;
+    filter?: 'at_risk' | 'ghost' | 'all';
+    limit?: number;
+  }): Promise<ActionResult>;
+  getCompanyStatus(params: {
+    company_id?: string;
+    company_name?: string;
+    domain?: string;
+  }): Promise<ActionResult>;
   updateCRM(params: { entity: 'deal' | 'contact' | 'task' | 'activity'; id: string; updates: Record<string, unknown> }, ctx: AdapterContext): Promise<ActionResult>;
 }
 

@@ -8,6 +8,7 @@ import { ExternalViewBanner, ExternalViewBannerSpacer } from '@/components/Exter
 import { ImpersonationBanner } from '@/components/ImpersonationBanner';
 import { ExternalViewToggle } from '@/components/ExternalViewToggle';
 import { NotificationBell } from '@/components/NotificationBell';
+import { HITLIndicator } from '@/components/HITLIndicator';
 import { EmailIcon } from '@/components/EmailIcon';
 import { CalendarIcon } from '@/components/CalendarIcon';
 import { toast } from 'sonner';
@@ -300,6 +301,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <>
               <EmailIcon />
               <CalendarIcon />
+              <HITLIndicator />
               <NotificationBell />
             </>
           )}
@@ -520,6 +522,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <>
               <EmailIcon />
               <CalendarIcon />
+              <HITLIndicator />
               <NotificationBell />
             </>
           )}

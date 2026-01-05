@@ -484,16 +484,35 @@ export const buildMeetingDebriefMessage = (data: MeetingDebriefData): SlackMessa
     blocks.push(context([`_"${truncate(data.keyQuotes[0], 200)}"_`]));
   }
 
-  // Action buttons (max 3)
-  const buttonRow: Array<{ text: string; actionId: string; value: string; url?: string; style?: 'primary' }> = [
+  // Action buttons row 1 - View links
+  const viewButtons: Array<{ text: string; actionId: string; value: string; url?: string; style?: 'primary' }> = [
     { text: '🎬 View Meeting', actionId: 'view_meeting', value: data.meetingId, url: `${data.appUrl}/meetings/${data.meetingId}`, style: 'primary' },
   ];
 
   if (data.dealId) {
-    buttonRow.push({ text: '💼 View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` });
+    viewButtons.push({ text: '💼 View Deal', actionId: 'view_deal', value: data.dealId, url: `${data.appUrl}/deals/${data.dealId}` });
   }
 
-  blocks.push(actions(buttonRow));
+  blocks.push(actions(viewButtons));
+
+  // Action buttons row 2 - Quick actions
+  const actionValue = JSON.stringify({
+    meetingId: data.meetingId,
+    meetingTitle: data.meetingTitle,
+    dealId: data.dealId,
+    dealName: data.dealName,
+    attendees: data.attendees,
+  });
+
+  const quickActions: Array<{ text: string; actionId: string; value: string; style?: 'primary' }> = [
+    { text: '✉️ Draft Follow-up', actionId: 'debrief_draft_followup', value: actionValue },
+  ];
+
+  if (data.dealId) {
+    quickActions.push({ text: '📊 Update Deal', actionId: 'debrief_update_deal', value: actionValue });
+  }
+
+  blocks.push(actions(quickActions));
 
   return {
     blocks,
@@ -1358,5 +1377,1405 @@ export const buildHITLActionedConfirmation = (data: HITLActionedConfirmation): S
   return {
     blocks,
     text: `${config.label}: ${truncate(data.resourceName, 60)}`,
+  };
+};
+
+/**
+ * Morning Brief Data Interface
+ */
+export interface MorningBriefData {
+  userName: string;
+  slackUserId?: string;
+  date: string;
+  currencyCode?: string;
+  currencyLocale?: string;
+  meetings: Array<{
+    time: string;
+    title: string;
+    contactName?: string;
+    companyName?: string;
+    dealValue?: number;
+    isImportant?: boolean;
+  }>;
+  tasks: {
+    overdue: Array<{
+      title: string;
+      daysOverdue: number;
+      dealName?: string;
+    }>;
+    dueToday: Array<{
+      title: string;
+      dealName?: string;
+    }>;
+  };
+  deals: Array<{
+    name: string;
+    id: string;
+    value: number;
+    stage: string;
+    closeDate?: string;
+    daysUntilClose?: number;
+    isAtRisk?: boolean;
+  }>;
+  emailsToRespond: number;
+  insights: string[];
+  priorities: string[];
+  appUrl: string;
+}
+
+/**
+ * Build Morning Brief Message
+ */
+export const buildMorningBriefMessage = (data: MorningBriefData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const userName = data.slackUserId ? `<@${data.slackUserId}>` : data.userName;
+  const formatCurrency = (amount: number) => {
+    if (!data.currencyCode) return `£${amount.toLocaleString()}`;
+    return new Intl.NumberFormat(data.currencyLocale || 'en-GB', {
+      style: 'currency',
+      currency: data.currencyCode,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  // Header
+  blocks.push(header(safeHeaderText(`☀️ Good morning, ${data.userName}`)));
+
+  blocks.push(section(safeMrkdwn(`*Here's your day at a glance*`)));
+  blocks.push(divider());
+
+  // Meetings section
+  if (data.meetings.length > 0) {
+    const meetingsText = data.meetings
+      .slice(0, 5)
+      .map(m => {
+        const dealInfo = m.dealValue ? ` _(${m.dealStage || 'Deal'}, ${formatCurrency(m.dealValue)})_` : '';
+        return `• ${m.time} - ${m.title}${dealInfo}`;
+      })
+      .join('\n');
+    
+    blocks.push(section(safeMrkdwn(`📅 *${data.meetings.length} meeting${data.meetings.length !== 1 ? 's' : ''} today*\n\n${meetingsText}`)));
+  }
+
+  // Priorities section
+  if (data.priorities.length > 0) {
+    const prioritiesText = data.priorities
+      .slice(0, 5)
+      .map(p => `• ${p}`)
+      .join('\n');
+    
+    blocks.push(section(safeMrkdwn(`⚡ *Top priorities*\n\n${prioritiesText}`)));
+  }
+
+  // Tasks section
+  const totalTasks = data.tasks.overdue.length + data.tasks.dueToday.length;
+  if (totalTasks > 0) {
+    const tasksText: string[] = [];
+    if (data.tasks.overdue.length > 0) {
+      tasksText.push(`*Overdue:*`);
+      data.tasks.overdue.slice(0, 3).forEach(t => {
+        tasksText.push(`• ${t.title} _(overdue by ${t.daysOverdue} day${t.daysOverdue !== 1 ? 's' : ''})_`);
+      });
+    }
+    if (data.tasks.dueToday.length > 0) {
+      tasksText.push(`*Due today:*`);
+      data.tasks.dueToday.slice(0, 3).forEach(t => {
+        tasksText.push(`• ${t.title}`);
+      });
+    }
+    
+    blocks.push(section(safeMrkdwn(`📋 *Tasks*\n\n${tasksText.join('\n')}`)));
+  }
+
+  // Deals section
+  if (data.deals.length > 0) {
+    const dealsText = data.deals
+      .slice(0, 3)
+      .map(d => {
+        const riskBadge = d.isAtRisk ? ' ⚠️' : '';
+        const closeInfo = d.daysUntilClose !== undefined 
+          ? ` _(closing in ${d.daysUntilClose} day${d.daysUntilClose !== 1 ? 's' : ''})_`
+          : '';
+        return `• ${d.name} - ${formatCurrency(d.value)}${closeInfo}${riskBadge}`;
+      })
+      .join('\n');
+    
+    blocks.push(section(safeMrkdwn(`🎯 *Deals closing this week*\n\n${dealsText}`)));
+  }
+
+  // Emails to respond
+  if (data.emailsToRespond > 0) {
+    blocks.push(section(safeMrkdwn(`📬 *${data.emailsToRespond} email${data.emailsToRespond !== 1 ? 's' : ''} need${data.emailsToRespond === 1 ? 's' : ''} response*`)));
+  }
+
+  // Insights
+  if (data.insights.length > 0) {
+    blocks.push(divider());
+    const insightsText = data.insights
+      .slice(0, 3)
+      .map(i => `• ${i}`)
+      .join('\n');
+    
+    blocks.push(section(safeMrkdwn(`💡 *Insights*\n\n${insightsText}`)));
+  }
+
+  blocks.push(divider());
+
+  // Actions
+  blocks.push(actions([
+    {
+      text: { type: 'plain_text', text: safeButtonText('📋 View Full Day'), emoji: true },
+      url: `${data.appUrl}/calendar`,
+      action_id: 'view_full_day',
+    },
+    {
+      text: { type: 'plain_text', text: safeButtonText('✅ Start Focus Mode'), emoji: true },
+      url: `${data.appUrl}/tasks`,
+      action_id: 'start_focus_mode',
+    },
+  ]));
+
+  return {
+    blocks,
+    text: `Good morning ${data.userName}! Here's your day at a glance.`,
+  };
+};
+
+/**
+ * Stale Deal Alert Data Interface
+ */
+export interface StaleDealAlertData {
+  userName: string;
+  slackUserId?: string;
+  deal: {
+    name: string;
+    id: string;
+    value: number;
+    stage: string;
+    closeDate?: string;
+    daysUntilClose?: number;
+    daysSinceLastActivity: number;
+    lastActivityDate?: string;
+    lastActivityType?: string;
+  };
+  suggestedActions: string[];
+  reEngagementDraft?: string;
+  currencyCode?: string;
+  currencyLocale?: string;
+  appUrl: string;
+}
+
+/**
+ * Build Stale Deal Alert Message
+ */
+export const buildStaleDealAlertMessage = (data: StaleDealAlertData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const userName = data.slackUserId ? `<@${data.slackUserId}>` : data.userName;
+  const formatCurrency = (amount: number) => {
+    if (!data.currencyCode) return `£${amount.toLocaleString()}`;
+    return new Intl.NumberFormat(data.currencyLocale || 'en-GB', {
+      style: 'currency',
+      currency: data.currencyCode,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  // Header
+  blocks.push(header(safeHeaderText(`⚠️ Deal going cold`)));
+
+  blocks.push(section(safeMrkdwn(
+    `*${data.deal.name}* - No activity in *${data.deal.daysSinceLastActivity} day${data.deal.daysSinceLastActivity !== 1 ? 's' : ''}*`
+  )));
+
+  // Context
+  const contextParts: string[] = [];
+  contextParts.push(`💰 ${formatCurrency(data.deal.value)}`);
+  contextParts.push(`${data.deal.stage} stage`);
+  if (data.deal.closeDate) {
+    const daysUntilClose = data.deal.daysUntilClose || 0;
+    if (daysUntilClose > 0) {
+      contextParts.push(`Close date: ${daysUntilClose} day${daysUntilClose !== 1 ? 's' : ''} away`);
+    } else {
+      contextParts.push(`Close date: ${Math.abs(daysUntilClose)} day${Math.abs(daysUntilClose) !== 1 ? 's' : ''} overdue`);
+    }
+  }
+  if (data.deal.lastActivityDate) {
+    contextParts.push(`Last activity: ${new Date(data.deal.lastActivityDate).toLocaleDateString()}`);
+  }
+
+  blocks.push(context([safeContextMrkdwn(contextParts.join(' • '))]));
+  blocks.push(divider());
+
+  // Activity timeline
+  if (data.deal.lastActivityType) {
+    blocks.push(section(safeMrkdwn(
+      `📊 *Last activity*\n\n• ${data.deal.lastActivityType}${data.deal.lastActivityDate ? ` (${new Date(data.deal.lastActivityDate).toLocaleDateString()})` : ''}\n• _${data.deal.daysSinceLastActivity} days of silence..._`
+    )));
+  }
+
+  // Suggested actions
+  if (data.suggestedActions.length > 0) {
+    const actionsText = data.suggestedActions
+      .slice(0, 3)
+      .map(a => `• ${a}`)
+      .join('\n');
+    
+    blocks.push(section(safeMrkdwn(`💡 *Suggested next steps*\n\n${actionsText}`)));
+  }
+
+  // Re-engagement draft (if available)
+  if (data.reEngagementDraft) {
+    blocks.push(divider());
+    blocks.push(section(safeMrkdwn(`📧 *Re-engagement draft*`)));
+    blocks.push(section(safeMrkdwn(`_${safeMrkdwn(data.reEngagementDraft.substring(0, 500))}_`)));
+  }
+
+  blocks.push(divider());
+
+  // Actions
+  blocks.push(actions([
+    {
+      text: { type: 'plain_text', text: safeButtonText('📄 Open Deal'), emoji: true },
+      url: `${data.appUrl}/deals/${data.deal.id}`,
+      action_id: 'open_deal',
+    },
+    {
+      text: { type: 'plain_text', text: safeButtonText('➕ Create Task'), emoji: true },
+      action_id: 'create_task',
+      value: safeButtonValue(JSON.stringify({ dealId: data.deal.id, dealName: data.deal.name })),
+    },
+    {
+      text: { type: 'plain_text', text: safeButtonText('✉️ Send Check-in'), emoji: true },
+      action_id: 'send_checkin',
+      value: safeButtonValue(JSON.stringify({ dealId: data.deal.id })),
+    },
+  ]));
+
+  return {
+    blocks,
+    text: `Deal ${data.deal.name} has no activity in ${data.deal.daysSinceLastActivity} days.`,
+  };
+};
+
+/**
+ * Email Reply Alert Data Interface
+ */
+export interface EmailReplyAlertData {
+  userName: string;
+  slackUserId?: string;
+  email: {
+    subject: string;
+    from: string;
+    fromName?: string;
+    threadId?: string;
+    receivedAt: string;
+  };
+  contact?: {
+    name: string;
+    companyName?: string;
+  };
+  deal?: {
+    name: string;
+    id: string;
+    stage: string;
+  };
+  sentiment: 'positive' | 'neutral' | 'negative';
+  keyPoints: string[];
+  suggestedReply?: string;
+  suggestedActions: string[];
+  appUrl: string;
+}
+
+/**
+ * Build Email Reply Alert Message
+ */
+export const buildEmailReplyAlertMessage = (data: EmailReplyAlertData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const userName = data.slackUserId ? `<@${data.slackUserId}>` : data.userName;
+  const sentimentEmoji = data.sentiment === 'positive' ? '🟢' : data.sentiment === 'negative' ? '🔴' : '🟡';
+
+  // Header
+  blocks.push(header(safeHeaderText(`📬 Reply received`)));
+
+  const fromDisplay = data.contact?.name || data.email.fromName || data.email.from;
+  const contextText = data.deal 
+    ? `*${fromDisplay}* from *${data.contact?.companyName || 'Unknown'}* replied to your email`
+    : `*${fromDisplay}* replied to your email`;
+
+  blocks.push(section(safeMrkdwn(contextText)));
+
+  // Context
+  const contextParts: string[] = [];
+  contextParts.push(`${sentimentEmoji} ${data.sentiment.charAt(0).toUpperCase() + data.sentiment.slice(1)} sentiment`);
+  contextParts.push(`Re: ${truncate(data.email.subject, 40)}`);
+  contextParts.push(`Just now`);
+  blocks.push(context([safeContextMrkdwn(contextParts.join(' • '))]));
+  blocks.push(divider());
+
+  // Key points
+  if (data.keyPoints.length > 0) {
+    const pointsText = data.keyPoints
+      .slice(0, 5)
+      .map(p => `• ${p}`)
+      .join('\n');
+    
+    blocks.push(section(safeMrkdwn(`💡 *Key points detected*\n\n${pointsText}`)));
+  }
+
+  // Deal context
+  if (data.deal) {
+    blocks.push(section(safeMrkdwn(
+      `💰 *Deal context*\n• ${data.deal.name} • ${data.deal.stage} stage`
+    )));
+  }
+
+  // Suggested reply
+  if (data.suggestedReply) {
+    blocks.push(divider());
+    blocks.push(section(safeMrkdwn(`📝 *Suggested reply*`)));
+    blocks.push(section(safeMrkdwn(`_${safeMrkdwn(data.suggestedReply.substring(0, 800))}_`)));
+  }
+
+  // Suggested actions
+  if (data.suggestedActions.length > 0) {
+    blocks.push(divider());
+    const actionsText = data.suggestedActions
+      .slice(0, 3)
+      .map(a => `• ${a}`)
+      .join('\n');
+    
+    blocks.push(section(safeMrkdwn(`⚡ *Suggested next steps*\n\n${actionsText}`)));
+  }
+
+  blocks.push(divider());
+
+  // Actions
+  const actionButtons: any[] = [
+    {
+      text: { type: 'plain_text', text: safeButtonText('✉️ Reply'), emoji: true },
+      style: 'primary',
+      action_id: 'reply_email',
+      value: safeButtonValue(JSON.stringify({ 
+        threadId: data.email.threadId,
+        from: data.email.from,
+      })),
+    },
+  ];
+
+  if (data.suggestedReply) {
+    actionButtons.push({
+      text: { type: 'plain_text', text: safeButtonText('✏️ Edit First'), emoji: true },
+      action_id: 'edit_reply',
+      value: safeButtonValue(JSON.stringify({ 
+        threadId: data.email.threadId,
+        draft: data.suggestedReply,
+      })),
+    });
+  }
+
+  if (data.deal) {
+    actionButtons.push({
+      text: { type: 'plain_text', text: safeButtonText('🔄 Update Deal'), emoji: true },
+      action_id: 'update_deal',
+      value: safeButtonValue(JSON.stringify({ dealId: data.deal.id })),
+    });
+  }
+
+  actionButtons.push({
+    text: { type: 'plain_text', text: safeButtonText('📄 View Email'), emoji: true },
+    url: `${data.appUrl}/emails${data.email.threadId ? `?thread=${data.email.threadId}` : ''}`,
+    action_id: 'view_email',
+  });
+
+  blocks.push(actions(actionButtons));
+
+  return {
+    blocks,
+    text: `Reply from ${fromDisplay}: ${data.email.subject}`,
+  };
+};
+
+// =============================================================================
+// SLASH COMMAND BLOCK BUILDERS
+// =============================================================================
+
+/**
+ * Contact Card Data for /sixty contact
+ */
+export interface ContactCardData {
+  contact: {
+    id: string;
+    email: string | null;
+    full_name: string | null;
+    phone: string | null;
+    title: string | null;
+    company: string | null;
+    source: 'sixty' | 'hubspot';
+  };
+  dealContext?: {
+    id: string;
+    name: string;
+    value: number;
+    stage: string;
+  };
+  lastTouch?: {
+    date: string;
+    type: string;
+    summary?: string;
+  };
+  nextStep?: string;
+  riskSignals?: string[];
+  healthScore?: number;
+  totalMeetings?: number;
+  currencyCode?: string;
+  currencyLocale?: string;
+  appUrl: string;
+}
+
+/**
+ * Build Contact Card for /sixty contact command
+ */
+export const buildContactCardMessage = (data: ContactCardData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const c = data.contact;
+  const sourceBadge = c.source === 'hubspot' ? ' 🔄' : '';
+
+  // Header with name and company
+  const headerText = c.company
+    ? `👤 ${truncate(c.full_name || 'Unknown', 50)} - ${truncate(c.company, 40)}`
+    : `👤 ${truncate(c.full_name || 'Unknown', 80)}`;
+  blocks.push(header(headerText));
+
+  // Contact details as fields
+  const fields: Array<{ label: string; value: string }> = [];
+
+  if (c.email) {
+    fields.push({ label: '📧 Email', value: c.email });
+  }
+  if (c.phone) {
+    fields.push({ label: '📱 Phone', value: c.phone });
+  }
+  if (c.title) {
+    fields.push({ label: '💼 Title', value: c.title });
+  }
+  if (data.healthScore !== undefined) {
+    const healthEmoji = data.healthScore >= 80 ? '🟢' : data.healthScore >= 50 ? '🟡' : '🔴';
+    fields.push({ label: '❤️ Health', value: `${healthEmoji} ${data.healthScore}%` });
+  }
+
+  if (fields.length > 0) {
+    blocks.push(sectionWithFields(fields));
+  }
+
+  blocks.push(divider());
+
+  // Deal context
+  if (data.dealContext) {
+    const dealValue = formatCurrency(data.dealContext.value, data.currencyCode, data.currencyLocale);
+    blocks.push(section(`🔗 *Active Deal:* ${truncate(data.dealContext.name, 60)} - ${dealValue} (${data.dealContext.stage})`));
+  }
+
+  // Last touch
+  if (data.lastTouch) {
+    const touchDate = new Date(data.lastTouch.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const touchSummary = data.lastTouch.summary ? ` - ${truncate(data.lastTouch.summary, 60)}` : '';
+    blocks.push(section(`📅 *Last Touch:* ${touchDate} - ${data.lastTouch.type}${touchSummary}`));
+  }
+
+  // Next step
+  if (data.nextStep) {
+    blocks.push(section(`⏭️ *Next Step:* ${truncate(data.nextStep, 100)}`));
+  }
+
+  // Risk signals
+  if (data.riskSignals && data.riskSignals.length > 0) {
+    const riskLines = data.riskSignals.slice(0, 2).map(r => `⚠️ ${truncate(r, 80)}`);
+    blocks.push(section(riskLines.join('\n')));
+  }
+
+  blocks.push(divider());
+
+  // Action buttons
+  const buttonRow: Array<{ text: string; actionId: string; value: string; url?: string; style?: 'primary' }> = [];
+
+  buttonRow.push({
+    text: '➕ Create Task',
+    actionId: 'create_task_for_contact',
+    value: JSON.stringify({ contactId: c.id, contactName: c.full_name }),
+    style: 'primary',
+  });
+
+  buttonRow.push({
+    text: '✉️ Draft Follow-up',
+    actionId: 'draft_followup_contact',
+    value: JSON.stringify({ contactId: c.id, contactName: c.full_name, email: c.email }),
+  });
+
+  if (data.dealContext) {
+    buttonRow.push({
+      text: '💼 View Deal',
+      actionId: 'view_deal',
+      value: data.dealContext.id,
+      url: `${data.appUrl}/deals/${data.dealContext.id}`,
+    });
+  }
+
+  blocks.push(actions(buttonRow.slice(0, 3)));
+
+  // Source badge context
+  const contextItems: string[] = [];
+  if (data.totalMeetings) {
+    contextItems.push(`${data.totalMeetings} meeting${data.totalMeetings !== 1 ? 's' : ''}`);
+  }
+  contextItems.push(`Source: ${c.source === 'hubspot' ? 'HubSpot' : 'Sixty'}`);
+  blocks.push(context(contextItems));
+
+  return {
+    blocks,
+    text: `Contact: ${c.full_name || 'Unknown'} - ${c.company || 'No company'}`,
+  };
+};
+
+/**
+ * Deal Snapshot Data for /sixty deal
+ */
+export interface DealSnapshotData {
+  deal: {
+    id: string;
+    name: string;
+    company: string | null;
+    value: number;
+    stage: string;
+    stageName?: string;
+    expectedCloseDate: string | null;
+    probability?: number;
+    source: 'sixty' | 'hubspot';
+  };
+  primaryContact?: {
+    name: string;
+    email?: string;
+    title?: string;
+  };
+  daysInStage?: number;
+  nextSteps?: string;
+  recentActivity?: Array<{
+    date: string;
+    type: string;
+    summary?: string;
+  }>;
+  risks?: string[];
+  currencyCode?: string;
+  currencyLocale?: string;
+  appUrl: string;
+}
+
+/**
+ * Build Deal Snapshot for /sixty deal command
+ */
+export const buildDealSnapshotMessage = (data: DealSnapshotData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const d = data.deal;
+  const dealValue = formatCurrency(d.value, data.currencyCode, data.currencyLocale);
+  const sourceBadge = d.source === 'hubspot' ? ' 🔄' : '';
+
+  // Header
+  const headerText = d.company
+    ? `💼 ${truncate(d.name, 50)} - ${truncate(d.company, 40)}`
+    : `💼 ${truncate(d.name, 100)}`;
+  blocks.push(header(headerText));
+
+  // Key metrics as fields
+  const fields: Array<{ label: string; value: string }> = [];
+  fields.push({ label: '💰 Value', value: dealValue });
+  fields.push({ label: '📊 Stage', value: d.stageName || d.stage });
+
+  if (d.expectedCloseDate) {
+    const closeDate = new Date(d.expectedCloseDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    fields.push({ label: '📅 Expected Close', value: closeDate });
+  }
+
+  if (d.probability !== undefined) {
+    fields.push({ label: '🎯 Probability', value: `${d.probability}%` });
+  }
+
+  blocks.push(sectionWithFields(fields));
+
+  // Primary contact
+  if (data.primaryContact) {
+    const titlePart = data.primaryContact.title ? ` (${data.primaryContact.title})` : '';
+    blocks.push(section(`👤 *Primary:* ${truncate(data.primaryContact.name, 50)}${titlePart}`));
+  }
+
+  // Days in stage
+  if (data.daysInStage !== undefined) {
+    const emoji = data.daysInStage > 14 ? '⚠️' : '📈';
+    blocks.push(section(`${emoji} *Days in Stage:* ${data.daysInStage}`));
+  }
+
+  blocks.push(divider());
+
+  // Recent activity
+  if (data.recentActivity && data.recentActivity.length > 0) {
+    const activityLines = data.recentActivity.slice(0, 3).map(a => {
+      const date = new Date(a.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const summary = a.summary ? ` - ${truncate(a.summary, 40)}` : '';
+      return `• ${date} - ${a.type}${summary}`;
+    });
+    blocks.push(section(`*📋 Recent Activity:*\n${activityLines.join('\n')}`));
+  }
+
+  // Risks
+  if (data.risks && data.risks.length > 0) {
+    const riskLines = data.risks.slice(0, 2).map(r => `• ${truncate(r, 80)}`);
+    blocks.push(section(`*⚠️ Risks:*\n${riskLines.join('\n')}`));
+  }
+
+  blocks.push(divider());
+
+  // Action buttons
+  blocks.push(actions([
+    {
+      text: '📊 Update Stage',
+      actionId: 'update_deal_stage',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name }),
+      style: 'primary',
+    },
+    {
+      text: '📝 Log Activity',
+      actionId: 'log_deal_activity',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name }),
+    },
+    {
+      text: '➕ Create Task',
+      actionId: 'create_task_for_deal',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name }),
+    },
+  ]));
+
+  // More actions row
+  blocks.push(actions([
+    {
+      text: '✉️ Draft Check-in',
+      actionId: 'draft_checkin_deal',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name, contactEmail: data.primaryContact?.email }),
+    },
+    {
+      text: '💼 View in App',
+      actionId: 'view_deal',
+      value: d.id,
+      url: `${data.appUrl}/deals/${d.id}`,
+    },
+  ]));
+
+  // Source context
+  blocks.push(context([`Source: ${d.source === 'hubspot' ? 'HubSpot' : 'Sixty'}`]));
+
+  return {
+    blocks,
+    text: `Deal: ${d.name} - ${dealValue} (${d.stageName || d.stage})`,
+  };
+};
+
+/**
+ * Day at a Glance Data for /sixty today
+ */
+export interface DayAtGlanceData {
+  userName: string;
+  slackUserId?: string;
+  date: string;
+  currencyCode?: string;
+  currencyLocale?: string;
+  meetings: Array<{
+    time: string;
+    title: string;
+    companyName?: string;
+    dealValue?: number;
+    meetingId?: string;
+  }>;
+  tasks: {
+    overdue: Array<{ title: string; daysOverdue: number; dealName?: string }>;
+    dueToday: Array<{ title: string; dealName?: string }>;
+  };
+  dealsClosingThisWeek: Array<{
+    id: string;
+    name: string;
+    value: number;
+    stage: string;
+    daysUntilClose?: number;
+  }>;
+  emailsToRespond: number;
+  ghostRiskContacts?: number;
+  appUrl: string;
+}
+
+/**
+ * Build Day at a Glance for /sixty today command
+ */
+export const buildDayAtGlanceMessage = (data: DayAtGlanceData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const userMention = data.slackUserId ? `<@${data.slackUserId}>` : data.userName;
+
+  // Header
+  blocks.push(header(`📅 Today at a Glance`));
+  blocks.push(context([`${data.date} • ${userMention}`]));
+
+  blocks.push(divider());
+
+  // Meetings section
+  if (data.meetings.length > 0) {
+    const meetingLines = data.meetings.slice(0, 5).map(m => {
+      const company = m.companyName ? ` (${truncate(m.companyName, 20)})` : '';
+      const deal = m.dealValue ? ` - ${formatCurrency(m.dealValue, data.currencyCode, data.currencyLocale)}` : '';
+      return `• *${m.time}* - ${truncate(m.title, 40)}${company}${deal}`;
+    });
+    blocks.push(section(`*🗓️ ${data.meetings.length} Meeting${data.meetings.length !== 1 ? 's' : ''}*\n${meetingLines.join('\n')}`));
+  } else {
+    blocks.push(section(`*🗓️ No meetings today* - Focus time! 🎯`));
+  }
+
+  // Tasks section
+  const totalTasks = data.tasks.overdue.length + data.tasks.dueToday.length;
+  if (totalTasks > 0) {
+    const taskLines: string[] = [];
+
+    data.tasks.overdue.slice(0, 2).forEach(t => {
+      taskLines.push(`🔴 ${truncate(t.title, 50)} _(${t.daysOverdue}d overdue)_`);
+    });
+
+    data.tasks.dueToday.slice(0, 3).forEach(t => {
+      taskLines.push(`• ${truncate(t.title, 60)}`);
+    });
+
+    blocks.push(section(`*✅ ${totalTasks} Task${totalTasks !== 1 ? 's' : ''} Due*\n${taskLines.join('\n')}`));
+
+    if (data.tasks.overdue.length > 2 || data.tasks.dueToday.length > 3) {
+      const moreCount = Math.max(0, data.tasks.overdue.length - 2) + Math.max(0, data.tasks.dueToday.length - 3);
+      blocks.push(context([`+ ${moreCount} more tasks`]));
+    }
+  }
+
+  // Deals closing this week
+  if (data.dealsClosingThisWeek.length > 0) {
+    const dealLines = data.dealsClosingThisWeek.slice(0, 3).map(d => {
+      const closeInfo = d.daysUntilClose !== undefined && d.daysUntilClose >= 0
+        ? ` _(${d.daysUntilClose === 0 ? 'today' : `${d.daysUntilClose}d`})_`
+        : '';
+      return `• ${truncate(d.name, 35)} - ${formatCurrency(d.value, data.currencyCode, data.currencyLocale)} - ${d.stage}${closeInfo}`;
+    });
+    blocks.push(section(`*💰 ${data.dealsClosingThisWeek.length} Deal${data.dealsClosingThisWeek.length !== 1 ? 's' : ''} Closing This Week*\n${dealLines.join('\n')}`));
+  }
+
+  // Email and engagement alerts
+  const alerts: string[] = [];
+  if (data.emailsToRespond > 0) {
+    alerts.push(`📧 ${data.emailsToRespond} email${data.emailsToRespond !== 1 ? 's' : ''} need response`);
+  }
+  if (data.ghostRiskContacts && data.ghostRiskContacts > 0) {
+    alerts.push(`👻 ${data.ghostRiskContacts} contact${data.ghostRiskContacts !== 1 ? 's' : ''} going cold`);
+  }
+
+  if (alerts.length > 0) {
+    blocks.push(section(alerts.join('\n')));
+  }
+
+  blocks.push(divider());
+
+  // Action buttons
+  blocks.push(actions([
+    {
+      text: '📊 View Dashboard',
+      actionId: 'view_dashboard',
+      value: 'dashboard',
+      url: `${data.appUrl}/dashboard`,
+      style: 'primary',
+    },
+    {
+      text: '📋 All Tasks',
+      actionId: 'view_tasks',
+      value: 'tasks',
+      url: `${data.appUrl}/tasks`,
+    },
+    {
+      text: '🔄 Refresh',
+      actionId: 'refresh_today',
+      value: 'refresh',
+    },
+  ]));
+
+  return {
+    blocks,
+    text: `Today at a Glance: ${data.meetings.length} meetings, ${totalTasks} tasks`,
+  };
+};
+
+/**
+ * Follow-up Draft Data for /sixty follow-up HITL
+ */
+export interface FollowUpDraftData {
+  approvalId: string;
+  recipient: {
+    name: string;
+    email: string;
+    company?: string;
+  };
+  subject: string;
+  body: string;
+  context?: {
+    dealName?: string;
+    dealId?: string;
+    lastMeetingDate?: string;
+    lastMeetingTitle?: string;
+  };
+  confidence: number;
+  appUrl: string;
+}
+
+/**
+ * Build Follow-up Draft HITL for /sixty follow-up command
+ */
+export const buildFollowUpDraftMessage = (data: FollowUpDraftData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+
+  // Header
+  blocks.push(header(`✉️ Follow-up Draft`));
+
+  // Context
+  const contextParts: string[] = [];
+  if (data.recipient.company) {
+    contextParts.push(`👤 ${data.recipient.name} @ ${data.recipient.company}`);
+  } else {
+    contextParts.push(`👤 ${data.recipient.name}`);
+  }
+  if (data.context?.dealName) {
+    contextParts.push(`💼 ${truncate(data.context.dealName, 30)}`);
+  }
+  contextParts.push(`🎯 ${data.confidence}% confidence`);
+  blocks.push(context(contextParts));
+
+  blocks.push(divider());
+
+  // Email preview
+  blocks.push(section(`*To:* ${data.recipient.email}`));
+  blocks.push(section(`*Subject:* ${truncate(data.subject, 150)}`));
+  blocks.push(section(`*Message:*\n${truncate(data.body, 800)}`));
+
+  // Meeting context
+  if (data.context?.lastMeetingDate) {
+    const meetingDate = new Date(data.context.lastMeetingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    blocks.push(context([`📅 Last meeting: ${meetingDate}${data.context.lastMeetingTitle ? ` - ${truncate(data.context.lastMeetingTitle, 40)}` : ''}`]));
+  }
+
+  blocks.push(divider());
+
+  // HITL action buttons
+  const callbackValue = JSON.stringify({
+    approvalId: data.approvalId,
+    recipientEmail: data.recipient.email,
+    subject: data.subject,
+    body: data.body,
+    dealId: data.context?.dealId,
+  });
+
+  blocks.push({
+    type: 'actions',
+    block_id: `followup_actions::${data.approvalId}`,
+    elements: [
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: safeButtonText('✅ Approve & Send'), emoji: true },
+        style: 'primary',
+        action_id: `approve::follow_up::${data.approvalId}`,
+        value: safeButtonValue(callbackValue),
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: safeButtonText('✏️ Edit'), emoji: true },
+        action_id: `edit::follow_up::${data.approvalId}`,
+        value: safeButtonValue(callbackValue),
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: safeButtonText('❌ Reject'), emoji: true },
+        style: 'danger',
+        action_id: `reject::follow_up::${data.approvalId}`,
+        value: safeButtonValue(callbackValue),
+      },
+    ],
+  });
+
+  return {
+    blocks,
+    text: `Follow-up draft for ${data.recipient.name}: ${truncate(data.subject, 60)}`,
+  };
+};
+
+/**
+ * Search Results Picker for disambiguation
+ */
+export interface SearchResultsPickerData {
+  query: string;
+  entityType: 'contact' | 'deal';
+  results: Array<{
+    id: string;
+    displayName: string;
+    subtitle?: string;
+    source: 'sixty' | 'hubspot';
+  }>;
+  showCrmButton: boolean;
+  crmAvailable: boolean;
+}
+
+/**
+ * Build Search Results Picker for ambiguous queries
+ */
+export const buildSearchResultsPickerMessage = (data: SearchResultsPickerData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const emoji = data.entityType === 'contact' ? '👤' : '💼';
+  const label = data.entityType === 'contact' ? 'Contacts' : 'Deals';
+
+  blocks.push(header(`${emoji} ${label} matching "${truncate(data.query, 30)}"`));
+
+  if (data.results.length === 0) {
+    blocks.push(section(`No ${label.toLowerCase()} found matching your query.`));
+
+    if (data.crmAvailable && data.showCrmButton) {
+      blocks.push(actions([
+        {
+          text: '🔍 Search CRM',
+          actionId: `search_crm_${data.entityType}`,
+          value: JSON.stringify({ query: data.query, entityType: data.entityType }),
+          style: 'primary',
+        },
+      ]));
+    }
+  } else {
+    // Show results as buttons
+    const resultButtons = data.results.slice(0, 5).map((r, i) => {
+      const sourceBadge = r.source === 'hubspot' ? ' 🔄' : '';
+      return {
+        text: `${truncate(r.displayName, 35)}${sourceBadge}`,
+        actionId: `select_${data.entityType}_${i}`,
+        value: JSON.stringify({ id: r.id, source: r.source }),
+      };
+    });
+
+    blocks.push(actions(resultButtons));
+
+    // Show subtitles as context
+    const contextItems = data.results.slice(0, 5)
+      .filter(r => r.subtitle)
+      .map(r => `${truncate(r.displayName, 20)}: ${truncate(r.subtitle || '', 30)}`);
+
+    if (contextItems.length > 0) {
+      blocks.push(context(contextItems));
+    }
+
+    // CRM search fallback
+    if (data.crmAvailable && data.showCrmButton && data.results.every(r => r.source === 'sixty')) {
+      blocks.push(divider());
+      blocks.push(actions([
+        {
+          text: '🔍 Search CRM for more',
+          actionId: `search_crm_${data.entityType}`,
+          value: JSON.stringify({ query: data.query, entityType: data.entityType }),
+        },
+      ]));
+    }
+  }
+
+  return {
+    blocks,
+    text: `Found ${data.results.length} ${label.toLowerCase()} matching "${data.query}"`,
+  };
+};
+
+// =============================================================================
+// DEAL MOMENTUM CARD
+// =============================================================================
+
+/**
+ * Deal Truth Field for momentum card
+ */
+export interface DealMomentumTruthField {
+  fieldKey: string;
+  label: string;
+  value: string | null;
+  confidence: number; // 0-1
+  contactName?: string;
+  championStrength?: 'strong' | 'moderate' | 'weak' | 'unknown';
+  nextStepDate?: string;
+  isWarning?: boolean; // Low confidence or missing
+}
+
+/**
+ * Close Plan Milestone for momentum card
+ */
+export interface DealMomentumMilestone {
+  milestoneKey: string;
+  title: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'blocked' | 'skipped';
+  ownerName?: string;
+  dueDate?: string;
+  isOverdue?: boolean;
+  blockerNote?: string;
+}
+
+/**
+ * Deal Momentum Card Data
+ */
+export interface DealMomentumData {
+  deal: {
+    id: string;
+    name: string;
+    company: string | null;
+    value: number;
+    stage: string;
+    stageName?: string;
+  };
+  scores: {
+    momentum: number;      // 0-100 overall momentum
+    clarity: number;       // 0-100 clarity score
+    health?: number;       // 0-100 health score
+    risk?: number;         // 0-100 risk score (higher = more risky)
+  };
+  truthFields: DealMomentumTruthField[];
+  closePlan: {
+    completed: number;
+    total: number;
+    overdue: number;
+    blocked: number;
+    milestones: DealMomentumMilestone[];
+  };
+  recommendedActions: string[];
+  currencyCode?: string;
+  currencyLocale?: string;
+  appUrl: string;
+}
+
+/**
+ * Get momentum score indicator
+ */
+const getMomentumIndicator = (score: number): { emoji: string; label: string; color: string } => {
+  if (score >= 80) return { emoji: '🟢', label: 'Strong', color: 'good' };
+  if (score >= 60) return { emoji: '🟡', label: 'Fair', color: 'warning' };
+  if (score >= 40) return { emoji: '🟠', label: 'Needs Attention', color: 'warning' };
+  return { emoji: '🔴', label: 'At Risk', color: 'danger' };
+};
+
+/**
+ * Get confidence indicator
+ */
+const getConfidenceIndicator = (confidence: number): string => {
+  if (confidence >= 0.8) return '';       // High confidence, no indicator needed
+  if (confidence >= 0.6) return '❓';      // Medium confidence
+  return '⚠️';                             // Low confidence - needs attention
+};
+
+/**
+ * Format truth field value for display
+ */
+const formatTruthFieldValue = (field: DealMomentumTruthField): string => {
+  const indicator = getConfidenceIndicator(field.confidence);
+  const warning = field.isWarning ? ' ⚠️' : '';
+
+  if (!field.value) {
+    return `_Not defined_${warning}`;
+  }
+
+  // Special formatting for champion with strength
+  if (field.fieldKey === 'champion' && field.contactName) {
+    const strengthLabel = field.championStrength
+      ? ` (${field.championStrength})`
+      : '';
+    return `${field.contactName}${strengthLabel}${indicator}`;
+  }
+
+  // Special formatting for next step with date
+  if (field.fieldKey === 'next_step') {
+    if (field.nextStepDate) {
+      const date = new Date(field.nextStepDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return `"${truncate(field.value, 35)}" - ${date}${indicator}`;
+    }
+    return `"${truncate(field.value, 40)}" - _No date set_${warning}`;
+  }
+
+  // Special formatting for economic buyer
+  if (field.fieldKey === 'economic_buyer' && field.contactName) {
+    return `${field.contactName}${indicator}`;
+  }
+
+  // Default formatting
+  return `"${truncate(field.value, 50)}"${indicator}`;
+};
+
+/**
+ * Get milestone status icon
+ */
+const getMilestoneIcon = (milestone: DealMomentumMilestone): string => {
+  switch (milestone.status) {
+    case 'completed': return '✅';
+    case 'in_progress': return '🔄';
+    case 'blocked': return '🚫';
+    case 'skipped': return '⏭️';
+    default: return milestone.isOverdue ? '⚠️' : '⬜';
+  }
+};
+
+/**
+ * Build progress bar for close plan
+ */
+const buildProgressBar = (completed: number, total: number, width: number = 10): string => {
+  const pct = total > 0 ? completed / total : 0;
+  const filled = Math.round(pct * width);
+  const empty = width - filled;
+  return '█'.repeat(filled) + '░'.repeat(empty);
+};
+
+/**
+ * Build Deal Momentum Card for /sixty deal command and proactive notifications
+ */
+export const buildDealMomentumMessage = (data: DealMomentumData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+  const d = data.deal;
+  const dealValue = formatCurrency(d.value, data.currencyCode, data.currencyLocale);
+
+  // Header with deal info
+  const headerText = d.company
+    ? `${truncate(d.name, 40)} - ${truncate(d.company, 30)}`
+    : truncate(d.name, 75);
+  blocks.push(header(`💼 ${headerText}`));
+
+  // Momentum + Key metrics
+  const momentum = getMomentumIndicator(data.scores.momentum);
+  const metricsLine = [
+    `*${momentum.emoji} Momentum:* ${data.scores.momentum}%`,
+    `*💰 Value:* ${dealValue}`,
+    `*📊 Stage:* ${d.stageName || d.stage}`,
+  ].join('  •  ');
+  blocks.push(section(metricsLine));
+
+  blocks.push(divider());
+
+  // Deal Truth Section
+  const clarityPct = data.scores.clarity;
+  const clarityEmoji = clarityPct >= 70 ? '🟢' : clarityPct >= 40 ? '🟡' : '🔴';
+  blocks.push(section(`*${clarityEmoji} Deal Truth* (Clarity: ${clarityPct}%)`));
+
+  // Display truth fields with indicators
+  const truthFieldLines: string[] = [];
+  for (const field of data.truthFields) {
+    const value = formatTruthFieldValue(field);
+    truthFieldLines.push(`• *${field.label}:* ${value}`);
+  }
+  if (truthFieldLines.length > 0) {
+    blocks.push(section(truthFieldLines.join('\n')));
+  }
+
+  blocks.push(divider());
+
+  // Close Plan Section
+  const cp = data.closePlan;
+  const progressBar = buildProgressBar(cp.completed, cp.total);
+  const overdueText = cp.overdue > 0 ? ` ⚠️ ${cp.overdue} overdue` : '';
+  const blockedText = cp.blocked > 0 ? ` 🚫 ${cp.blocked} blocked` : '';
+  blocks.push(section(`*📋 Close Plan* (${cp.completed}/${cp.total}) ${progressBar}${overdueText}${blockedText}`));
+
+  // Display milestones
+  const milestoneLines: string[] = [];
+  for (const m of cp.milestones) {
+    const icon = getMilestoneIcon(m);
+    let line = `${icon} ${m.title}`;
+
+    // Add due date and owner for non-completed milestones
+    if (m.status !== 'completed' && m.status !== 'skipped') {
+      const parts: string[] = [];
+      if (m.dueDate) {
+        const date = new Date(m.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        parts.push(`Due: ${date}`);
+      }
+      if (m.ownerName) {
+        parts.push(`@${m.ownerName}`);
+      }
+      if (parts.length > 0) {
+        line += ` - ${parts.join(' ')}`;
+      }
+      if (m.status === 'blocked' && m.blockerNote) {
+        line += `\n    _Blocked: ${truncate(m.blockerNote, 50)}_`;
+      }
+    }
+    milestoneLines.push(line);
+  }
+  if (milestoneLines.length > 0) {
+    blocks.push(section(milestoneLines.join('\n')));
+  }
+
+  // Recommended Actions Section (if any)
+  if (data.recommendedActions.length > 0) {
+    blocks.push(divider());
+    blocks.push(section(`*💡 Recommended Actions:*`));
+    const actionLines = data.recommendedActions.slice(0, 3).map(a => `• ${truncate(a, 80)}`);
+    blocks.push(section(actionLines.join('\n')));
+  }
+
+  blocks.push(divider());
+
+  // Action buttons - Row 1: Primary actions
+  blocks.push(actions([
+    {
+      text: '📅 Set Next Step',
+      actionId: 'set_deal_next_step',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name }),
+      style: 'primary',
+    },
+    {
+      text: '✅ Mark Milestone',
+      actionId: 'complete_deal_milestone',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name }),
+    },
+    {
+      text: '📝 Log Activity',
+      actionId: 'log_deal_activity',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name }),
+    },
+  ]));
+
+  // Action buttons - Row 2: Secondary actions
+  blocks.push(actions([
+    {
+      text: '➕ Create Task',
+      actionId: 'create_task_for_deal',
+      value: JSON.stringify({ dealId: d.id, dealName: d.name }),
+    },
+    {
+      text: '💼 View in App',
+      actionId: 'view_deal',
+      value: d.id,
+      url: `${data.appUrl}/deals/${d.id}`,
+    },
+  ]));
+
+  // Score context
+  const scoreContext: string[] = [];
+  if (data.scores.health !== undefined) {
+    scoreContext.push(`Health: ${data.scores.health}%`);
+  }
+  if (data.scores.risk !== undefined) {
+    const riskLevel = data.scores.risk >= 70 ? 'High' : data.scores.risk >= 40 ? 'Medium' : 'Low';
+    scoreContext.push(`Risk: ${riskLevel}`);
+  }
+  scoreContext.push(`Clarity: ${data.scores.clarity}%`);
+  blocks.push(context(scoreContext));
+
+  return {
+    blocks,
+    text: `Deal Momentum: ${d.name} - ${momentum.label} (${data.scores.momentum}%)`,
+  };
+};
+
+/**
+ * Build Clarification Question Card for Slack DM
+ * Used when we need user to confirm low-confidence fields
+ */
+export interface ClarificationQuestionData {
+  dealId: string;
+  dealName: string;
+  companyName?: string;
+  fieldKey: string;
+  fieldLabel: string;
+  question: string;
+  currentValue?: string;
+  suggestedOptions?: Array<{
+    id: string;
+    label: string;
+  }>;
+  appUrl: string;
+}
+
+export const buildClarificationQuestionMessage = (data: ClarificationQuestionData): SlackMessage => {
+  const blocks: SlackBlock[] = [];
+
+  // Header with deal context
+  const dealLabel = data.companyName
+    ? `${data.dealName} (${data.companyName})`
+    : data.dealName;
+  blocks.push(section(`❓ *Quick question about ${truncate(dealLabel, 50)}*`));
+
+  // The question
+  blocks.push(section(data.question));
+
+  // Show current value if we have one
+  if (data.currentValue) {
+    blocks.push(context([`Current value: "${truncate(data.currentValue, 50)}"`]));
+  }
+
+  // Build action buttons
+  const actionButtons: Array<{
+    text: string;
+    actionId: string;
+    value: string;
+    style?: 'primary' | 'danger';
+  }> = [];
+
+  // If we have suggested options, show them as buttons
+  if (data.suggestedOptions && data.suggestedOptions.length > 0) {
+    for (const option of data.suggestedOptions.slice(0, 3)) {
+      actionButtons.push({
+        text: truncate(option.label, 30),
+        actionId: `confirm_truth_field_${data.fieldKey}`,
+        value: JSON.stringify({
+          dealId: data.dealId,
+          fieldKey: data.fieldKey,
+          confirmedValue: option.id,
+          confirmedLabel: option.label,
+        }),
+        style: 'primary',
+      });
+    }
+  } else {
+    // Simple Yes/No/Unknown for confirmation
+    actionButtons.push({
+      text: '✅ Yes',
+      actionId: `confirm_truth_field_${data.fieldKey}`,
+      value: JSON.stringify({
+        dealId: data.dealId,
+        fieldKey: data.fieldKey,
+        confirmation: 'yes',
+        currentValue: data.currentValue,
+      }),
+      style: 'primary',
+    });
+    actionButtons.push({
+      text: '❌ No',
+      actionId: `confirm_truth_field_${data.fieldKey}`,
+      value: JSON.stringify({
+        dealId: data.dealId,
+        fieldKey: data.fieldKey,
+        confirmation: 'no',
+        currentValue: data.currentValue,
+      }),
+    });
+  }
+
+  // Always add "Unknown" option
+  actionButtons.push({
+    text: '❓ Unknown',
+    actionId: `confirm_truth_field_${data.fieldKey}`,
+    value: JSON.stringify({
+      dealId: data.dealId,
+      fieldKey: data.fieldKey,
+      confirmation: 'unknown',
+    }),
+  });
+
+  blocks.push(actions(actionButtons));
+
+  // Link to deal
+  blocks.push(context([`<${data.appUrl}/deals/${data.dealId}|View deal in Sixty>`]));
+
+  return {
+    blocks,
+    text: `Question about ${data.dealName}: ${data.question}`,
   };
 };

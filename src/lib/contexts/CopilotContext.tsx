@@ -1,6 +1,10 @@
 /**
  * Copilot Context Provider
  * Manages global state for AI Copilot feature
+ *
+ * Supports two modes:
+ * 1. Regular mode: Direct question/answer with the copilot API
+ * 2. Agent mode: Autonomous agent that understands, plans, executes, and reports
  */
 
 import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
@@ -16,13 +20,45 @@ import type {
   ToolType,
   ToolState
 } from '@/components/copilot/toolTypes';
+import type {
+  ExecutionPlan,
+  ExecutionReport,
+  QuestionOption,
+} from '@/lib/copilot/agent/types';
 import { supabase } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
 import { getTemporalContext } from '@/lib/utils/temporalContext';
 import { useOrg } from '@/lib/contexts/OrgContext';
 import { toast } from 'sonner';
+import { useAutonomousAgent } from '@/lib/copilot/agent/useAutonomousAgent';
+
+// =============================================================================
+// Agent Mode Types
+// =============================================================================
+
+interface AgentQuestion {
+  messageId: string;
+  question: string;
+  options?: QuestionOption[];
+}
+
+interface AgentModeState {
+  /** Whether agent mode is enabled */
+  enabled: boolean;
+  /** Current question awaiting response */
+  currentQuestion: AgentQuestion | null;
+  /** Current execution plan */
+  currentPlan: ExecutionPlan | null;
+  /** Final report from agent */
+  report: ExecutionReport | null;
+}
+
+// =============================================================================
+// Context Value Interface
+// =============================================================================
 
 interface CopilotContextValue {
+  // Core state
   isOpen: boolean;
   openCopilot: (initialQuery?: string, startNewChat?: boolean) => void;
   closeCopilot: () => void;
@@ -35,6 +71,12 @@ interface CopilotContextValue {
   startNewChat: () => void;
   conversationId?: string;
   loadConversation: (conversationId: string) => Promise<void>;
+
+  // Agent mode
+  agentMode: AgentModeState;
+  enableAgentMode: () => void;
+  disableAgentMode: () => void;
+  respondToAgentQuestion: (response: string | string[]) => Promise<void>;
 }
 
 const CopilotContext = createContext<CopilotContextValue | undefined>(undefined);
@@ -67,6 +109,33 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
   });
   const [pendingQuery, setPendingQuery] = useState<{ query: string; startNewChat: boolean } | null>(null);
 
+  // =============================================================================
+  // Agent Mode State
+  // =============================================================================
+
+  const [agentModeEnabled, setAgentModeEnabled] = useState(false);
+
+  // Initialize autonomous agent
+  const agent = useAutonomousAgent({
+    organizationId: activeOrgId || '',
+    userId: context.userId || '',
+    onComplete: (report) => {
+      logger.log('[CopilotContext] Agent completed:', report.summary);
+    },
+    onError: (error) => {
+      logger.error('[CopilotContext] Agent error:', error);
+      toast.error('Agent encountered an error: ' + error);
+    },
+  });
+
+  // Derived agent mode state
+  const agentMode: AgentModeState = {
+    enabled: agentModeEnabled,
+    currentQuestion: agent.currentQuestion,
+    currentPlan: agent.currentPlan,
+    report: agent.report,
+  };
+
   // Abort controller for cancelling requests
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -87,11 +156,38 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
   }, []);
 
   // Keep orgId in Copilot context (org-scoped assistant)
+  // Clear org-scoped context (contactId, dealIds) when org changes to avoid stale references
+  const prevOrgIdRef = React.useRef<string | null>(null);
   React.useEffect(() => {
-    setContextState(prev => ({
-      ...prev,
-      orgId: activeOrgId || undefined
-    }));
+    const isOrgChange = prevOrgIdRef.current !== null && prevOrgIdRef.current !== activeOrgId;
+    prevOrgIdRef.current = activeOrgId;
+
+    setContextState(prev => {
+      // If org changed, clear org-scoped context to avoid stale references
+      if (isOrgChange) {
+        return {
+          ...prev,
+          orgId: activeOrgId || undefined,
+          contactId: undefined,  // Clear stale contact reference
+          dealIds: undefined,    // Clear stale deal references
+        };
+      }
+      // Normal update - just set the orgId
+      return {
+        ...prev,
+        orgId: activeOrgId || undefined,
+      };
+    });
+
+    // If org changed, also clear conversation to avoid confusion
+    if (isOrgChange) {
+      setState(prev => ({
+        ...prev,
+        messages: [],
+        conversationId: undefined,
+        mode: 'empty',
+      }));
+    }
   }, [activeOrgId]);
 
   const startNewChat = useCallback(() => {
@@ -108,7 +204,44 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
       mode: 'empty',
       isLoading: false
     }));
-  }, []);
+
+    // Reset agent state if in agent mode
+    if (agentModeEnabled) {
+      agent.reset();
+    }
+  }, [agentModeEnabled, agent]);
+
+  // =============================================================================
+  // Agent Mode Controls
+  // =============================================================================
+
+  const enableAgentMode = useCallback(() => {
+    logger.log('[CopilotContext] Enabling agent mode');
+    setAgentModeEnabled(true);
+    // Reset both regular and agent state for clean start
+    setState(prev => ({
+      ...prev,
+      messages: [],
+      conversationId: undefined,
+      mode: 'empty',
+      isLoading: false
+    }));
+    agent.reset();
+  }, [agent]);
+
+  const disableAgentMode = useCallback(() => {
+    logger.log('[CopilotContext] Disabling agent mode');
+    setAgentModeEnabled(false);
+    agent.reset();
+  }, [agent]);
+
+  const respondToAgentQuestion = useCallback(async (response: string | string[]) => {
+    if (!agentModeEnabled) {
+      logger.warn('[CopilotContext] respondToAgentQuestion called but agent mode is disabled');
+      return;
+    }
+    await agent.respondToQuestion(response);
+  }, [agentModeEnabled, agent]);
 
   // Cancel the current request
   const cancelRequest = useCallback(() => {
@@ -367,6 +500,19 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     async (message: string) => {
       if (!message.trim() || state.isLoading) return;
 
+      // =============================================================================
+      // Agent Mode Routing
+      // =============================================================================
+      if (agentModeEnabled) {
+        logger.log('[CopilotContext] Routing to agent mode');
+        await agent.sendMessage(message);
+        return;
+      }
+
+      // =============================================================================
+      // Regular Copilot Mode
+      // =============================================================================
+
       // Create new abort controller for this request
       abortControllerRef.current = new AbortController();
       const abortSignal = abortControllerRef.current.signal;
@@ -409,52 +555,29 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
       }));
 
       try {
-        // Simulate tool call progress if tool call exists
+        // Show tool call as processing (honest state - no fake step simulation)
         if (toolCall) {
-          // Update tool call steps progressively
-          for (let i = 0; i < toolCall.steps.length; i++) {
-            // Check if request was cancelled
-            if (abortSignal.aborted) {
-              logger.log('Request cancelled during animation');
-              return;
-            }
-            // Quick animation - each step takes 300-500ms for snappy UX
-            await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 200));
-            
-            setState(prev => {
-              const updatedMessages = prev.messages.map(msg => {
-                if (msg.id === assistantMessageId && msg.toolCall) {
-                  const updatedToolCall: ToolCall = {
-                    ...msg.toolCall,
-                    state: (i === 0 ? 'fetching' : i === toolCall.steps.length - 1 ? 'completing' : 'processing') as ToolState,
-                    steps: msg.toolCall.steps.map((step, idx) => ({
-                      ...step,
-                      state: (idx < i ? 'complete' : idx === i ? 'active' : 'pending') as ToolState,
-                      duration: idx < i ? (300 + Math.random() * 200) : undefined,
-                      metadata: idx < i && step.label.includes('Fetching') ? { count: Math.floor(Math.random() * 100) } : undefined
-                    }))
-                  };
-                  
-                  return { ...msg, toolCall: updatedToolCall };
-                }
-                return msg;
-              });
-              
-              return { ...prev, messages: updatedMessages };
-            });
+          // Check if request was cancelled
+          if (abortSignal.aborted) {
+            logger.log('Request cancelled');
+            return;
           }
 
-          // Mark tool call as complete (but keep it visible until response arrives)
+          // Set tool call to processing state immediately (no fake progress steps)
           setState(prev => {
             const updatedMessages = prev.messages.map(msg => {
               if (msg.id === assistantMessageId && msg.toolCall) {
-                return {
-                  ...msg,
-                  toolCall: {
-                    ...msg.toolCall,
-                    state: 'complete' as ToolState
-                  }
+                const updatedToolCall: ToolCall = {
+                  ...msg.toolCall,
+                  state: 'processing' as ToolState,
+                  // Mark first step as active, rest as pending - actual completion comes from response
+                  steps: msg.toolCall.steps.map((step, idx) => ({
+                    ...step,
+                    state: (idx === 0 ? 'active' : 'pending') as ToolState,
+                  }))
                 };
+
+                return { ...msg, toolCall: updatedToolCall };
               }
               return msg;
             });
@@ -542,11 +665,47 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         const rawMessage =
           error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error';
 
-        const isLikelyCorsOrNetwork =
-          /cors|failed to fetch|networkerror|preflight|access control/i.test(rawMessage);
+        // Categorize errors for better user feedback
+        const errorCategories = {
+          cors: /cors|failed to fetch|networkerror|preflight|access control/i,
+          timeout: /timeout|timed out|deadline|504|408/i,
+          rateLimit: /rate limit|too many requests|429|throttl/i,
+          auth: /unauthorized|401|403|forbidden|auth|token/i,
+          serverError: /500|502|503|internal server|bad gateway|service unavailable/i,
+          skillError: /skill not found|skill.*disabled|not enabled/i,
+          confirmationRequired: /confirmation required|needs_confirmation/i,
+        };
+
+        const getErrorMessage = (): string => {
+          if (import.meta.env.DEV && errorCategories.cors.test(rawMessage)) {
+            return 'Copilot is currently unreachable from the browser (CORS / Edge Function preflight). A deploy/config fix is required.';
+          }
+          if (errorCategories.cors.test(rawMessage)) {
+            return 'Unable to connect to Copilot. Please check your internet connection and try again.';
+          }
+          if (errorCategories.timeout.test(rawMessage)) {
+            return 'The request took too long to complete. Please try a simpler question or try again in a moment.';
+          }
+          if (errorCategories.rateLimit.test(rawMessage)) {
+            return 'You\'ve made too many requests. Please wait a moment before trying again.';
+          }
+          if (errorCategories.auth.test(rawMessage)) {
+            return 'Your session may have expired. Please refresh the page and try again.';
+          }
+          if (errorCategories.serverError.test(rawMessage)) {
+            return 'Copilot is temporarily unavailable. Please try again in a few minutes.';
+          }
+          if (errorCategories.skillError.test(rawMessage)) {
+            return 'This capability isn\'t available for your organization. Contact your admin to enable it.';
+          }
+          if (errorCategories.confirmationRequired.test(rawMessage)) {
+            return 'This action requires confirmation. Please confirm and try again.';
+          }
+          return 'Sorry, I encountered an error processing your request. Please try again.';
+        };
 
         // Helpful dev-only toast so we don't silently fail with a generic message during local dev.
-        if (import.meta.env.DEV && isLikelyCorsOrNetwork) {
+        if (import.meta.env.DEV && errorCategories.cors.test(rawMessage)) {
           toast.error(
             'Copilot request blocked (likely CORS / Edge Function preflight). Re-deploy with verify_jwt=false for api-copilot and allow localhost:5175.'
           );
@@ -558,9 +717,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
             if (msg.id === assistantMessageId) {
               return {
                 ...msg,
-                content: import.meta.env.DEV && isLikelyCorsOrNetwork
-                  ? 'Copilot is currently unreachable from the browser (CORS / Edge Function preflight). A deploy/config fix is required.'
-                  : 'Sorry, I encountered an error processing your request. Please try again.',
+                content: getErrorMessage(),
                 toolCall: undefined // Remove tool call to trigger fade out
               };
             }
@@ -575,7 +732,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         });
       }
     },
-    [context, state.conversationId, state.isLoading, detectToolType, createToolCall]
+    [context, state.conversationId, state.isLoading, detectToolType, createToolCall, agentModeEnabled, agent]
   );
 
   // Handle pending queries from openCopilot
@@ -634,19 +791,30 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     }
   }, []);
 
+  // Determine which messages to show based on mode
+  const activeMessages = agentModeEnabled ? agent.messages : state.messages;
+  const activeIsLoading = agentModeEnabled ? agent.isProcessing : state.isLoading;
+
   const value: CopilotContextValue = {
+    // Core state
     isOpen,
     openCopilot,
     closeCopilot,
     sendMessage,
     cancelRequest,
-    messages: state.messages,
-    isLoading: state.isLoading,
+    messages: activeMessages,
+    isLoading: activeIsLoading,
     context,
     setContext,
     startNewChat,
     conversationId: state.conversationId,
-    loadConversation
+    loadConversation,
+
+    // Agent mode
+    agentMode,
+    enableAgentMode,
+    disableAgentMode,
+    respondToAgentQuestion,
   };
 
   return <CopilotContext.Provider value={value}>{children}</CopilotContext.Provider>;
