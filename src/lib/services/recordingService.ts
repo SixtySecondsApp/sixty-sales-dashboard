@@ -297,6 +297,56 @@ class RecordingService {
     return { success: true };
   }
 
+  /**
+   * Get a fresh signed URL for a recording's video file
+   * Use this instead of the stored recording_s3_url which may have expired
+   */
+  async getRecordingUrl(
+    recordingId: string
+  ): Promise<{ success: boolean; url?: string; expires_at?: string; error?: string }> {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      if (!accessToken) {
+        return { success: false, error: 'Not authenticated' };
+      }
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(
+        `${supabaseUrl}/functions/v1/get-recording-url?recording_id=${recordingId}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        logger.error('[RecordingService] getRecordingUrl failed:', result);
+        return {
+          success: false,
+          error: result.error || 'Failed to get recording URL',
+        };
+      }
+
+      return {
+        success: true,
+        url: result.url,
+        expires_at: result.expires_at,
+      };
+    } catch (error) {
+      logger.error('[RecordingService] getRecordingUrl error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
   // ===========================================================================
   // Recording Rules
   // ===========================================================================

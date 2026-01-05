@@ -195,6 +195,8 @@ export const RecordingSettings: React.FC = () => {
   const [entryMessage, setEntryMessage] = useState('')
   const [entryMessageEnabled, setEntryMessageEnabled] = useState(true)
   const [autoRecord, setAutoRecord] = useState(false)
+  const [autoRecordLeadTime, setAutoRecordLeadTime] = useState(2)
+  const [autoRecordExternalOnly, setAutoRecordExternalOnly] = useState(true)
   const [joinAllMeetings, setJoinAllMeetings] = useState(true)
   const [selectedCalendarId, setSelectedCalendarId] = useState('primary')
   const [saving, setSaving] = useState(false)
@@ -217,6 +219,8 @@ export const RecordingSettings: React.FC = () => {
       setEntryMessage(settings.entry_message || '')
       setEntryMessageEnabled(settings.entry_message_enabled ?? true)
       setAutoRecord(settings.auto_record_enabled ?? false)
+      setAutoRecordLeadTime(settings.auto_record_lead_time_minutes ?? 2)
+      setAutoRecordExternalOnly(settings.auto_record_external_only ?? true)
       setJoinAllMeetings(settings.join_all_meetings ?? true)
     }
   }, [settings])
@@ -258,6 +262,8 @@ export const RecordingSettings: React.FC = () => {
         entry_message: entryMessage || undefined,
         entry_message_enabled: entryMessageEnabled,
         auto_record_enabled: autoRecord,
+        auto_record_lead_time_minutes: autoRecordLeadTime,
+        auto_record_external_only: autoRecordExternalOnly,
         join_all_meetings: joinAllMeetings,
       })
       toast.success('Settings saved successfully')
@@ -508,6 +514,52 @@ export const RecordingSettings: React.FC = () => {
                 onCheckedChange={setAutoRecord}
               />
             </div>
+
+            {/* Auto-record advanced settings - only show when enabled */}
+            {autoRecord && (
+              <div className="space-y-4 pl-4 border-l-2 border-emerald-200 dark:border-emerald-800 ml-2">
+                {/* Lead time setting */}
+                <div className="space-y-2">
+                  <Label htmlFor="leadTime" className="text-sm">Join Before Meeting Starts</Label>
+                  <div className="flex items-center gap-3">
+                    <Select
+                      value={autoRecordLeadTime.toString()}
+                      onValueChange={(value) => setAutoRecordLeadTime(parseInt(value))}
+                    >
+                      <SelectTrigger id="leadTime" className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">At start</SelectItem>
+                        <SelectItem value="1">1 minute</SelectItem>
+                        <SelectItem value="2">2 minutes</SelectItem>
+                        <SelectItem value="3">3 minutes</SelectItem>
+                        <SelectItem value="5">5 minutes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">before meeting starts</span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    The bot will join the meeting this many minutes early to ensure it's ready
+                  </p>
+                </div>
+
+                {/* External-only setting */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="externalOnly" className="text-sm">External Meetings Only</Label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Only auto-record meetings with external attendees (outside your company)
+                    </p>
+                  </div>
+                  <Switch
+                    id="externalOnly"
+                    checked={autoRecordExternalOnly}
+                    onCheckedChange={setAutoRecordExternalOnly}
+                  />
+                </div>
+              </div>
+            )}
 
             <Button
               onClick={handleSaveSettings}

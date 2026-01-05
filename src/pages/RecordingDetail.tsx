@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
@@ -6,8 +6,10 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useRecording, useRecordingRealtime } from '@/lib/hooks/useRecordings'
+import { recordingService } from '@/lib/services/recordingService'
 import { format, formatDistanceToNow } from 'date-fns'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 import {
   ArrowLeft,
   Video,
@@ -83,12 +85,43 @@ const RecordingDetailSkeleton: React.FC = () => (
 export const RecordingDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [isDownloading, setIsDownloading] = useState(false)
 
   // Fetch recording data
   const { data: recording, isLoading, error } = useRecording(id || '')
 
   // Subscribe to real-time updates
   useRecordingRealtime(id || '')
+
+  // Handle download - fetches fresh signed URL and triggers download
+  const handleDownload = async () => {
+    if (!id) return
+
+    setIsDownloading(true)
+    try {
+      const result = await recordingService.getRecordingUrl(id)
+
+      if (!result.success || !result.url) {
+        toast.error(result.error || 'Failed to get download URL')
+        return
+      }
+
+      // Create a temporary link and trigger download
+      const link = document.createElement('a')
+      link.href = result.url
+      link.download = `${recording?.meeting_title || 'recording'}.mp4`
+      link.target = '_blank'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      toast.success('Download started')
+    } catch (err) {
+      toast.error('Failed to download recording')
+    } finally {
+      setIsDownloading(false)
+    }
+  }
 
   if (isLoading) {
     return <RecordingDetailSkeleton />
@@ -165,10 +198,20 @@ export const RecordingDetail: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          {recording.recording_s3_url && (
-            <Button variant="outline" size="sm" className="gap-2">
-              <Download className="h-4 w-4" />
-              Download
+          {recording.recording_s3_key && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={handleDownload}
+              disabled={isDownloading}
+            >
+              {isDownloading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              {isDownloading ? 'Downloading...' : 'Download'}
             </Button>
           )}
           <Button variant="outline" size="sm" className="gap-2">

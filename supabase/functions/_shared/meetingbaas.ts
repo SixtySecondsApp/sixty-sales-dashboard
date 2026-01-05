@@ -76,6 +76,9 @@ export interface RecordingSettings {
   default_transcription_provider: 'gladia' | 'meetingbaas';
   recordings_enabled: boolean;
   auto_record_enabled: boolean;
+  // Auto-join scheduler settings
+  auto_record_lead_time_minutes?: number; // Minutes before meeting to join (default: 2)
+  auto_record_external_only?: boolean; // Only record meetings with external attendees (default: true)
   webhook_token?: string;
 }
 
@@ -84,6 +87,7 @@ export interface RecordingSettings {
 // =============================================================================
 
 export const DEFAULT_BOT_NAME = '60 Notetaker';
+// Must match DEFAULT_SIXTY_ICON_URL in src/lib/utils/sixtyBranding.ts
 export const DEFAULT_BOT_IMAGE =
   'https://ygdpgliavpxeugaajgrb.supabase.co/storage/v1/object/public/Logos/ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459/Icon.png';
 export const DEFAULT_ENTRY_MESSAGE =

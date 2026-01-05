@@ -290,6 +290,9 @@ export interface RecordingSettings {
   recordings_enabled: boolean;
   auto_record_enabled: boolean;
   join_all_meetings: boolean; // When true, record ALL meetings. When false, use custom rules.
+  // Auto-join scheduler settings
+  auto_record_lead_time_minutes?: number; // Minutes before meeting to join (default: 2)
+  auto_record_external_only?: boolean; // Only record meetings with external attendees (default: true)
 }
 
 export interface NotificationChannelSettings {
@@ -551,6 +554,8 @@ export const DEFAULT_RECORDING_SETTINGS: RecordingSettings = {
   recordings_enabled: false,
   auto_record_enabled: false,
   join_all_meetings: true, // Default: record all meetings when enabled
+  auto_record_lead_time_minutes: 2, // Join 2 minutes before meeting starts
+  auto_record_external_only: true, // Only record external meetings by default
 };
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {

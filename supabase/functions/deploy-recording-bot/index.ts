@@ -244,28 +244,50 @@ serve(async (req) => {
       });
     }
 
-    // Create Supabase client with user's JWT
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      {
-        global: {
-          headers: { Authorization: authHeader },
-        },
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const isServiceRole = authHeader === `Bearer ${serviceRoleKey}`;
+    const serviceRoleUserId = req.headers.get('x-user-id');
+
+    let supabase: SupabaseClient;
+    let userId: string;
+
+    if (isServiceRole && serviceRoleUserId) {
+      // Service role call (from auto-join scheduler)
+      // Use admin client and get user from header
+      supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        serviceRoleKey,
+        {
+          auth: { persistSession: false, autoRefreshToken: false },
+        }
+      );
+      userId = serviceRoleUserId;
+      console.log(`[DeployBot] Service role call for user: ${userId}`);
+    } else {
+      // Regular user JWT call
+      supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_ANON_KEY')!,
+        {
+          global: {
+            headers: { Authorization: authHeader },
+          },
+        }
+      );
+
+      // Get user info from JWT
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
-    );
-
-    // Get user info from JWT
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      userId = user.id;
     }
 
     // Parse request body
@@ -304,7 +326,7 @@ serve(async (req) => {
     const { data: membership } = await supabase
       .from('organization_memberships')
       .select('org_id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
@@ -363,7 +385,7 @@ serve(async (req) => {
     // Format entry message
     let entryMessage: string | undefined;
     if (entryMessageEnabled) {
-      const userProfile = await getUserProfile(supabase, user.id);
+      const userProfile = await getUserProfile(supabase, userId);
       const orgName = await getOrgName(supabase, orgId);
 
       const messageTemplate = settings?.entry_message || DEFAULT_ENTRY_MESSAGE;
@@ -393,7 +415,7 @@ serve(async (req) => {
     // Create recording record
     const recordingData: RecordingInsert = {
       org_id: orgId,
-      user_id: user.id,
+      user_id: userId,
       meeting_platform: platform,
       meeting_url: body.meeting_url,
       meeting_title: body.meeting_title || null,
