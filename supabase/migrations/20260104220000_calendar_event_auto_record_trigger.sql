@@ -177,9 +177,11 @@ CREATE TRIGGER auto_record_updated_calendar_event
 -- 4. Add index for efficient trigger queries
 -- =============================================================================
 
+-- Note: Can't use NOW() in partial index (not immutable)
+-- Index is still useful for filtering by org and start_time
 CREATE INDEX IF NOT EXISTS idx_calendar_events_upcoming_with_url
   ON calendar_events(org_id, start_time)
-  WHERE meeting_url IS NOT NULL AND start_time > NOW();
+  WHERE meeting_url IS NOT NULL;
 
 -- =============================================================================
 -- 5. Grant permissions

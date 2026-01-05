@@ -67,7 +67,7 @@ CREATE POLICY "Users can read their organization's skill outputs"
   ON skill_output_storage FOR SELECT
   USING (
     organization_id IN (
-      SELECT organization_id FROM organization_members
+      SELECT organization_id FROM organization_memberships
       WHERE user_id = auth.uid()
     )
   );
@@ -125,7 +125,7 @@ CREATE POLICY "Users can read their organization's archived references"
   ON sequence_references_archive FOR SELECT
   USING (
     organization_id IN (
-      SELECT organization_id FROM organization_members
+      SELECT organization_id FROM organization_memberships
       WHERE user_id = auth.uid()
     )
   );
@@ -211,7 +211,7 @@ CREATE POLICY "Users can read HITL requests in their organization"
   ON sequence_hitl_requests FOR SELECT
   USING (
     organization_id IN (
-      SELECT organization_id FROM organization_members
+      SELECT organization_id FROM organization_memberships
       WHERE user_id = auth.uid()
     )
   );
@@ -220,7 +220,7 @@ CREATE POLICY "Users can respond to assigned HITL requests"
   ON sequence_hitl_requests FOR UPDATE
   USING (
     organization_id IN (
-      SELECT organization_id FROM organization_members
+      SELECT organization_id FROM organization_memberships
       WHERE user_id = auth.uid()
     )
     AND (assigned_to_user_id IS NULL OR assigned_to_user_id = auth.uid())
@@ -326,7 +326,7 @@ CREATE POLICY "Users can read their organization's token budgets"
   ON sequence_token_budgets FOR SELECT
   USING (
     organization_id IN (
-      SELECT organization_id FROM organization_members
+      SELECT organization_id FROM organization_memberships
       WHERE user_id = auth.uid()
     )
   );
@@ -424,7 +424,7 @@ BEGIN
     AND (hr.assigned_to_user_id = p_user_id OR hr.assigned_to_user_id IS NULL)
     AND hr.organization_id IN (
       SELECT om.organization_id
-      FROM organization_members om
+      FROM organization_memberships om
       WHERE om.user_id = p_user_id
     )
     AND (hr.expires_at IS NULL OR hr.expires_at > now())
@@ -462,7 +462,7 @@ BEGIN
     AND status = 'pending'
     AND organization_id IN (
       SELECT om.organization_id
-      FROM organization_members om
+      FROM organization_memberships om
       WHERE om.user_id = auth.uid()
     );
 

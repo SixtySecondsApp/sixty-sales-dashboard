@@ -40,6 +40,11 @@ CREATE INDEX IF NOT EXISTS idx_meetingbaas_calendars_active ON meetingbaas_calen
 -- RLS
 ALTER TABLE meetingbaas_calendars ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist (idempotent)
+DROP POLICY IF EXISTS "Users can view own calendar connections" ON meetingbaas_calendars;
+DROP POLICY IF EXISTS "Users can manage own calendar connections" ON meetingbaas_calendars;
+DROP POLICY IF EXISTS "Service role full access to calendar connections" ON meetingbaas_calendars;
+
 -- Users can view their own calendar connections
 CREATE POLICY "Users can view own calendar connections"
   ON meetingbaas_calendars FOR SELECT
