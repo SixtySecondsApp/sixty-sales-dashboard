@@ -1,4 +1,4 @@
-import { useRef, memo } from 'react';
+import { useRef, useMemo, memo } from 'react';
 import { cn } from '@/lib/utils';
 import type { Speaker } from './types';
 
@@ -6,29 +6,87 @@ interface SpeakerWaveformProps {
   speaker: Speaker;
   isActive: boolean;
   onTap: () => void;
+  /** Optional real amplitude data from audio analysis (values 0-1) */
+  amplitudeData?: number[];
+  /** Speaker's transcript segments for generating realistic patterns */
+  segmentLengths?: number[];
   className?: string;
+}
+
+/**
+ * Generate realistic waveform pattern based on speaking characteristics
+ * Uses segment lengths and speaker ID to create unique, natural-looking waveforms
+ */
+function generateWaveformPattern(speakerId: number, bars: number, segmentLengths?: number[]): number[] {
+  // Seed the random generator with speaker ID for consistency
+  const seed = speakerId * 12345;
+  const seededRandom = (n: number) => {
+    const x = Math.sin(seed + n) * 10000;
+    return x - Math.floor(x);
+  };
+
+  // If we have segment lengths, use them to influence the pattern
+  const segmentInfluence = segmentLengths?.length
+    ? segmentLengths.reduce((acc, len, idx) => acc + len * (idx + 1), 0) % 100
+    : 0;
+
+  return Array.from({ length: bars }, (_, i) => {
+    // Create multiple sine waves for organic feel
+    const wave1 = Math.sin((i / bars) * Math.PI * 2 * (1 + speakerId % 3)) * 0.3;
+    const wave2 = Math.sin((i / bars) * Math.PI * 4 + speakerId) * 0.2;
+    const wave3 = Math.sin((i / bars) * Math.PI * 6 + segmentInfluence * 0.1) * 0.1;
+
+    // Add some controlled randomness
+    const noise = seededRandom(i) * 0.25;
+
+    // Combine waves with noise and normalize to 0.15-1.0 range
+    const combined = 0.5 + wave1 + wave2 + wave3 + noise;
+    return Math.max(0.15, Math.min(1.0, combined));
+  });
 }
 
 /**
  * SpeakerWaveform - Displays a speaker's audio segment with visual waveform
  * Used in the meeting detail view for speaker-attributed playback
+ *
+ * Now supports:
+ * - Real amplitude data from audio analysis
+ * - Segment-based pattern generation for more realistic waveforms
+ * - Fallback to speaker ID-based deterministic patterns
  */
 export const SpeakerWaveform = memo(function SpeakerWaveform({
   speaker,
   isActive,
   onTap,
+  amplitudeData,
+  segmentLengths,
   className,
 }: SpeakerWaveformProps) {
   const bars = 40;
 
-  // Generate deterministic waveform data based on speaker
-  const waveformData = useRef(
-    Array.from({ length: bars }, (_, i) => {
-      // Create unique pattern based on speaker id and position
-      const hash = (speaker.id * 17 + i * 31) % 100;
-      return 0.2 + (hash / 100) * 0.8;
-    })
-  ).current;
+  // Use real amplitude data if provided, otherwise generate pattern
+  const waveformData = useMemo(() => {
+    if (amplitudeData && amplitudeData.length > 0) {
+      // Resample amplitude data to match number of bars
+      const step = amplitudeData.length / bars;
+      return Array.from({ length: bars }, (_, i) => {
+        const startIdx = Math.floor(i * step);
+        const endIdx = Math.floor((i + 1) * step);
+        // Average the values in this range
+        let sum = 0;
+        let count = 0;
+        for (let j = startIdx; j < endIdx && j < amplitudeData.length; j++) {
+          sum += amplitudeData[j];
+          count++;
+        }
+        const avg = count > 0 ? sum / count : 0.5;
+        return Math.max(0.15, Math.min(1.0, avg));
+      });
+    }
+
+    // Generate realistic pattern based on speaker characteristics
+    return generateWaveformPattern(speaker.id, bars, segmentLengths);
+  }, [speaker.id, bars, amplitudeData, segmentLengths]);
 
   return (
     <button

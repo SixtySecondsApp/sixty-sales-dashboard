@@ -6,8 +6,9 @@ import { useVoiceRecorder } from './useVoiceRecorder';
 import { VoiceRecorderHome } from './VoiceRecorderHome';
 import { VoiceRecorderRecording } from './VoiceRecorderRecording';
 import { VoiceRecorderMeetingDetail } from './VoiceRecorderMeetingDetail';
+import { TranscriptModal } from './TranscriptModal';
 import { useVoiceRecordings } from '@/lib/hooks/useVoiceRecordings';
-import type { RecordingScreen, VoiceRecording, ActionItem, RecentRecording, Speaker } from './types';
+import type { RecordingScreen, VoiceRecording, ActionItem, RecentRecording, Speaker, RecordingType } from './types';
 
 interface VoiceRecorderPageProps {
   className?: string;
@@ -37,6 +38,9 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
   const [screen, setScreen] = useState<RecordingScreen>('home');
   const [currentMeeting, setCurrentMeeting] = useState<VoiceRecording | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentRecordingType, setCurrentRecordingType] = useState<RecordingType>('meeting');
+  const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
+  const [playbackProgress, setPlaybackProgress] = useState(0);
 
   // Backend integration
   const {
@@ -74,12 +78,14 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
       }),
       duration: formatDurationDisplay(rec.duration_seconds),
       actionsCount: rec.action_items?.length || 0,
+      recordingType: rec.recording_type || 'meeting',
     }));
   }, [recordings]);
 
   // Handle start recording
-  const handleStartRecording = useCallback(async () => {
+  const handleStartRecording = useCallback(async (type: RecordingType) => {
     try {
+      setCurrentRecordingType(type);
       await startRecording();
       setScreen('recording');
     } catch (err) {
@@ -117,16 +123,20 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
         minute: '2-digit',
       }),
       duration: formatDurationDisplay(rec.duration_seconds),
+      durationSeconds: rec.duration_seconds || 0,
       speakers,
       actions,
       summary: rec.summary || 'Processing transcription...',
-      transcript: (rec.transcript_segments || []).map((seg: { speaker: string; start_time: number; text: string }) => ({
+      transcript: (rec.transcript_segments || []).map((seg: { speaker: string; start_time: number; end_time?: number; text: string }) => ({
         speaker: seg.speaker,
         time: formatDurationDisplay(Math.floor(seg.start_time)),
         text: seg.text,
+        start_time: seg.start_time,
+        end_time: seg.end_time,
       })),
       createdAt: new Date(rec.created_at),
       audioUrl: rec.audio_url,
+      recordingType: rec.recording_type || 'meeting',
     };
   }, []);
 
@@ -141,8 +151,8 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
         return;
       }
 
-      // Upload and start transcription
-      const recording = await uploadAndTranscribe(audioBlob);
+      // Upload and start transcription with recording type
+      const recording = await uploadAndTranscribe(audioBlob, undefined, currentRecordingType);
 
       if (recording) {
         const transformed = transformRecording(recording);
@@ -161,7 +171,7 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
     } finally {
       setIsProcessing(false);
     }
-  }, [stopRecording, uploadAndTranscribe, transformRecording]);
+  }, [stopRecording, uploadAndTranscribe, transformRecording, currentRecordingType]);
 
   // Handle selecting a recent recording
   const handleSelectRecording = useCallback(async (id: string) => {
@@ -209,8 +219,17 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
 
   // Handle view transcript
   const handleViewTranscript = useCallback(() => {
-    toast.info('Full transcript view coming soon!');
+    setIsTranscriptOpen(true);
   }, []);
+
+  // Handle seeking in transcript
+  const handleTranscriptSeek = useCallback((time: number) => {
+    if (currentMeeting?.durationSeconds) {
+      setPlaybackProgress(time / currentMeeting.durationSeconds);
+    }
+    // In a real implementation, this would seek the audio player
+    toast.info(`Seek to ${formatDurationDisplay(Math.floor(time))}`);
+  }, [currentMeeting?.durationSeconds]);
 
   // Handle toggle action item
   const handleToggleActionItem = useCallback(async (actionId: string) => {
@@ -269,9 +288,16 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
         </div>
       )}
 
-      {/* Voice Recorder Container - responsive width */}
-      <div className="max-w-lg mx-auto lg:mx-0">
-        <div className="relative bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none overflow-hidden min-h-[600px]">
+      {/* Voice Recorder Container - responsive width, wider on desktop */}
+      <div className={cn(
+        'mx-auto lg:mx-0',
+        // Home screen uses narrower layout for mobile-first recorder UI
+        screen === 'home' ? 'max-w-lg' : 'max-w-4xl'
+      )}>
+        <div className={cn(
+          'relative bg-white dark:bg-gray-900/80 dark:backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none overflow-hidden',
+          screen === 'meeting' ? 'min-h-[700px]' : 'min-h-[600px]'
+        )}>
           {/* Loading Overlay */}
           {(isProcessing || isLoadingRecordings) && screen === 'home' && (
             <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 flex items-center justify-center z-10">
@@ -317,6 +343,25 @@ export function VoiceRecorderPage({ className }: VoiceRecorderPageProps) {
           )}
         </div>
       </div>
+
+      {/* Transcript Modal */}
+      {currentMeeting && (
+        <TranscriptModal
+          open={isTranscriptOpen}
+          onOpenChange={setIsTranscriptOpen}
+          title={currentMeeting.title}
+          speakers={currentMeeting.speakers}
+          transcript={currentMeeting.transcript.map((seg) => ({
+            speaker: seg.speaker,
+            text: seg.text,
+            time: seg.time,
+            start_time: seg.start_time || 0,
+            end_time: seg.end_time || 0,
+          }))}
+          currentTime={playbackProgress * (currentMeeting.durationSeconds || 0)}
+          onSeek={handleTranscriptSeek}
+        />
+      )}
     </div>
   );
 }

@@ -1,10 +1,8 @@
-import { useState, memo } from 'react';
+import { useState, memo, useMemo, useRef, useCallback } from 'react';
 import {
   ChevronLeft,
   Share2,
   Wand2,
-  Play,
-  Pause,
   Check,
   Mail,
   Clock,
@@ -13,6 +11,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SpeakerWaveform } from './SpeakerWaveform';
+import { VoiceRecorderAudioPlayer, AudioPlayerRef } from './VoiceRecorderAudioPlayer';
 import type { VoiceRecording, ActionItem } from './types';
 
 interface VoiceRecorderMeetingDetailProps {
@@ -23,6 +22,7 @@ interface VoiceRecorderMeetingDetailProps {
   onBookNextCall?: () => void;
   onViewTranscript?: () => void;
   onToggleActionItem?: (id: string) => void;
+  onTimeUpdate?: (currentTime: number) => void;
   className?: string;
 }
 
@@ -38,15 +38,40 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
   onBookNextCall,
   onViewTranscript,
   onToggleActionItem,
+  onTimeUpdate,
   className,
 }: VoiceRecorderMeetingDetailProps) {
+  const audioPlayerRef = useRef<AudioPlayerRef>(null);
   const [activeSpeaker, setActiveSpeaker] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackProgress, setPlaybackProgress] = useState(0.33); // Mock progress
+  const [currentTime, setCurrentTime] = useState(0);
 
-  const handleTogglePlay = () => {
-    setIsPlaying((prev) => !prev);
-  };
+  // Handle time updates from audio player
+  const handleTimeUpdate = useCallback((time: number) => {
+    setCurrentTime(time);
+    onTimeUpdate?.(time);
+  }, [onTimeUpdate]);
+
+  // Handle play state changes
+  const handlePlayStateChange = useCallback((playing: boolean) => {
+    setIsPlaying(playing);
+  }, []);
+
+  // Calculate segment lengths per speaker for dynamic waveform generation
+  const speakerSegmentLengths = useMemo(() => {
+    const lengthsBySpeaker: Record<string, number[]> = {};
+
+    recording.transcript.forEach((segment) => {
+      const speakerName = segment.speaker;
+      if (!lengthsBySpeaker[speakerName]) {
+        lengthsBySpeaker[speakerName] = [];
+      }
+      // Use text length as proxy for segment duration/intensity
+      lengthsBySpeaker[speakerName].push(segment.text.length);
+    });
+
+    return lengthsBySpeaker;
+  }, [recording.transcript]);
 
   const handleSpeakerTap = (speakerId: number) => {
     setActiveSpeaker((prev) => (prev === speakerId ? null : speakerId));
@@ -96,6 +121,7 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
               speaker={speaker}
               isActive={activeSpeaker === speaker.id}
               onTap={() => handleSpeakerTap(speaker.id)}
+              segmentLengths={speakerSegmentLengths[speaker.name]}
             />
           ))}
         </section>
@@ -103,35 +129,13 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
         {/* Playback Controls */}
         <section className="px-4 py-3">
           <div className="bg-gray-50 dark:bg-gray-900/80 dark:backdrop-blur-sm rounded-2xl p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleTogglePlay}
-                className="w-12 h-12 rounded-xl bg-[#37bd7e] hover:bg-[#2da76c] flex items-center justify-center transition-colors shrink-0 shadow-lg shadow-[#37bd7e]/20"
-                aria-label={isPlaying ? 'Pause' : 'Play'}
-              >
-                {isPlaying ? (
-                  <Pause className="w-5 h-5 text-white" />
-                ) : (
-                  <Play className="w-5 h-5 text-white ml-0.5" />
-                )}
-              </button>
-              <div className="flex-1">
-                <div className="h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#37bd7e] rounded-full transition-all duration-300"
-                    style={{ width: `${playbackProgress * 100}%` }}
-                  />
-                </div>
-                <div className="flex justify-between mt-1.5">
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {formatPlaybackTime(playbackProgress, recording.duration)}
-                  </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {recording.duration}
-                  </span>
-                </div>
-              </div>
-            </div>
+            <VoiceRecorderAudioPlayer
+              ref={audioPlayerRef}
+              recordingId={recording.id}
+              durationSeconds={recording.durationSeconds}
+              onTimeUpdate={handleTimeUpdate}
+              onPlayStateChange={handlePlayStateChange}
+            />
           </div>
         </section>
 
@@ -284,22 +288,13 @@ const ActionItemCard = memo(function ActionItemCard({
   );
 });
 
-// Helper to format current playback position
-function formatPlaybackTime(progress: number, totalDuration: string): string {
-  const [minutes, seconds] = totalDuration.split(':').map(Number);
-  const totalSeconds = minutes * 60 + seconds;
-  const currentSeconds = Math.floor(progress * totalSeconds);
-  const currentMinutes = Math.floor(currentSeconds / 60);
-  const remainingSeconds = currentSeconds % 60;
-  return `${currentMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-}
-
 // Sample meeting data for development/testing
 export const SAMPLE_MEETING: VoiceRecording = {
   id: '1',
   title: 'Pipeline Review with Sarah Chen',
   date: 'Today, 2:30 PM',
   duration: '32:14',
+  durationSeconds: 1934, // 32:14 in seconds
   speakers: [
     { id: 1, name: 'You', initials: 'ME', duration: '14:22', color: '#3B82F6' },
     {

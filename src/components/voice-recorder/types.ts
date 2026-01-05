@@ -2,6 +2,9 @@
 
 export type RecordingScreen = 'home' | 'recording' | 'meeting';
 
+// Recording type: external meetings vs internal voice notes
+export type RecordingType = 'meeting' | 'voice_note';
+
 export interface Speaker {
   id: number;
   name: string;
@@ -22,6 +25,8 @@ export interface TranscriptSegment {
   speaker: string;
   time: string;
   text: string;
+  start_time?: number;
+  end_time?: number;
 }
 
 export interface VoiceRecording {
@@ -29,12 +34,14 @@ export interface VoiceRecording {
   title: string;
   date: string;
   duration: string;
+  durationSeconds?: number;
   speakers: Speaker[];
   actions: ActionItem[];
   summary: string;
   transcript: TranscriptSegment[];
   createdAt: Date;
   audioUrl?: string;
+  recordingType: RecordingType;
 }
 
 export interface RecentRecording {
@@ -43,6 +50,7 @@ export interface RecentRecording {
   time: string;
   duration: string;
   actionsCount: number;
+  recordingType: RecordingType;
 }
 
 export interface UseVoiceRecorderReturn {
