@@ -1,90 +1,128 @@
 -- Multi-Tenant Architecture: Add org_id to tenant-scoped tables
 -- This migration adds org_id column to all tables that store tenant data
 -- Initially nullable to allow backfilling, will be made NOT NULL in backfill migration
+-- NOTE: Uses conditional logic because some tables may be created in later migrations
 
--- Core CRM tables
-ALTER TABLE deals ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
-ALTER TABLE tasks ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
-ALTER TABLE activities ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
-ALTER TABLE contacts ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
-ALTER TABLE companies ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
-ALTER TABLE leads ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+-- Helper function to add org_id column if table exists
+CREATE OR REPLACE FUNCTION add_org_id_if_table_exists(p_table_name TEXT)
+RETURNS VOID AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = p_table_name) THEN
+    EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE', p_table_name);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Helper function to create index if table exists
+CREATE OR REPLACE FUNCTION create_org_id_index_if_table_exists(p_table_name TEXT)
+RETURNS VOID AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = p_table_name) THEN
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_org_id ON %I(org_id)', p_table_name, p_table_name);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Helper function to create composite index if table exists
+CREATE OR REPLACE FUNCTION create_org_id_created_at_index_if_table_exists(p_table_name TEXT)
+RETURNS VOID AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = p_table_name
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = p_table_name AND column_name = 'created_at'
+  ) THEN
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_org_id_created_at ON %I(org_id, created_at)', p_table_name, p_table_name);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Add org_id to Core CRM tables (if they exist)
+SELECT add_org_id_if_table_exists('deals');
+SELECT add_org_id_if_table_exists('tasks');
+SELECT add_org_id_if_table_exists('activities');
+SELECT add_org_id_if_table_exists('contacts');
+SELECT add_org_id_if_table_exists('companies');
+SELECT add_org_id_if_table_exists('leads');
+SELECT add_org_id_if_table_exists('clients');
 
 -- Meetings table (uses owner_user_id, not user_id)
-ALTER TABLE meetings ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+SELECT add_org_id_if_table_exists('meetings');
 
 -- Calendar tables
-ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
-ALTER TABLE calendar_calendars ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+SELECT add_org_id_if_table_exists('calendar_events');
+SELECT add_org_id_if_table_exists('calendar_calendars');
 
 -- Deal-related tables
-ALTER TABLE deal_splits ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+SELECT add_org_id_if_table_exists('deal_splits');
 
 -- Lead-related tables
-ALTER TABLE lead_prep_notes ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+SELECT add_org_id_if_table_exists('lead_prep_notes');
 
 -- Workflow and automation tables
-ALTER TABLE workflow_executions ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
-ALTER TABLE user_automation_rules ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
-ALTER TABLE smart_task_templates ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+SELECT add_org_id_if_table_exists('workflow_executions');
+SELECT add_org_id_if_table_exists('user_automation_rules');
+SELECT add_org_id_if_table_exists('smart_task_templates');
 
 -- Notes tables
-ALTER TABLE deal_notes ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
-ALTER TABLE contact_notes ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
-ALTER TABLE company_notes ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
-
--- Meeting-related tables (if they exist and are tenant-scoped)
--- Note: meeting_attendees and meeting_action_items are linked via meeting_id, so they inherit org_id through meetings
--- meeting_topics might need org_id if it's tenant-scoped
+SELECT add_org_id_if_table_exists('deal_notes');
+SELECT add_org_id_if_table_exists('contact_notes');
+SELECT add_org_id_if_table_exists('company_notes');
 
 -- Google integration tables (tenant-scoped)
-ALTER TABLE google_integrations ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+SELECT add_org_id_if_table_exists('google_integrations');
 
--- Indexes for performance (org_id will be used in WHERE clauses frequently)
-CREATE INDEX IF NOT EXISTS idx_deals_org_id ON deals(org_id);
-CREATE INDEX IF NOT EXISTS idx_deals_org_id_created_at ON deals(org_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_tasks_org_id ON tasks(org_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_org_id_created_at ON tasks(org_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_activities_org_id ON activities(org_id);
-CREATE INDEX IF NOT EXISTS idx_activities_org_id_created_at ON activities(org_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_contacts_org_id ON contacts(org_id);
-CREATE INDEX IF NOT EXISTS idx_contacts_org_id_created_at ON contacts(org_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_companies_org_id ON companies(org_id);
-CREATE INDEX IF NOT EXISTS idx_companies_org_id_created_at ON companies(org_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_leads_org_id ON leads(org_id);
-CREATE INDEX IF NOT EXISTS idx_leads_org_id_created_at ON leads(org_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_clients_org_id ON clients(org_id);
-CREATE INDEX IF NOT EXISTS idx_meetings_org_id ON meetings(org_id);
-CREATE INDEX IF NOT EXISTS idx_meetings_org_id_created_at ON meetings(org_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_calendar_events_org_id ON calendar_events(org_id);
-CREATE INDEX IF NOT EXISTS idx_calendar_events_org_id_created_at ON calendar_events(org_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_calendar_calendars_org_id ON calendar_calendars(org_id);
-CREATE INDEX IF NOT EXISTS idx_deal_splits_org_id ON deal_splits(org_id);
-CREATE INDEX IF NOT EXISTS idx_lead_prep_notes_org_id ON lead_prep_notes(org_id);
-CREATE INDEX IF NOT EXISTS idx_workflow_executions_org_id ON workflow_executions(org_id);
-CREATE INDEX IF NOT EXISTS idx_user_automation_rules_org_id ON user_automation_rules(org_id);
-CREATE INDEX IF NOT EXISTS idx_smart_task_templates_org_id ON smart_task_templates(org_id);
-CREATE INDEX IF NOT EXISTS idx_google_integrations_org_id ON google_integrations(org_id);
+-- Create indexes for performance (org_id will be used in WHERE clauses frequently)
+SELECT create_org_id_index_if_table_exists('deals');
+SELECT create_org_id_created_at_index_if_table_exists('deals');
+SELECT create_org_id_index_if_table_exists('tasks');
+SELECT create_org_id_created_at_index_if_table_exists('tasks');
+SELECT create_org_id_index_if_table_exists('activities');
+SELECT create_org_id_created_at_index_if_table_exists('activities');
+SELECT create_org_id_index_if_table_exists('contacts');
+SELECT create_org_id_created_at_index_if_table_exists('contacts');
+SELECT create_org_id_index_if_table_exists('companies');
+SELECT create_org_id_created_at_index_if_table_exists('companies');
+SELECT create_org_id_index_if_table_exists('leads');
+SELECT create_org_id_created_at_index_if_table_exists('leads');
+SELECT create_org_id_index_if_table_exists('clients');
+SELECT create_org_id_index_if_table_exists('meetings');
+SELECT create_org_id_created_at_index_if_table_exists('meetings');
+SELECT create_org_id_index_if_table_exists('calendar_events');
+SELECT create_org_id_created_at_index_if_table_exists('calendar_events');
+SELECT create_org_id_index_if_table_exists('calendar_calendars');
+SELECT create_org_id_index_if_table_exists('deal_splits');
+SELECT create_org_id_index_if_table_exists('lead_prep_notes');
+SELECT create_org_id_index_if_table_exists('workflow_executions');
+SELECT create_org_id_index_if_table_exists('user_automation_rules');
+SELECT create_org_id_index_if_table_exists('smart_task_templates');
+SELECT create_org_id_index_if_table_exists('google_integrations');
 
--- Comments for documentation
-COMMENT ON COLUMN deals.org_id IS 'Organization (tenant) that owns this deal';
-COMMENT ON COLUMN tasks.org_id IS 'Organization (tenant) that owns this task';
-COMMENT ON COLUMN activities.org_id IS 'Organization (tenant) that owns this activity';
-COMMENT ON COLUMN contacts.org_id IS 'Organization (tenant) that owns this contact';
-COMMENT ON COLUMN companies.org_id IS 'Organization (tenant) that owns this company';
-COMMENT ON COLUMN leads.org_id IS 'Organization (tenant) that owns this lead';
-COMMENT ON COLUMN meetings.org_id IS 'Organization (tenant) that owns this meeting';
-COMMENT ON COLUMN calendar_events.org_id IS 'Organization (tenant) that owns this calendar event';
+-- Helper function to add comment if column exists
+CREATE OR REPLACE FUNCTION add_org_id_comment_if_exists(p_table_name TEXT, p_comment TEXT)
+RETURNS VOID AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = p_table_name AND column_name = 'org_id'
+  ) THEN
+    EXECUTE format('COMMENT ON COLUMN %I.org_id IS %L', p_table_name, p_comment);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 
+-- Comments for documentation (only if column was added)
+SELECT add_org_id_comment_if_exists('deals', 'Organization (tenant) that owns this deal');
+SELECT add_org_id_comment_if_exists('tasks', 'Organization (tenant) that owns this task');
+SELECT add_org_id_comment_if_exists('activities', 'Organization (tenant) that owns this activity');
+SELECT add_org_id_comment_if_exists('contacts', 'Organization (tenant) that owns this contact');
+SELECT add_org_id_comment_if_exists('companies', 'Organization (tenant) that owns this company');
+SELECT add_org_id_comment_if_exists('leads', 'Organization (tenant) that owns this lead');
+SELECT add_org_id_comment_if_exists('meetings', 'Organization (tenant) that owns this meeting');
+SELECT add_org_id_comment_if_exists('calendar_events', 'Organization (tenant) that owns this calendar event');
 
-
-
-
-
-
-
-
-
-
-
+-- Clean up helper functions (they're only needed for this migration)
+DROP FUNCTION IF EXISTS add_org_id_if_table_exists(TEXT);
+DROP FUNCTION IF EXISTS create_org_id_index_if_table_exists(TEXT);
+DROP FUNCTION IF EXISTS create_org_id_created_at_index_if_table_exists(TEXT);
+DROP FUNCTION IF EXISTS add_org_id_comment_if_exists(TEXT, TEXT);
