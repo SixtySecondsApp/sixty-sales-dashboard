@@ -94,24 +94,32 @@ CREATE INDEX IF NOT EXISTS idx_fathom_sync_state_status
 
 -- ============================================================================
 -- 3. Update meetings table for Fathom API integration
+-- NOTE: Made conditional for staging compatibility - meetings table created later
 -- ============================================================================
 
--- Add columns if they don't exist
-ALTER TABLE meetings
-  ADD COLUMN IF NOT EXISTS fathom_user_id TEXT,
-  ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS sync_status TEXT DEFAULT 'synced'
-    CHECK (sync_status IN ('synced', 'pending', 'error'));
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'meetings') THEN
+    -- Add columns if they don't exist
+    ALTER TABLE meetings
+      ADD COLUMN IF NOT EXISTS fathom_user_id TEXT,
+      ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS sync_status TEXT DEFAULT 'synced'
+        CHECK (sync_status IN ('synced', 'pending', 'error'));
 
--- Create index for Fathom user lookups
-CREATE INDEX IF NOT EXISTS idx_meetings_fathom_user_id
-  ON meetings(fathom_user_id)
-  WHERE fathom_user_id IS NOT NULL;
+    -- Create index for Fathom user lookups
+    CREATE INDEX IF NOT EXISTS idx_meetings_fathom_user_id
+      ON meetings(fathom_user_id)
+      WHERE fathom_user_id IS NOT NULL;
 
--- Create index for sync status
-CREATE INDEX IF NOT EXISTS idx_meetings_sync_status
-  ON meetings(sync_status)
-  WHERE sync_status != 'synced';
+    -- Create index for sync status
+    CREATE INDEX IF NOT EXISTS idx_meetings_sync_status
+      ON meetings(sync_status)
+      WHERE sync_status != 'synced';
+  ELSE
+    RAISE NOTICE 'Skipping meetings table updates - table does not exist yet';
+  END IF;
+END $$;
 
 -- ============================================================================
 -- 4. Enable Row Level Security (RLS)
@@ -259,6 +267,13 @@ GRANT EXECUTE ON FUNCTION update_fathom_updated_at() TO postgres;
 
 COMMENT ON TABLE fathom_integrations IS 'Stores OAuth tokens and connection status for Fathom API integration';
 COMMENT ON TABLE fathom_sync_state IS 'Tracks sync progress and status for each user Fathom integration';
-COMMENT ON COLUMN meetings.fathom_user_id IS 'Fathom user ID who owns this meeting (for multi-user support)';
-COMMENT ON COLUMN meetings.last_synced_at IS 'Timestamp of last successful sync from Fathom API';
-COMMENT ON COLUMN meetings.sync_status IS 'Current sync status of this meeting';
+
+-- Comments on meetings columns (conditional)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'meetings') THEN
+    COMMENT ON COLUMN meetings.fathom_user_id IS 'Fathom user ID who owns this meeting (for multi-user support)';
+    COMMENT ON COLUMN meetings.last_synced_at IS 'Timestamp of last successful sync from Fathom API';
+    COMMENT ON COLUMN meetings.sync_status IS 'Current sync status of this meeting';
+  END IF;
+END $$;
