@@ -1,8 +1,9 @@
 -- Multi-Tenant Architecture: Core Organization Tables
 -- This migration creates the foundation for multi-tenant support
 
--- Enable UUID extension if not already enabled
+-- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "citext";
 
 -- Organizations table
 CREATE TABLE IF NOT EXISTS organizations (
