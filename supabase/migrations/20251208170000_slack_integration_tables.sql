@@ -107,24 +107,35 @@ CREATE INDEX IF NOT EXISTS idx_slack_user_mappings_email
 -- ============================================================================
 -- Table 5: slack_deal_rooms
 -- Track deal room channels
+-- NOTE: Conditional on deals table existing (staging compatibility)
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS slack_deal_rooms (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
-  deal_id UUID REFERENCES deals(id) ON DELETE CASCADE UNIQUE,
-  slack_channel_id TEXT NOT NULL,
-  slack_channel_name TEXT NOT NULL,
-  is_archived BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  archived_at TIMESTAMPTZ,
-  -- Track who was invited
-  invited_slack_user_ids TEXT[]
-);
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'deals') THEN
+    -- Create table only if deals table exists
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'slack_deal_rooms') THEN
+      CREATE TABLE slack_deal_rooms (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        org_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+        deal_id UUID REFERENCES deals(id) ON DELETE CASCADE UNIQUE,
+        slack_channel_id TEXT NOT NULL,
+        slack_channel_name TEXT NOT NULL,
+        is_archived BOOLEAN DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        archived_at TIMESTAMPTZ,
+        -- Track who was invited
+        invited_slack_user_ids TEXT[]
+      );
+    END IF;
 
--- Indexes for deal room lookups
-CREATE INDEX IF NOT EXISTS idx_slack_deal_rooms_org ON slack_deal_rooms(org_id);
-CREATE INDEX IF NOT EXISTS idx_slack_deal_rooms_deal ON slack_deal_rooms(deal_id);
-CREATE INDEX IF NOT EXISTS idx_slack_deal_rooms_channel ON slack_deal_rooms(slack_channel_id);
+    -- Create indexes
+    CREATE INDEX IF NOT EXISTS idx_slack_deal_rooms_org ON slack_deal_rooms(org_id);
+    CREATE INDEX IF NOT EXISTS idx_slack_deal_rooms_deal ON slack_deal_rooms(deal_id);
+    CREATE INDEX IF NOT EXISTS idx_slack_deal_rooms_channel ON slack_deal_rooms(slack_channel_id);
+  ELSE
+    RAISE NOTICE 'Skipping slack_deal_rooms table - deals table does not exist';
+  END IF;
+END $$;
 
 -- ============================================================================
 -- RLS Policies
@@ -135,7 +146,14 @@ ALTER TABLE slack_org_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE slack_notification_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE slack_notifications_sent ENABLE ROW LEVEL SECURITY;
 ALTER TABLE slack_user_mappings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE slack_deal_rooms ENABLE ROW LEVEL SECURITY;
+
+-- Enable RLS on slack_deal_rooms only if it exists
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'slack_deal_rooms') THEN
+    ALTER TABLE slack_deal_rooms ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
 
 -- slack_org_settings policies (drop first to make idempotent)
 DROP POLICY IF EXISTS "org_admins_manage_slack_settings" ON slack_org_settings;
@@ -226,23 +244,28 @@ CREATE POLICY "org_admins_manage_user_mappings" ON slack_user_mappings
     OR auth.role() = 'service_role'
   );
 
--- slack_deal_rooms policies (drop first to make idempotent)
-DROP POLICY IF EXISTS "org_members_view_deal_rooms" ON slack_deal_rooms;
-CREATE POLICY "org_members_view_deal_rooms" ON slack_deal_rooms
-  FOR SELECT
-  TO authenticated
-  USING (
-    org_id IN (
-      SELECT org_id FROM organization_memberships WHERE user_id = auth.uid()
-    )
-    OR auth.role() = 'service_role'
-  );
+-- slack_deal_rooms policies (conditional on table existing)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'slack_deal_rooms') THEN
+    DROP POLICY IF EXISTS "org_members_view_deal_rooms" ON slack_deal_rooms;
+    CREATE POLICY "org_members_view_deal_rooms" ON slack_deal_rooms
+      FOR SELECT
+      TO authenticated
+      USING (
+        org_id IN (
+          SELECT org_id FROM organization_memberships WHERE user_id = auth.uid()
+        )
+        OR auth.role() = 'service_role'
+      );
 
-DROP POLICY IF EXISTS "service_role_manage_deal_rooms" ON slack_deal_rooms;
-CREATE POLICY "service_role_manage_deal_rooms" ON slack_deal_rooms
-  FOR ALL
-  TO authenticated
-  WITH CHECK (auth.role() = 'service_role');
+    DROP POLICY IF EXISTS "service_role_manage_deal_rooms" ON slack_deal_rooms;
+    CREATE POLICY "service_role_manage_deal_rooms" ON slack_deal_rooms
+      FOR ALL
+      TO authenticated
+      WITH CHECK (auth.role() = 'service_role');
+  END IF;
+END $$;
 
 -- ============================================================================
 -- Updated_at trigger function (if not exists)
@@ -277,6 +300,7 @@ CREATE TRIGGER update_slack_user_mappings_updated_at
 DO $$
 DECLARE
   table_count INT;
+  expected_count INT;
 BEGIN
   SELECT COUNT(*) INTO table_count
   FROM information_schema.tables
@@ -289,7 +313,15 @@ BEGIN
       'slack_deal_rooms'
     );
 
-  RAISE NOTICE 'Slack integration tables created: %/5', table_count;
+  -- Expected count depends on whether deals table exists
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'deals') THEN
+    expected_count := 5;
+  ELSE
+    expected_count := 4;
+    RAISE NOTICE 'Note: slack_deal_rooms table skipped (deals table not present)';
+  END IF;
+
+  RAISE NOTICE 'Slack integration tables created: %/%', table_count, expected_count;
   RAISE NOTICE 'Slack integration migration completed ✓';
 END;
 $$;
