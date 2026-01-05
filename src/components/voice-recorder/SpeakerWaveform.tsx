@@ -6,6 +6,10 @@ interface SpeakerWaveformProps {
   speaker: Speaker;
   isActive: boolean;
   onTap: () => void;
+  /** Optional callback to seek audio to this speaker's first segment */
+  onSeek?: (time: number) => void;
+  /** Start time of the speaker's first segment (in seconds) */
+  firstSegmentTime?: number;
   /** Optional real amplitude data from audio analysis (values 0-1) */
   amplitudeData?: number[];
   /** Speaker's transcript segments for generating realistic patterns */
@@ -58,6 +62,8 @@ export const SpeakerWaveform = memo(function SpeakerWaveform({
   speaker,
   isActive,
   onTap,
+  onSeek,
+  firstSegmentTime,
   amplitudeData,
   segmentLengths,
   className,
@@ -88,9 +94,17 @@ export const SpeakerWaveform = memo(function SpeakerWaveform({
     return generateWaveformPattern(speaker.id, bars, segmentLengths);
   }, [speaker.id, bars, amplitudeData, segmentLengths]);
 
+  const handleClick = () => {
+    onTap();
+    // If we have a seek callback and segment time, seek to that speaker's segment
+    if (onSeek && firstSegmentTime !== undefined) {
+      onSeek(firstSegmentTime);
+    }
+  };
+
   return (
     <button
-      onClick={onTap}
+      onClick={handleClick}
       className={cn(
         'w-full p-4 rounded-2xl transition-all duration-300 text-left shadow-sm dark:shadow-none border',
         isActive

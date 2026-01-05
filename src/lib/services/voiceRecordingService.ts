@@ -315,34 +315,19 @@ export const voiceRecordingService = {
         };
       }
 
-      // Get recording to find the audio file path
-      const recording = await this.getRecording(recordingId);
-      if (!recording?.audio_url) {
-        console.error('Recording not found or no audio URL');
-        return null;
-      }
+      // Use edge function to get presigned S3 URL
+      const { data, error } = await supabase.functions.invoke('voice-presigned-url', {
+        body: { recording_id: recordingId },
+      });
 
-      // If audio_url is already a signed URL or public URL, return it directly
-      if (recording.audio_url.startsWith('http')) {
-        return {
-          url: recording.audio_url,
-          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-        };
-      }
-
-      // Otherwise, create a signed URL from storage
-      const { data, error } = await supabase.storage
-        .from('voice-recordings')
-        .createSignedUrl(recording.audio_url, 3600); // 1 hour expiry
-
-      if (error || !data?.signedUrl) {
-        console.error('Error creating signed URL:', error);
+      if (error || !data?.url) {
+        console.error('Error getting presigned URL:', error);
         return null;
       }
 
       return {
-        url: data.signedUrl,
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        url: data.url,
+        expiresAt: new Date(Date.now() + (data.expires_in || 3600) * 1000),
       };
     } catch (err) {
       console.error('Error getting audio playback URL:', err);

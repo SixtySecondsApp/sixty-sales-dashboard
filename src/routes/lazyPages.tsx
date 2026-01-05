@@ -116,6 +116,7 @@ export const MeetingSentimentAnalytics = lazyWithRetry(() => import('@/pages/Mee
 export const Calls = lazyWithRetry(() => import('@/pages/Calls'));
 export const CallDetail = lazyWithRetry(() => import('@/pages/CallDetail'));
 export const VoiceRecorder = lazyWithRetry(() => import('@/pages/VoiceRecorder'));
+export const VoiceRecordingDetail = lazyWithRetry(() => import('@/pages/VoiceRecordingDetailPage'));
 export const TasksPage = lazyWithRetry(() => import('@/pages/TasksPage'));
 export const ProjectsHub = lazyWithRetry(() => import('@/pages/ProjectsHub'));
 export const GoogleTasksSettings = lazyWithRetry(() => import('@/pages/GoogleTasksSettings'));

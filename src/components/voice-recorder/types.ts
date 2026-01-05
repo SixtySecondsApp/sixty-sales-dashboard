@@ -1,6 +1,6 @@
 // Voice Recorder Types and Interfaces
 
-export type RecordingScreen = 'home' | 'recording' | 'meeting';
+export type RecordingScreen = 'home' | 'recording' | 'meeting' | 'voice-note';
 
 // Recording type: external meetings vs internal voice notes
 export type RecordingType = 'meeting' | 'voice_note';

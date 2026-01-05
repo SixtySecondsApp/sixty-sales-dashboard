@@ -5,12 +5,10 @@
 export { VoiceRecorderPage, default } from './VoiceRecorderPage';
 
 // Screen components
-export { VoiceRecorderHome, SAMPLE_RECENT_RECORDINGS } from './VoiceRecorderHome';
+export { VoiceRecorderHome } from './VoiceRecorderHome';
 export { VoiceRecorderRecording } from './VoiceRecorderRecording';
-export {
-  VoiceRecorderMeetingDetail,
-  SAMPLE_MEETING,
-} from './VoiceRecorderMeetingDetail';
+export { VoiceRecorderMeetingDetail } from './VoiceRecorderMeetingDetail';
+export { VoiceNoteDetail } from './VoiceNoteDetail';
 
 // Visualization components
 export { LiveWaveform, MiniWaveform } from './LiveWaveform';
@@ -28,6 +26,7 @@ export { useVoiceRecorder, useRecordingTimer } from './useVoiceRecorder';
 // Types
 export type {
   RecordingScreen,
+  RecordingType,
   Speaker,
   ActionItem,
   TranscriptSegment,

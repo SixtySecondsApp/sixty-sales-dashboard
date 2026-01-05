@@ -73,9 +73,29 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
     return lengthsBySpeaker;
   }, [recording.transcript]);
 
+  // Calculate first segment time for each speaker (for seek-to-speaker)
+  const speakerFirstSegmentTime = useMemo(() => {
+    const firstTimesBySpeaker: Record<string, number> = {};
+
+    recording.transcript.forEach((segment) => {
+      const speakerName = segment.speaker;
+      // Only set if we haven't found this speaker's first segment yet
+      if (firstTimesBySpeaker[speakerName] === undefined && segment.start_time !== undefined) {
+        firstTimesBySpeaker[speakerName] = segment.start_time;
+      }
+    });
+
+    return firstTimesBySpeaker;
+  }, [recording.transcript]);
+
   const handleSpeakerTap = (speakerId: number) => {
     setActiveSpeaker((prev) => (prev === speakerId ? null : speakerId));
   };
+
+  // Seek audio player to specific time (for speaker tap)
+  const handleSeek = useCallback((time: number) => {
+    audioPlayerRef.current?.seek(time);
+  }, []);
 
   return (
     <div className={cn('min-h-full flex flex-col pb-6', className)}>
@@ -121,6 +141,8 @@ export const VoiceRecorderMeetingDetail = memo(function VoiceRecorderMeetingDeta
               speaker={speaker}
               isActive={activeSpeaker === speaker.id}
               onTap={() => handleSpeakerTap(speaker.id)}
+              onSeek={handleSeek}
+              firstSegmentTime={speakerFirstSegmentTime[speaker.name]}
               segmentLengths={speakerSegmentLengths[speaker.name]}
             />
           ))}
@@ -287,70 +309,3 @@ const ActionItemCard = memo(function ActionItemCard({
     </button>
   );
 });
-
-// Sample meeting data for development/testing
-export const SAMPLE_MEETING: VoiceRecording = {
-  id: '1',
-  title: 'Pipeline Review with Sarah Chen',
-  date: 'Today, 2:30 PM',
-  duration: '32:14',
-  durationSeconds: 1934, // 32:14 in seconds
-  speakers: [
-    { id: 1, name: 'You', initials: 'ME', duration: '14:22', color: '#3B82F6' },
-    {
-      id: 2,
-      name: 'Sarah Chen',
-      initials: 'SC',
-      duration: '17:52',
-      color: '#8B5CF6',
-    },
-  ],
-  actions: [
-    {
-      id: '1',
-      text: 'Send MSA to legal team',
-      owner: 'You',
-      deadline: 'Today',
-      done: false,
-    },
-    {
-      id: '2',
-      text: 'Share implementation timeline',
-      owner: 'You',
-      deadline: 'Tomorrow',
-      done: false,
-    },
-    {
-      id: '3',
-      text: 'Connect with David Kim (Legal)',
-      owner: 'Sarah',
-      deadline: 'EOD',
-      done: true,
-    },
-  ],
-  summary:
-    'Discussed Q1 enterprise deal with Meridian Technologies. Sarah confirmed budget approval and requested 6-week implementation timeline. Legal review needed before contract signing. Next step: Send MSA and schedule kickoff.',
-  transcript: [
-    {
-      speaker: 'You',
-      time: '0:12',
-      text: "Thanks for joining. Let's walk through the Q1 pipeline.",
-    },
-    {
-      speaker: 'Sarah Chen',
-      time: '0:28',
-      text: "I've reviewed the proposal. Questions about implementation.",
-    },
-    {
-      speaker: 'You',
-      time: '0:45',
-      text: "We're looking at 6 weeks with dedicated onboarding.",
-    },
-    {
-      speaker: 'Sarah Chen',
-      time: '1:02',
-      text: 'Can we loop in legal by Friday for the MSA?',
-    },
-  ],
-  createdAt: new Date(),
-};
