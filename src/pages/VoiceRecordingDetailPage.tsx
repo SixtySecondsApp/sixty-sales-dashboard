@@ -7,6 +7,7 @@ import { useVoiceRecordings } from '@/lib/hooks/useVoiceRecordings';
 import { VoiceRecorderMeetingDetail } from '@/components/voice-recorder/VoiceRecorderMeetingDetail';
 import { VoiceNoteDetail } from '@/components/voice-recorder/VoiceNoteDetail';
 import { TranscriptModal } from '@/components/voice-recorder/TranscriptModal';
+import { VoiceShareDialog } from '@/components/voice-recorder/VoiceShareDialog';
 import type { VoiceRecording, ActionItem, Speaker } from '@/components/voice-recorder/types';
 
 // Speaker colors for display
@@ -35,6 +36,7 @@ export default function VoiceRecordingDetailPage() {
   const [recording, setRecording] = useState<VoiceRecording | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [playbackProgress, setPlaybackProgress] = useState(0);
 
   const { getRecording, toggleActionItem } = useVoiceRecordings();
@@ -124,7 +126,7 @@ export default function VoiceRecordingDetailPage() {
 
   // Handle sharing
   const handleShare = useCallback(() => {
-    toast.info('Share feature coming soon!');
+    setIsShareDialogOpen(true);
   }, []);
 
   // Handle draft follow-up
@@ -257,6 +259,14 @@ export default function VoiceRecordingDetailPage() {
         }))}
         currentTime={playbackProgress * (recording.durationSeconds || 0)}
         onSeek={handleTranscriptSeek}
+      />
+
+      {/* Share Dialog */}
+      <VoiceShareDialog
+        open={isShareDialogOpen}
+        onOpenChange={setIsShareDialogOpen}
+        recordingId={recording.id}
+        recordingTitle={recording.title}
       />
     </div>
   );

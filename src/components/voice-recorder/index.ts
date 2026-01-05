@@ -9,6 +9,7 @@ export { VoiceRecorderHome } from './VoiceRecorderHome';
 export { VoiceRecorderRecording } from './VoiceRecorderRecording';
 export { VoiceRecorderMeetingDetail } from './VoiceRecorderMeetingDetail';
 export { VoiceNoteDetail } from './VoiceNoteDetail';
+export { VoiceShareDialog } from './VoiceShareDialog';
 
 // Visualization components
 export { LiveWaveform, MiniWaveform } from './LiveWaveform';

@@ -72,6 +72,25 @@ export interface TranscribeResult {
   error?: string;
 }
 
+export interface ShareResult {
+  success: boolean;
+  share_url?: string;
+  share_token?: string;
+  error?: string;
+}
+
+export interface PublicRecording {
+  id: string;
+  title: string;
+  duration_seconds: number | null;
+  summary: string | null;
+  transcript_segments: TranscriptSegment[] | null;
+  speakers: Speaker[] | null;
+  action_items: ActionItem[] | null;
+  recording_type: RecordingType;
+  recorded_at: string;
+}
+
 /**
  * Voice Recording Service
  * Handles uploading, transcribing, and managing voice recordings
@@ -301,7 +320,7 @@ export const voiceRecordingService = {
       // If using share token, use the public share endpoint
       if (shareToken) {
         const { data, error } = await supabase.functions.invoke('voice-share-playback', {
-          body: { recording_id: recordingId, share_token: shareToken },
+          body: { share_token: shareToken },
         });
 
         if (error || !data?.url) {
@@ -333,6 +352,109 @@ export const voiceRecordingService = {
       console.error('Error getting audio playback URL:', err);
       return null;
     }
+  },
+
+  /**
+   * Enable public sharing for a recording
+   */
+  async enableSharing(recordingId: string): Promise<ShareResult> {
+    try {
+      const { data, error } = await supabase.functions.invoke('voice-share', {
+        body: { recording_id: recordingId, enable: true },
+      });
+
+      if (error) {
+        console.error('Error enabling sharing:', error);
+        return { success: false, error: error.message };
+      }
+
+      return {
+        success: true,
+        share_url: data.share_url,
+        share_token: data.share_token,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to enable sharing';
+      console.error('Enable sharing error:', err);
+      return { success: false, error: message };
+    }
+  },
+
+  /**
+   * Disable public sharing for a recording
+   */
+  async disableSharing(recordingId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { data, error } = await supabase.functions.invoke('voice-share', {
+        body: { recording_id: recordingId, enable: false },
+      });
+
+      if (error) {
+        console.error('Error disabling sharing:', error);
+        return { success: false, error: error.message };
+      }
+
+      return { success: data.success };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to disable sharing';
+      console.error('Disable sharing error:', err);
+      return { success: false, error: message };
+    }
+  },
+
+  /**
+   * Get sharing status for a recording
+   */
+  async getSharingStatus(recordingId: string): Promise<{
+    isPublic: boolean;
+    shareToken: string | null;
+    shareViews: number;
+  } | null> {
+    const { data, error } = await supabase
+      .from('voice_recordings')
+      .select('is_public, share_token, share_views')
+      .eq('id', recordingId)
+      .maybeSingle();
+
+    if (error || !data) {
+      console.error('Error fetching sharing status:', error);
+      return null;
+    }
+
+    return {
+      isPublic: data.is_public || false,
+      shareToken: data.share_token,
+      shareViews: data.share_views || 0,
+    };
+  },
+
+  /**
+   * Get a public recording by share token (no auth required)
+   */
+  async getPublicRecording(shareToken: string): Promise<PublicRecording | null> {
+    const { data, error } = await supabase
+      .from('voice_recordings')
+      .select(`
+        id,
+        title,
+        duration_seconds,
+        summary,
+        transcript_segments,
+        speakers,
+        action_items,
+        recording_type,
+        recorded_at
+      `)
+      .eq('share_token', shareToken)
+      .eq('is_public', true)
+      .maybeSingle();
+
+    if (error || !data) {
+      console.error('Error fetching public recording:', error);
+      return null;
+    }
+
+    return data as PublicRecording;
   },
 };
 
