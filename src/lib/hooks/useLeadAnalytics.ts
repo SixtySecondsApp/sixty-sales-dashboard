@@ -21,7 +21,8 @@ export function useLeadAnalytics() {
   return useQuery({
     queryKey: ['lead-source-summary'],
     queryFn: fetchLeadAnalytics,
-    refetchInterval: 5 * 60_000,
+    staleTime: 5 * 60 * 1000, // 5 minutes - cache data to prevent excessive refetches
+    refetchInterval: false, // Disable polling - rely on cache invalidation or manual refresh
   });
 }
 

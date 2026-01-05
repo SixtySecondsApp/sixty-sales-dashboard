@@ -4,13 +4,14 @@ import { supabase } from '@/lib/supabase/clientV2';
 
 // Type assertion for build compatibility
 const supabaseClient = supabase as any;
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { ConfettiService } from '@/lib/services/confettiService';
 import { IdentifierType } from '@/components/IdentifierField';
 import logger from '@/lib/utils/logger';
 import { useViewMode } from '@/contexts/ViewModeContext';
 import { useAuthUser } from './useAuthUser';
+import { useTableSubscription } from './useRealtimeHub';
 
 export interface Activity {
   id: string;
@@ -189,14 +190,20 @@ async function createActivity(activity: {
   contactIdentifierType?: IdentifierType;
   status?: Activity['status'];
   deal_id?: string | null;
+  userId?: string; // Accept userId to avoid duplicate getUser() calls
 }) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+  // Use provided userId or fetch it (fallback for backward compatibility)
+  let userId = activity.userId;
+  if (!userId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    userId = user.id;
+  }
 
   const { data: profile } = await supabase
     .from('profiles')
     .select('first_name, last_name')
-    .eq('id', user.id)
+    .eq('id', userId)
     .single();
 
   if (!profile) throw new Error('User profile not found');
@@ -204,7 +211,7 @@ async function createActivity(activity: {
   const { data, error } = await supabase
     .from('activities')
     .insert({
-      user_id: user.id,
+      user_id: userId,
       type: activity.type,
       client_name: activity.client_name,
       details: activity.details || null,
@@ -242,14 +249,20 @@ async function createSale(sale: {
   deal_id?: string | null;
   oneOffRevenue?: number;
   monthlyMrr?: number;
+  userId?: string; // Accept userId to avoid duplicate getUser() calls
 }) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+  // Use provided userId or fetch it (fallback for backward compatibility)
+  let userId = sale.userId;
+  if (!userId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    userId = user.id;
+  }
 
   const { data: profile } = await supabase
     .from('profiles')
     .select('first_name, last_name')
-    .eq('id', user.id)
+    .eq('id', userId)
     .single();
 
   if (!profile) throw new Error('User profile not found');
@@ -448,34 +461,28 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
   const { data: authUser } = useAuthUser(); // Get cached auth user from React Query
   const authUserId = authUser?.id;
 
-  // Set up real-time subscription for live updates (only once)
-  useEffect(() => {
-    if (dateRange || isViewMode || !authUserId) return; // Only set up subscription for the main activities hook and not in view mode
+  // Use centralized realtime hub instead of creating separate channel
+  // This reduces WebSocket connections by sharing with other subscriptions
+  useTableSubscription(
+    'activities',
+    useCallback((payload: any) => {
+      // Filter by user_id in callback since hub doesn't support complex filters
+      const payloadUserId = payload.new?.user_id || payload.old?.user_id;
+      if (payloadUserId !== authUserId) {
+        return;
+      }
 
-    const subscription = supabase
-      .channel('activities_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'activities',
-          filter: `user_id=eq.${authUserId}`
-        },
-        (payload) => {
-          // Invalidate all relevant queries with exact: true to prevent cascade
-          queryClient.invalidateQueries({ queryKey: ['activities'], exact: true });
-          queryClient.invalidateQueries({ queryKey: ['salesData'], exact: true });
-          queryClient.invalidateQueries({ queryKey: ['targets'], exact: true });
-          queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'], exact: true });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [queryClient, dateRange, isViewMode, authUserId]);
+      // Only invalidate if not in view mode and no date range filter
+      if (!dateRange && !isViewMode) {
+        // Invalidate all relevant queries with exact: true to prevent cascade
+        queryClient.invalidateQueries({ queryKey: ['activities'], exact: true });
+        queryClient.invalidateQueries({ queryKey: ['salesData'], exact: true });
+        queryClient.invalidateQueries({ queryKey: ['targets'], exact: true });
+        queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'], exact: true });
+      }
+    }, [queryClient, dateRange, isViewMode, authUserId]),
+    { enabled: !dateRange && !isViewMode && !!authUserId }
+  );
 
   // Create unique query key based on date range
   const queryKey = dateRange
@@ -491,8 +498,10 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
   });
 
   // Add activity mutation with error handling
+  // Pass userId from cached auth user to avoid duplicate getUser() calls
   const addActivityMutation = useMutation({
-    mutationFn: createActivity,
+    mutationFn: (activity: Parameters<typeof createActivity>[0]) => 
+      createActivity({ ...activity, userId: authUserId }),
     onSuccess: () => {
       // Invalidate all relevant queries with exact: true to prevent cascade
       queryClient.invalidateQueries({ queryKey: ['activities'], exact: true });
@@ -508,8 +517,10 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
   });
 
   // Add sale mutation with error handling and confetti
+  // Pass userId from cached auth user to avoid duplicate getUser() calls
   const addSaleMutation = useMutation({
-    mutationFn: createSale,
+    mutationFn: (sale: Parameters<typeof createSale>[0]) => 
+      createSale({ ...sale, userId: authUserId }),
     onSuccess: (data) => {
       // Invalidate with exact: true to prevent cascade
       queryClient.invalidateQueries({ queryKey: ['activities'], exact: true });

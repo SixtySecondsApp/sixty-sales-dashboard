@@ -11,6 +11,7 @@ import { FathomSelfMapping } from '@/components/settings/FathomSelfMapping';
 import { FathomUserMapping } from '@/components/settings/FathomUserMapping';
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
 import { useFirefliesIntegration } from '@/lib/hooks/useFirefliesIntegration';
+import { useAuthUser } from '@/lib/hooks/useAuthUser';
 import { useOrgStore } from '@/lib/stores/orgStore';
 
 export default function MeetingSyncPage() {
@@ -23,12 +24,14 @@ export default function MeetingSyncPage() {
   const activeOrgRole = useOrgStore((s) => s.activeOrgRole);
   const isAdmin = activeOrgRole === 'owner' || activeOrgRole === 'admin';
 
+  // Use cached auth user hook instead of direct getUser() call
+  const { data: user } = useAuthUser();
+
   // Load existing auto meeting sync preference
   useEffect(() => {
     const loadSettings = async () => {
       try {
         setIsLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
         const { data } = await supabase
@@ -48,14 +51,19 @@ export default function MeetingSyncPage() {
       }
     };
 
-    loadSettings();
-  }, []);
+    if (user) {
+      loadSettings();
+    }
+  }, [user]);
 
   const handleSave = async () => {
+    if (!user) {
+      toast.error('User not authenticated');
+      return;
+    }
+
     setIsSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
 
       const { data: existingSettings } = await supabase
         .from('user_settings')
