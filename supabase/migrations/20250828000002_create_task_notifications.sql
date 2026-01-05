@@ -32,19 +32,22 @@ CREATE INDEX IF NOT EXISTS idx_task_notifications_read ON task_notifications(rea
 
 ALTER TABLE task_notifications ENABLE ROW LEVEL SECURITY;
 
--- Users can only see their own notifications
+-- Users can only see their own notifications (idempotent)
+DROP POLICY IF EXISTS "Users can view their own notifications" ON task_notifications;
 CREATE POLICY "Users can view their own notifications"
   ON task_notifications
   FOR SELECT
   USING (auth.uid() = user_id);
 
--- Users can mark their own notifications as read
+-- Users can mark their own notifications as read (idempotent)
+DROP POLICY IF EXISTS "Users can update their own notifications" ON task_notifications;
 CREATE POLICY "Users can update their own notifications"
   ON task_notifications
   FOR UPDATE
   USING (auth.uid() = user_id);
 
--- System can insert notifications
+-- System can insert notifications (idempotent)
+DROP POLICY IF EXISTS "System can insert notifications" ON task_notifications;
 CREATE POLICY "System can insert notifications"
   ON task_notifications
   FOR INSERT

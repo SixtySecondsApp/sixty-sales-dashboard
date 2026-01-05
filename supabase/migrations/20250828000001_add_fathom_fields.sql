@@ -67,60 +67,67 @@ CREATE INDEX IF NOT EXISTS idx_meeting_action_items_deadline
 ON meeting_action_items(deadline_at)
 WHERE deadline_at IS NOT NULL;
 
--- Add RLS policies for workflow_executions
+-- Add RLS policies for workflow_executions (idempotent)
 ALTER TABLE workflow_executions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own workflow executions" ON workflow_executions;
 CREATE POLICY "Users can view their own workflow executions"
   ON workflow_executions FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can create their own workflow executions" ON workflow_executions;
 CREATE POLICY "Users can create their own workflow executions"
   ON workflow_executions FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own workflow executions" ON workflow_executions;
 CREATE POLICY "Users can update their own workflow executions"
   ON workflow_executions FOR UPDATE
   USING (auth.uid() = user_id);
 
--- Add RLS policies for meeting_action_items
+-- Add RLS policies for meeting_action_items (idempotent)
 ALTER TABLE meeting_action_items ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view action items for their meetings" ON meeting_action_items;
 CREATE POLICY "Users can view action items for their meetings"
   ON meeting_action_items FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM meetings 
-      WHERE meetings.id = meeting_action_items.meeting_id 
+      SELECT 1 FROM meetings
+      WHERE meetings.id = meeting_action_items.meeting_id
       AND meetings.owner_user_id = auth.uid()
     )
   );
 
+DROP POLICY IF EXISTS "Users can create action items for their meetings" ON meeting_action_items;
 CREATE POLICY "Users can create action items for their meetings"
   ON meeting_action_items FOR INSERT
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM meetings 
-      WHERE meetings.id = meeting_id 
+      SELECT 1 FROM meetings
+      WHERE meetings.id = meeting_id
       AND meetings.owner_user_id = auth.uid()
     )
   );
 
+DROP POLICY IF EXISTS "Users can update action items for their meetings" ON meeting_action_items;
 CREATE POLICY "Users can update action items for their meetings"
   ON meeting_action_items FOR UPDATE
   USING (
     EXISTS (
-      SELECT 1 FROM meetings 
-      WHERE meetings.id = meeting_action_items.meeting_id 
+      SELECT 1 FROM meetings
+      WHERE meetings.id = meeting_action_items.meeting_id
       AND meetings.owner_user_id = auth.uid()
     )
   );
 
+DROP POLICY IF EXISTS "Users can delete action items for their meetings" ON meeting_action_items;
 CREATE POLICY "Users can delete action items for their meetings"
   ON meeting_action_items FOR DELETE
   USING (
     EXISTS (
-      SELECT 1 FROM meetings 
-      WHERE meetings.id = meeting_action_items.meeting_id 
+      SELECT 1 FROM meetings
+      WHERE meetings.id = meeting_action_items.meeting_id
       AND meetings.owner_user_id = auth.uid()
     )
   );

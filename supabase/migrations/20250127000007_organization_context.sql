@@ -44,7 +44,8 @@ CREATE INDEX IF NOT EXISTS idx_org_context_lookup ON organization_context(organi
 
 ALTER TABLE organization_context ENABLE ROW LEVEL SECURITY;
 
--- Org members can view their organization's context
+-- Org members can view their organization's context (idempotent)
+DROP POLICY IF EXISTS "Org members can view context" ON organization_context;
 CREATE POLICY "Org members can view context"
   ON organization_context FOR SELECT
   USING (
@@ -53,7 +54,8 @@ CREATE POLICY "Org members can view context"
     )
   );
 
--- Org admins can insert context
+-- Org admins can insert context (idempotent)
+DROP POLICY IF EXISTS "Org admins can insert context" ON organization_context;
 CREATE POLICY "Org admins can insert context"
   ON organization_context FOR INSERT
   WITH CHECK (
@@ -63,7 +65,8 @@ CREATE POLICY "Org admins can insert context"
     )
   );
 
--- Org admins can update context
+-- Org admins can update context (idempotent)
+DROP POLICY IF EXISTS "Org admins can update context" ON organization_context;
 CREATE POLICY "Org admins can update context"
   ON organization_context FOR UPDATE
   USING (
@@ -73,7 +76,8 @@ CREATE POLICY "Org admins can update context"
     )
   );
 
--- Org admins can delete context
+-- Org admins can delete context (idempotent)
+DROP POLICY IF EXISTS "Org admins can delete context" ON organization_context;
 CREATE POLICY "Org admins can delete context"
   ON organization_context FOR DELETE
   USING (
@@ -83,7 +87,8 @@ CREATE POLICY "Org admins can delete context"
     )
   );
 
--- Service role can manage all context (for edge functions)
+-- Service role can manage all context (for edge functions) (idempotent)
+DROP POLICY IF EXISTS "Service role can manage context" ON organization_context;
 CREATE POLICY "Service role can manage context"
   ON organization_context FOR ALL
   USING (true)

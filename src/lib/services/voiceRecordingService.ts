@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase/clientV2';
 
+export type RecordingType = 'meeting' | 'voice_note';
+
 export interface VoiceRecording {
   id: string;
   org_id: string;
@@ -10,6 +12,7 @@ export interface VoiceRecording {
   file_size_bytes: number | null;
   duration_seconds: number | null;
   status: 'uploaded' | 'transcribing' | 'analyzing' | 'completed' | 'failed';
+  recording_type: RecordingType;
   error_message: string | null;
   transcript_text: string | null;
   transcript_segments: TranscriptSegment[] | null;
@@ -285,6 +288,66 @@ export const voiceRecordingService = {
     }
 
     return true;
+  },
+
+  /**
+   * Get a presigned URL for audio playback
+   */
+  async getAudioPlaybackUrl(
+    recordingId: string,
+    shareToken?: string
+  ): Promise<{ url: string; expiresAt: Date } | null> {
+    try {
+      // If using share token, use the public share endpoint
+      if (shareToken) {
+        const { data, error } = await supabase.functions.invoke('voice-share-playback', {
+          body: { recording_id: recordingId, share_token: shareToken },
+        });
+
+        if (error || !data?.url) {
+          console.error('Error getting shared playback URL:', error);
+          return null;
+        }
+
+        return {
+          url: data.url,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+        };
+      }
+
+      // Get recording to find the audio file path
+      const recording = await this.getRecording(recordingId);
+      if (!recording?.audio_url) {
+        console.error('Recording not found or no audio URL');
+        return null;
+      }
+
+      // If audio_url is already a signed URL or public URL, return it directly
+      if (recording.audio_url.startsWith('http')) {
+        return {
+          url: recording.audio_url,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        };
+      }
+
+      // Otherwise, create a signed URL from storage
+      const { data, error } = await supabase.storage
+        .from('voice-recordings')
+        .createSignedUrl(recording.audio_url, 3600); // 1 hour expiry
+
+      if (error || !data?.signedUrl) {
+        console.error('Error creating signed URL:', error);
+        return null;
+      }
+
+      return {
+        url: data.signedUrl,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      };
+    } catch (err) {
+      console.error('Error getting audio playback URL:', err);
+      return null;
+    }
   },
 };
 

@@ -1,27 +1,41 @@
 -- Multi-Tenant Architecture: Add RLS policies for tenant-scoped tables
 -- All policies check org membership via organization_memberships table
 -- Super admins (is_admin flag) can bypass RLS
+-- NOTE: All operations are conditional on table existence
 
--- Enable RLS on all tenant tables (if not already enabled)
-ALTER TABLE deals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE activities ENABLE ROW LEVEL SECURITY;
-ALTER TABLE contacts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
-ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
-ALTER TABLE meetings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE calendar_calendars ENABLE ROW LEVEL SECURITY;
-ALTER TABLE deal_splits ENABLE ROW LEVEL SECURITY;
-ALTER TABLE lead_prep_notes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workflow_executions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_automation_rules ENABLE ROW LEVEL SECURITY;
-ALTER TABLE smart_task_templates ENABLE ROW LEVEL SECURITY;
-ALTER TABLE deal_notes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE contact_notes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE company_notes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE google_integrations ENABLE ROW LEVEL SECURITY;
+-- Helper function to enable RLS if table exists
+CREATE OR REPLACE FUNCTION enable_rls_if_table_exists(p_table_name TEXT)
+RETURNS VOID AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = p_table_name) THEN
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', p_table_name);
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Enable RLS on all tenant tables (if they exist)
+SELECT enable_rls_if_table_exists('deals');
+SELECT enable_rls_if_table_exists('tasks');
+SELECT enable_rls_if_table_exists('activities');
+SELECT enable_rls_if_table_exists('contacts');
+SELECT enable_rls_if_table_exists('companies');
+SELECT enable_rls_if_table_exists('leads');
+SELECT enable_rls_if_table_exists('clients');
+SELECT enable_rls_if_table_exists('meetings');
+SELECT enable_rls_if_table_exists('calendar_events');
+SELECT enable_rls_if_table_exists('calendar_calendars');
+SELECT enable_rls_if_table_exists('deal_splits');
+SELECT enable_rls_if_table_exists('lead_prep_notes');
+SELECT enable_rls_if_table_exists('workflow_executions');
+SELECT enable_rls_if_table_exists('user_automation_rules');
+SELECT enable_rls_if_table_exists('smart_task_templates');
+SELECT enable_rls_if_table_exists('deal_notes');
+SELECT enable_rls_if_table_exists('contact_notes');
+SELECT enable_rls_if_table_exists('company_notes');
+SELECT enable_rls_if_table_exists('google_integrations');
+
+-- Drop the helper function
+DROP FUNCTION IF EXISTS enable_rls_if_table_exists(TEXT);
 
 -- Helper function to check if user can access org data
 -- This is used in all RLS policies
@@ -32,66 +46,74 @@ BEGIN
   IF is_super_admin(auth.uid()) THEN
     RETURN true;
   END IF;
-  
+
   -- Check if user is a member of the organization
   RETURN is_org_member(auth.uid(), p_org_id);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Generic policy function for SELECT
+-- Generic policy function for SELECT (checks if table exists)
 CREATE OR REPLACE FUNCTION create_org_select_policy(table_name TEXT)
 RETURNS void AS $$
 BEGIN
-  EXECUTE format('
-    DROP POLICY IF EXISTS "org_members_can_select_%s" ON %I;
-    CREATE POLICY "org_members_can_select_%s"
-      ON %I FOR SELECT
-      USING (can_access_org_data(org_id) OR org_id IS NULL);
-  ', table_name, table_name, table_name, table_name);
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND information_schema.tables.table_name = create_org_select_policy.table_name) THEN
+    EXECUTE format('
+      DROP POLICY IF EXISTS "org_members_can_select_%s" ON %I;
+      CREATE POLICY "org_members_can_select_%s"
+        ON %I FOR SELECT
+        USING (can_access_org_data(org_id) OR org_id IS NULL);
+    ', table_name, table_name, table_name, table_name);
+  END IF;
 END;
 $$ LANGUAGE plpgsql;
 
--- Generic policy function for INSERT
+-- Generic policy function for INSERT (checks if table exists)
 CREATE OR REPLACE FUNCTION create_org_insert_policy(table_name TEXT)
 RETURNS void AS $$
 BEGIN
-  EXECUTE format('
-    DROP POLICY IF EXISTS "org_members_can_insert_%s" ON %I;
-    CREATE POLICY "org_members_can_insert_%s"
-      ON %I FOR INSERT
-      WITH CHECK (can_access_org_data(org_id) OR org_id IS NULL);
-  ', table_name, table_name, table_name, table_name);
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND information_schema.tables.table_name = create_org_insert_policy.table_name) THEN
+    EXECUTE format('
+      DROP POLICY IF EXISTS "org_members_can_insert_%s" ON %I;
+      CREATE POLICY "org_members_can_insert_%s"
+        ON %I FOR INSERT
+        WITH CHECK (can_access_org_data(org_id) OR org_id IS NULL);
+    ', table_name, table_name, table_name, table_name);
+  END IF;
 END;
 $$ LANGUAGE plpgsql;
 
--- Generic policy function for UPDATE
+-- Generic policy function for UPDATE (checks if table exists)
 CREATE OR REPLACE FUNCTION create_org_update_policy(table_name TEXT)
 RETURNS void AS $$
 BEGIN
-  EXECUTE format('
-    DROP POLICY IF EXISTS "org_members_can_update_%s" ON %I;
-    CREATE POLICY "org_members_can_update_%s"
-      ON %I FOR UPDATE
-      USING (can_access_org_data(org_id) OR org_id IS NULL)
-      WITH CHECK (can_access_org_data(org_id) OR org_id IS NULL);
-  ', table_name, table_name, table_name, table_name);
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND information_schema.tables.table_name = create_org_update_policy.table_name) THEN
+    EXECUTE format('
+      DROP POLICY IF EXISTS "org_members_can_update_%s" ON %I;
+      CREATE POLICY "org_members_can_update_%s"
+        ON %I FOR UPDATE
+        USING (can_access_org_data(org_id) OR org_id IS NULL)
+        WITH CHECK (can_access_org_data(org_id) OR org_id IS NULL);
+    ', table_name, table_name, table_name, table_name);
+  END IF;
 END;
 $$ LANGUAGE plpgsql;
 
--- Generic policy function for DELETE
+-- Generic policy function for DELETE (checks if table exists)
 CREATE OR REPLACE FUNCTION create_org_delete_policy(table_name TEXT)
 RETURNS void AS $$
 BEGIN
-  EXECUTE format('
-    DROP POLICY IF EXISTS "org_members_can_delete_%s" ON %I;
-    CREATE POLICY "org_members_can_delete_%s"
-      ON %I FOR DELETE
-      USING (can_access_org_data(org_id) OR org_id IS NULL);
-  ', table_name, table_name, table_name, table_name);
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND information_schema.tables.table_name = create_org_delete_policy.table_name) THEN
+    EXECUTE format('
+      DROP POLICY IF EXISTS "org_members_can_delete_%s" ON %I;
+      CREATE POLICY "org_members_can_delete_%s"
+        ON %I FOR DELETE
+        USING (can_access_org_data(org_id) OR org_id IS NULL);
+    ', table_name, table_name, table_name, table_name);
+  END IF;
 END;
 $$ LANGUAGE plpgsql;
 
--- Create policies for all tenant tables
+-- Create policies for all tenant tables (only if they exist)
 SELECT create_org_select_policy('deals');
 SELECT create_org_insert_policy('deals');
 SELECT create_org_update_policy('deals');
@@ -195,15 +217,3 @@ DROP FUNCTION IF EXISTS create_org_delete_policy(TEXT);
 
 -- Comments
 COMMENT ON FUNCTION can_access_org_data(UUID) IS 'Checks if current user can access data for a given organization (member or super admin)';
-
-
-
-
-
-
-
-
-
-
-
-
