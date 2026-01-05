@@ -1,6 +1,7 @@
 -- Migration: Setup Transcript Retry Cron Job
 -- Purpose: Configure automated retry processor to run every 5 minutes
 -- Date: 2025-01-25
+-- NOTE: Made conditional for staging compatibility - pg_cron may not be available
 
 -- ============================================================================
 -- 1. Create function to trigger transcript retry Edge Function
@@ -45,21 +46,30 @@ END;
 $$;
 
 -- ============================================================================
--- 2. Schedule cron job to run every 5 minutes
+-- 2. Schedule cron job to run every 5 minutes (conditional)
 -- ============================================================================
 
--- Remove existing job if it exists
-SELECT cron.unschedule('fathom-transcript-retry') 
-WHERE EXISTS (
-  SELECT 1 FROM cron.job WHERE jobname = 'fathom-transcript-retry'
-);
+DO $$
+BEGIN
+  -- Only schedule cron if pg_cron extension is available
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    -- Remove existing job if it exists
+    IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'fathom-transcript-retry') THEN
+      PERFORM cron.unschedule('fathom-transcript-retry');
+    END IF;
 
--- Schedule new job (runs every 5 minutes)
-SELECT cron.schedule(
-  'fathom-transcript-retry',
-  '*/5 * * * *', -- Every 5 minutes
-  $$SELECT trigger_transcript_retry_processor();$$
-);
+    -- Schedule new job (runs every 5 minutes)
+    PERFORM cron.schedule(
+      'fathom-transcript-retry',
+      '*/5 * * * *', -- Every 5 minutes
+      $$SELECT trigger_transcript_retry_processor();$$
+    );
+
+    RAISE NOTICE 'Scheduled fathom-transcript-retry cron job';
+  ELSE
+    RAISE NOTICE 'Skipping cron job setup - pg_cron extension not available';
+  END IF;
+END $$;
 
 -- ============================================================================
 -- 3. Grant permissions
