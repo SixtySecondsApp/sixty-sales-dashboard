@@ -1,91 +1,126 @@
 -- Migration: Create Fathom Transcript Retry Jobs System
 -- Purpose: Persistent retry queue for transcript fetching with 5×5min backoff
 -- Date: 2025-01-25
+-- NOTE: Made conditional for staging compatibility - meetings table may not exist yet
 
--- ============================================================================
--- 1. Create transcript retry jobs table
--- ============================================================================
+DO $$
+BEGIN
+  -- Only create if meetings table exists
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'meetings') THEN
 
-CREATE TABLE IF NOT EXISTS fathom_transcript_retry_jobs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  meeting_id UUID NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  recording_id TEXT NOT NULL,
-  attempt_count INTEGER DEFAULT 0 NOT NULL,
-  max_attempts INTEGER DEFAULT 5 NOT NULL,
-  next_retry_at TIMESTAMPTZ NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
-  last_error TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  completed_at TIMESTAMPTZ
-);
+    -- ============================================================================
+    -- 1. Create transcript retry jobs table
+    -- ============================================================================
 
--- ============================================================================
--- 2. Create indexes for efficient querying
--- ============================================================================
+    CREATE TABLE IF NOT EXISTS fathom_transcript_retry_jobs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      meeting_id UUID NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      recording_id TEXT NOT NULL,
+      attempt_count INTEGER DEFAULT 0 NOT NULL,
+      max_attempts INTEGER DEFAULT 5 NOT NULL,
+      next_retry_at TIMESTAMPTZ NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+      last_error TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+      completed_at TIMESTAMPTZ
+    );
 
--- Ensure one job per meeting at a time (partial unique index)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_transcript_retry_jobs_unique_pending 
-  ON fathom_transcript_retry_jobs(meeting_id) 
-  WHERE status IN ('pending', 'processing');
+    -- ============================================================================
+    -- 2. Create indexes for efficient querying
+    -- ============================================================================
 
--- Index for finding pending jobs ready to retry
-CREATE INDEX IF NOT EXISTS idx_transcript_retry_jobs_pending 
-  ON fathom_transcript_retry_jobs(status, next_retry_at)
-  WHERE status IN ('pending', 'processing');
+    -- Ensure one job per meeting at a time (partial unique index)
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_transcript_retry_jobs_unique_pending
+      ON fathom_transcript_retry_jobs(meeting_id)
+      WHERE status IN ('pending', 'processing');
 
--- Index for finding jobs by meeting
-CREATE INDEX IF NOT EXISTS idx_transcript_retry_jobs_meeting 
-  ON fathom_transcript_retry_jobs(meeting_id);
+    -- Index for finding pending jobs ready to retry
+    CREATE INDEX IF NOT EXISTS idx_transcript_retry_jobs_pending
+      ON fathom_transcript_retry_jobs(status, next_retry_at)
+      WHERE status IN ('pending', 'processing');
 
--- Index for finding jobs by user
-CREATE INDEX IF NOT EXISTS idx_transcript_retry_jobs_user 
-  ON fathom_transcript_retry_jobs(user_id, status);
+    -- Index for finding jobs by meeting
+    CREATE INDEX IF NOT EXISTS idx_transcript_retry_jobs_meeting
+      ON fathom_transcript_retry_jobs(meeting_id);
 
--- Index for finding failed jobs (monitoring)
-CREATE INDEX IF NOT EXISTS idx_transcript_retry_jobs_failed 
-  ON fathom_transcript_retry_jobs(status, updated_at)
-  WHERE status = 'failed';
+    -- Index for finding jobs by user
+    CREATE INDEX IF NOT EXISTS idx_transcript_retry_jobs_user
+      ON fathom_transcript_retry_jobs(user_id, status);
+
+    -- Index for finding failed jobs (monitoring)
+    CREATE INDEX IF NOT EXISTS idx_transcript_retry_jobs_failed
+      ON fathom_transcript_retry_jobs(status, updated_at)
+      WHERE status = 'failed';
+
+    -- ============================================================================
+    -- 4. Update existing transcript retry index to reflect 5-attempt policy
+    -- ============================================================================
+
+    -- Drop old index if it exists with different condition
+    DROP INDEX IF EXISTS idx_meetings_transcript_retry;
+
+    -- Create updated index with 5-attempt policy
+    CREATE INDEX IF NOT EXISTS idx_meetings_transcript_retry
+      ON meetings(last_transcript_fetch_at, transcript_fetch_attempts)
+      WHERE transcript_text IS NULL
+        AND transcript_fetch_attempts < 5
+        AND fathom_recording_id IS NOT NULL;
+
+    -- ============================================================================
+    -- 8. Enable Row Level Security
+    -- ============================================================================
+
+    ALTER TABLE fathom_transcript_retry_jobs ENABLE ROW LEVEL SECURITY;
+
+    -- Users can view their own retry jobs
+    CREATE POLICY "Users can view own retry jobs"
+      ON fathom_transcript_retry_jobs
+      FOR SELECT
+      USING (auth.uid() = user_id);
+
+    -- Service role can manage all retry jobs
+    CREATE POLICY "Service role can manage retry jobs"
+      ON fathom_transcript_retry_jobs
+      FOR ALL
+      USING (auth.jwt()->>'role' = 'service_role');
+
+    RAISE NOTICE 'Created fathom_transcript_retry_jobs table and indexes';
+  ELSE
+    RAISE NOTICE 'Skipping transcript retry jobs - meetings table does not exist yet';
+  END IF;
+END $$;
 
 -- ============================================================================
 -- 3. Add needs_transcript_retry flag to meetings (computed column via function)
 -- ============================================================================
 
--- Function to check if meeting needs transcript retry
-CREATE OR REPLACE FUNCTION meeting_needs_transcript_retry(meeting_row meetings)
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT 
-    meeting_row.transcript_text IS NULL 
-    AND meeting_row.fathom_recording_id IS NOT NULL
-    AND (
-      meeting_row.transcript_fetch_attempts IS NULL 
-      OR meeting_row.transcript_fetch_attempts < 5
-    )
-    AND NOT EXISTS (
-      SELECT 1 
-      FROM fathom_transcript_retry_jobs 
-      WHERE meeting_id = meeting_row.id 
-        AND status IN ('pending', 'processing')
-    );
-$$;
-
--- ============================================================================
--- 4. Update existing transcript retry index to reflect 5-attempt policy
--- ============================================================================
-
--- Drop old index if it exists with different condition
-DROP INDEX IF EXISTS idx_meetings_transcript_retry;
-
--- Create updated index with 5-attempt policy
-CREATE INDEX IF NOT EXISTS idx_meetings_transcript_retry
-  ON meetings(last_transcript_fetch_at, transcript_fetch_attempts)
-  WHERE transcript_text IS NULL 
-    AND transcript_fetch_attempts < 5
-    AND fathom_recording_id IS NOT NULL;
+-- Function to check if meeting needs transcript retry (conditional)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'meetings') THEN
+    CREATE OR REPLACE FUNCTION meeting_needs_transcript_retry(meeting_row meetings)
+    RETURNS BOOLEAN
+    LANGUAGE sql
+    STABLE
+    AS $func$
+      SELECT
+        meeting_row.transcript_text IS NULL
+        AND meeting_row.fathom_recording_id IS NOT NULL
+        AND (
+          meeting_row.transcript_fetch_attempts IS NULL
+          OR meeting_row.transcript_fetch_attempts < 5
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM fathom_transcript_retry_jobs
+          WHERE meeting_id = meeting_row.id
+            AND status IN ('pending', 'processing')
+        );
+    $func$;
+  END IF;
+END $$;
 
 -- ============================================================================
 -- 5. Create function to enqueue retry job (idempotent)
@@ -106,16 +141,21 @@ DECLARE
   v_next_retry_at TIMESTAMPTZ;
   v_existing_job_id UUID;
 BEGIN
+  -- Check if table exists
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'fathom_transcript_retry_jobs') THEN
+    RETURN NULL;
+  END IF;
+
   -- Calculate next retry time (5 minutes from now)
   v_next_retry_at := NOW() + INTERVAL '5 minutes';
-  
+
   -- Check if there's already a pending or processing job for this meeting
   SELECT id INTO v_existing_job_id
   FROM fathom_transcript_retry_jobs
   WHERE meeting_id = p_meeting_id
     AND status IN ('pending', 'processing')
   LIMIT 1;
-  
+
   IF v_existing_job_id IS NOT NULL THEN
     -- Update existing job
     UPDATE fathom_transcript_retry_jobs
@@ -150,7 +190,7 @@ BEGIN
     )
     RETURNING id INTO v_job_id;
   END IF;
-  
+
   RETURN v_job_id;
 END;
 $$;
@@ -165,8 +205,12 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'fathom_transcript_retry_jobs') THEN
+    RETURN;
+  END IF;
+
   UPDATE fathom_transcript_retry_jobs
-  SET 
+  SET
     status = 'completed',
     completed_at = NOW(),
     updated_at = NOW()
@@ -193,8 +237,12 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'fathom_transcript_retry_jobs') THEN
+    RETURN;
+  END IF;
+
   RETURN QUERY
-  SELECT 
+  SELECT
     rtj.id,
     rtj.meeting_id,
     rtj.user_id,
@@ -213,25 +261,7 @@ END;
 $$;
 
 -- ============================================================================
--- 8. Enable Row Level Security
--- ============================================================================
-
-ALTER TABLE fathom_transcript_retry_jobs ENABLE ROW LEVEL SECURITY;
-
--- Users can view their own retry jobs
-CREATE POLICY "Users can view own retry jobs"
-  ON fathom_transcript_retry_jobs
-  FOR SELECT
-  USING (auth.uid() = user_id);
-
--- Service role can manage all retry jobs
-CREATE POLICY "Service role can manage retry jobs"
-  ON fathom_transcript_retry_jobs
-  FOR ALL
-  USING (auth.jwt()->>'role' = 'service_role');
-
--- ============================================================================
--- 9. Create updated_at trigger
+-- 9. Create updated_at trigger (conditional)
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION update_transcript_retry_job_updated_at()
@@ -244,20 +274,32 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER trigger_update_transcript_retry_job_updated_at
-  BEFORE UPDATE ON fathom_transcript_retry_jobs
-  FOR EACH ROW
-  EXECUTE FUNCTION update_transcript_retry_job_updated_at();
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'fathom_transcript_retry_jobs') THEN
+    DROP TRIGGER IF EXISTS trigger_update_transcript_retry_job_updated_at ON fathom_transcript_retry_jobs;
+    CREATE TRIGGER trigger_update_transcript_retry_job_updated_at
+      BEFORE UPDATE ON fathom_transcript_retry_jobs
+      FOR EACH ROW
+      EXECUTE FUNCTION update_transcript_retry_job_updated_at();
+  END IF;
+END $$;
 
 -- ============================================================================
--- 10. Comments for documentation
+-- 10. Comments for documentation (conditional)
 -- ============================================================================
 
-COMMENT ON TABLE fathom_transcript_retry_jobs IS 'Queue for retrying transcript fetches with 5×5min backoff';
-COMMENT ON COLUMN fathom_transcript_retry_jobs.attempt_count IS 'Number of retry attempts made (starts at 1 after initial webhook attempt)';
-COMMENT ON COLUMN fathom_transcript_retry_jobs.max_attempts IS 'Maximum number of retry attempts (default: 5)';
-COMMENT ON COLUMN fathom_transcript_retry_jobs.next_retry_at IS 'When to retry next (5 minutes after last attempt)';
-COMMENT ON COLUMN fathom_transcript_retry_jobs.status IS 'Job status: pending, processing, completed, failed';
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'fathom_transcript_retry_jobs') THEN
+    COMMENT ON TABLE fathom_transcript_retry_jobs IS 'Queue for retrying transcript fetches with 5×5min backoff';
+    COMMENT ON COLUMN fathom_transcript_retry_jobs.attempt_count IS 'Number of retry attempts made (starts at 1 after initial webhook attempt)';
+    COMMENT ON COLUMN fathom_transcript_retry_jobs.max_attempts IS 'Maximum number of retry attempts (default: 5)';
+    COMMENT ON COLUMN fathom_transcript_retry_jobs.next_retry_at IS 'When to retry next (5 minutes after last attempt)';
+    COMMENT ON COLUMN fathom_transcript_retry_jobs.status IS 'Job status: pending, processing, completed, failed';
+  END IF;
+END $$;
+
 COMMENT ON FUNCTION enqueue_transcript_retry IS 'Idempotently enqueue a transcript retry job for a meeting';
 COMMENT ON FUNCTION complete_transcript_retry_job IS 'Mark retry job as completed when transcript is successfully fetched';
 COMMENT ON FUNCTION get_pending_transcript_retry_jobs IS 'Get next batch of jobs ready for retry (with row locking)';
@@ -265,4 +307,3 @@ COMMENT ON FUNCTION get_pending_transcript_retry_jobs IS 'Get next batch of jobs
 -- ============================================================================
 -- Migration Complete
 -- ============================================================================
-
