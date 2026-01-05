@@ -116,7 +116,7 @@ CREATE POLICY "Users can read their organization's sequence executions"
   ON sequence_executions FOR SELECT
   USING (
     organization_id IN (
-      SELECT organization_id FROM organization_members
+      SELECT org_id FROM organization_memberships
       WHERE user_id = auth.uid()
     )
   );
@@ -126,7 +126,7 @@ CREATE POLICY "Users can create sequence executions in their organization"
   ON sequence_executions FOR INSERT
   WITH CHECK (
     organization_id IN (
-      SELECT organization_id FROM organization_members
+      SELECT org_id FROM organization_memberships
       WHERE user_id = auth.uid()
     )
     AND user_id = auth.uid()

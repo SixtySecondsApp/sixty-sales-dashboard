@@ -10,8 +10,22 @@ export interface GoogleIntegration {
 }
 
 /**
+ * Error thrown when a Google refresh token is invalid/revoked
+ * This indicates the user needs to reconnect their Google account
+ */
+export class GoogleTokenRevokedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GoogleTokenRevokedError';
+  }
+}
+
+/**
  * Refresh a Google OAuth access token using the refresh token
  * Updates the token in the database and returns the new access token
+ *
+ * @throws {GoogleTokenRevokedError} If the refresh token is invalid/revoked
+ * @throws {Error} For other refresh failures
  */
 export async function refreshGoogleAccessToken(
   refreshToken: string,
@@ -34,7 +48,34 @@ export async function refreshGoogleAccessToken(
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(`Failed to refresh token: ${errorData.error_description || 'Unknown error'}`);
+    const errorMessage = errorData.error_description || errorData.error || 'Unknown error';
+
+    // Check for permanent failures that require reconnection
+    const isTokenRevoked =
+      errorData.error === 'invalid_grant' ||
+      errorMessage.toLowerCase().includes('token has been expired or revoked') ||
+      errorMessage.toLowerCase().includes('token has been revoked') ||
+      response.status === 400;
+
+    if (isTokenRevoked) {
+      console.error(`[googleOAuth] Token revoked for user ${userId}: ${errorMessage}`);
+
+      // Mark integration as needing reconnection
+      await supabase
+        .from('google_integrations')
+        .update({
+          token_status: 'revoked',
+          is_active: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId);
+
+      throw new GoogleTokenRevokedError(
+        `Google access has been revoked. Please reconnect your Google account. (${errorMessage})`
+      );
+    }
+
+    throw new Error(`Failed to refresh token: ${errorMessage}`);
   }
 
   const data = await response.json();
@@ -47,6 +88,8 @@ export async function refreshGoogleAccessToken(
     .update({
       access_token: data.access_token,
       expires_at: expiresAt.toISOString(),
+      token_status: 'valid',
+      last_token_refresh: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq('user_id', userId);

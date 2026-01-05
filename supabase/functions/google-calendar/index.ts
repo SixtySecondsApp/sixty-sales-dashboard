@@ -339,20 +339,43 @@ async function deleteEvent(accessToken: string, calendarId: string, eventId: str
 }
 
 async function listCalendars(accessToken: string): Promise<any> {
-  const response = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-    },
-  });
+  const allCalendars: any[] = [];
+  let pageToken: string | undefined;
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(`Calendar API error: ${errorData.error?.message || 'Unknown error'}`);
-  }
+  // Fetch all pages of calendars (Google Calendar API paginates results)
+  do {
+    const params = new URLSearchParams();
+    params.set('maxResults', '250'); // Max allowed per page
+    params.set('showHidden', 'false'); // Skip hidden calendars
+    params.set('showDeleted', 'false'); // Skip deleted calendars
+    if (pageToken) {
+      params.set('pageToken', pageToken);
+    }
 
-  const data = await response.json();
+    const response = await fetch(`https://www.googleapis.com/calendar/v3/users/me/calendarList?${params}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Calendar API error: ${errorData.error?.message || 'Unknown error'}`);
+    }
+
+    const data = await response.json();
+
+    if (data.items && data.items.length > 0) {
+      allCalendars.push(...data.items);
+    }
+
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  console.log(`[google-calendar] listCalendars: Found ${allCalendars.length} calendars`);
+
   return {
-    calendars: data.items || []
+    calendars: allCalendars
   };
 }
 

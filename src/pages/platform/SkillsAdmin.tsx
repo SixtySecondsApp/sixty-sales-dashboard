@@ -76,7 +76,12 @@ export default function SkillsAdmin() {
   }, [urlCategory]);
 
   // Redirect to default category if no category in URL or invalid
+  // Redirect agent-sequence category to dedicated page
   useEffect(() => {
+    if (urlCategory === 'agent-sequence') {
+      navigate('/platform/agent-sequences', { replace: true });
+      return;
+    }
     if (!urlCategory || !VALID_CATEGORIES.includes(urlCategory as SkillCategory)) {
       navigate(`/platform/skills/${DEFAULT_CATEGORY}`, { replace: true });
     }
@@ -171,6 +176,12 @@ export default function SkillsAdmin() {
                 <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
                 Refresh
               </Button>
+              <Link to="/platform/agent-sequences">
+                <Button variant="outline" className="gap-2">
+                  <GitBranch className="w-4 h-4" />
+                  Agent Sequences
+                </Button>
+              </Link>
               <Link to={`/platform/skills/${selectedCategory}/new`}>
                 <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700">
                   <Plus className="w-4 h-4" />
@@ -188,7 +199,7 @@ export default function SkillsAdmin() {
           <div className="flex items-center justify-between gap-4">
             {/* Category Links */}
             <nav className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800/50 rounded-lg">
-              {SKILL_CATEGORIES.map((cat) => {
+              {SKILL_CATEGORIES.filter(cat => cat.value !== 'agent-sequence').map((cat) => {
                 const Icon = CATEGORY_ICONS[cat.value];
                 const isActive = selectedCategory === cat.value;
                 return (

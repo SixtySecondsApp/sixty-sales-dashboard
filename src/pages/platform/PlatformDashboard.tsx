@@ -42,6 +42,7 @@ import {
   Bell,
   Activity,
   Eye,
+  GitBranch,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -195,6 +196,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: FileCode,
       href: '/platform/skills',
       color: 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900/30',
+      badge: 'New',
+    },
+    {
+      id: 'agent-sequences',
+      title: 'Agent Sequences',
+      description: 'Create and manage multi-step skill chains for automated workflows',
+      icon: GitBranch,
+      href: '/platform/agent-sequences',
+      color: 'text-violet-600 bg-violet-100 dark:bg-violet-900/30',
       badge: 'New',
     },
     {

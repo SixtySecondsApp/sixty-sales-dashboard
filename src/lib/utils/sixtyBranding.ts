@@ -1,11 +1,10 @@
 /**
  * Centralized Sixty branding constants.
  *
- * We reuse the same icon asset that is used in Supabase Auth email templates.
- * See: `supabase/email-templates/README.md`
+ * Default 60 logo used across the app for bot avatars, integration cards, etc.
  */
 export const DEFAULT_SIXTY_ICON_URL =
-  'https://res.cloudinary.com/sixty-seconds/image/upload/w_128,h_128,c_fill,f_png/sixtyseconds-Icon_1_2_cybz4p.png';
+  'https://ygdpgliavpxeugaajgrb.supabase.co/storage/v1/object/public/Logos/ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459/Icon.png';
 
 
 

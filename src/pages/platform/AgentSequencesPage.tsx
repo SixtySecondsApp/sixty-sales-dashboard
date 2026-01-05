@@ -23,6 +23,7 @@ import {
   Clock,
   ArrowRight,
   AlertCircle,
+  FileCode,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -293,10 +294,18 @@ export default function AgentSequencesPage() {
                 Create and manage skill chains for automated workflows
               </p>
             </div>
-            <Button onClick={handleCreateNew} className="gap-2">
-              <Plus className="h-4 w-4" />
-              New Sequence
-            </Button>
+            <div className="flex items-center gap-2">
+              <Link to="/platform/skills">
+                <Button variant="outline" className="gap-2">
+                  <FileCode className="h-4 w-4" />
+                  Platform Skills
+                </Button>
+              </Link>
+              <Button onClick={handleCreateNew} className="gap-2">
+                <Plus className="h-4 w-4" />
+                New Sequence
+              </Button>
+            </div>
           </div>
         </div>
       </header>

@@ -526,7 +526,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/meetings/*" element={<AppLayout><MeetingsPage /></AppLayout>} />
                 <Route path="/meetings/intelligence" element={<AppLayout><MeetingIntelligence /></AppLayout>} />
                 <Route path="/meetings/sentiment" element={<AppLayout><MeetingSentimentAnalytics /></AppLayout>} />
-                {/* Meeting detail is handled by nested routing in /meetings/* (src/pages/MeetingsPage.tsx) */}
+                {/* Meeting detail and recordings are handled by nested routing in /meetings/* (src/pages/MeetingsPage.tsx) */}
+                {/* Recordings are now at /meetings/recordings/* - integrated into meetings */}
                 <Route path="/calls" element={<AppLayout><Calls /></AppLayout>} />
                 <Route path="/calls/:id" element={<AppLayout><CallDetail /></AppLayout>} />
                 <Route path="/voice" element={<AppLayout><VoiceRecorder /></AppLayout>} />
