@@ -314,7 +314,7 @@ async function deployBotForEvent(
   }
 
   const botName = settings.bot_name || DEFAULT_BOT_NAME;
-  const botImageUrl = settings.bot_image_url || null;
+  const botImageUrl = settings.bot_image_url || DEFAULT_BOT_IMAGE;
 
   // Get user profile for entry message
   const { data: profile } = await supabase

@@ -43,7 +43,7 @@ import { recordingService } from '@/lib/services/recordingService'
 import { useOrg } from '@/lib/contexts/OrgContext'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { DEFAULT_SIXTY_ICON_URL } from '@/lib/utils/sixtyBranding'
+import { DEFAULT_BOT_PROFILE_IMAGE } from '@/lib/utils/sixtyBranding'
 import {
   ArrowLeft,
   Settings,
@@ -258,7 +258,7 @@ export const RecordingSettings: React.FC = () => {
     try {
       await recordingService.updateRecordingSettings(activeOrgId, {
         bot_name: botName || undefined,
-        bot_image_url: DEFAULT_SIXTY_ICON_URL,
+        bot_image_url: DEFAULT_BOT_PROFILE_IMAGE,
         entry_message: entryMessage || undefined,
         entry_message_enabled: entryMessageEnabled,
         auto_record_enabled: autoRecord,

@@ -87,9 +87,9 @@ export interface RecordingSettings {
 // =============================================================================
 
 export const DEFAULT_BOT_NAME = '60 Notetaker';
-// Must match DEFAULT_SIXTY_ICON_URL in src/lib/utils/sixtyBranding.ts
+// Bot avatar image shown when joining meetings
 export const DEFAULT_BOT_IMAGE =
-  'https://ygdpgliavpxeugaajgrb.supabase.co/storage/v1/object/public/Logos/ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459/Icon.png';
+  'https://ygdpgliavpxeugaajgrb.supabase.co/storage/v1/object/public/Logos/ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459/60-notetaker.jpg';
 export const DEFAULT_ENTRY_MESSAGE =
   "Hi! I'm here to take notes so {rep_name} can focus on our conversation. 📝";
 
