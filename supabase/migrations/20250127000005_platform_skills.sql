@@ -58,24 +58,28 @@ CREATE INDEX IF NOT EXISTS idx_platform_skills_history_version ON platform_skill
 
 ALTER TABLE platform_skills ENABLE ROW LEVEL SECURITY;
 
--- Anyone can read active skills
+-- Anyone can read active skills (idempotent)
+DROP POLICY IF EXISTS "Anyone can read active platform skills" ON platform_skills;
 CREATE POLICY "Anyone can read active platform skills"
   ON platform_skills FOR SELECT
   USING (is_active = true);
 
--- Only platform admins can manage skills (insert, update, delete)
+-- Only platform admins can manage skills (insert, update, delete) (idempotent)
+DROP POLICY IF EXISTS "Only platform admins can insert platform skills" ON platform_skills;
 CREATE POLICY "Only platform admins can insert platform skills"
   ON platform_skills FOR INSERT
   WITH CHECK (EXISTS (
     SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true
   ));
 
+DROP POLICY IF EXISTS "Only platform admins can update platform skills" ON platform_skills;
 CREATE POLICY "Only platform admins can update platform skills"
   ON platform_skills FOR UPDATE
   USING (EXISTS (
     SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true
   ));
 
+DROP POLICY IF EXISTS "Only platform admins can delete platform skills" ON platform_skills;
 CREATE POLICY "Only platform admins can delete platform skills"
   ON platform_skills FOR DELETE
   USING (EXISTS (
@@ -88,12 +92,14 @@ CREATE POLICY "Only platform admins can delete platform skills"
 
 ALTER TABLE platform_skills_history ENABLE ROW LEVEL SECURITY;
 
--- Anyone can read skill history
+-- Anyone can read skill history (idempotent)
+DROP POLICY IF EXISTS "Anyone can read platform skills history" ON platform_skills_history;
 CREATE POLICY "Anyone can read platform skills history"
   ON platform_skills_history FOR SELECT
   USING (true);
 
--- Only platform admins can insert history (done automatically via trigger)
+-- Only platform admins can insert history (done automatically via trigger) (idempotent)
+DROP POLICY IF EXISTS "Service role can insert platform skills history" ON platform_skills_history;
 CREATE POLICY "Service role can insert platform skills history"
   ON platform_skills_history FOR INSERT
   WITH CHECK (true);
