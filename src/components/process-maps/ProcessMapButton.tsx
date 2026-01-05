@@ -16,6 +16,7 @@ import { MermaidRenderer } from './MermaidRenderer';
 export type ProcessType = 'integration' | 'workflow';
 export type ProcessName =
   | 'hubspot'
+  | 'bullhorn'
   | 'google'
   | 'fathom'
   | 'slack'

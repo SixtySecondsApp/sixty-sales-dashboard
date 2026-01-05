@@ -10,6 +10,7 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useOrgStore } from '@/lib/stores/orgStore';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useTableSubscription } from './useRealtimeHub';
 
 // Types
 export type IntegrationName =
@@ -102,8 +103,7 @@ export function useIntegrationSyncLogs(
   const [isLive, setIsLive] = useState(true);
   const [newLogsCount, setNewLogsCount] = useState(0);
 
-  // Refs for real-time
-  const channelRef = useRef<RealtimeChannel | null>(null);
+  // Refs for real-time (channelRef removed - now using centralized hub)
   const pendingLogsRef = useRef<IntegrationSyncLog[]>([]);
 
   // Build the time filter
@@ -274,48 +274,27 @@ export function useIntegrationSyncLogs(
     [filters, isLive]
   );
 
-  // Set up real-time subscription
-  useEffect(() => {
-    if (!enabled) return;
-
-    // Build channel name based on context
-    const channelName = activeOrgId
-      ? `sync-logs-org-${activeOrgId}`
-      : `sync-logs-user-${user?.id}`;
-
-    // Clean up previous channel
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
-
-    // Create new channel with filter
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'integration_sync_logs',
-          // Note: Supabase filters have limitations, so we filter in handleNewLog
-        },
-        handleNewLog
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('[useIntegrationSyncLogs] Subscribed to real-time updates');
-        }
-      });
-
-    channelRef.current = channel;
-
-    return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
+  // Use centralized realtime hub instead of creating separate channel
+  // This reduces WebSocket connections by sharing with other subscriptions
+  useTableSubscription(
+    'integration_sync_logs',
+    useCallback((payload: any) => {
+      // Filter by org_id or user_id in callback since hub doesn't support complex filters
+      const payloadOrgId = payload.new?.org_id;
+      const payloadUserId = payload.new?.user_id;
+      
+      // Only process if it matches our context
+      if (activeOrgId && payloadOrgId !== activeOrgId) {
+        return;
       }
-    };
-  }, [enabled, activeOrgId, user?.id, handleNewLog]);
+      if (!activeOrgId && payloadUserId !== user?.id) {
+        return;
+      }
+
+      handleNewLog(payload);
+    }, [activeOrgId, user?.id, handleNewLog]),
+    { enabled: enabled, event: 'INSERT' }
+  );
 
   // Initial load and reload on filter changes
   useEffect(() => {

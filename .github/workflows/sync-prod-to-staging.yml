@@ -1,0 +1,81 @@
+name: Sync Production to Staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "yes" to confirm migration'
+        required: true
+        default: 'no'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'yes'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Sync Production to Staging
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROD_PASSWORD: ${{ secrets.SUPABASE_DATABASE_PASSWORD }}
+          STAGING_PASSWORD: ${{ secrets.STAGING_DATABASE_PASSWORD }}
+        run: |
+          PROD_REF="ygdpgliavpxeugaajgrb"
+          STAGING_REF="dzypskjhoupsdwfsrkeo"
+          
+          PROD_URL="postgresql://postgres.${PROD_REF}:${PROD_PASSWORD}@aws-1-eu-west-1.pooler.supabase.com:5432/postgres"
+          STAGING_URL="postgresql://postgres.${STAGING_REF}:${STAGING_PASSWORD}@aws-1-eu-west-1.pooler.supabase.com:5432/postgres"
+          
+          echo "📦 Step 1: Dumping production schema + data..."
+          pg_dump "$PROD_URL" \
+            --schema=public \
+            --schema=auth \
+            --no-owner \
+            --no-privileges \
+            --disable-triggers \
+            -f production-to-staging.sql
+          
+          echo "📥 Step 2: Restoring to staging..."
+          PGPASSWORD="${STAGING_PASSWORD}" psql "$STAGING_URL" -f production-to-staging.sql --set=ON_ERROR_STOP=0
+          
+          echo "✅ Database migration completed!"
+          
+          echo "🔍 Step 3: Verifying data..."
+          PGPASSWORD="${STAGING_PASSWORD}" psql "$STAGING_URL" -c "
+            SELECT 
+              'profiles' as table_name, COUNT(*)::text as row_count FROM profiles
+            UNION ALL
+            SELECT 'deals', COUNT(*)::text FROM deals
+            UNION ALL
+            SELECT 'meetings', COUNT(*)::text FROM meetings
+            UNION ALL
+            SELECT 'auth.users', COUNT(*)::text FROM auth.users
+            ORDER BY table_name;
+          "
+          
+          echo ""
+          echo "🚀 Step 4: Deploying Edge Functions to Staging..."
+          echo "   Staging branch needs separate function deployment"
+          
+          # Install Supabase CLI
+          npm install -g supabase
+          
+          # Authenticate
+          echo "${{ secrets.SUPABASE_ACCESS_TOKEN }}" | supabase login --token -
+          
+          # Deploy all edge functions to staging branch project
+          supabase functions deploy --project-ref "${STAGING_REF}"
+          
+          echo "✅ Edge functions deployed to staging!"
+          
+          # Cleanup
+          rm -f production-to-staging.sql
+

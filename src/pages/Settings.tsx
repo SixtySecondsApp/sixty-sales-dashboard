@@ -22,6 +22,7 @@ import { useSlackOrgSettings } from '@/lib/hooks/useSlackSettings';
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
 import { useJustCallIntegration } from '@/lib/hooks/useJustCallIntegration';
 import { useHubSpotIntegration } from '@/lib/hooks/useHubSpotIntegration';
+import { useBullhornIntegration } from '@/lib/hooks/useBullhornIntegration';
 import {
   User,
   Palette,
@@ -39,6 +40,7 @@ import {
   Paintbrush,
   CreditCard,
   Brain,
+  Briefcase,
 } from 'lucide-react';
 
 interface SettingsSection {
@@ -65,6 +67,9 @@ export default function Settings() {
 
   const { isConnected: isHubSpotConnected, loading: hubspotLoading } = useHubSpotIntegration();
   const showHubSpotSettings = !hubspotLoading && isHubSpotConnected;
+
+  const { isConnected: isBullhornConnected, loading: bullhornLoading } = useBullhornIntegration();
+  const showBullhornSettings = !bullhornLoading && isBullhornConnected;
 
   const allSettingsSections: SettingsSection[] = [
     {
@@ -171,6 +176,14 @@ export default function Settings() {
       requiresOrgAdmin: true,
     },
     {
+      id: 'bullhorn',
+      label: 'Bullhorn ATS',
+      icon: Briefcase,
+      description: 'Configure candidate sync, job orders, placements, and AI notes',
+      path: '/settings/integrations/bullhorn',
+      requiresOrgAdmin: true,
+    },
+    {
       id: 'team-members',
       label: 'Team Members',
       icon: Users,
@@ -220,6 +233,10 @@ export default function Settings() {
       if (section.id === 'hubspot') {
         return showHubSpotSettings;
       }
+      // Bullhorn settings should only appear when Bullhorn is connected.
+      if (section.id === 'bullhorn') {
+        return showBullhornSettings;
+      }
       // Meeting Sync settings should only appear when Fathom is connected.
       if (section.id === 'meeting-sync') {
         return showFathomSettings;
@@ -230,7 +247,7 @@ export default function Settings() {
       }
       return true;
     });
-  }, [allSettingsSections, permissions, isPlatformAdmin, isSlackConnected, showFathomSettings, showJustCallSettings, showHubSpotSettings]);
+  }, [allSettingsSections, permissions, isPlatformAdmin, isSlackConnected, showFathomSettings, showJustCallSettings, showHubSpotSettings, showBullhornSettings]);
 
   const categories = useMemo(() => {
     const personalSections = settingsSections.filter(s =>
@@ -241,7 +258,7 @@ export default function Settings() {
     );
     // Meeting Sync is now under Integrations (only shown when Fathom is connected)
     const integrationSections = settingsSections.filter(s =>
-      ['email-sync', 'slack', 'justcall', 'hubspot', 'meeting-sync'].includes(s.id)
+      ['email-sync', 'slack', 'justcall', 'hubspot', 'bullhorn', 'meeting-sync'].includes(s.id)
     );
     const teamSections = settingsSections.filter(s =>
       ['team-members', 'organization', 'branding', 'billing'].includes(s.id)
