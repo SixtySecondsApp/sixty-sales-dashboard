@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
 import { useViewMode } from '@/contexts/ViewModeContext';
 import { useAuthUser } from './useAuthUser';
+import { useTableSubscription } from './useRealtimeHub';
 
 interface DashboardMetrics {
   revenue: number;
@@ -178,61 +179,44 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
     queryClient.invalidateQueries({ queryKey: ['activities-lazy'] });
   };
 
-  // Set up real-time subscription for activity updates
-  useEffect(() => {
-    if (!enabled || !authUserId) return;
+  // Use centralized realtime hub instead of creating separate channel
+  // This reduces WebSocket connections by sharing with other subscriptions
+  const targetUserId = isViewMode && viewedUser ? viewedUser.id : authUserId;
+  
+  useTableSubscription(
+    'activities',
+    useCallback((payload: any) => {
+      // Filter by user_id in callback since hub doesn't support complex filters
+      const payloadUserId = payload.new?.user_id || payload.old?.user_id;
+      if (payloadUserId !== targetUserId) {
+        return;
+      }
 
-    // Use viewed user ID if in view mode, otherwise use current user
-    const targetUserId = isViewMode && viewedUser ? viewedUser.id : authUserId;
+      logger.log('🔄 Real-time activity update received:', payload);
 
-    // Subscribe to activities table changes for the target user
-    const channel = supabase
-      .channel('dashboard-activities-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'activities',
-          filter: `user_id=eq.${targetUserId}`
-        },
-        (payload) => {
-          logger.log('🔄 Real-time activity update received:', payload);
+      // Log the type of change for debugging
+      if (payload.eventType === 'INSERT') {
+        logger.log('✅ New activity added:', {
+          type: payload.new?.type,
+          date: payload.new?.date,
+          amount: payload.new?.amount,
+          client: payload.new?.client_name
+        });
+      } else if (payload.eventType === 'UPDATE') {
+        logger.log('📝 Activity updated:', payload.new);
+      } else if (payload.eventType === 'DELETE') {
+        logger.log('🗑️ Activity deleted:', payload.old);
+      }
 
-          // Log the type of change for debugging
-          if (payload.eventType === 'INSERT') {
-            logger.log('✅ New activity added:', {
-              type: payload.new?.type,
-              date: payload.new?.date,
-              amount: payload.new?.amount,
-              client: payload.new?.client_name
-            });
-          } else if (payload.eventType === 'UPDATE') {
-            logger.log('📝 Activity updated:', payload.new);
-          } else if (payload.eventType === 'DELETE') {
-            logger.log('🗑️ Activity deleted:', payload.old);
-          }
-
-          // Invalidate queries to trigger refetch
-          // Use setTimeout to ensure the database has processed the change
-          setTimeout(() => {
-            invalidateMetrics();
-            logger.log('🔄 Invalidated metrics cache after real-time update');
-          }, 100);
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          logger.log('✅ Dashboard real-time subscription active');
-        }
-      });
-
-    // Cleanup subscription on unmount
-    return () => {
-      logger.log('🔌 Cleaning up dashboard real-time subscription');
-      channel.unsubscribe();
-    };
-  }, [enabled, queryClient, isViewMode, viewedUser?.id, authUserId]);
+      // Invalidate queries to trigger refetch
+      // Use setTimeout to ensure the database has processed the change
+      setTimeout(() => {
+        invalidateMetrics();
+        logger.log('🔄 Invalidated metrics cache after real-time update');
+      }, 100);
+    }, [targetUserId, invalidateMetrics]),
+    { enabled: enabled && !!authUserId }
+  );
 
   // Force refresh function for manual data reload
   const refreshDashboard = useCallback(() => {

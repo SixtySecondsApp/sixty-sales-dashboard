@@ -2,7 +2,7 @@
  * External Supabase Project Configuration
  *
  * Architecture: Two Supabase projects with shared Clerk authentication
- * - Internal: ygdpgliavpxeugaajgrb (CRM, deals, activities, workflows) - EU Region
+ * - Internal: dzypskjhoupsdwfsrkeo (CRM, deals, activities, workflows) - STAGING BRANCH
  * - External: cregubixyglvfzvtlgit (Customer-facing: meetings, intelligence, settings)
  *
  * Edge Functions remain on the internal project and can query either database.
@@ -15,10 +15,10 @@ export const EXTERNAL_PROJECT_CONFIG = {
   anonKey: import.meta.env.VITE_EXTERNAL_SUPABASE_ANON_KEY || '',
 } as const;
 
-// Internal project credentials (existing)
+// Internal project credentials (STAGING BRANCH)
 export const INTERNAL_PROJECT_CONFIG = {
-  projectRef: 'ygdpgliavpxeugaajgrb',
-  url: import.meta.env.VITE_SUPABASE_URL || 'https://ygdpgliavpxeugaajgrb.supabase.co',
+  projectRef: 'dzypskjhoupsdwfsrkeo',
+  url: import.meta.env.VITE_SUPABASE_URL || 'https://dzypskjhoupsdwfsrkeo.supabase.co',
   anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
 } as const;
 

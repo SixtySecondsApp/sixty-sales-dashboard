@@ -206,6 +206,7 @@ export function BullhornConfigModal({
   onOpenChange: (open: boolean) => void;
 }) {
   const navigate = useNavigate();
+  const orgId = useOrgId();
   const {
     integration,
     syncState,
@@ -246,10 +247,38 @@ export function BullhornConfigModal({
     navigate('/settings/integrations/bullhorn');
   };
 
-  const handleConnect = () => {
-    // Initiate OAuth flow
-    window.location.href = '/api/integrations/bullhorn/connect';
-  };
+  const handleConnect = useCallback(async () => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) {
+        toast.error('No active session. Please log in again.');
+        return;
+      }
+
+      const resp = await supabase.functions.invoke('bullhorn-oauth-initiate', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ org_id: orgId, redirect_path: '/settings/integrations/bullhorn' }),
+      });
+
+      if (resp.error) {
+        throw new Error(resp.error.message || 'Failed to initiate Bullhorn OAuth');
+      }
+      if (!resp.data?.success) {
+        const errorMsg = resp.data?.message || resp.data?.error || 'Failed to initiate Bullhorn OAuth';
+        throw new Error(errorMsg);
+      }
+
+      const url = resp.data?.authorization_url;
+      if (!url) throw new Error('Missing authorization_url from response');
+      window.location.href = url;
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to connect Bullhorn');
+    }
+  }, [orgId]);
 
   return (
     <ConfigureModal

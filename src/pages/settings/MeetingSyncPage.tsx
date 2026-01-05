@@ -6,9 +6,11 @@ import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 import { Save, AlertCircle, Video, Users } from 'lucide-react';
 import { FathomSettings } from '@/components/integrations/FathomSettings';
+import { FirefliesSettings } from '@/components/integrations/FirefliesSettings';
 import { FathomSelfMapping } from '@/components/settings/FathomSelfMapping';
 import { FathomUserMapping } from '@/components/settings/FathomUserMapping';
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
+import { useFirefliesIntegration } from '@/lib/hooks/useFirefliesIntegration';
 import { useOrgStore } from '@/lib/stores/orgStore';
 
 export default function MeetingSyncPage() {
@@ -108,6 +110,12 @@ export default function MeetingSyncPage() {
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Fathom Integration</h2>
           <FathomSettings />
+        </div>
+
+        {/* Fireflies Connection Section */}
+        <div className="border-t border-gray-200 dark:border-gray-800 pt-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Fireflies.ai Integration</h2>
+          <FirefliesSettings />
         </div>
 
         {/* Fathom User Mapping Section - Only show when connected */}

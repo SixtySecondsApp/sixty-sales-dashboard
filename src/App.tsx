@@ -469,6 +469,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/settings/integrations/hubspot" element={<AppLayout><HubSpotSettings /></AppLayout>} />
                 {/* Bullhorn Settings - visible only when Bullhorn is connected (enforced inside page) */}
                 <Route path="/settings/integrations/bullhorn" element={<AppLayout><BullhornSettings /></AppLayout>} />
+                <Route path="/settings/bullhorn" element={<Navigate to="/settings/integrations/bullhorn" replace />} />
                 <Route path="/settings/ai" element={<AppLayout><AISettings /></AppLayout>} />
                 <Route path="/settings/extraction-rules" element={<Navigate to="/settings/task-sync" replace />} />
                 <Route path="/settings/task-sync" element={<AppLayout><TaskSyncSettings /></AppLayout>} />
