@@ -118,13 +118,30 @@ export function useMeetingBaaSCalendar() {
           body: JSON.stringify({
             user_id: userId,
             calendar_id: calendarId,
+            // Pass the access token as fallback in case google_integrations is missing
+            access_token: accessToken,
           }),
         }
       );
 
+      if (!response.ok) {
+        let errorMessage = 'Failed to connect calendar';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+          // Check if this is a refresh token missing error
+          if (errorData.error?.includes('refresh token')) {
+            errorMessage = 'Please reconnect Google Calendar to enable offline access for automatic recording setup';
+          }
+        } catch (e) {
+          // Response wasn't JSON
+        }
+        throw new Error(errorMessage);
+      }
+
       const result = await response.json();
 
-      if (!response.ok || !result.success) {
+      if (!result.success) {
         throw new Error(result.error || 'Failed to connect calendar');
       }
 
@@ -137,9 +154,19 @@ export function useMeetingBaaSCalendar() {
       queryClient.invalidateQueries({ queryKey: meetingBaaSKeys.calendars(userId || '') });
     },
     onError: (error) => {
-      toast.error('Failed to connect calendar', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      // Check if this is a refresh token error that needs recovery
+      if (errorMessage.includes('refresh token')) {
+        toast.error('Google Calendar reconnection needed', {
+          description: 'Please reconnect your Google Calendar in the Integrations page to enable offline access for automatic recording setup.',
+          duration: 6000,
+        });
+      } else {
+        toast.error('Failed to connect calendar', {
+          description: errorMessage,
+        });
+      }
     },
   });
 

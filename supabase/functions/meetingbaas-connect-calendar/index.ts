@@ -17,6 +17,7 @@ import { captureException, addBreadcrumb } from '../_shared/sentryEdge.ts';
 interface ConnectCalendarRequest {
   user_id: string;
   calendar_id?: string; // Default: 'primary'
+  access_token?: string; // Optional fallback access token from frontend
 }
 
 interface MeetingBaaSCalendarResponse {
@@ -145,7 +146,7 @@ serve(async (req) => {
 
     // Get request body
     const body: ConnectCalendarRequest = await req.json();
-    const { user_id, calendar_id = 'primary' } = body;
+    const { user_id, calendar_id = 'primary', access_token: fallbackAccessToken } = body;
 
     if (!user_id) {
       return new Response(
@@ -164,21 +165,26 @@ serve(async (req) => {
       .eq('is_active', true)
       .maybeSingle();
 
-    if (googleError || !googleIntegration) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Google Calendar not connected. Please connect Google Calendar first.'
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    console.log('[MeetingBaaS Connect] Google integration lookup:', {
+      found: !!googleIntegration,
+      hasRefreshToken: !!googleIntegration?.refresh_token,
+      error: googleError?.message,
+      hasFallbackToken: !!fallbackAccessToken,
+    });
 
-    if (!googleIntegration.refresh_token) {
+    // Check if we have a refresh token (needed for MeetingBaaS)
+    let refreshToken = googleIntegration?.refresh_token;
+    let userEmail = googleIntegration?.email;
+
+    if (!refreshToken) {
+      // If we don't have a stored refresh token, provide helpful error
+      console.warn('[MeetingBaaS Connect] No refresh token available for user:', user_id);
+
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Google Calendar refresh token missing. Please reconnect Google Calendar.'
+          error: 'Google Calendar refresh token not found. Please reconnect Google Calendar with offline access enabled.',
+          recovery: 'Visit the Integrations page and reconnect your Google Calendar to enable automatic recording setup.',
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

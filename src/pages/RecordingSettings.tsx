@@ -43,7 +43,7 @@ import { recordingService } from '@/lib/services/recordingService'
 import { useOrg } from '@/lib/contexts/OrgContext'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { DEFAULT_BOT_PROFILE_IMAGE } from '@/lib/utils/sixtyBranding'
+import { DEFAULT_BOT_PROFILE_IMAGE, DEFAULT_SIXTY_ICON_URL } from '@/lib/utils/sixtyBranding'
 import {
   ArrowLeft,
   Settings,
