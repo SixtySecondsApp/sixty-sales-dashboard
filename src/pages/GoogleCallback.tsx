@@ -1,8 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/clientV2';
+import { calendarService } from '@/lib/services/calendarService';
+import { googleCalendarWebhookService } from '@/lib/services/googleCalendarWebhookService';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import logger from '@/lib/utils/logger';
 
 export default function GoogleCallback() {
   const navigate = useNavigate();
@@ -10,8 +13,18 @@ export default function GoogleCallback() {
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [message, setMessage] = useState('Processing Google authentication...');
 
+  // Guard against double execution (React StrictMode can cause useEffect to run twice)
+  const isProcessingRef = useRef(false);
+
   useEffect(() => {
     const handleCallback = async () => {
+      // Prevent double execution
+      if (isProcessingRef.current) {
+        logger.log('[GoogleCallback] Already processing, skipping duplicate call');
+        return;
+      }
+      isProcessingRef.current = true;
+
       try {
         // Ensure auth session is available before calling Edge Function
         let sessionAvailable = false;
@@ -53,33 +66,50 @@ export default function GoogleCallback() {
 
         // Validate we have required parameters
         if (!code || !state) {
+          logger.error('[GoogleCallback] Missing URL parameters:', { hasCode: !!code, hasState: !!state });
           setStatus('error');
           setMessage('Invalid authentication response');
-          
+
           setTimeout(() => {
             navigate('/integrations?error=invalid_response');
           }, 2000);
           return;
         }
+
+        logger.log('[GoogleCallback] Exchanging code for tokens:', {
+          codeLength: code.length,
+          stateLength: state.length,
+          codePreview: code.slice(0, 10) + '...',
+          statePreview: state.slice(0, 8) + '...',
+        });
+
         setMessage('Exchanging authorization code...');
 
         // Call the Edge Function to exchange the code for tokens
         // This is an authenticated call - the user must be logged in
+        const requestBody = { code, state };
+        logger.log('[GoogleCallback] Request body size:', JSON.stringify(requestBody).length, 'bytes');
+
         const { data, error: exchangeError } = await supabase.functions.invoke('google-oauth-exchange', {
-          body: { code, state }
+          body: requestBody
         });
 
         if (exchangeError) {
           // Try to surface deeper context if provided by supabase-js
           // @ts-expect-error context may exist on the error
           const context = (exchangeError as any)?.context;
+          logger.error('[GoogleCallback] Exchange error:', {
+            message: exchangeError.message,
+            context,
+            fullError: JSON.stringify(exchangeError),
+          });
           setStatus('error');
           setMessage(
             (context && (context.error || context.message)) ||
             exchangeError.message ||
             'Failed to complete authentication'
           );
-          
+
           setTimeout(() => {
             navigate(`/integrations?error=exchange_failed&error_description=${encodeURIComponent(exchangeError.message || '')}`);
           }, 2000);
@@ -87,6 +117,7 @@ export default function GoogleCallback() {
         }
 
         if (!data || !data.success) {
+          logger.error('[GoogleCallback] Exchange returned error:', data);
           setStatus('error');
           setMessage(data?.error || 'Failed to complete authentication');
           
@@ -99,12 +130,48 @@ export default function GoogleCallback() {
         // Success!
         setStatus('success');
         setMessage(`Successfully connected to Google as ${data.email}!`);
-        toast.success('Google account connected successfully');
-        
+
+        // Automatically sync calendar events
+        try {
+          setMessage('Syncing Google Calendar events...');
+          const syncResult = await calendarService.syncCalendarEvents('sync-incremental');
+
+          if (syncResult.error) {
+            logger.error('Calendar sync error:', syncResult.error);
+            toast.warning(`Google connected, but calendar sync failed: ${syncResult.error}`);
+          } else {
+            const eventCount = (syncResult.eventsCreated || 0) + (syncResult.eventsUpdated || 0);
+            logger.log(`Synced ${eventCount} calendar events`);
+            toast.success(`Google connected! Synced ${eventCount} calendar events`);
+          }
+        } catch (syncError: any) {
+          logger.error('Calendar sync exception:', syncError);
+          toast.warning('Google connected, but calendar sync encountered an error');
+        }
+
+        // Subscribe to real-time push notifications (webhooks)
+        try {
+          setMessage('Setting up real-time calendar sync...');
+          const channel = await googleCalendarWebhookService.subscribe();
+
+          if (channel) {
+            logger.log('Successfully subscribed to calendar push notifications');
+            toast.success('Real-time calendar sync enabled!');
+          } else {
+            logger.warn('Webhook subscription skipped (no org or already subscribed)');
+            toast.info('Webhook subscription skipped - you may need to refresh');
+          }
+        } catch (webhookError: any) {
+          logger.error('Webhook subscription error:', webhookError);
+          toast.error(`Webhook setup failed: ${webhookError.message || 'Unknown error'}`);
+        }
+
+        setMessage(`Successfully connected to Google as ${data.email}!`);
+
         // Redirect to integrations page with success message
         setTimeout(() => {
           navigate(`/integrations?status=connected&email=${encodeURIComponent(data.email || '')}`);
-        }, 1500);
+        }, 2000);
 
       } catch (error: any) {
         setStatus('error');

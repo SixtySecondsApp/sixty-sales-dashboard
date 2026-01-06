@@ -1,25 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-// Helper function to get CORS headers with dynamic origin
-function getCorsHeaders(req: Request) {
-  const origin = req.headers.get('Origin');
-  const allowedOrigins = [
-    'http://localhost:5173',
-    'http://localhost:5175',
-    'http://localhost:3000',
-    'https://sales.sixtyseconds.video'
-  ];
-  
-  const isAllowed = origin && allowedOrigins.includes(origin);
-  
-  return {
-    'Access-Control-Allow-Origin': isAllowed ? origin : 'http://localhost:5173',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Credentials': 'true',
-  };
-}
+import { getCorsHeaders, handleCorsPreflightRequest } from '../_shared/corsHelper.ts';
 
 // Helper function to generate PKCE challenge
 async function generatePKCEChallenge() {
@@ -36,18 +17,19 @@ async function generatePKCEChallenge() {
 }
 
 serve(async (req) => {
-  // Get CORS headers
-  const corsHeaders = getCorsHeaders(req);
-  
-  // Handle CORS
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  // Handle CORS preflight
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) {
+    return preflightResponse;
   }
 
+  // Get CORS headers for actual request
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { 
+    return new Response('Method not allowed', {
       status: 405,
-      headers: corsHeaders 
+      headers: corsHeaders
     });
   }
 
@@ -100,6 +82,10 @@ serve(async (req) => {
     const state = crypto.randomUUID();
     
     // Store the state and PKCE verifier in the database with dynamic redirect URI
+    // OAuth states expire after 10 minutes
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+
     const { error: stateError } = await supabase
       .from('google_oauth_states')
       .insert({
@@ -108,11 +94,19 @@ serve(async (req) => {
         code_verifier: codeVerifier,
         code_challenge: codeChallenge,
         redirect_uri: redirectUri,
+        expires_at: expiresAt.toISOString(),
       });
 
     if (stateError) {
-      throw new Error('Failed to initialize OAuth flow');
+      console.error('[google-oauth-initiate] Failed to store state:', stateError);
+      throw new Error(`Failed to initialize OAuth flow: ${stateError.message}`);
     }
+
+    console.log('[google-oauth-initiate] OAuth state created successfully:', {
+      state: state.slice(0, 8) + '...',
+      userId: user.id,
+      expiresAt: expiresAt.toISOString(),
+    });
 
     // Get Google OAuth configuration
     const clientId = Deno.env.get('GOOGLE_CLIENT_ID');

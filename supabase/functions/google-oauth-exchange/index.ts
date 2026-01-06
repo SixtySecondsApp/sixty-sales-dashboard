@@ -1,39 +1,21 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-// Helper function to get CORS headers with dynamic origin
-function getCorsHeaders(req: Request) {
-  const origin = req.headers.get('Origin');
-  const allowedOrigins = [
-    'http://localhost:5173',
-    'http://localhost:5175',
-    'http://localhost:3000',
-    'https://sales.sixtyseconds.video'
-  ];
-  
-  const isAllowed = origin && allowedOrigins.includes(origin);
-  
-  return {
-    'Access-Control-Allow-Origin': isAllowed ? origin : 'http://localhost:5173',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Credentials': 'true',
-  };
-}
+import { getCorsHeaders, handleCorsPreflightRequest, errorResponse } from '../_shared/corsHelper.ts';
 
 serve(async (req) => {
-  // Get CORS headers
-  const corsHeaders = getCorsHeaders(req);
-  
-  // Handle CORS
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  // Handle CORS preflight
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) {
+    return preflightResponse;
   }
 
+  // Get CORS headers for actual request
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { 
+    return new Response('Method not allowed', {
       status: 405,
-      headers: corsHeaders 
+      headers: corsHeaders
     });
   }
 
@@ -45,9 +27,30 @@ serve(async (req) => {
     }
 
     // Get the request body
-    const { code, state } = await req.json();
-    
+    let body: any;
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      console.error('[google-oauth-exchange] Failed to parse JSON body:', parseError);
+      throw new Error('Invalid JSON body');
+    }
+
+    const { code, state } = body;
+
+    console.log('[google-oauth-exchange] Received request:', {
+      hasCode: !!code,
+      codeLength: code?.length || 0,
+      hasState: !!state,
+      stateLength: state?.length || 0,
+      bodyKeys: Object.keys(body || {}),
+    });
+
     if (!code || !state) {
+      console.error('[google-oauth-exchange] Missing parameters:', {
+        code: code ? `present (${code.length} chars)` : 'MISSING',
+        state: state ? `present (${state.length} chars)` : 'MISSING',
+        receivedBody: JSON.stringify(body).slice(0, 200),
+      });
       throw new Error('Missing code or state parameter');
     }
     // Initialize Supabase client with service role
@@ -77,7 +80,13 @@ serve(async (req) => {
       .single();
 
     if (stateError || !oauthState) {
-      throw new Error('Invalid or expired state parameter');
+      console.error('[google-oauth-exchange] State lookup failed:', {
+        state,
+        userId: user.id,
+        error: stateError,
+        oauthState,
+      });
+      throw new Error(`Invalid or expired state parameter. State: ${state?.slice(0, 8)}...`);
     }
     // Exchange authorization code for tokens
     const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
