@@ -39,9 +39,14 @@ import { useRecordingSettings, useRecordingRules, useRecordingUsage } from '@/li
 import { useCalendarList } from '@/lib/hooks/useGoogleIntegration'
 import { useNotetakerIntegration } from '@/lib/hooks/useNotetakerIntegration'
 import { useMeetingBaaSCalendar } from '@/lib/hooks/useMeetingBaaSCalendar'
+import { useRecordingSetupStatus } from '@/lib/hooks/useRecordingSetupStatus'
 import { recordingService } from '@/lib/services/recordingService'
 import { useOrg } from '@/lib/contexts/OrgContext'
 import { toast } from 'sonner'
+import { RecordingSetupWizard } from '@/components/recording/RecordingSetupWizard'
+import { ConnectionStatusCard } from '@/components/recording/ConnectionStatusCard'
+import { EnableAutoRecordingPrompt } from '@/components/recording/EnableAutoRecordingPrompt'
+import type { ConnectionStatus } from '@/components/recording/ConnectionStatusCard'
 import { cn } from '@/lib/utils'
 import { DEFAULT_BOT_PROFILE_IMAGE, DEFAULT_SIXTY_ICON_URL } from '@/lib/utils/sixtyBranding'
 import {
@@ -161,6 +166,9 @@ export const RecordingSettings: React.FC = () => {
   const navigate = useNavigate()
   const { activeOrgId } = useOrg()
 
+  // Setup status check
+  const { hasCompletedSetup, isLoading: setupStatusLoading, refetch: refetchSetupStatus } = useRecordingSetupStatus()
+
   // Fetch settings and rules
   const { settings, isLoading: settingsLoading, refetch: refetchSettings } = useRecordingSettings()
   const { rules, isLoading: rulesLoading, refetch: refetchRules } = useRecordingRules()
@@ -211,6 +219,18 @@ export const RecordingSettings: React.FC = () => {
   const [newRuleTitleKeywords, setNewRuleTitleKeywords] = useState('')
   const [newRuleExcludeKeywords, setNewRuleExcludeKeywords] = useState('')
   const [savingRule, setSavingRule] = useState(false)
+
+  // Enable Auto-Recording Prompt state
+  const [showAutoRecordPrompt, setShowAutoRecordPrompt] = useState(false)
+  const [previousGoogleConnected, setPreviousGoogleConnected] = useState(googleConnected)
+
+  // Detect when Google Calendar gets connected and show prompt
+  React.useEffect(() => {
+    if (!previousGoogleConnected && googleConnected && hasCompletedSetup && !hasMeetingBaaSCalendar) {
+      setShowAutoRecordPrompt(true)
+    }
+    setPreviousGoogleConnected(googleConnected)
+  }, [googleConnected, previousGoogleConnected, hasCompletedSetup, hasMeetingBaaSCalendar])
 
   // Initialize form when settings load
   React.useEffect(() => {
@@ -311,6 +331,18 @@ export const RecordingSettings: React.FC = () => {
     setNewRuleExcludeKeywords('')
   }
 
+  // Handle enabling auto-recording from prompt
+  const handleEnableAutoRecordingFromPrompt = async () => {
+    await connectMeetingBaaSCalendar(selectedCalendarId)
+  }
+
+  // Handle wizard completion
+  const handleWizardComplete = () => {
+    refetchSettings()
+    refetchSetupStatus()
+    refetchMeetingBaaSCalendar()
+  }
+
   // Create new rule
   const handleCreateRule = async () => {
     if (!activeOrgId) {
@@ -356,8 +388,33 @@ export const RecordingSettings: React.FC = () => {
     }
   }
 
+  // Show wizard for first-time users
+  if (setupStatusLoading) {
+    return <SettingsSkeleton />
+  }
+
+  if (!hasCompletedSetup) {
+    return <RecordingSetupWizard onComplete={handleWizardComplete} />
+  }
+
   if (settingsLoading || rulesLoading) {
     return <SettingsSkeleton />
+  }
+
+  // Prepare connection status for ConnectionStatusCard
+  const connectionStatus: ConnectionStatus = {
+    googleCalendar: {
+      connected: googleConnected,
+      email: userSettings?.selected_calendar_id,
+    },
+    calendarSelected: {
+      selected: !!userSettings?.selected_calendar_id,
+      calendarName: calendarsData?.calendars?.find((c: { id: string }) => c.id === selectedCalendarId)?.summary,
+    },
+    autoRecording: {
+      enabled: hasMeetingBaaSCalendar,
+      platform: meetingBaaSCalendar?.platform,
+    },
   }
 
   return (
@@ -384,6 +441,19 @@ export const RecordingSettings: React.FC = () => {
           </p>
         </div>
       </motion.div>
+
+      {/* Connection Status Card */}
+      <ConnectionStatusCard
+        status={connectionStatus}
+        onConnectGoogle={() => navigate('/settings/integrations')}
+        onSelectCalendar={() => {
+          // Scroll to calendar selection section
+          const calendarSection = document.getElementById('calendar-selection')
+          calendarSection?.scrollIntoView({ behavior: 'smooth' })
+        }}
+        onEnableAutoRecording={() => setShowAutoRecordPrompt(true)}
+        isLoading={meetingBaaSLoading || meetingBaaSConnecting}
+      />
 
       {/* Usage Card */}
       {usage && (
@@ -710,6 +780,7 @@ export const RecordingSettings: React.FC = () => {
       {/* Calendar Selection */}
       {googleConnected && (
         <motion.div
+          id="calendar-selection"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25 }}
@@ -964,6 +1035,15 @@ export const RecordingSettings: React.FC = () => {
           </AccordionItem>
         </Accordion>
       </motion.div>
+
+      {/* Enable Auto-Recording Prompt */}
+      <EnableAutoRecordingPrompt
+        open={showAutoRecordPrompt}
+        onOpenChange={setShowAutoRecordPrompt}
+        onEnableAutoRecording={handleEnableAutoRecordingFromPrompt}
+        onSkip={() => setShowAutoRecordPrompt(false)}
+        selectedCalendarName={calendarsData?.calendars?.find((c: { id: string }) => c.id === selectedCalendarId)?.summary}
+      />
 
       {/* Add Rule Modal */}
       <Dialog open={showAddRuleModal} onOpenChange={setShowAddRuleModal}>
