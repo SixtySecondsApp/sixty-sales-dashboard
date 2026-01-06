@@ -62,7 +62,7 @@ BEGIN
     PERFORM cron.schedule(
       'fathom-transcript-retry',
       '*/5 * * * *', -- Every 5 minutes
-      $$SELECT trigger_transcript_retry_processor();$$
+      $sql$SELECT trigger_transcript_retry_processor();$sql$
     );
 
     RAISE NOTICE 'Scheduled fathom-transcript-retry cron job';
