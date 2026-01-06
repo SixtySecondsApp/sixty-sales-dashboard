@@ -78,3 +78,13 @@ verify_jwt = false
 # Fireflies integration - we handle auth manually inside the function
 [functions.fireflies-sync]
 verify_jwt = false
+
+# Google Calendar webhook - receives push notifications from Google Calendar API
+# Google sends unauthenticated requests, we verify via channel_id in database
+[functions.google-calendar-webhook]
+verify_jwt = false
+
+# Google Calendar sync - called by webhook to perform incremental sync
+# Webhook calls this internally, so needs to bypass JWT verification
+[functions.google-calendar-sync]
+verify_jwt = false

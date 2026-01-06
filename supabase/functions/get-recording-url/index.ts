@@ -1,7 +1,7 @@
 /**
  * Get Recording URL Edge Function
  *
- * Generates a fresh signed URL for a recording stored in Supabase Storage.
+ * Generates a fresh signed URL for a recording stored in AWS S3.
  * Handles expired URLs by creating new signed URLs on-demand.
  *
  * Endpoint: GET /functions/v1/get-recording-url?recording_id=<id>
@@ -11,6 +11,8 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { S3Client, GetObjectCommand } from 'npm:@aws-sdk/client-s3@3';
+import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3';
 import {
   handleCorsPreflightRequest,
   jsonResponse,
@@ -116,37 +118,46 @@ serve(async (req) => {
       );
     }
 
-    // Create admin client to generate signed URL
-    // (User client can't create signed URLs for private buckets)
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
+    // Initialize S3 client
+    const s3Client = new S3Client({
+      region: Deno.env.get('AWS_REGION') || 'eu-west-2',
+      credentials: {
+        accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID')!,
+        secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY')!,
+      },
+    });
 
-    // Generate fresh signed URL
-    const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage
-      .from('recordings')
-      .createSignedUrl(recording.recording_s3_key, URL_EXPIRY_SECONDS);
+    const bucketName = Deno.env.get('AWS_S3_BUCKET') || 'use60-application';
 
-    if (signedUrlError || !signedUrlData?.signedUrl) {
-      console.error('[GetRecordingUrl] Signed URL error:', signedUrlError);
+    // Generate fresh signed URL for S3
+    const getCommand = new GetObjectCommand({
+      Bucket: bucketName,
+      Key: recording.recording_s3_key,
+    });
+
+    try {
+      const signedUrl = await getSignedUrl(s3Client, getCommand, {
+        expiresIn: URL_EXPIRY_SECONDS,
+      });
+
+      // Calculate expiry timestamp
+      const expiresAt = new Date(Date.now() + URL_EXPIRY_SECONDS * 1000).toISOString();
+
+      console.log('[GetRecordingUrl] Generated S3 signed URL for recording:', recordingId);
+
+      return jsonResponse(
+        {
+          success: true,
+          url: signedUrl,
+          expires_at: expiresAt,
+        } as GetRecordingUrlResponse,
+        req,
+        200
+      );
+    } catch (s3Error) {
+      console.error('[GetRecordingUrl] S3 signed URL error:', s3Error);
       return errorResponse('Failed to generate download URL', req, 500);
     }
-
-    // Calculate expiry timestamp
-    const expiresAt = new Date(Date.now() + URL_EXPIRY_SECONDS * 1000).toISOString();
-
-    console.log('[GetRecordingUrl] Generated signed URL for recording:', recordingId);
-
-    return jsonResponse(
-      {
-        success: true,
-        url: signedUrlData.signedUrl,
-        expires_at: expiresAt,
-      } as GetRecordingUrlResponse,
-      req,
-      200
-    );
   } catch (error) {
     console.error('[GetRecordingUrl] Error:', error);
     return errorResponse(

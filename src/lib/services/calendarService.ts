@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/clientV2';
 import { CalendarEvent } from '@/pages/Calendar';
+import logger from '@/lib/utils/logger';
 
 export interface CalendarSyncStatus {
   isRunning: boolean;
@@ -111,11 +112,19 @@ class CalendarService {
       let calendarDbId = calendar?.id;
 
       if (!calendarDbId) {
+        // Get user's org_id
+        const { data: membership } = await supabase
+          .from('organization_memberships')
+          .select('org_id')
+          .eq('user_id', userData.user.id)
+          .maybeSingle();
+
         // Create calendar record
         const { data: newCalendar } = await supabase
           .from('calendar_calendars')
           .insert({
             user_id: userData.user.id,
+            org_id: membership?.org_id || null,
             external_id: calendarId,
             name: 'Primary Calendar',
             is_primary: true,
@@ -128,6 +137,15 @@ class CalendarService {
 
         calendarDbId = newCalendar?.id;
       }
+
+      // Get user's org_id once for all events
+      const { data: membership } = await supabase
+        .from('organization_memberships')
+        .select('org_id')
+        .eq('user_id', userData.user.id)
+        .maybeSingle();
+
+      const orgId = membership?.org_id || null;
 
       // Store events
       for (const event of events) {
@@ -143,8 +161,9 @@ class CalendarService {
           .eq('external_id', event.id)
           .eq('user_id', userData.user.id)
           .maybeSingle();
-        
+
         if (selectError && selectError.code !== 'PGRST116') {
+          logger.error('Error checking existing event:', selectError);
         }
 
         // Clean up HTML link - sometimes it gets truncated with "..."
@@ -153,6 +172,13 @@ class CalendarService {
           // If the link is truncated, try to reconstruct it or set to null
           cleanHtmlLink = null;
         }
+
+        // Extract attendees for external check
+        const attendees = event.attendees?.map((a: any) => ({
+          email: a.email,
+          responseStatus: a.responseStatus,
+          displayName: a.displayName,
+        })) || [];
 
         // Prepare event data - ensure all required fields are present
         const eventData: any = {
@@ -166,14 +192,16 @@ class CalendarService {
           all_day: !event.start.dateTime,
           status: event.status || 'confirmed',
           meeting_url: event.hangoutLink || null,
-          attendees_count: event.attendees?.length || 0,
+          attendees_count: attendees.length,
+          attendees: attendees.length > 0 ? attendees : null,
           creator_email: event.creator?.email || null,
           organizer_email: event.organizer?.email || null,
           html_link: cleanHtmlLink,
           hangout_link: event.hangoutLink || null,
           raw_data: event,
           sync_status: 'synced',
-          user_id: userData.user.id  // Put user_id last to ensure it's included
+          user_id: userData.user.id,
+          org_id: orgId,  // CRITICAL: Set org_id for auto-record trigger
         };
 
         // Use separate insert/update instead of upsert to avoid RLS issues

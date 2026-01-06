@@ -178,24 +178,34 @@ serve(async (req) => {
       case 'availability':
         response = await checkAvailability(accessToken, requestBody);
         break;
-      
+
+      case 'watch':
+        response = await watchCalendar(accessToken, requestBody);
+        break;
+
+      case 'stop':
+        response = await stopChannel(accessToken, requestBody);
+        break;
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
 
-    // Log the successful operation
-    await supabase
-      .from('google_service_logs')
-      .insert({
-        integration_id: integration.id,
-        service: 'calendar',
-        action: action || 'unknown',
-        status: 'success',
-        request_data: { action, userId },
-        response_data: { success: true },
-      }).catch(() => {
-        // Non-critical
-      });
+    // Log the successful operation (non-critical, don't throw on error)
+    try {
+      await supabase
+        .from('google_service_logs')
+        .insert({
+          integration_id: integration.id,
+          service: 'calendar',
+          action: action || 'unknown',
+          status: 'success',
+          request_data: { action, userId },
+          response_data: { success: true },
+        });
+    } catch {
+      // Non-critical logging error, ignore
+    }
 
     return jsonResponse(response, req);
 
@@ -403,5 +413,130 @@ async function checkAvailability(accessToken: string, request: any): Promise<any
     timeMin: data.timeMin,
     timeMax: data.timeMax,
     calendars: data.calendars
+  };
+}
+
+/**
+ * Watch a calendar for push notifications
+ *
+ * Creates a webhook channel that receives notifications when events change.
+ * Google Calendar API will send POST requests to the webhook URL when:
+ * - Events are created
+ * - Events are updated
+ * - Events are deleted
+ *
+ * @see https://developers.google.com/calendar/api/guides/push
+ */
+async function watchCalendar(accessToken: string, request: any): Promise<any> {
+  const calendarId = request.calendarId || 'primary';
+  const channelId = request.channelId;
+  const webhookUrl = request.webhookUrl;
+
+  if (!channelId || !webhookUrl) {
+    throw new Error('channelId and webhookUrl are required for watch action');
+  }
+
+  // Generate unique channel token for verification
+  const token = crypto.randomUUID();
+
+  // Set expiration (Google Calendar max is 7 days)
+  const expiration = Date.now() + (7 * 24 * 60 * 60 * 1000); // 7 days
+
+  const requestBody = {
+    id: channelId,
+    type: 'web_hook',
+    address: webhookUrl,
+    token: token,
+    expiration: expiration.toString(),
+  };
+
+  console.log('[google-calendar] Creating watch channel:', {
+    calendarId,
+    channelId,
+    webhookUrl,
+    expiration: new Date(expiration).toISOString(),
+  });
+
+  const response = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/watch`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Calendar watch error: ${errorData.error?.message || 'Unknown error'}`);
+  }
+
+  const data = await response.json();
+
+  console.log('[google-calendar] Watch channel created:', data);
+
+  return {
+    success: true,
+    resourceId: data.resourceId,
+    expiration: data.expiration,
+    channelId: data.id,
+  };
+}
+
+/**
+ * Stop a push notification channel
+ *
+ * Unsubscribes from push notifications by stopping the webhook channel.
+ *
+ * @see https://developers.google.com/calendar/api/guides/push#stopping-notifications
+ */
+async function stopChannel(accessToken: string, request: any): Promise<any> {
+  const channelId = request.channelId;
+  const resourceId = request.resourceId;
+
+  if (!channelId || !resourceId) {
+    throw new Error('channelId and resourceId are required for stop action');
+  }
+
+  const requestBody = {
+    id: channelId,
+    resourceId: resourceId,
+  };
+
+  console.log('[google-calendar] Stopping channel:', { channelId, resourceId });
+
+  const response = await fetch(
+    'https://www.googleapis.com/calendar/v3/channels/stop',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    // Ignore 404 errors - channel already stopped
+    if (response.status === 404) {
+      console.log('[google-calendar] Channel already stopped or not found');
+      return {
+        success: true,
+        message: 'Channel already stopped or not found',
+      };
+    }
+    throw new Error(`Calendar stop error: ${errorData.error?.message || 'Unknown error'}`);
+  }
+
+  console.log('[google-calendar] Channel stopped successfully');
+
+  return {
+    success: true,
+    message: 'Channel stopped successfully',
   };
 }

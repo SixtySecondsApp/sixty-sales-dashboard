@@ -357,6 +357,7 @@ serve(async (req) => {
             status: ev.status || 'confirmed',
             meeting_url: ev.hangoutLink || null,
             attendees_count: Array.isArray(ev.attendees) ? ev.attendees.length : 0,
+            attendees: ev.attendees || null,
             color: ev.colorId || null,
             creator_email: ev.creator?.email || null,
             organizer_email: ev.organizer?.email || null,
@@ -454,26 +455,28 @@ serve(async (req) => {
             },
           })
 
-          // Upsert attendees
+          // Upsert attendees to calendar_attendees table (with proper error handling)
           if (Array.isArray(ev.attendees) && ev.attendees.length > 0) {
             for (const attendee of ev.attendees) {
-              await supabase
-                .from('calendar_attendees')
-                .upsert(
-                  {
-                    event_id: eventDbId,
-                    email: attendee.email,
-                    name: attendee.displayName || null,
-                    is_organizer: attendee.organizer === true,
-                    is_required: attendee.optional !== true,
-                    response_status: attendee.responseStatus || 'needsAction',
-                    responded_at: attendee.responseStatus !== 'needsAction' ? now : null,
-                  },
-                  { onConflict: 'event_id,email' }
-                )
-                .catch(() => {
-                  // Silently fail attendee upserts - event is more important
-                });
+              try {
+                await supabase
+                  .from('calendar_attendees')
+                  .upsert(
+                    {
+                      event_id: eventDbId,
+                      email: attendee.email,
+                      name: attendee.displayName || null,
+                      is_organizer: attendee.organizer === true,
+                      is_required: attendee.optional !== true,
+                      response_status: attendee.responseStatus || 'needsAction',
+                      responded_at: attendee.responseStatus !== 'needsAction' ? now : null,
+                    },
+                    { onConflict: 'event_id,email' }
+                  );
+              } catch (attendeeError) {
+                // Silently fail attendee upserts - event is more important
+                console.warn('Failed to upsert attendee:', attendeeError);
+              }
             }
           }
         } catch (err) {

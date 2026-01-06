@@ -16,6 +16,8 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { S3Client, PutObjectCommand, HeadObjectCommand } from 'npm:@aws-sdk/client-s3@3';
+import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3';
 import { corsHeaders, handleCorsPreflightWithResponse } from '../_shared/corsHelper.ts';
 import {
   createMeetingBaaSClient,
@@ -36,8 +38,9 @@ interface UploadRecordingResult {
 }
 
 /**
- * Download recording from MeetingBaaS and upload to our storage bucket
- * Folder structure: /{org_id}/{user_id}/{recording_id}/recording.mp4
+ * Download recording from MeetingBaaS and upload to AWS S3
+ * Bucket: use60-application (eu-west-2)
+ * Folder structure: /meeting-recordings/{org_id}/{user_id}/{recording_id}/recording.mp4
  */
 async function uploadRecordingToStorage(
   supabase: SupabaseClient,
@@ -49,6 +52,17 @@ async function uploadRecordingToStorage(
   console.log('[ProcessRecording] Downloading recording from MeetingBaaS...');
 
   try {
+    // Initialize S3 client
+    const s3Client = new S3Client({
+      region: Deno.env.get('AWS_REGION') || 'eu-west-2',
+      credentials: {
+        accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID')!,
+        secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY')!,
+      },
+    });
+
+    const bucketName = Deno.env.get('AWS_S3_BUCKET') || 'use60-application';
+
     // Download the recording
     const response = await fetch(recordingUrl);
     if (!response.ok) {
@@ -64,47 +78,49 @@ async function uploadRecordingToStorage(
       fileExtension = contentType.includes('wav') ? 'wav' : 'mp3';
     }
 
-    // Create storage path: /{org_id}/{user_id}/{recording_id}/recording.{ext}
-    const storagePath = `${orgId}/${userId}/${recordingId}/recording.${fileExtension}`;
+    // Create S3 key: meeting-recordings/{org_id}/{user_id}/{recording_id}/recording.{ext}
+    const s3Key = `meeting-recordings/${orgId}/${userId}/${recordingId}/recording.${fileExtension}`;
 
-    console.log(`[ProcessRecording] Uploading to storage: ${storagePath}`);
+    console.log(`[ProcessRecording] Uploading to S3: s3://${bucketName}/${s3Key}`);
 
-    // Get the recording data as a blob
-    const blob = await response.blob();
+    // Get the recording data as array buffer
+    const arrayBuffer = await response.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
 
-    // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('recordings')
-      .upload(storagePath, blob, {
-        contentType,
-        upsert: true, // Overwrite if exists
-      });
+    // Upload to S3
+    const putCommand = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: s3Key,
+      Body: uint8Array,
+      ContentType: contentType,
+      Metadata: {
+        'org-id': orgId,
+        'user-id': userId,
+        'recording-id': recordingId,
+      },
+    });
 
-    if (uploadError) {
-      throw new Error(`Storage upload failed: ${uploadError.message}`);
-    }
+    await s3Client.send(putCommand);
 
-    // Get the public URL (or signed URL for private bucket)
-    const { data: urlData } = supabase.storage
-      .from('recordings')
-      .getPublicUrl(storagePath);
+    // Generate a signed URL (7 days expiry)
+    const getCommand = new HeadObjectCommand({
+      Bucket: bucketName,
+      Key: s3Key,
+    });
 
-    // For private bucket, generate a signed URL
-    const { data: signedUrlData } = await supabase.storage
-      .from('recordings')
-      .createSignedUrl(storagePath, 60 * 60 * 24 * 7); // 7 days
+    const signedUrl = await getSignedUrl(s3Client, getCommand, {
+      expiresIn: 60 * 60 * 24 * 7, // 7 days
+    });
 
-    const storageUrl = signedUrlData?.signedUrl || urlData?.publicUrl;
-
-    console.log(`[ProcessRecording] Upload successful: ${storagePath}`);
+    console.log(`[ProcessRecording] S3 upload successful: ${s3Key}`);
 
     return {
       success: true,
-      storageUrl,
-      storagePath,
+      storageUrl: signedUrl,
+      storagePath: s3Key,
     };
   } catch (error) {
-    console.error('[ProcessRecording] Storage upload error:', error);
+    console.error('[ProcessRecording] S3 upload error:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Upload failed',
