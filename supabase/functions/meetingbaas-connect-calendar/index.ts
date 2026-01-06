@@ -114,6 +114,13 @@ async function listMeetingBaaSCalendars(
 // =============================================================================
 
 serve(async (req) => {
+  console.log('[meetingbaas-connect-calendar] Request received:', {
+    method: req.method,
+    url: req.url,
+    hasAuth: !!req.headers.get('authorization'),
+    contentType: req.headers.get('content-type'),
+  });
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -125,6 +132,14 @@ serve(async (req) => {
     const meetingbaasApiKey = Deno.env.get('MEETINGBAAS_API_KEY') ?? '';
     const googleClientId = Deno.env.get('GOOGLE_CLIENT_ID') ?? '';
     const googleClientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET') ?? '';
+
+    console.log('[meetingbaas-connect-calendar] Environment check:', {
+      hasServiceRoleKey: !!serviceRoleKey,
+      hasSupabaseUrl: !!supabaseUrl,
+      hasMeetingbaasApiKey: !!meetingbaasApiKey,
+      hasGoogleClientId: !!googleClientId,
+      hasGoogleClientSecret: !!googleClientSecret,
+    });
 
     if (!meetingbaasApiKey) {
       return new Response(
