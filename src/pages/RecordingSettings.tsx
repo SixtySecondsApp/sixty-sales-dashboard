@@ -175,7 +175,7 @@ export const RecordingSettings: React.FC = () => {
   const { usage, remainingRecordings, usagePercent } = useRecordingUsage()
 
   // Notetaker integration (check Google connection first)
-  const { userSettings, updateSettings, isUpdating, googleConnected } = useNotetakerIntegration()
+  const { userSettings, updateSettings, isUpdating, googleConnected, googleEmail, googleLoading } = useNotetakerIntegration()
 
   // Calendar list - only fetch when Google is connected
   const { data: calendarsData, isLoading: calendarsLoading, refetch: refetchCalendars } = useCalendarList(googleConnected)
@@ -226,11 +226,28 @@ export const RecordingSettings: React.FC = () => {
 
   // Detect when Google Calendar gets connected and show prompt
   React.useEffect(() => {
-    if (!previousGoogleConnected && googleConnected && hasCompletedSetup && !hasMeetingBaaSCalendar) {
+    // Important: `googleConnected` can flip from false -> true simply because we ran a background
+    // connection check (even if the user connected days ago). Avoid popping an onboarding prompt
+    // in that scenario, especially if auto-recording is already enabled.
+    if (
+      !settingsLoading &&
+      !previousGoogleConnected &&
+      googleConnected &&
+      hasCompletedSetup &&
+      !hasMeetingBaaSCalendar &&
+      !(settings?.auto_record_enabled ?? false)
+    ) {
       setShowAutoRecordPrompt(true)
     }
     setPreviousGoogleConnected(googleConnected)
-  }, [googleConnected, previousGoogleConnected, hasCompletedSetup, hasMeetingBaaSCalendar])
+  }, [
+    googleConnected,
+    previousGoogleConnected,
+    hasCompletedSetup,
+    hasMeetingBaaSCalendar,
+    settingsLoading,
+    settings?.auto_record_enabled,
+  ])
 
   // Initialize form when settings load
   React.useEffect(() => {
@@ -278,7 +295,6 @@ export const RecordingSettings: React.FC = () => {
     try {
       await recordingService.updateRecordingSettings(activeOrgId, {
         bot_name: botName || undefined,
-        bot_image_url: DEFAULT_BOT_PROFILE_IMAGE,
         entry_message: entryMessage || undefined,
         entry_message_enabled: entryMessageEnabled,
         auto_record_enabled: autoRecord,
@@ -405,15 +421,19 @@ export const RecordingSettings: React.FC = () => {
   const connectionStatus: ConnectionStatus = {
     googleCalendar: {
       connected: googleConnected,
-      email: userSettings?.selected_calendar_id,
+      accountEmail: googleEmail ?? undefined,
     },
     calendarSelected: {
-      selected: !!userSettings?.selected_calendar_id,
+      selected: !!selectedCalendarId,
       calendarName: calendarsData?.calendars?.find((c: { id: string }) => c.id === selectedCalendarId)?.summary,
     },
-    autoRecording: {
-      enabled: hasMeetingBaaSCalendar,
+    botCalendarSync: {
+      connected: hasMeetingBaaSCalendar,
       platform: meetingBaaSCalendar?.platform,
+      calendarEmail: meetingBaaSCalendar?.email ?? undefined,
+    },
+    autoRecordingRules: {
+      enabled: autoRecord,
     },
   }
 
@@ -445,13 +465,20 @@ export const RecordingSettings: React.FC = () => {
       {/* Connection Status Card */}
       <ConnectionStatusCard
         status={connectionStatus}
-        onConnectGoogle={() => navigate('/settings/integrations')}
+        onConnectGoogle={() => navigate('/integrations')}
         onSelectCalendar={() => {
           // Scroll to calendar selection section
           const calendarSection = document.getElementById('calendar-selection')
           calendarSection?.scrollIntoView({ behavior: 'smooth' })
         }}
-        onEnableAutoRecording={() => setShowAutoRecordPrompt(true)}
+        onConnectBotCalendarSync={() => {
+          const botCalendarSection = document.getElementById('bot-calendar-sync')
+          if (botCalendarSection) {
+            botCalendarSection.scrollIntoView({ behavior: 'smooth' })
+            return
+          }
+          setShowAutoRecordPrompt(true)
+        }}
         isLoading={meetingBaaSLoading || meetingBaaSConnecting}
       />
 
@@ -873,6 +900,7 @@ export const RecordingSettings: React.FC = () => {
 
       {/* MeetingBaaS Calendar Connection */}
       <motion.div
+        id="bot-calendar-sync"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
@@ -888,7 +916,9 @@ export const RecordingSettings: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {!googleConnected ? (
+            {googleLoading ? (
+              <Skeleton className="h-20 w-full" />
+            ) : !googleConnected ? (
               <div className="flex items-start gap-3 p-4 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30">
                 <AlertCircle className="h-5 w-5 text-gray-400 mt-0.5 shrink-0" />
                 <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -898,7 +928,7 @@ export const RecordingSettings: React.FC = () => {
                     <Button
                       variant="link"
                       className="h-auto p-0 text-emerald-600"
-                      onClick={() => navigate('/settings/integrations')}
+                      onClick={() => navigate('/integrations')}
                     >
                       Integrations page
                     </Button>{' '}
@@ -933,9 +963,11 @@ export const RecordingSettings: React.FC = () => {
                 <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50/50 dark:bg-amber-900/20 border border-amber-200/50 dark:border-amber-700/30">
                   <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
                   <div className="text-sm text-amber-700 dark:text-amber-300">
-                    <p className="font-medium mb-1">Calendar not connected</p>
+                    <p className="font-medium mb-1">
+                      {autoRecord ? 'Auto-recording is on, but bot calendar sync isn’t connected' : 'Bot calendar sync not connected'}
+                    </p>
                     <p className="text-amber-600/80 dark:text-amber-400/80">
-                      Connect your calendar to enable the 60 Notetaker bot to automatically join your meetings.
+                      Connect once to allow the 60 Notetaker to automatically join meetings from your selected calendar.
                       This uses your existing Google Calendar connection.
                     </p>
                   </div>

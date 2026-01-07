@@ -48,7 +48,7 @@ import { useRecordingSetupStatus } from '@/lib/hooks/useRecordingSetupStatus';
 import { useOrg } from '@/lib/contexts/OrgContext';
 import { recordingService } from '@/lib/services/recordingService';
 import { toast } from 'sonner';
-import { DEFAULT_BOT_PROFILE_IMAGE, DEFAULT_SIXTY_ICON_URL } from '@/lib/utils/sixtyBranding';
+import { DEFAULT_SIXTY_ICON_URL } from '@/lib/utils/sixtyBranding';
 import { cn } from '@/lib/utils';
 
 // =============================================================================
@@ -111,7 +111,7 @@ export const RecordingSetupWizard: React.FC<RecordingSetupWizardProps> = ({ onCo
 
   // Handlers
   const handleConnectGoogle = () => {
-    navigate('/settings/integrations');
+    navigate('/integrations');
   };
 
   const handleSelectCalendar = async () => {
@@ -149,7 +149,6 @@ export const RecordingSetupWizard: React.FC<RecordingSetupWizardProps> = ({ onCo
       // Save bot appearance settings
       await recordingService.updateRecordingSettings(activeOrgId, {
         bot_name: botName || undefined,
-        bot_image_url: DEFAULT_BOT_PROFILE_IMAGE,
       });
 
       // Mark setup as complete

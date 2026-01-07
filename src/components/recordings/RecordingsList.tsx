@@ -259,7 +259,7 @@ const RecordingsList: React.FC = () => {
   const [isJoining, setIsJoining] = useState(false)
 
   // Fetch recordings with React Query
-  const { data: recordingsData, isLoading, error } = useRecordings({
+  const { recordings, total: totalCount, isLoading, error } = useRecordings({
     limit: ITEMS_PER_PAGE,
     offset: (currentPage - 1) * ITEMS_PER_PAGE,
     status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -273,9 +273,6 @@ const RecordingsList: React.FC = () => {
 
   // Fetch recordings requiring attention (HITL)
   const { data: attentionRecordings } = useRecordingsRequiringAttention()
-
-  const recordings = recordingsData?.recordings || []
-  const totalCount = recordingsData?.total || 0
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
 
   // Filter recordings client-side for search and platform

@@ -24,15 +24,19 @@ import { cn } from '@/lib/utils';
 export interface ConnectionStatus {
   googleCalendar: {
     connected: boolean;
-    email?: string;
+    accountEmail?: string;
   };
   calendarSelected: {
     selected: boolean;
     calendarName?: string;
   };
-  autoRecording: {
-    enabled: boolean;
+  botCalendarSync: {
+    connected: boolean;
     platform?: 'google' | 'microsoft';
+    calendarEmail?: string;
+  };
+  autoRecordingRules: {
+    enabled: boolean;
   };
 }
 
@@ -40,7 +44,7 @@ interface ConnectionStatusCardProps {
   status: ConnectionStatus;
   onConnectGoogle?: () => void;
   onSelectCalendar?: () => void;
-  onEnableAutoRecording?: () => void;
+  onConnectBotCalendarSync?: () => void;
   isLoading?: boolean;
 }
 
@@ -52,13 +56,17 @@ export const ConnectionStatusCard: React.FC<ConnectionStatusCardProps> = ({
   status,
   onConnectGoogle,
   onSelectCalendar,
-  onEnableAutoRecording,
+  onConnectBotCalendarSync,
   isLoading = false,
 }) => {
-  const allConnected =
+  const coreSetupConnected =
     status.googleCalendar.connected &&
     status.calendarSelected.selected &&
-    status.autoRecording.enabled;
+    status.botCalendarSync.connected;
+
+  const automationEnabled = status.autoRecordingRules.enabled;
+
+  const allConnected = coreSetupConnected && automationEnabled;
 
   return (
     <motion.div
@@ -78,16 +86,16 @@ export const ConnectionStatusCard: React.FC<ConnectionStatusCardProps> = ({
           <CardDescription>
             {allConnected
               ? 'All set! Your recording bot is ready to join meetings.'
-              : 'Complete the setup to enable automatic meeting recording.'}
+              : 'Complete the setup so the bot can join meetings and you can enable recording automation.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {/* Google Calendar Status */}
           <StatusRow
             icon={Calendar}
-            label="Google Calendar"
+            label="Google Account"
             connected={status.googleCalendar.connected}
-            detail={status.googleCalendar.email}
+            detail={status.googleCalendar.accountEmail}
             action={
               !status.googleCalendar.connected && onConnectGoogle ? (
                 <Button
@@ -106,7 +114,7 @@ export const ConnectionStatusCard: React.FC<ConnectionStatusCardProps> = ({
           {status.googleCalendar.connected && (
             <StatusRow
               icon={Calendar}
-              label="Calendar Selected"
+              label="Calendar Watched"
               connected={status.calendarSelected.selected}
               detail={status.calendarSelected.calendarName}
               action={
@@ -124,29 +132,45 @@ export const ConnectionStatusCard: React.FC<ConnectionStatusCardProps> = ({
             />
           )}
 
-          {/* Auto-Recording Status */}
+          {/* Bot Calendar Sync Status */}
+          {status.googleCalendar.connected && (
+            <StatusRow
+              icon={Link2}
+              label="Bot Calendar Sync"
+              connected={status.botCalendarSync.connected}
+              detail={
+                status.botCalendarSync.connected
+                  ? `${status.botCalendarSync.calendarEmail || 'Primary Calendar'} • ${status.botCalendarSync.platform === 'google' ? 'Google Calendar' : 'Microsoft Calendar'}`
+                  : 'Required for the bot to auto-join your meetings'
+              }
+              action={
+                !status.botCalendarSync.connected && onConnectBotCalendarSync ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onConnectBotCalendarSync}
+                    disabled={isLoading}
+                    className="bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
+                  >
+                    Connect
+                  </Button>
+                ) : undefined
+              }
+            />
+          )}
+
+          {/* Auto-Recording Rules Status */}
           {status.googleCalendar.connected && (
             <StatusRow
               icon={Link2}
               label="Auto-Recording"
-              connected={status.autoRecording.enabled}
+              connected={automationEnabled}
               detail={
-                status.autoRecording.enabled
-                  ? `Enabled via ${status.autoRecording.platform === 'google' ? 'Google' : 'Microsoft'} Calendar`
-                  : undefined
-              }
-              action={
-                !status.autoRecording.enabled && onEnableAutoRecording ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onEnableAutoRecording}
-                    disabled={isLoading}
-                    className="bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
-                  >
-                    Enable Auto-Recording
-                  </Button>
-                ) : undefined
+                !automationEnabled
+                  ? 'Turn on “Auto-Record Matching Meetings” below to automate recordings'
+                  : !status.botCalendarSync.connected
+                    ? 'Enabled, but bot calendar sync is not connected yet'
+                    : 'Enabled'
               }
             />
           )}
