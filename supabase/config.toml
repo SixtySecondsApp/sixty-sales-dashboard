@@ -88,3 +88,8 @@ verify_jwt = false
 # Webhook calls this internally, so needs to bypass JWT verification
 [functions.google-calendar-sync]
 verify_jwt = false
+
+# MeetingBaaS webhook - receives push notifications from MeetingBaaS API
+# External service sends unauthenticated requests, we verify via signature
+[functions.meetingbaas-webhook]
+verify_jwt = false
