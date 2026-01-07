@@ -751,6 +751,7 @@ export type TestableIntegration =
   | 'slack'
   | 'justcall'
   | 'savvycal'
+  | 'meetingbaas'
   | 'supabase';
 
 /**

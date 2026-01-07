@@ -23,6 +23,7 @@ import {
   Zap,
   FlaskConical,
   AlertCircle,
+  Video,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
@@ -164,6 +165,13 @@ const AVAILABLE_PROCESSES: Array<{
     label: 'SavvyCal',
     icon: <Calendar className="h-4 w-4 text-indigo-500" />,
     description: 'Sync bookings and create leads',
+  },
+  {
+    type: 'integration',
+    name: 'meetingbaas',
+    label: 'MeetingBaaS',
+    icon: <Video className="h-4 w-4 text-red-500" />,
+    description: 'Automatic meeting recording with bot deployment',
   },
   {
     type: 'workflow',

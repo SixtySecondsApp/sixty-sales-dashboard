@@ -80,6 +80,18 @@ export {
   type MockSupabaseQueryResult,
 } from './SupabaseMock';
 
+// MeetingBaaS
+export {
+  MeetingBaaSMock,
+  createMeetingBaaSMockConfigs,
+  type MockMeetingBaaSCalendar,
+  type MockBotDeployment,
+  type MockRecording,
+  type MockTranscript,
+  type MockWebhookEvent,
+  type BotStatus,
+} from './MeetingBaaSMock';
+
 // Registry
 export {
   MockRegistry,

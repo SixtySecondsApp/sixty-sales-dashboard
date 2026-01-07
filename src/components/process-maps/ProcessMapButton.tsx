@@ -22,6 +22,7 @@ export type ProcessName =
   | 'slack'
   | 'justcall'
   | 'savvycal'
+  | 'meetingbaas'
   | 'meeting_intelligence'
   | 'task_extraction'
   | 'vsl_analytics'

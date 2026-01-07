@@ -138,6 +138,23 @@ export const SAVVYCAL_CAPABILITY: IntegrationCapability = {
 };
 
 /**
+ * MeetingBaaS integration capabilities
+ * Full CRUD support for bot deployments and recordings
+ */
+export const MEETINGBAAS_CAPABILITY: IntegrationCapability = {
+  integration: 'meetingbaas',
+  displayName: 'MeetingBaaS',
+  supportsCreate: true,
+  supportsRead: true,
+  supportsUpdate: true,
+  supportsDelete: true,
+  resourceTypes: ['meeting', 'record'],
+  viewUrlPattern: null, // MeetingBaaS dashboard doesn't have public URLs
+  deleteEndpoint: '/functions/v1/meetingbaas-cleanup',
+  notes: 'Meeting recording integration with bot deployment. Supports calendar connection, bot deployment, and recording management.',
+};
+
+/**
  * Supabase integration capabilities
  * Full CRUD support for database records
  */
@@ -165,6 +182,7 @@ export const INTEGRATION_CAPABILITIES: Record<TestableIntegration, IntegrationCa
   slack: SLACK_CAPABILITY,
   justcall: JUSTCALL_CAPABILITY,
   savvycal: SAVVYCAL_CAPABILITY,
+  meetingbaas: MEETINGBAAS_CAPABILITY,
   supabase: SUPABASE_CAPABILITY,
 };
 

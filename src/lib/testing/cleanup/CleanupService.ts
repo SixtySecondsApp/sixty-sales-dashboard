@@ -182,6 +182,8 @@ export class CleanupService {
         return await this.cleanupSavvyCalResource(resource);
       case 'supabase':
         return await this.cleanupSupabaseResource(resource);
+      case 'meetingbaas':
+        return await this.cleanupMeetingBaaSResource(resource);
       default:
         console.warn(`[CleanupService] Unknown integration: ${resource.integration}`);
         return false;
@@ -370,6 +372,94 @@ export class CleanupService {
     }
 
     return true;
+  }
+
+  /**
+   * Clean up MeetingBaaS resource (bot deployment, calendar, recording)
+   */
+  private async cleanupMeetingBaaSResource(resource: TrackedResource): Promise<boolean> {
+    if (!resource.externalId) {
+      console.warn(`[CleanupService] MeetingBaaS resource missing external ID`);
+      return false;
+    }
+
+    // Get session token for authorization
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) {
+      console.warn(`[CleanupService] No active session for MeetingBaaS cleanup`);
+      return false;
+    }
+
+    // Route cleanup based on resource type
+    switch (resource.resourceType) {
+      case 'meeting': {
+        // For bot deployments, call the remove-bot API to stop recording and leave
+        console.log(`[CleanupService] Removing MeetingBaaS bot:`, resource.externalId);
+
+        const { data: response, error } = await supabase.functions.invoke('meetingbaas-cleanup', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'remove_bot',
+            bot_id: resource.externalId,
+            org_id: this.orgId,
+          }),
+        });
+
+        if (error) {
+          console.error(`[CleanupService] MeetingBaaS bot removal failed:`, error);
+          throw new Error(error.message);
+        }
+
+        if (!response?.success) {
+          console.error(`[CleanupService] MeetingBaaS bot removal returned error:`, response?.error);
+          throw new Error(response?.error || 'Bot removal failed');
+        }
+
+        console.log(`[CleanupService] MeetingBaaS bot removed:`, resource.externalId);
+        return true;
+      }
+
+      case 'record': {
+        // For recordings, delete from our database (the actual recording may be on S3/external storage)
+        console.log(`[CleanupService] Deleting MeetingBaaS recording:`, resource.externalId);
+
+        const { data: response, error } = await supabase.functions.invoke('meetingbaas-cleanup', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'delete_recording',
+            recording_id: resource.externalId,
+            org_id: this.orgId,
+            // Also delete associated data
+            delete_transcript: true,
+            delete_from_storage: resource.rawData?.deleteFromStorage !== false,
+          }),
+        });
+
+        if (error) {
+          console.error(`[CleanupService] MeetingBaaS recording deletion failed:`, error);
+          throw new Error(error.message);
+        }
+
+        if (!response?.success) {
+          console.error(`[CleanupService] MeetingBaaS recording deletion returned error:`, response?.error);
+          throw new Error(response?.error || 'Recording deletion failed');
+        }
+
+        console.log(`[CleanupService] MeetingBaaS recording deleted:`, resource.externalId);
+        return true;
+      }
+
+      default:
+        console.warn(`[CleanupService] Unknown MeetingBaaS resource type: ${resource.resourceType}`);
+        return false;
+    }
   }
 
   /**

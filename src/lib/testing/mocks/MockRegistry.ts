@@ -13,6 +13,7 @@ import { SlackMock, createSlackMockConfigs } from './SlackMock';
 import { JustCallMock, createJustCallMockConfigs } from './JustCallMock';
 import { SavvyCalMock, createSavvyCalMockConfigs } from './SavvyCalMock';
 import { SupabaseMock, createSupabaseMockConfigs } from './SupabaseMock';
+import { MeetingBaaSMock, createMeetingBaaSMockConfigs } from './MeetingBaaSMock';
 
 // ============================================================================
 // Types
@@ -25,7 +26,8 @@ export type IntegrationMockType =
   | SlackMock
   | JustCallMock
   | SavvyCalMock
-  | SupabaseMock;
+  | SupabaseMock
+  | MeetingBaaSMock;
 
 export interface IntegrationMockInstance {
   integration: string;
@@ -40,7 +42,8 @@ export type SupportedIntegration =
   | 'slack'
   | 'justcall'
   | 'savvycal'
-  | 'supabase';
+  | 'supabase'
+  | 'meetingbaas';
 
 // ============================================================================
 // Mock Registry
@@ -172,6 +175,13 @@ export class MockRegistry {
         break;
       }
 
+      case 'meetingbaas': {
+        const mock = new MeetingBaaSMock({ preloadData: true });
+        const configs = createMeetingBaaSMockConfigs(workflowId, orgId);
+        instance = { integration: normalizedIntegration, mock, configs };
+        break;
+      }
+
       default:
         return undefined;
     }
@@ -284,6 +294,7 @@ export function createTestMockRegistry(
     'justcall',
     'savvycal',
     'supabase',
+    'meetingbaas',
   ];
 
   for (const integration of targetIntegrations) {
