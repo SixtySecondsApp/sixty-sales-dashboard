@@ -106,77 +106,45 @@ export function useMeetingBaaSCalendar() {
         throw new Error('No access token available');
       }
 
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meetingbaas-connect-calendar`;
-      console.log('[useMeetingBaaSCalendar] Connecting to:', { url, calendarId, userId });
+      console.log('[useMeetingBaaSCalendar] Connecting calendar:', { calendarId, userId });
 
-      let response: Response;
-      try {
-        response = await fetch(url, {
-          method: 'POST',
+      // Use Supabase client's functions.invoke() for better CORS and auth handling
+      const { data: result, error: invokeError } = await supabase.functions.invoke(
+        'meetingbaas-connect-calendar',
+        {
           headers: {
-            'Content-Type': 'application/json',
             'Authorization': `Bearer ${accessToken}`,
           },
-          body: JSON.stringify({
+          body: {
             user_id: userId,
             calendar_id: calendarId,
             // Pass the access token as fallback in case google_integrations is missing
             access_token: accessToken,
-          }),
-        });
-      } catch (fetchError) {
-        console.error('[useMeetingBaaSCalendar] Fetch error:', {
-          error: fetchError instanceof Error ? fetchError.message : String(fetchError),
-          url,
-        });
-        throw new Error(`Network error connecting to calendar service: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`);
-      }
-
-      console.log('[useMeetingBaaSCalendar] Response received:', {
-        status: response.status,
-        statusText: response.statusText,
-        contentType: response.headers.get('content-type'),
-      });
-
-      let result: any;
-      try {
-        const text = await response.text();
-        console.log('[useMeetingBaaSCalendar] Response body:', text.substring(0, 500));
-
-        if (!text) {
-          throw new Error('Empty response from server');
+          },
         }
+      );
 
-        result = JSON.parse(text);
-      } catch (parseError) {
-        console.error('[useMeetingBaaSCalendar] Failed to parse response:', parseError);
-        throw new Error(`Invalid response from server: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
-      }
-
-      if (!response.ok) {
-        let errorMessage = result.error || `HTTP ${response.status}: ${response.statusText}`;
-
-        console.error('[useMeetingBaaSCalendar] Error response:', {
-          status: response.status,
-          error: result.error,
-          recovery: result.recovery,
-        });
-
+      if (invokeError) {
+        console.error('[useMeetingBaaSCalendar] Edge function error:', invokeError);
+        
+        let errorMessage = invokeError.message || 'Failed to connect calendar';
+        
         // Check if this is a refresh token missing error
         if (errorMessage.includes('refresh token')) {
           errorMessage = 'Please reconnect Google Calendar to enable offline access for automatic recording setup';
         }
-
+        
         throw new Error(errorMessage);
       }
 
-      if (!result.success) {
-        console.error('[useMeetingBaaSCalendar] Success=false:', result.error);
-        throw new Error(result.error || 'Failed to connect calendar');
+      if (!result || !result.success) {
+        const errorMsg = result?.error || 'Failed to connect calendar';
+        console.error('[useMeetingBaaSCalendar] Success=false:', errorMsg);
+        throw new Error(errorMsg);
       }
 
       console.log('[useMeetingBaaSCalendar] Success:', result);
-      return result;
+      return result as ConnectCalendarResponse;
     },
     onSuccess: (data) => {
       toast.success('Calendar connected to MeetingBaaS', {

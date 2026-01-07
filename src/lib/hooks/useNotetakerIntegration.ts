@@ -60,10 +60,38 @@ export function useNotetakerIntegration() {
   const { user } = useAuth();
   const activeOrgId = useActiveOrgId();
   const queryClient = useQueryClient();
-  const { isConnected: googleConnected, status: googleStatus } = useGoogleIntegration();
+  const {
+    isConnected: googleConnected,
+    status: googleStatus,
+    email: googleEmail,
+    isLoading: googleLoading,
+    lastSync: googleLastSync,
+    checkConnection: checkGoogleConnection,
+  } = useGoogleIntegration();
 
   const userId = user?.id;
   const orgId = activeOrgId;
+
+  /**
+   * Fix: Notetaker Settings can be opened without ever visiting /integrations.
+   * The Google integration Zustand store defaults to disconnected until a check runs.
+   * Trigger a lightweight connection check on mount so we don't show a false "connect Google" state.
+   */
+  useEffect(() => {
+    if (!userId) return;
+    if (googleLoading) return;
+    if (googleConnected) return;
+
+    // Avoid spamming requests: if we checked recently, don't re-check.
+    const lastSyncMs = googleLastSync ? new Date(googleLastSync).getTime() : 0;
+    const now = Date.now();
+    const checkedRecently = lastSyncMs > 0 && now - lastSyncMs < 60_000;
+
+    if (!checkedRecently) {
+      // Fire and forget; store will update `googleConnected`/`googleStatus`.
+      void checkGoogleConnection();
+    }
+  }, [userId, googleLoading, googleConnected, googleLastSync, checkGoogleConnection]);
 
   // Fetch org-level settings (from organizations.recording_settings JSONB column)
   const {
@@ -333,11 +361,11 @@ export function useNotetakerIntegration() {
   });
 
   // Computed states
-  const isLoading = orgSettingsLoading || userSettingsLoading;
+  const isLoading = orgSettingsLoading || userSettingsLoading || googleLoading || googleStatus === 'refreshing';
   const isOrgEnabled = orgSettings?.notetaker_enabled ?? false;
   const isUserEnabled = userSettings?.is_enabled ?? false;
   const isConnected = isOrgEnabled && isUserEnabled && googleConnected;
-  const needsCalendar = isOrgEnabled && !googleConnected;
+  const needsCalendar = isOrgEnabled && !googleConnected && !googleLoading && googleStatus !== 'refreshing';
   const needsUserSetup = isOrgEnabled && googleConnected && !isUserEnabled;
 
   // Determine overall status
@@ -364,7 +392,9 @@ export function useNotetakerIntegration() {
 
     // Calendar dependency
     googleConnected,
+    googleEmail,
     googleStatus,
+    googleLoading,
 
     // User-level actions
     enable: enableMutation.mutateAsync,

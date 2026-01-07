@@ -133,7 +133,7 @@ class RecordingService {
         .eq('id', result.recording_id)
         .single();
 
-      return { success: true, recording: recording || undefined };
+      return { success: true, recording: (recording as unknown as Recording) || undefined };
     } catch (error) {
       logger.error('[RecordingService] startRecording error:', error);
       return {
@@ -201,7 +201,7 @@ class RecordingService {
       return null;
     }
 
-    return data;
+    return data as unknown as Recording;
   }
 
   /**
@@ -240,7 +240,7 @@ class RecordingService {
     }
 
     return {
-      recordings: data || [],
+      recordings: (data || []) as unknown as Recording[],
       total: count || 0,
       limit,
       offset,
@@ -272,7 +272,7 @@ class RecordingService {
 
     // Transform results to include match snippets
     const results: RecordingSearchResult[] = (data || []).map((recording) => ({
-      recording,
+      recording: recording as unknown as Recording,
       matches: this.extractSearchMatches(recording.transcript_text || '', query),
     }));
 
@@ -366,7 +366,7 @@ class RecordingService {
       return [];
     }
 
-    return data || [];
+    return (data || []) as unknown as RecordingRule[];
   }
 
   /**
@@ -384,7 +384,7 @@ class RecordingService {
       return null;
     }
 
-    return data;
+    return data as unknown as RecordingRule;
   }
 
   /**
@@ -406,7 +406,7 @@ class RecordingService {
       return null;
     }
 
-    return data;
+    return data as unknown as RecordingRule;
   }
 
   /**
@@ -442,7 +442,7 @@ class RecordingService {
       return null;
     }
 
-    return data?.recording_settings || null;
+    return (data?.recording_settings as unknown as RecordingSettings) || null;
   }
 
   /**
@@ -468,7 +468,7 @@ class RecordingService {
       return null;
     }
 
-    return data?.recording_settings || null;
+    return (data?.recording_settings as unknown as RecordingSettings) || null;
   }
 
   // ===========================================================================
@@ -564,7 +564,7 @@ class RecordingService {
 
       const { error } = await supabase
         .from('recordings')
-        .update(updateData)
+        .update(updateData as any)
         .eq('id', recordingId);
 
       if (error) {

@@ -51,7 +51,8 @@ export function usePendingHITLRequests() {
         .select(`
           *,
           profiles:requested_by_user_id (
-            full_name,
+            first_name,
+            last_name,
             email
           )
         `)
@@ -64,7 +65,12 @@ export function usePendingHITLRequests() {
       // Transform data to include requester details
       return (data || []).map((request) => ({
         ...request,
-        requester_name: (request.profiles as { full_name?: string })?.full_name || 'Unknown',
+        requester_name:
+          (() => {
+            const p = request.profiles as { first_name?: string; last_name?: string; email?: string } | null | undefined;
+            const name = `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
+            return name || p?.email || 'Unknown';
+          })(),
         requester_email: (request.profiles as { email?: string })?.email || '',
         profiles: undefined,
       })) as HITLRequestWithDetails[];
@@ -121,7 +127,8 @@ export function useMyHITLRequests() {
         .select(`
           *,
           profiles:requested_by_user_id (
-            full_name,
+            first_name,
+            last_name,
             email
           )
         `)
@@ -134,7 +141,12 @@ export function useMyHITLRequests() {
 
       return (data || []).map((request) => ({
         ...request,
-        requester_name: (request.profiles as { full_name?: string })?.full_name || 'Unknown',
+        requester_name:
+          (() => {
+            const p = request.profiles as { first_name?: string; last_name?: string; email?: string } | null | undefined;
+            const name = `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
+            return name || p?.email || 'Unknown';
+          })(),
         requester_email: (request.profiles as { email?: string })?.email || '',
         profiles: undefined,
       })) as HITLRequestWithDetails[];

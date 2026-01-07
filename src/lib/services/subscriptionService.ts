@@ -195,15 +195,25 @@ export async function getOrgUsageLimits(orgId: string): Promise<UsageLimits | nu
     meetingsUsed = totalMeetings || 0;
   } else {
     // For paid tiers: count meetings in current billing period
+    const billingStartDate = subscription.current_period_start
+      ? new Date(subscription.current_period_start).toISOString().slice(0, 10)
+      : null;
+    const billingEndDate = subscription.current_period_end
+      ? new Date(subscription.current_period_end).toISOString().slice(0, 10)
+      : null;
+
+    // organization_usage stores DATE fields (not timestamps), and may not have a row yet.
+    // Use overlap logic + maybeSingle() to avoid PostgREST 406 when zero rows match.
     const { data: usage } = await supabase
       .from('organization_usage')
       .select('*')
       .eq('org_id', orgId)
-      .gte('period_start', subscription.current_period_start)
-      .lte('period_end', subscription.current_period_end)
+      // Find the usage period that overlaps the billing window
+      .lte('period_start', billingEndDate || '9999-12-31')
+      .gte('period_end', billingStartDate || '0001-01-01')
       .order('period_start', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const usageData = usage as any;
