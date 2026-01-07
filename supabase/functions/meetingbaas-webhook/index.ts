@@ -517,6 +517,98 @@ async function handleBotStatusEvent(
   return { success: true };
 }
 
+async function handleBotStatusChange(
+  supabase: SupabaseClient,
+  data: MeetingBaaSRawWebhookPayload['data'],
+  orgId: string
+): Promise<{ success: boolean; error?: string }> {
+  const { bot_id, status } = data;
+  const statusCode = status?.code;
+
+  if (!statusCode) {
+    return { success: false, error: 'Missing status.code in payload' };
+  }
+
+  addBreadcrumb(`Processing bot.status_change: ${statusCode}`, 'meetingbaas');
+
+  const deploymentStatus = mapStatusCodeToDeploymentStatus(statusCode);
+  const recordingStatus = mapStatusCodeToRecordingStatus(statusCode);
+
+  if (!deploymentStatus) {
+    return { success: true }; // Unknown status code, ignore
+  }
+
+  // Find deployment and recording
+  const { data: deployment } = await supabase
+    .from('bot_deployments')
+    .select('id, recording_id, status_history')
+    .eq('bot_id', bot_id)
+    .eq('org_id', orgId)
+    .maybeSingle();
+
+  if (!deployment) {
+    return { success: false, error: `Bot deployment not found for bot_id: ${bot_id}` };
+  }
+
+  // Build deployment update
+  const deploymentUpdate: Record<string, unknown> = {
+    status: deploymentStatus,
+    updated_at: new Date().toISOString(),
+  };
+
+  // Add status history entry
+  const statusHistoryEntry = {
+    status: deploymentStatus,
+    timestamp: new Date().toISOString(),
+    details: `Status code: ${statusCode}`,
+  };
+
+  const currentHistory = Array.isArray(deployment.status_history) ? deployment.status_history : [];
+  deploymentUpdate.status_history = [...currentHistory, statusHistoryEntry];
+
+  // Set timestamps based on status
+  if (statusCode === 'in_call_recording' || statusCode === 'in_call_not_recording') {
+    deploymentUpdate.actual_join_time = new Date().toISOString();
+  } else if (statusCode === 'call_ended') {
+    deploymentUpdate.leave_time = new Date().toISOString();
+  } else if (statusCode === 'error') {
+    deploymentUpdate.error_code = data.error_code || 'UNKNOWN';
+    deploymentUpdate.error_message = data.error_message || 'Bot encountered an error';
+  }
+
+  // Update deployment
+  const { error: deploymentError } = await supabase
+    .from('bot_deployments')
+    .update(deploymentUpdate)
+    .eq('id', deployment.id);
+
+  if (deploymentError) {
+    return { success: false, error: `Failed to update deployment: ${deploymentError.message}` };
+  }
+
+  // Update recording status if applicable
+  if (recordingStatus && deployment.recording_id) {
+    const recordingUpdate: Record<string, unknown> = {
+      status: recordingStatus,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (statusCode === 'in_call_recording') {
+      recordingUpdate.meeting_start_time = new Date().toISOString();
+    } else if (statusCode === 'error') {
+      recordingUpdate.error_message = data.error_message || 'Recording failed';
+    }
+
+    await supabase
+      .from('recordings')
+      .update(recordingUpdate)
+      .eq('id', deployment.recording_id)
+      .catch((err) => console.error('[MeetingBaaS Webhook] Failed to update recording:', err));
+  }
+
+  return { success: true };
+}
+
 async function handleRecordingReady(
   supabase: SupabaseClient,
   payload: MeetingBaaSWebhookPayload,
@@ -626,6 +718,124 @@ async function handleTranscriptReady(
   return { success: true };
 }
 
+async function handleBotCompleted(
+  supabase: SupabaseClient,
+  data: MeetingBaaSRawWebhookPayload['data'],
+  orgId: string
+): Promise<{ success: boolean; error?: string }> {
+  const { bot_id, audio, video, duration_seconds, joined_at, exited_at } = data;
+
+  addBreadcrumb(`Processing bot.completed for bot: ${bot_id}`, 'meetingbaas');
+
+  // Find deployment and recording
+  const { data: deployment } = await supabase
+    .from('bot_deployments')
+    .select('id, recording_id, user_id')
+    .eq('bot_id', bot_id)
+    .eq('org_id', orgId)
+    .maybeSingle();
+
+  if (!deployment?.recording_id) {
+    return { success: false, error: `Recording not found for bot_id: ${bot_id}` };
+  }
+
+  // Get recording details for user_id
+  const { data: recording } = await supabase
+    .from('recordings')
+    .select('user_id')
+    .eq('id', deployment.recording_id)
+    .maybeSingle();
+
+  if (!recording) {
+    return { success: false, error: `Recording record not found: ${deployment.recording_id}` };
+  }
+
+  // Download and upload video to S3 (prefer video over audio)
+  const mediaUrl = video || audio;
+  if (mediaUrl) {
+    console.log('[MeetingBaaS Webhook] Uploading recording to S3...');
+    const uploadResult = await uploadRecordingToS3(
+      mediaUrl,
+      orgId,
+      recording.user_id,
+      deployment.recording_id
+    );
+
+    if (uploadResult.success) {
+      // Update recording with S3 details
+      await supabase
+        .from('recordings')
+        .update({
+          recording_s3_key: uploadResult.storagePath,
+          recording_s3_url: uploadResult.storageUrl,
+          meeting_start_time: joined_at,
+          meeting_end_time: exited_at,
+          meeting_duration_seconds: duration_seconds,
+          status: 'processing',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', deployment.recording_id);
+    } else {
+      console.warn('[MeetingBaaS Webhook] S3 upload failed:', uploadResult.error);
+      // Store MeetingBaaS URL as fallback
+      await supabase
+        .from('recordings')
+        .update({
+          meeting_start_time: joined_at,
+          meeting_end_time: exited_at,
+          meeting_duration_seconds: duration_seconds,
+          status: 'processing',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', deployment.recording_id);
+    }
+  }
+
+  // Update deployment status
+  await supabase
+    .from('bot_deployments')
+    .update({
+      status: 'completed',
+      leave_time: exited_at,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', deployment.id);
+
+  // Trigger process-recording for transcription and AI analysis
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
+    const processResponse = await fetch(`${supabaseUrl}/functions/v1/process-recording`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        recording_id: deployment.recording_id,
+        bot_id: bot_id,
+        // Pass URLs so process-recording doesn't need to fetch from MeetingBaaS API
+        audio_url: audio,
+        video_url: video,
+      }),
+    });
+
+    if (!processResponse.ok) {
+      const error = await processResponse.text();
+      console.error('[MeetingBaaS Webhook] Process recording failed:', error);
+      // Don't fail the webhook - processing can be retried
+    } else {
+      console.log('[MeetingBaaS Webhook] Process recording triggered for:', deployment.recording_id);
+    }
+  } catch (error) {
+    console.error('[MeetingBaaS Webhook] Failed to trigger process-recording:', error);
+    // Don't fail the webhook - the recording data is saved and can be processed later
+  }
+
+  return { success: true };
+}
+
 // =============================================================================
 // Main Handler
 // =============================================================================
@@ -695,16 +905,34 @@ serve(async (req) => {
       }
     }
 
-    // Parse payload early to get bot_id for org lookup
-    let payload: MeetingBaaSWebhookPayload;
+    // Parse raw payload - try new format first, fall back to legacy
+    let rawPayload: MeetingBaaSRawWebhookPayload | null = null;
+    let legacyPayload: MeetingBaaSWebhookPayload | null = null;
+    let eventType: string;
+    let botId: string;
+
     try {
-      payload = JSON.parse(rawBody);
+      const parsed = JSON.parse(rawBody);
+
+      // Check if it's new format (has 'event' and 'data' fields)
+      if (parsed.event && parsed.data) {
+        rawPayload = parsed as MeetingBaaSRawWebhookPayload;
+        eventType = rawPayload.event;
+        botId = rawPayload.data.bot_id;
+      } else if (parsed.type && parsed.bot_id) {
+        // Legacy flat format
+        legacyPayload = parsed as MeetingBaaSWebhookPayload;
+        eventType = legacyPayload.type;
+        botId = legacyPayload.bot_id;
+      } else {
+        return errorResponse('Invalid payload format: missing event/type or bot_id', req, 400);
+      }
     } catch {
       return errorResponse('Invalid JSON payload', req, 400);
     }
 
-    if (!payload.type || !payload.bot_id) {
-      return errorResponse('Missing required fields: type, bot_id', req, 400);
+    if (!eventType || !botId) {
+      return errorResponse('Missing required fields: event/type, bot_id', req, 400);
     }
 
     // Find organization - try multiple methods
@@ -732,7 +960,7 @@ serve(async (req) => {
       const { data: deployment } = await supabase
         .from('bot_deployments')
         .select('org_id')
-        .eq('bot_id', payload.bot_id)
+        .eq('bot_id', botId)
         .maybeSingle();
 
       if (deployment?.org_id) {
@@ -741,12 +969,13 @@ serve(async (req) => {
       }
     }
 
-    // Method 3: Look up org from calendar_id if present in payload
-    if (!orgId && payload.calendar_id) {
+    // Method 3: Look up org from calendar_id if present
+    const calendarId = rawPayload?.data.calendar_id || legacyPayload?.calendar_id;
+    if (!orgId && calendarId) {
       const { data: calendar } = await supabase
         .from('meetingbaas_calendars')
         .select('org_id')
-        .eq('meetingbaas_calendar_id', payload.calendar_id)
+        .eq('meetingbaas_calendar_id', calendarId)
         .maybeSingle();
 
       if (calendar?.org_id) {
@@ -757,8 +986,8 @@ serve(async (req) => {
 
     if (!orgId) {
       console.error('[MeetingBaaS Webhook] Could not identify organization', {
-        bot_id: payload.bot_id,
-        calendar_id: payload.calendar_id,
+        bot_id: botId,
+        calendar_id: calendarId,
         token_provided: !!webhookToken,
         token_value: webhookToken === '{ORG_TOKEN}' ? 'PLACEHOLDER_NOT_REPLACED' : webhookToken?.substring(0, 10) + '...',
       });
@@ -766,8 +995,8 @@ serve(async (req) => {
         success: false,
         error: 'Could not identify organization for this webhook',
         hint: 'Ensure bot_deployments or meetingbaas_calendars has the org_id set. If token is {ORG_TOKEN}, it was not replaced with actual token.',
-        bot_id: payload.bot_id,
-        calendar_id: payload.calendar_id,
+        bot_id: botId,
+        calendar_id: calendarId,
       }, req, 401);
     }
 
@@ -775,8 +1004,8 @@ serve(async (req) => {
     const eventId = await logWebhookEvent(
       supabase,
       'meetingbaas',
-      payload.type,
-      payload,
+      eventType,
+      rawPayload || legacyPayload,
       {
         'x-meetingbaas-signature': signatureHeader || '',
         'x-meetingbaas-timestamp': timestampHeader || '',
@@ -785,34 +1014,83 @@ serve(async (req) => {
 
     await updateWebhookEventStatus(supabase, eventId, 'processing');
 
-    addBreadcrumb(`Processing MeetingBaaS event: ${payload.type}`, 'meetingbaas', 'info', {
-      bot_id: payload.bot_id,
+    addBreadcrumb(`Processing MeetingBaaS event: ${eventType}`, 'meetingbaas', 'info', {
+      bot_id: botId,
       org_id: orgId,
     });
 
     // Route to appropriate handler
     let result: { success: boolean; error?: string };
 
-    switch (payload.type) {
-      case 'bot.joining':
-      case 'bot.in_meeting':
-      case 'bot.left':
-      case 'bot.failed':
-        result = await handleBotStatusEvent(supabase, payload, orgId);
-        break;
+    // Handle new format events
+    if (rawPayload) {
+      switch (eventType as MeetingBaaSEventType) {
+        case 'bot.status_change':
+          result = await handleBotStatusChange(supabase, rawPayload.data, orgId);
+          break;
 
-      case 'recording.ready':
-        result = await handleRecordingReady(supabase, payload, orgId);
-        break;
+        case 'bot.completed':
+          result = await handleBotCompleted(supabase, rawPayload.data, orgId);
+          break;
 
-      case 'transcript.ready':
-        result = await handleTranscriptReady(supabase, payload, orgId);
-        break;
+        case 'bot.joining':
+        case 'bot.in_meeting':
+        case 'bot.left':
+        case 'bot.failed':
+          // Convert to legacy format for backward compatibility
+          result = await handleBotStatusEvent(supabase, {
+            type: eventType as MeetingBaaSEventType,
+            bot_id: botId,
+            ...rawPayload.data,
+          }, orgId);
+          break;
 
-      default:
-        // Unknown event type - log but don't fail
-        console.warn(`[MeetingBaaS Webhook] Unknown event type: ${payload.type}`);
-        result = { success: true };
+        case 'recording.ready':
+          result = await handleRecordingReady(supabase, {
+            type: eventType as MeetingBaaSEventType,
+            bot_id: botId,
+            recording_url: rawPayload.data.recording_url,
+            ...rawPayload.data,
+          }, orgId);
+          break;
+
+        case 'transcript.ready':
+          result = await handleTranscriptReady(supabase, {
+            type: eventType as MeetingBaaSEventType,
+            bot_id: botId,
+            transcript: rawPayload.data.transcript,
+            ...rawPayload.data,
+          }, orgId);
+          break;
+
+        default:
+          console.warn(`[MeetingBaaS Webhook] Unknown event type: ${eventType}`);
+          result = { success: true };
+      }
+    } else if (legacyPayload) {
+      // Handle legacy format events
+      switch (legacyPayload.type) {
+        case 'bot.joining':
+        case 'bot.in_meeting':
+        case 'bot.left':
+        case 'bot.failed':
+          result = await handleBotStatusEvent(supabase, legacyPayload, orgId);
+          break;
+
+        case 'recording.ready':
+          result = await handleRecordingReady(supabase, legacyPayload, orgId);
+          break;
+
+        case 'transcript.ready':
+          result = await handleTranscriptReady(supabase, legacyPayload, orgId);
+          break;
+
+        default:
+          console.warn(`[MeetingBaaS Webhook] Unknown event type: ${legacyPayload.type}`);
+          result = { success: true };
+      }
+    } else {
+      return errorResponse('Invalid payload state', req, 500);
     }
 
     // Update webhook event status
@@ -825,7 +1103,7 @@ serve(async (req) => {
     return jsonResponse({
       success: result.success,
       event_id: eventId,
-      event_type: payload.type,
+      event_type: eventType,
       error: result.error,
     }, req, result.success ? 200 : 500);
   } catch (error) {
