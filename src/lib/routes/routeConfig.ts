@@ -246,6 +246,15 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     navSection: 'tools',
     order: 6,
   },
+  {
+    path: '/email-actions',
+    access: 'internal',
+    label: 'Email Actions',
+    icon: Mail,
+    showInNav: false, // Accessible via notifications, not in nav
+    navSection: 'tools',
+    order: 7,
+  },
 
   // ========== Settings Section (Tier 1: All Users) ==========
   {

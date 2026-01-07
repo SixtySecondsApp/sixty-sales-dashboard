@@ -69,6 +69,7 @@ export const ApiMonitor = lazyWithRetry(() => import('@/pages/admin/ApiMonitor')
 export const BillingAnalytics = lazyWithRetry(() => import('@/pages/admin/BillingAnalytics'));
 export const SaasAdminDashboard = lazyWithRetry(() => import('@/pages/SaasAdminDashboard'));
 export const QuickAddSimulator = lazyWithRetry(() => import('@/pages/platform/QuickAddSimulator'));
+export const EmailActionCenter = lazyWithRetry(() => import('@/pages/EmailActionCenter'));
 
 // Integration Testing
 export const IntegrationsDashboard = lazyWithRetry(() => import('@/pages/admin/IntegrationsDashboard'));

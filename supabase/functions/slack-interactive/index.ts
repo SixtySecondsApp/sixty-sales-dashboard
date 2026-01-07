@@ -1013,6 +1013,84 @@ function parseHITLActionId(actionId: string): ParsedHITLAction | null {
   };
 }
 
+function isNonEmptyString(v: unknown): v is string {
+  return typeof v === 'string' && v.trim().length > 0;
+}
+
+function extractFirstSlackCodeBlock(text: string): string | null {
+  const start = text.indexOf('```');
+  if (start === -1) return null;
+  const end = text.indexOf('```', start + 3);
+  if (end === -1) return null;
+  return text.slice(start + 3, end).trim();
+}
+
+function isProbablySimulatedPlaceholderBody(body: string): boolean {
+  const s = body.trim().toLowerCase();
+  if (!s) return true;
+  // Heuristic: common demo placeholders; keep broad to avoid regressions.
+  return (
+    (s.includes('simulated') && s.includes('draft') && s.length < 300) ||
+    s === 'simulated email draft content' ||
+    s === 'simulated draft content'
+  );
+}
+
+/**
+ * Best-effort: derive email draft fields from the Slack message blocks.
+ * This is especially useful for demo/simulation flows where DB content may be placeholder.
+ */
+function deriveEmailDraftFromSlackMessage(message: any): { subject?: string; body?: string; recipient?: string } | null {
+  const blocks = message?.blocks;
+  if (!Array.isArray(blocks)) return null;
+
+  let recipient: string | undefined;
+  let subject: string | undefined;
+  let body: string | undefined;
+
+  for (const b of blocks) {
+    const text = b?.text?.text;
+    if (b?.type !== 'section' || !isNonEmptyString(text)) continue;
+
+    // Case A: proactive simulator HITL message uses a code block with `Subject: ...` then the body.
+    if (text.includes('```') && text.includes('Subject:')) {
+      const code = extractFirstSlackCodeBlock(text);
+      if (!code) continue;
+      const lines = code.split('\n');
+      const subjLine = lines.find((l) => l.trim().toLowerCase().startsWith('subject:'));
+      if (subjLine) {
+        subject = subjLine.replace(/^subject:\s*/i, '').trim() || subject;
+      }
+      // Body: everything after the first blank line following Subject line (or after Subject line)
+      const subjIdx = lines.findIndex((l) => l.trim().toLowerCase().startsWith('subject:'));
+      if (subjIdx !== -1) {
+        const afterSubj = lines.slice(subjIdx + 1);
+        const firstBlank = afterSubj.findIndex((l) => l.trim() === '');
+        const bodyLines = firstBlank !== -1 ? afterSubj.slice(firstBlank + 1) : afterSubj;
+        const candidateBody = bodyLines.join('\n').trim();
+        if (candidateBody) body = candidateBody;
+      }
+    }
+
+    // Case B: shared HITL builder uses separate *To:*, *Subject:*, *Message:* sections.
+    if (text.startsWith('*To:*')) {
+      const cand = text.replace(/^\*To:\*\s*/i, '').trim();
+      if (cand) recipient = cand;
+    }
+    if (text.startsWith('*Subject:*')) {
+      const cand = text.replace(/^\*Subject:\*\s*/i, '').trim();
+      if (cand) subject = cand;
+    }
+    if (text.startsWith('*Message:*')) {
+      const cand = text.replace(/^\*Message:\*\s*/i, '').trim();
+      if (cand) body = cand;
+    }
+  }
+
+  if (!recipient && !subject && !body) return null;
+  return { recipient, subject, body };
+}
+
 /**
  * Validate that a HITL approval exists and is pending
  */
@@ -1555,6 +1633,11 @@ function buildHITLEditModalBlocks(
 
   switch (resourceType) {
     case 'email_draft':
+      // Normalize recipient for the "To:" context line (supports multiple producer shapes).
+      if (!originalContent.recipient && (originalContent.recipientEmail || originalContent.to)) {
+        originalContent.recipient = (originalContent.recipientEmail as string) || (originalContent.to as string);
+      }
+
       blocks.push(
         {
           type: 'input',
@@ -1575,7 +1658,7 @@ function buildHITLEditModalBlocks(
             type: 'plain_text_input',
             action_id: 'body_input',
             multiline: true,
-            initial_value: (originalContent.body as string) || '',
+            initial_value: (originalContent.body as string) || (originalContent.content as string) || '',
             placeholder: { type: 'plain_text', text: 'Email body' },
           },
         }
@@ -1701,10 +1784,37 @@ async function handleHITLEdit(
     });
   }
 
+  // Use stored content by default, but for simulations/demos we can safely seed from the Slack message
+  // so the modal shows the real draft body even if the DB stored a placeholder.
+  let modalSeedContent: Record<string, unknown> = approval.original_content || {};
+  if (hitlAction.resourceType === 'email_draft') {
+    const derived = deriveEmailDraftFromSlackMessage(payload.message);
+    if (derived) {
+      const existingBody = isNonEmptyString(modalSeedContent.body) ? String(modalSeedContent.body).trim() : '';
+      const derivedBody = isNonEmptyString(derived.body) ? derived.body.trim() : '';
+      const shouldUseDerivedBody =
+        isNonEmptyString(derivedBody) &&
+        (!existingBody || isProbablySimulatedPlaceholderBody(existingBody) || derivedBody.length > existingBody.length);
+
+      const existingSubject = isNonEmptyString(modalSeedContent.subject) ? String(modalSeedContent.subject).trim() : '';
+      const derivedSubject = isNonEmptyString(derived.subject) ? derived.subject.trim() : '';
+      const shouldUseDerivedSubject =
+        isNonEmptyString(derivedSubject) &&
+        (!existingSubject || derivedSubject.length > existingSubject.length);
+
+      modalSeedContent = {
+        ...modalSeedContent,
+        ...(derived.recipient ? { recipient: derived.recipient } : {}),
+        ...(shouldUseDerivedSubject ? { subject: derivedSubject } : {}),
+        ...(shouldUseDerivedBody ? { body: derivedBody } : {}),
+      };
+    }
+  }
+
   // Build modal blocks based on resource type
   const editBlocks = buildHITLEditModalBlocks(
     hitlAction.resourceType,
-    approval.original_content
+    modalSeedContent
   );
 
   const privateMetadata = JSON.stringify({

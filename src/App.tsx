@@ -68,7 +68,7 @@ import {
   CronJobsAdmin, ApiMonitor, BillingAnalytics, SaasAdminDashboard, IntegrationsDashboard, FathomIntegrationTests,
   HubSpotIntegrationTests, SlackIntegrationTests, SavvyCalIntegrationTests,
   QuickAddSimulator, ProactiveSimulator, DealTruthSimulator, EngagementSimulator,
-  NotetakerBranding,
+  NotetakerBranding, EmailActionCenter,
   // Auth
   Signup, VerifyEmail, ForgotPassword, ResetPassword, SetPassword, Onboarding, UpdatePassword,
   // CRM & Data
@@ -447,6 +447,9 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/integrations" element={<AppLayout><Integrations /></AppLayout>} />
                 {/* Email and Calendar routes redirect to Google services */}
                 <Route path="/email" element={<ExternalRedirect url="https://mail.google.com" />} />
+                {/* Email Action Center - Unified email draft review and sending */}
+                <Route path="/email-actions" element={<AppLayout><EmailActionCenter /></AppLayout>} />
+                <Route path="/email-actions/:id" element={<AppLayout><EmailActionCenter /></AppLayout>} />
                 {/* Internal-only: Pipeline, Tasks */}
                 <Route path="/pipeline" element={<InternalRouteGuard><AppLayout><PipelinePage /></AppLayout></InternalRouteGuard>} />
                 <Route path="/tasks" element={<InternalRouteGuard><AppLayout><TasksPage /></AppLayout></InternalRouteGuard>} />

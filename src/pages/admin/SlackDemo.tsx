@@ -28,6 +28,7 @@ import {
   MessageSquare,
   Calendar,
   Bell,
+  Mail,
   Building2,
   Play,
   CheckCircle,
@@ -989,6 +990,7 @@ export default function SlackDemo() {
         message: 'A prospect replied — suggested response is ready.',
         category: 'team',
         entity_type: 'email',
+        action_url: '/email-actions',
         metadata: { source: 'proactive_simulator' },
       });
     } catch (e: any) {

@@ -2530,12 +2530,17 @@ function buildInAppPayload(feature: ProactiveSimulateFeature): {
   };
 
   const item = meta[feature];
+  
+  // Route email-related notifications to Email Action Center
+  const isEmailRelated = feature === 'email_reply_alert' || feature === 'hitl_followup_email';
+  const actionUrl = isEmailRelated ? '/email-actions' : '/platform/proactive-simulator';
+  
   return {
     title: item.title,
     message: item.message,
     type: 'info',
     category: item.category,
-    actionUrl: '/platform/proactive-simulator',
+    actionUrl,
     metadata: { source: 'proactive_simulator', feature },
   };
 }
@@ -3089,24 +3094,18 @@ function buildFeatureBlocks(feature: ProactiveSimulateFeature): { text: string; 
 }
 
 function buildHitlBlocks(approvalId: string): any[] {
-  const draft = [
-    'Subject: Great meeting — next steps',
+  const draft = buildSimulatedHitlFollowUpEmailDraft();
+  const draftText = [
+    `Subject: ${draft.subject}`,
     '',
-    'Hi there,',
-    '',
-    'Thanks for the time today. Here are the next steps we agreed:',
-    '- Security review call this week',
-    '- Confirm success criteria and timeline',
-    '',
-    'Would Thursday at 2pm work for the security review?',
-    '',
-    'Best,',
-    'Andrew',
-  ].join('\n');
+    draft.body.trim(),
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   return [
     ...baseBlocks('HITL Follow‑up Email', '*Approval required.* Review and approve/edit this draft:'),
-    { type: 'section', text: { type: 'mrkdwn', text: `\`\`\`\n${draft}\n\`\`\`` } },
+    { type: 'section', text: { type: 'mrkdwn', text: `\`\`\`\n${draftText}\n\`\`\`` } },
     {
       type: 'actions',
       elements: [
@@ -3137,6 +3136,25 @@ function buildHitlBlocks(approvalId: string): any[] {
       elements: [{ type: 'mrkdwn', text: '_This is a simulation. No email will be sent unless you wire a callback._' }],
     },
   ];
+}
+
+function buildSimulatedHitlFollowUpEmailDraft(): { subject: string; body: string; recipient: string } {
+  return {
+    subject: 'Great meeting — next steps',
+    recipient: 'prospect@example.com',
+    body: [
+      'Hi there,',
+      '',
+      'Thanks for the time today. Here are the next steps we agreed:',
+      '- Security review call this week',
+      '- Confirm success criteria and timeline',
+      '',
+      'Would Thursday at 2pm work for the security review?',
+      '',
+      'Best,',
+      'Andrew',
+    ].join('\n'),
+  };
 }
 
 serve(async (req) => {
@@ -3355,10 +3373,13 @@ serve(async (req) => {
           // If this is a HITL simulation, create approval record and update message with action buttons.
           if (hitlMode) {
             // Create approval using the stored message identifiers.
+            const draft = buildSimulatedHitlFollowUpEmailDraft();
             const originalContent = {
-              subject: 'Great meeting — next steps',
-              body: 'Simulated email draft content',
-              to: 'prospect@example.com',
+              subject: draft.subject,
+              body: draft.body,
+              // Slack modal looks for `recipient` (not `to`) for the "To:" context line
+              recipient: draft.recipient,
+              to: draft.recipient,
             };
 
             const { data: approvalId, error: approvalError } = await supabase.rpc('create_hitl_approval', {
