@@ -131,3 +131,15 @@ VERIFY_*.sql
 SIMPLE_*.sql
 FINAL_*.sql
 CLEANUP_*.sql
+
+# Debug and test utilities
+check-*.html
+check-*.sql
+check-*.ts
+check-*.js
+diagnose-*.js
+query-*.js
+test-*.ts
+verify-*.ts
+watch-*.ts
+.cursor/plans/*.plan.md
