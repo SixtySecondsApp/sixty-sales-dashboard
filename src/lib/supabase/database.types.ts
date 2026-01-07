@@ -372,6 +372,71 @@ export type Database = {
           },
         ]
       }
+      ai_feedback: {
+        Row: {
+          action: string
+          action_type: string
+          confidence_at_generation: number
+          context_quality_at_generation: number | null
+          created_at: string | null
+          edit_delta: Json | null
+          edited_content: string | null
+          id: string
+          org_id: string
+          original_content: string | null
+          outcome_measured: boolean | null
+          outcome_positive: boolean | null
+          outcome_type: string | null
+          suggestion_id: string
+          time_to_decision_seconds: number | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          action_type: string
+          confidence_at_generation: number
+          context_quality_at_generation?: number | null
+          created_at?: string | null
+          edit_delta?: Json | null
+          edited_content?: string | null
+          id?: string
+          org_id: string
+          original_content?: string | null
+          outcome_measured?: boolean | null
+          outcome_positive?: boolean | null
+          outcome_type?: string | null
+          suggestion_id: string
+          time_to_decision_seconds?: number | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          action_type?: string
+          confidence_at_generation?: number
+          context_quality_at_generation?: number | null
+          created_at?: string | null
+          edit_delta?: Json | null
+          edited_content?: string | null
+          id?: string
+          org_id?: string
+          original_content?: string | null
+          outcome_measured?: boolean | null
+          outcome_positive?: boolean | null
+          outcome_type?: string | null
+          suggestion_id?: string
+          time_to_decision_seconds?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_feedback_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_insights: {
         Row: {
           contact_id: string | null
@@ -432,59 +497,123 @@ export type Database = {
           },
         ]
       }
+      ai_prompt_template_history: {
+        Row: {
+          change_reason: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          max_tokens: number | null
+          model: string | null
+          system_prompt: string | null
+          temperature: number | null
+          template_id: string | null
+          user_prompt: string | null
+          version: number
+        }
+        Insert: {
+          change_reason?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          max_tokens?: number | null
+          model?: string | null
+          system_prompt?: string | null
+          temperature?: number | null
+          template_id?: string | null
+          user_prompt?: string | null
+          version: number
+        }
+        Update: {
+          change_reason?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          max_tokens?: number | null
+          model?: string | null
+          system_prompt?: string | null
+          temperature?: number | null
+          template_id?: string | null
+          user_prompt?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_prompt_template_history_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "ai_prompt_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_prompt_templates: {
         Row: {
-          category: string | null
+          category: string
           created_at: string | null
+          created_by: string | null
           description: string | null
           id: string
+          is_default: boolean | null
           is_public: boolean | null
           max_tokens: number | null
           model: string | null
-          model_provider: string | null
           name: string
+          organization_id: string | null
           system_prompt: string | null
           temperature: number | null
           updated_at: string | null
-          user_id: string
+          user_id: string | null
           user_prompt: string | null
-          variables: Json | null
+          version: number | null
         }
         Insert: {
-          category?: string | null
+          category: string
           created_at?: string | null
+          created_by?: string | null
           description?: string | null
           id?: string
+          is_default?: boolean | null
           is_public?: boolean | null
           max_tokens?: number | null
           model?: string | null
-          model_provider?: string | null
           name: string
+          organization_id?: string | null
           system_prompt?: string | null
           temperature?: number | null
           updated_at?: string | null
-          user_id: string
+          user_id?: string | null
           user_prompt?: string | null
-          variables?: Json | null
+          version?: number | null
         }
         Update: {
-          category?: string | null
+          category?: string
           created_at?: string | null
+          created_by?: string | null
           description?: string | null
           id?: string
+          is_default?: boolean | null
           is_public?: boolean | null
           max_tokens?: number | null
           model?: string | null
-          model_provider?: string | null
           name?: string
+          organization_id?: string | null
           system_prompt?: string | null
           temperature?: number | null
           updated_at?: string | null
-          user_id?: string
+          user_id?: string | null
           user_prompt?: string | null
-          variables?: Json | null
+          version?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ai_prompt_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ai_usage_logs: {
         Row: {
@@ -647,6 +776,192 @@ export type Database = {
           },
         ]
       }
+      api_monitor_improvements: {
+        Row: {
+          actual_delta_error_rate: number | null
+          actual_delta_requests_per_day: number | null
+          actual_delta_requests_per_user_per_day: number | null
+          after_window_end: string | null
+          after_window_start: string | null
+          before_window_end: string | null
+          before_window_start: string | null
+          code_changes: Json | null
+          created_at: string
+          description: string
+          expected_delta_error_rate: number | null
+          expected_delta_requests_per_day: number | null
+          id: string
+          shipped_at: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          actual_delta_error_rate?: number | null
+          actual_delta_requests_per_day?: number | null
+          actual_delta_requests_per_user_per_day?: number | null
+          after_window_end?: string | null
+          after_window_start?: string | null
+          before_window_end?: string | null
+          before_window_start?: string | null
+          code_changes?: Json | null
+          created_at?: string
+          description: string
+          expected_delta_error_rate?: number | null
+          expected_delta_requests_per_day?: number | null
+          id?: string
+          shipped_at?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          actual_delta_error_rate?: number | null
+          actual_delta_requests_per_day?: number | null
+          actual_delta_requests_per_user_per_day?: number | null
+          after_window_end?: string | null
+          after_window_start?: string | null
+          before_window_end?: string | null
+          before_window_start?: string | null
+          code_changes?: Json | null
+          created_at?: string
+          description?: string
+          expected_delta_error_rate?: number | null
+          expected_delta_requests_per_day?: number | null
+          id?: string
+          shipped_at?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      api_monitor_rollups_daily: {
+        Row: {
+          created_at: string
+          date: string
+          error_breakdown: Json
+          error_rate: number
+          id: string
+          top_endpoints: Json
+          total_errors: number
+          total_requests: number
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          error_breakdown?: Json
+          error_rate?: number
+          id?: string
+          top_endpoints?: Json
+          total_errors?: number
+          total_requests?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          error_breakdown?: Json
+          error_rate?: number
+          id?: string
+          top_endpoints?: Json
+          total_errors?: number
+          total_requests?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_monitor_rollups_daily_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "api_monitor_rollups_daily_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "at_risk_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "api_monitor_rollups_daily_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "deal_activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "api_monitor_rollups_daily_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_monitor_rollups_daily_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "team_meeting_analytics"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      api_monitor_snapshots: {
+        Row: {
+          bucket_type: string
+          created_at: string
+          error_rate: number
+          id: string
+          metadata: Json | null
+          snapshot_time: string
+          source: string
+          suspected_bursts: Json
+          time_bucket_end: string
+          time_bucket_start: string
+          top_callers: Json
+          top_endpoints: Json
+          top_errors: Json
+          total_errors: number
+          total_requests: number
+        }
+        Insert: {
+          bucket_type: string
+          created_at?: string
+          error_rate?: number
+          id?: string
+          metadata?: Json | null
+          snapshot_time?: string
+          source: string
+          suspected_bursts?: Json
+          time_bucket_end: string
+          time_bucket_start: string
+          top_callers?: Json
+          top_endpoints?: Json
+          top_errors?: Json
+          total_errors?: number
+          total_requests?: number
+        }
+        Update: {
+          bucket_type?: string
+          created_at?: string
+          error_rate?: number
+          id?: string
+          metadata?: Json | null
+          snapshot_time?: string
+          source?: string
+          suspected_bursts?: Json
+          time_bucket_end?: string
+          time_bucket_start?: string
+          top_callers?: Json
+          top_endpoints?: Json
+          top_errors?: Json
+          total_errors?: number
+          total_requests?: number
+        }
+        Relationships: []
+      }
       api_requests: {
         Row: {
           api_key_id: string | null
@@ -690,16 +1005,19 @@ export type Database = {
       }
       app_settings: {
         Row: {
+          description: string | null
           key: string
           updated_at: string | null
           value: string
         }
         Insert: {
+          description?: string | null
           key: string
           updated_at?: string | null
           value: string
         }
         Update: {
+          description?: string | null
           key?: string
           updated_at?: string | null
           value?: string
@@ -834,6 +1152,56 @@ export type Database = {
           },
         ]
       }
+      billing_event_log: {
+        Row: {
+          created_at: string | null
+          event_type: string
+          id: string
+          metadata: Json | null
+          occurred_at: string
+          org_id: string | null
+          payload: Json
+          processed_at: string | null
+          processing_error: string | null
+          provider: string
+          provider_event_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          occurred_at?: string
+          org_id?: string | null
+          payload?: Json
+          processed_at?: string | null
+          processing_error?: string | null
+          provider: string
+          provider_event_id: string
+        }
+        Update: {
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          occurred_at?: string
+          org_id?: string | null
+          payload?: Json
+          processed_at?: string | null
+          processing_error?: string | null
+          provider?: string
+          provider_event_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_event_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_history: {
         Row: {
           amount: number
@@ -913,6 +1281,13 @@ export type Database = {
             referencedRelation: "organization_subscriptions"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "billing_history_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_facts_view"
+            referencedColumns: ["id"]
+          },
         ]
       }
       booking_sources: {
@@ -956,6 +1331,81 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      bot_deployments: {
+        Row: {
+          actual_join_time: string | null
+          bot_id: string
+          bot_image_url: string | null
+          bot_name: string | null
+          created_at: string | null
+          entry_message: string | null
+          error_code: string | null
+          error_message: string | null
+          id: string
+          leave_time: string | null
+          meeting_url: string
+          org_id: string
+          recording_id: string | null
+          scheduled_join_time: string | null
+          status: string | null
+          status_history: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          actual_join_time?: string | null
+          bot_id: string
+          bot_image_url?: string | null
+          bot_name?: string | null
+          created_at?: string | null
+          entry_message?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          leave_time?: string | null
+          meeting_url: string
+          org_id: string
+          recording_id?: string | null
+          scheduled_join_time?: string | null
+          status?: string | null
+          status_history?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          actual_join_time?: string | null
+          bot_id?: string
+          bot_image_url?: string | null
+          bot_name?: string | null
+          created_at?: string | null
+          entry_message?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          leave_time?: string | null
+          meeting_url?: string
+          org_id?: string
+          recording_id?: string | null
+          scheduled_join_time?: string | null
+          status?: string | null
+          status_history?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_deployments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bot_deployments_recording_id_fkey"
+            columns: ["recording_id"]
+            isOneToOne: false
+            referencedRelation: "recordings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       branding_settings: {
         Row: {
@@ -1068,6 +1518,7 @@ export type Database = {
           last_sync_token: string | null
           last_synced_at: string | null
           name: string
+          org_id: string
           settings: Json | null
           sync_enabled: boolean | null
           sync_frequency_minutes: number | null
@@ -1090,6 +1541,7 @@ export type Database = {
           last_sync_token?: string | null
           last_synced_at?: string | null
           name: string
+          org_id: string
           settings?: Json | null
           sync_enabled?: boolean | null
           sync_frequency_minutes?: number | null
@@ -1112,6 +1564,7 @@ export type Database = {
           last_sync_token?: string | null
           last_synced_at?: string | null
           name?: string
+          org_id?: string
           settings?: Json | null
           sync_enabled?: boolean | null
           sync_frequency_minutes?: number | null
@@ -1119,13 +1572,22 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "calendar_calendars_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       calendar_events: {
         Row: {
           ai_generated: boolean | null
           ai_suggested_time: boolean | null
           all_day: boolean | null
+          attendees: Json | null
           attendees_count: number | null
           busy_status: string | null
           calendar_id: string
@@ -1174,6 +1636,7 @@ export type Database = {
           ai_generated?: boolean | null
           ai_suggested_time?: boolean | null
           all_day?: boolean | null
+          attendees?: Json | null
           attendees_count?: number | null
           busy_status?: string | null
           calendar_id: string
@@ -1222,6 +1685,7 @@ export type Database = {
           ai_generated?: boolean | null
           ai_suggested_time?: boolean | null
           all_day?: boolean | null
+          attendees?: Json | null
           attendees_count?: number | null
           busy_status?: string | null
           calendar_id?: string
@@ -2783,6 +3247,7 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          org_id: string | null
           title: string | null
           updated_at: string | null
           user_id: string
@@ -2790,6 +3255,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
+          org_id?: string | null
           title?: string | null
           updated_at?: string | null
           user_id: string
@@ -2797,11 +3263,20 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
+          org_id?: string | null
           title?: string | null
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "copilot_conversations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       copilot_messages: {
         Row: {
@@ -3124,6 +3599,227 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "deals"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      deal_clarity_scores: {
+        Row: {
+          champion_score: number | null
+          clarity_score: number | null
+          close_plan_completed: number | null
+          close_plan_overdue: number | null
+          close_plan_total: number | null
+          created_at: string | null
+          deal_id: string
+          economic_buyer_score: number | null
+          id: string
+          last_calculated_at: string | null
+          momentum_score: number | null
+          next_step_score: number | null
+          org_id: string
+          risks_score: number | null
+          success_metric_score: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          champion_score?: number | null
+          clarity_score?: number | null
+          close_plan_completed?: number | null
+          close_plan_overdue?: number | null
+          close_plan_total?: number | null
+          created_at?: string | null
+          deal_id: string
+          economic_buyer_score?: number | null
+          id?: string
+          last_calculated_at?: string | null
+          momentum_score?: number | null
+          next_step_score?: number | null
+          org_id: string
+          risks_score?: number | null
+          success_metric_score?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          champion_score?: number | null
+          clarity_score?: number | null
+          close_plan_completed?: number | null
+          close_plan_overdue?: number | null
+          close_plan_total?: number | null
+          created_at?: string | null
+          deal_id?: string
+          economic_buyer_score?: number | null
+          id?: string
+          last_calculated_at?: string | null
+          momentum_score?: number | null
+          next_step_score?: number | null
+          org_id?: string
+          risks_score?: number | null
+          success_metric_score?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deal_clarity_scores_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: true
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_clarity_scores_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deal_close_plan_items: {
+        Row: {
+          blocker_note: string | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string | null
+          deal_id: string
+          due_date: string | null
+          id: string
+          linked_task_id: string | null
+          milestone_key: string
+          notes: string | null
+          org_id: string
+          owner_id: string | null
+          sort_order: number | null
+          status: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          blocker_note?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string | null
+          deal_id: string
+          due_date?: string | null
+          id?: string
+          linked_task_id?: string | null
+          milestone_key: string
+          notes?: string | null
+          org_id: string
+          owner_id?: string | null
+          sort_order?: number | null
+          status?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          blocker_note?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string | null
+          deal_id?: string
+          due_date?: string | null
+          id?: string
+          linked_task_id?: string | null
+          milestone_key?: string
+          notes?: string | null
+          org_id?: string
+          owner_id?: string | null
+          sort_order?: number | null
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deal_close_plan_items_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "deal_close_plan_items_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "at_risk_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "deal_close_plan_items_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "deal_activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "deal_close_plan_items_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_close_plan_items_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "team_meeting_analytics"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "deal_close_plan_items_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_close_plan_items_linked_task_id_fkey"
+            columns: ["linked_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_close_plan_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_close_plan_items_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "deal_close_plan_items_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "at_risk_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "deal_close_plan_items_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "deal_activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "deal_close_plan_items_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_close_plan_items_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "team_meeting_analytics"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -3868,6 +4564,76 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      deal_truth_fields: {
+        Row: {
+          champion_strength: string | null
+          confidence: number | null
+          contact_id: string | null
+          created_at: string | null
+          deal_id: string
+          field_key: string
+          id: string
+          last_updated_at: string | null
+          next_step_date: string | null
+          org_id: string
+          source: string | null
+          source_id: string | null
+          value: string | null
+        }
+        Insert: {
+          champion_strength?: string | null
+          confidence?: number | null
+          contact_id?: string | null
+          created_at?: string | null
+          deal_id: string
+          field_key: string
+          id?: string
+          last_updated_at?: string | null
+          next_step_date?: string | null
+          org_id: string
+          source?: string | null
+          source_id?: string | null
+          value?: string | null
+        }
+        Update: {
+          champion_strength?: string | null
+          confidence?: number | null
+          contact_id?: string | null
+          created_at?: string | null
+          deal_id?: string
+          field_key?: string
+          id?: string
+          last_updated_at?: string | null
+          next_step_date?: string | null
+          org_id?: string
+          source?: string | null
+          source_id?: string | null
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deal_truth_fields_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_truth_fields_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_truth_fields_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       deals: {
         Row: {
@@ -5302,6 +6068,68 @@ export type Database = {
           },
         ]
       }
+      google_calendar_channels: {
+        Row: {
+          calendar_id: string
+          channel_id: string
+          created_at: string
+          expiration_time: string
+          id: string
+          is_active: boolean
+          last_message_number: number | null
+          last_notification_at: string | null
+          notification_count: number
+          org_id: string
+          resource_id: string
+          sync_token: string | null
+          updated_at: string
+          user_id: string
+          webhook_url: string
+        }
+        Insert: {
+          calendar_id?: string
+          channel_id: string
+          created_at?: string
+          expiration_time: string
+          id?: string
+          is_active?: boolean
+          last_message_number?: number | null
+          last_notification_at?: string | null
+          notification_count?: number
+          org_id: string
+          resource_id: string
+          sync_token?: string | null
+          updated_at?: string
+          user_id: string
+          webhook_url: string
+        }
+        Update: {
+          calendar_id?: string
+          channel_id?: string
+          created_at?: string
+          expiration_time?: string
+          id?: string
+          is_active?: boolean
+          last_message_number?: number | null
+          last_notification_at?: string | null
+          notification_count?: number
+          org_id?: string
+          resource_id?: string
+          sync_token?: string | null
+          updated_at?: string
+          user_id?: string
+          webhook_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_channels_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_calendars: {
         Row: {
           access_role: string | null
@@ -5488,8 +6316,10 @@ export type Database = {
           expires_at: string | null
           id: string
           is_active: boolean | null
+          last_token_refresh: string | null
           refresh_token: string | null
           scopes: string
+          token_status: string | null
           updated_at: string | null
           user_id: string
         }
@@ -5501,8 +6331,10 @@ export type Database = {
           expires_at?: string | null
           id?: string
           is_active?: boolean | null
+          last_token_refresh?: string | null
           refresh_token?: string | null
           scopes: string
+          token_status?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -5514,8 +6346,10 @@ export type Database = {
           expires_at?: string | null
           id?: string
           is_active?: boolean | null
+          last_token_refresh?: string | null
           refresh_token?: string | null
           scopes?: string
+          token_status?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -5834,6 +6668,302 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      hitl_pending_approvals: {
+        Row: {
+          actioned_at: string | null
+          actioned_by: string | null
+          callback_metadata: Json | null
+          callback_target: string | null
+          callback_type: string | null
+          created_at: string | null
+          created_by: string | null
+          edited_content: Json | null
+          expires_at: string | null
+          id: string
+          metadata: Json | null
+          org_id: string
+          original_content: Json
+          resource_id: string
+          resource_name: string | null
+          resource_type: string
+          response: Json | null
+          slack_channel_id: string
+          slack_message_ts: string
+          slack_team_id: string
+          slack_thread_ts: string | null
+          status: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          actioned_at?: string | null
+          actioned_by?: string | null
+          callback_metadata?: Json | null
+          callback_target?: string | null
+          callback_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          edited_content?: Json | null
+          expires_at?: string | null
+          id?: string
+          metadata?: Json | null
+          org_id: string
+          original_content: Json
+          resource_id: string
+          resource_name?: string | null
+          resource_type: string
+          response?: Json | null
+          slack_channel_id: string
+          slack_message_ts: string
+          slack_team_id: string
+          slack_thread_ts?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          actioned_at?: string | null
+          actioned_by?: string | null
+          callback_metadata?: Json | null
+          callback_target?: string | null
+          callback_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          edited_content?: Json | null
+          expires_at?: string | null
+          id?: string
+          metadata?: Json | null
+          org_id?: string
+          original_content?: Json
+          resource_id?: string
+          resource_name?: string | null
+          resource_type?: string
+          response?: Json | null
+          slack_channel_id?: string
+          slack_message_ts?: string
+          slack_team_id?: string
+          slack_thread_ts?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hitl_pending_approvals_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hitl_requests: {
+        Row: {
+          assigned_to_user_id: string | null
+          channels: string[]
+          created_at: string | null
+          default_value: string | null
+          execution_context: Json | null
+          execution_id: string
+          expires_at: string | null
+          id: string
+          options: Json | null
+          organization_id: string
+          prompt: string
+          request_type: string
+          requested_by_user_id: string
+          responded_at: string | null
+          responded_by_user_id: string | null
+          response_channel: string | null
+          response_context: Json | null
+          response_value: string | null
+          sequence_key: string
+          slack_channel_id: string | null
+          slack_message_ts: string | null
+          status: string
+          step_index: number
+          timeout_action: string | null
+          timeout_minutes: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to_user_id?: string | null
+          channels?: string[]
+          created_at?: string | null
+          default_value?: string | null
+          execution_context?: Json | null
+          execution_id: string
+          expires_at?: string | null
+          id?: string
+          options?: Json | null
+          organization_id: string
+          prompt: string
+          request_type: string
+          requested_by_user_id: string
+          responded_at?: string | null
+          responded_by_user_id?: string | null
+          response_channel?: string | null
+          response_context?: Json | null
+          response_value?: string | null
+          sequence_key: string
+          slack_channel_id?: string | null
+          slack_message_ts?: string | null
+          status?: string
+          step_index: number
+          timeout_action?: string | null
+          timeout_minutes?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to_user_id?: string | null
+          channels?: string[]
+          created_at?: string | null
+          default_value?: string | null
+          execution_context?: Json | null
+          execution_id?: string
+          expires_at?: string | null
+          id?: string
+          options?: Json | null
+          organization_id?: string
+          prompt?: string
+          request_type?: string
+          requested_by_user_id?: string
+          responded_at?: string | null
+          responded_by_user_id?: string | null
+          response_channel?: string | null
+          response_context?: Json | null
+          response_value?: string | null
+          sequence_key?: string
+          slack_channel_id?: string | null
+          slack_message_ts?: string | null
+          status?: string
+          step_index?: number
+          timeout_action?: string | null
+          timeout_minutes?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hitl_requests_assigned_to_user_id_profiles_fkey"
+            columns: ["assigned_to_user_id"]
+            isOneToOne: false
+            referencedRelation: "activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_assigned_to_user_id_profiles_fkey"
+            columns: ["assigned_to_user_id"]
+            isOneToOne: false
+            referencedRelation: "at_risk_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_assigned_to_user_id_profiles_fkey"
+            columns: ["assigned_to_user_id"]
+            isOneToOne: false
+            referencedRelation: "deal_activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_assigned_to_user_id_profiles_fkey"
+            columns: ["assigned_to_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_assigned_to_user_id_profiles_fkey"
+            columns: ["assigned_to_user_id"]
+            isOneToOne: false
+            referencedRelation: "team_meeting_analytics"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_execution_id_fkey"
+            columns: ["execution_id"]
+            isOneToOne: false
+            referencedRelation: "sequence_executions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_requested_by_user_id_profiles_fkey"
+            columns: ["requested_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_requested_by_user_id_profiles_fkey"
+            columns: ["requested_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "at_risk_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_requested_by_user_id_profiles_fkey"
+            columns: ["requested_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "deal_activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_requested_by_user_id_profiles_fkey"
+            columns: ["requested_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_requested_by_user_id_profiles_fkey"
+            columns: ["requested_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "team_meeting_analytics"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_responded_by_user_id_profiles_fkey"
+            columns: ["responded_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_responded_by_user_id_profiles_fkey"
+            columns: ["responded_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "at_risk_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_responded_by_user_id_profiles_fkey"
+            columns: ["responded_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "deal_activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_responded_by_user_id_profiles_fkey"
+            columns: ["responded_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hitl_requests_responded_by_user_id_profiles_fkey"
+            columns: ["responded_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "team_meeting_analytics"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       http_request_recordings: {
         Row: {
@@ -6185,6 +7315,7 @@ export type Database = {
           payload: Json
           priority: number
           run_after: string
+          updated_at: string | null
         }
         Insert: {
           attempts?: number
@@ -6199,6 +7330,7 @@ export type Database = {
           payload?: Json
           priority?: number
           run_after?: string
+          updated_at?: string | null
         }
         Update: {
           attempts?: number
@@ -6213,6 +7345,7 @@ export type Database = {
           payload?: Json
           priority?: number
           run_after?: string
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -8087,9 +9220,13 @@ export type Database = {
           error_message: string | null
           id: string
           last_attempt_at: string | null
+          last_error: string | null
           max_attempts: number | null
           meeting_id: string | null
           priority: number | null
+          processed_at: string | null
+          status: string | null
+          updated_at: string | null
           user_id: string | null
         }
         Insert: {
@@ -8098,9 +9235,13 @@ export type Database = {
           error_message?: string | null
           id?: string
           last_attempt_at?: string | null
+          last_error?: string | null
           max_attempts?: number | null
           meeting_id?: string | null
           priority?: number | null
+          processed_at?: string | null
+          status?: string | null
+          updated_at?: string | null
           user_id?: string | null
         }
         Update: {
@@ -8109,9 +9250,13 @@ export type Database = {
           error_message?: string | null
           id?: string
           last_attempt_at?: string | null
+          last_error?: string | null
           max_attempts?: number | null
           meeting_id?: string | null
           priority?: number | null
+          processed_at?: string | null
+          status?: string | null
+          updated_at?: string | null
           user_id?: string | null
         }
         Relationships: [
@@ -8494,6 +9639,62 @@ export type Database = {
           },
         ]
       }
+      meetingbaas_calendars: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string
+          is_active: boolean | null
+          last_sync_at: string | null
+          meetingbaas_calendar_id: string
+          name: string | null
+          org_id: string | null
+          platform: string
+          raw_calendar_id: string
+          sync_error: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          meetingbaas_calendar_id: string
+          name?: string | null
+          org_id?: string | null
+          platform?: string
+          raw_calendar_id?: string
+          sync_error?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          meetingbaas_calendar_id?: string
+          name?: string | null
+          org_id?: string | null
+          platform?: string
+          raw_calendar_id?: string
+          sync_error?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meetingbaas_calendars_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meetings: {
         Row: {
           ai_training_metadata: Json | null
@@ -8530,21 +9731,32 @@ export type Database = {
           sentiment_reasoning: string | null
           sentiment_score: number | null
           share_url: string | null
+          source_type: string
           start_time: string | null
           summary: string | null
           summary_oneliner: string | null
+          summary_status:
+            | Database["public"]["Enums"]["meeting_processing_status"]
+            | null
           sync_status: string | null
           talk_time_customer_pct: number | null
           talk_time_judgement: string | null
           talk_time_rep_pct: number | null
           team_name: string | null
+          thumbnail_status:
+            | Database["public"]["Enums"]["meeting_processing_status"]
+            | null
           thumbnail_url: string | null
           title: string | null
           transcript_doc_url: string | null
           transcript_fetch_attempts: number | null
           transcript_language: string | null
+          transcript_status:
+            | Database["public"]["Enums"]["meeting_processing_status"]
+            | null
           transcript_text: string | null
           updated_at: string | null
+          voice_recording_id: string | null
         }
         Insert: {
           ai_training_metadata?: Json | null
@@ -8581,21 +9793,32 @@ export type Database = {
           sentiment_reasoning?: string | null
           sentiment_score?: number | null
           share_url?: string | null
+          source_type?: string
           start_time?: string | null
           summary?: string | null
           summary_oneliner?: string | null
+          summary_status?:
+            | Database["public"]["Enums"]["meeting_processing_status"]
+            | null
           sync_status?: string | null
           talk_time_customer_pct?: number | null
           talk_time_judgement?: string | null
           talk_time_rep_pct?: number | null
           team_name?: string | null
+          thumbnail_status?:
+            | Database["public"]["Enums"]["meeting_processing_status"]
+            | null
           thumbnail_url?: string | null
           title?: string | null
           transcript_doc_url?: string | null
           transcript_fetch_attempts?: number | null
           transcript_language?: string | null
+          transcript_status?:
+            | Database["public"]["Enums"]["meeting_processing_status"]
+            | null
           transcript_text?: string | null
           updated_at?: string | null
+          voice_recording_id?: string | null
         }
         Update: {
           ai_training_metadata?: Json | null
@@ -8632,21 +9855,32 @@ export type Database = {
           sentiment_reasoning?: string | null
           sentiment_score?: number | null
           share_url?: string | null
+          source_type?: string
           start_time?: string | null
           summary?: string | null
           summary_oneliner?: string | null
+          summary_status?:
+            | Database["public"]["Enums"]["meeting_processing_status"]
+            | null
           sync_status?: string | null
           talk_time_customer_pct?: number | null
           talk_time_judgement?: string | null
           talk_time_rep_pct?: number | null
           team_name?: string | null
+          thumbnail_status?:
+            | Database["public"]["Enums"]["meeting_processing_status"]
+            | null
           thumbnail_url?: string | null
           title?: string | null
           transcript_doc_url?: string | null
           transcript_fetch_attempts?: number | null
           transcript_language?: string | null
+          transcript_status?:
+            | Database["public"]["Enums"]["meeting_processing_status"]
+            | null
           transcript_text?: string | null
           updated_at?: string | null
+          voice_recording_id?: string | null
         }
         Relationships: [
           {
@@ -8689,6 +9923,13 @@ export type Database = {
             columns: ["primary_contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_voice_recording_id_fkey"
+            columns: ["voice_recording_id"]
+            isOneToOne: false
+            referencedRelation: "voice_recordings"
             referencedColumns: ["id"]
           },
         ]
@@ -9127,6 +10368,280 @@ export type Database = {
         }
         Relationships: []
       }
+      notetaker_user_settings: {
+        Row: {
+          auto_record_external: boolean | null
+          auto_record_internal: boolean | null
+          created_at: string | null
+          id: string
+          is_enabled: boolean | null
+          notify_before_join: boolean | null
+          notify_minutes_before: number | null
+          org_id: string
+          selected_calendar_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          auto_record_external?: boolean | null
+          auto_record_internal?: boolean | null
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          notify_before_join?: boolean | null
+          notify_minutes_before?: number | null
+          org_id: string
+          selected_calendar_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          auto_record_external?: boolean | null
+          auto_record_internal?: boolean | null
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          notify_before_join?: boolean | null
+          notify_minutes_before?: number | null
+          org_id?: string
+          selected_calendar_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notetaker_user_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_feedback: {
+        Row: {
+          created_at: string | null
+          feedback_source: string
+          feedback_type: string
+          feedback_value: string
+          id: string
+          notification_type: string | null
+          org_id: string
+          triggered_by_notification_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          feedback_source: string
+          feedback_type: string
+          feedback_value: string
+          id?: string
+          notification_type?: string | null
+          org_id: string
+          triggered_by_notification_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          feedback_source?: string
+          feedback_type?: string
+          feedback_value?: string
+          id?: string
+          notification_type?: string | null
+          org_id?: string
+          triggered_by_notification_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_feedback_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_interactions: {
+        Row: {
+          action_taken: string | null
+          clicked_at: string | null
+          created_at: string | null
+          day_of_week: number | null
+          delivered_at: string
+          delivered_via: string
+          dismissed_at: string | null
+          feedback_at: string | null
+          feedback_rating: string | null
+          hour_of_day: number | null
+          id: string
+          notification_id: string | null
+          notification_type: string
+          org_id: string
+          seen_at: string | null
+          slack_notification_sent_id: string | null
+          time_to_interaction_seconds: number | null
+          user_id: string
+          user_was_active: boolean | null
+        }
+        Insert: {
+          action_taken?: string | null
+          clicked_at?: string | null
+          created_at?: string | null
+          day_of_week?: number | null
+          delivered_at?: string
+          delivered_via: string
+          dismissed_at?: string | null
+          feedback_at?: string | null
+          feedback_rating?: string | null
+          hour_of_day?: number | null
+          id?: string
+          notification_id?: string | null
+          notification_type: string
+          org_id: string
+          seen_at?: string | null
+          slack_notification_sent_id?: string | null
+          time_to_interaction_seconds?: number | null
+          user_id: string
+          user_was_active?: boolean | null
+        }
+        Update: {
+          action_taken?: string | null
+          clicked_at?: string | null
+          created_at?: string | null
+          day_of_week?: number | null
+          delivered_at?: string
+          delivered_via?: string
+          dismissed_at?: string | null
+          feedback_at?: string | null
+          feedback_rating?: string | null
+          hour_of_day?: number | null
+          id?: string
+          notification_id?: string | null
+          notification_type?: string
+          org_id?: string
+          seen_at?: string | null
+          slack_notification_sent_id?: string | null
+          time_to_interaction_seconds?: number | null
+          user_id?: string
+          user_was_active?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_interactions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_interactions_slack_notification_sent_id_fkey"
+            columns: ["slack_notification_sent_id"]
+            isOneToOne: false
+            referencedRelation: "slack_notifications_sent"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_queue: {
+        Row: {
+          attempts: number | null
+          batch_id: string | null
+          channel: string
+          created_at: string
+          dedupe_key: string | null
+          dedupe_window_minutes: number | null
+          error_message: string | null
+          id: string
+          is_batched: boolean | null
+          last_attempt_at: string | null
+          metadata: Json | null
+          notification_interaction_id: string | null
+          notification_type: string
+          optimal_send_time: string | null
+          optimal_time_confidence: number | null
+          org_id: string
+          payload: Json
+          priority: string
+          related_entity_id: string | null
+          related_entity_type: string | null
+          scheduled_for: string
+          send_deadline: string | null
+          sent_at: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number | null
+          batch_id?: string | null
+          channel: string
+          created_at?: string
+          dedupe_key?: string | null
+          dedupe_window_minutes?: number | null
+          error_message?: string | null
+          id?: string
+          is_batched?: boolean | null
+          last_attempt_at?: string | null
+          metadata?: Json | null
+          notification_interaction_id?: string | null
+          notification_type: string
+          optimal_send_time?: string | null
+          optimal_time_confidence?: number | null
+          org_id: string
+          payload?: Json
+          priority?: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          scheduled_for: string
+          send_deadline?: string | null
+          sent_at?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number | null
+          batch_id?: string | null
+          channel?: string
+          created_at?: string
+          dedupe_key?: string | null
+          dedupe_window_minutes?: number | null
+          error_message?: string | null
+          id?: string
+          is_batched?: boolean | null
+          last_attempt_at?: string | null
+          metadata?: Json | null
+          notification_interaction_id?: string | null
+          notification_type?: string
+          optimal_send_time?: string | null
+          optimal_time_confidence?: number | null
+          org_id?: string
+          payload?: Json
+          priority?: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          scheduled_for?: string
+          send_deadline?: string | null
+          sent_at?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_queue_notification_interaction_id_fkey"
+            columns: ["notification_interaction_id"]
+            isOneToOne: false
+            referencedRelation: "notification_interactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_queue_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_rate_limits: {
         Row: {
           created_at: string
@@ -9273,6 +10788,65 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "team_meeting_analytics"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      org_ai_preferences: {
+        Row: {
+          blocked_phrases: string[] | null
+          brand_voice: string | null
+          created_at: string | null
+          enable_auto_send: boolean | null
+          id: string
+          min_confidence_for_auto: number | null
+          most_edited_action_types: string[] | null
+          org_approval_rate: number | null
+          org_id: string
+          require_manager_approval_above: number | null
+          required_disclaimers: string[] | null
+          tone_guidelines: string | null
+          total_suggestions: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          blocked_phrases?: string[] | null
+          brand_voice?: string | null
+          created_at?: string | null
+          enable_auto_send?: boolean | null
+          id?: string
+          min_confidence_for_auto?: number | null
+          most_edited_action_types?: string[] | null
+          org_approval_rate?: number | null
+          org_id: string
+          require_manager_approval_above?: number | null
+          required_disclaimers?: string[] | null
+          tone_guidelines?: string | null
+          total_suggestions?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          blocked_phrases?: string[] | null
+          brand_voice?: string | null
+          created_at?: string | null
+          enable_auto_send?: boolean | null
+          id?: string
+          min_confidence_for_auto?: number | null
+          most_edited_action_types?: string[] | null
+          org_approval_rate?: number | null
+          org_id?: string
+          require_manager_approval_above?: number | null
+          required_disclaimers?: string[] | null
+          tone_guidelines?: string | null
+          total_suggestions?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_ai_preferences_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -9495,6 +11069,178 @@ export type Database = {
           },
         ]
       }
+      organization_context: {
+        Row: {
+          confidence: number | null
+          context_key: string
+          created_at: string | null
+          id: string
+          organization_id: string
+          source: string
+          updated_at: string | null
+          value: Json
+          value_type: string
+        }
+        Insert: {
+          confidence?: number | null
+          context_key: string
+          created_at?: string | null
+          id?: string
+          organization_id: string
+          source: string
+          updated_at?: string | null
+          value: Json
+          value_type: string
+        }
+        Update: {
+          confidence?: number | null
+          context_key?: string
+          created_at?: string | null
+          id?: string
+          organization_id?: string
+          source?: string
+          updated_at?: string | null
+          value?: Json
+          value_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_context_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_enrichment: {
+        Row: {
+          buying_signals: Json | null
+          case_studies: Json | null
+          company_name: string | null
+          competitors: Json | null
+          confidence_score: number | null
+          created_at: string | null
+          customer_logos: Json | null
+          description: string | null
+          domain: string
+          employee_count: string | null
+          error_message: string | null
+          founded_year: number | null
+          funding_stage: string | null
+          generated_skills: Json | null
+          headquarters: string | null
+          id: string
+          ideal_customer_profile: Json | null
+          industry: string | null
+          key_people: Json | null
+          logo_url: string | null
+          model: string | null
+          open_roles: Json | null
+          organization_id: string | null
+          pain_points: Json | null
+          products: Json | null
+          raw_scraped_data: Json | null
+          recent_hires: Json | null
+          recent_news: Json | null
+          reviews_summary: Json | null
+          sources_used: Json | null
+          status: string | null
+          tagline: string | null
+          target_market: string | null
+          tech_stack: Json | null
+          updated_at: string | null
+          use_cases: Json | null
+          value_propositions: Json | null
+        }
+        Insert: {
+          buying_signals?: Json | null
+          case_studies?: Json | null
+          company_name?: string | null
+          competitors?: Json | null
+          confidence_score?: number | null
+          created_at?: string | null
+          customer_logos?: Json | null
+          description?: string | null
+          domain: string
+          employee_count?: string | null
+          error_message?: string | null
+          founded_year?: number | null
+          funding_stage?: string | null
+          generated_skills?: Json | null
+          headquarters?: string | null
+          id?: string
+          ideal_customer_profile?: Json | null
+          industry?: string | null
+          key_people?: Json | null
+          logo_url?: string | null
+          model?: string | null
+          open_roles?: Json | null
+          organization_id?: string | null
+          pain_points?: Json | null
+          products?: Json | null
+          raw_scraped_data?: Json | null
+          recent_hires?: Json | null
+          recent_news?: Json | null
+          reviews_summary?: Json | null
+          sources_used?: Json | null
+          status?: string | null
+          tagline?: string | null
+          target_market?: string | null
+          tech_stack?: Json | null
+          updated_at?: string | null
+          use_cases?: Json | null
+          value_propositions?: Json | null
+        }
+        Update: {
+          buying_signals?: Json | null
+          case_studies?: Json | null
+          company_name?: string | null
+          competitors?: Json | null
+          confidence_score?: number | null
+          created_at?: string | null
+          customer_logos?: Json | null
+          description?: string | null
+          domain?: string
+          employee_count?: string | null
+          error_message?: string | null
+          founded_year?: number | null
+          funding_stage?: string | null
+          generated_skills?: Json | null
+          headquarters?: string | null
+          id?: string
+          ideal_customer_profile?: Json | null
+          industry?: string | null
+          key_people?: Json | null
+          logo_url?: string | null
+          model?: string | null
+          open_roles?: Json | null
+          organization_id?: string | null
+          pain_points?: Json | null
+          products?: Json | null
+          raw_scraped_data?: Json | null
+          recent_hires?: Json | null
+          recent_news?: Json | null
+          reviews_summary?: Json | null
+          sources_used?: Json | null
+          status?: string | null
+          tagline?: string | null
+          target_market?: string | null
+          tech_stack?: Json | null
+          updated_at?: string | null
+          use_cases?: Json | null
+          value_propositions?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_enrichment_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_feature_flags: {
         Row: {
           created_at: string | null
@@ -9621,6 +11367,138 @@ export type Database = {
           },
         ]
       }
+      organization_skills: {
+        Row: {
+          ai_generated: boolean | null
+          compiled_content: string | null
+          compiled_frontmatter: Json | null
+          config: Json
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          is_enabled: boolean | null
+          last_compiled_at: string | null
+          organization_id: string | null
+          platform_skill_id: string | null
+          platform_skill_version: number | null
+          skill_id: string
+          skill_name: string
+          updated_at: string | null
+          user_modified: boolean | null
+          user_overrides: Json | null
+          version: number
+        }
+        Insert: {
+          ai_generated?: boolean | null
+          compiled_content?: string | null
+          compiled_frontmatter?: Json | null
+          config?: Json
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_enabled?: boolean | null
+          last_compiled_at?: string | null
+          organization_id?: string | null
+          platform_skill_id?: string | null
+          platform_skill_version?: number | null
+          skill_id: string
+          skill_name: string
+          updated_at?: string | null
+          user_modified?: boolean | null
+          user_overrides?: Json | null
+          version?: number
+        }
+        Update: {
+          ai_generated?: boolean | null
+          compiled_content?: string | null
+          compiled_frontmatter?: Json | null
+          config?: Json
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_enabled?: boolean | null
+          last_compiled_at?: string | null
+          organization_id?: string | null
+          platform_skill_id?: string | null
+          platform_skill_version?: number | null
+          skill_id?: string
+          skill_name?: string
+          updated_at?: string | null
+          user_modified?: boolean | null
+          user_overrides?: Json | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_skills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_skills_platform_skill_id_fkey"
+            columns: ["platform_skill_id"]
+            isOneToOne: false
+            referencedRelation: "platform_skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_skills_history: {
+        Row: {
+          change_reason: string | null
+          changed_by: string | null
+          config: Json
+          created_at: string | null
+          id: string
+          organization_id: string | null
+          skill_id: string
+          skill_record_id: string | null
+          version: number
+        }
+        Insert: {
+          change_reason?: string | null
+          changed_by?: string | null
+          config: Json
+          created_at?: string | null
+          id?: string
+          organization_id?: string | null
+          skill_id: string
+          skill_record_id?: string | null
+          version: number
+        }
+        Update: {
+          change_reason?: string | null
+          changed_by?: string | null
+          config?: Json
+          created_at?: string | null
+          id?: string
+          organization_id?: string | null
+          skill_id?: string
+          skill_record_id?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_skills_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_skills_history_skill_record_id_fkey"
+            columns: ["skill_record_id"]
+            isOneToOne: false
+            referencedRelation: "organization_skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_subscriptions: {
         Row: {
           admin_notes: string | null
@@ -9629,16 +11507,24 @@ export type Database = {
           canceled_at: string | null
           cancellation_reason: string | null
           created_at: string | null
+          currency: string | null
           current_period_end: string
           current_period_start: string
+          current_recurring_amount_cents: number | null
           custom_max_ai_tokens: number | null
           custom_max_meetings: number | null
           custom_max_storage_mb: number | null
           custom_max_users: number | null
+          customer_country: string | null
+          discount_info: Json | null
+          first_payment_at: string | null
           id: string
+          interval_count: number | null
+          last_payment_at: string | null
           org_id: string
           plan_id: string
           quantity: number | null
+          recurring_interval: string | null
           started_at: string
           status: string
           stripe_customer_id: string | null
@@ -9657,16 +11543,24 @@ export type Database = {
           canceled_at?: string | null
           cancellation_reason?: string | null
           created_at?: string | null
+          currency?: string | null
           current_period_end?: string
           current_period_start?: string
+          current_recurring_amount_cents?: number | null
           custom_max_ai_tokens?: number | null
           custom_max_meetings?: number | null
           custom_max_storage_mb?: number | null
           custom_max_users?: number | null
+          customer_country?: string | null
+          discount_info?: Json | null
+          first_payment_at?: string | null
           id?: string
+          interval_count?: number | null
+          last_payment_at?: string | null
           org_id: string
           plan_id: string
           quantity?: number | null
+          recurring_interval?: string | null
           started_at?: string
           status?: string
           stripe_customer_id?: string | null
@@ -9685,16 +11579,24 @@ export type Database = {
           canceled_at?: string | null
           cancellation_reason?: string | null
           created_at?: string | null
+          currency?: string | null
           current_period_end?: string
           current_period_start?: string
+          current_recurring_amount_cents?: number | null
           custom_max_ai_tokens?: number | null
           custom_max_meetings?: number | null
           custom_max_storage_mb?: number | null
           custom_max_users?: number | null
+          customer_country?: string | null
+          discount_info?: Json | null
+          first_payment_at?: string | null
           id?: string
+          interval_count?: number | null
+          last_payment_at?: string | null
           org_id?: string
           plan_id?: string
           quantity?: number | null
+          recurring_interval?: string | null
           started_at?: string
           status?: string
           stripe_customer_id?: string | null
@@ -9797,7 +11699,10 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
+          notification_settings: Json | null
           onboarding_completed_at: string | null
+          onboarding_version: string | null
+          recording_settings: Json | null
           updated_at: string | null
         }
         Insert: {
@@ -9820,7 +11725,10 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
+          notification_settings?: Json | null
           onboarding_completed_at?: string | null
+          onboarding_version?: string | null
+          recording_settings?: Json | null
           updated_at?: string | null
         }
         Update: {
@@ -9843,8 +11751,125 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name?: string
+          notification_settings?: Json | null
           onboarding_completed_at?: string | null
+          onboarding_version?: string | null
+          recording_settings?: Json | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      page_views: {
+        Row: {
+          browser: string | null
+          created_at: string
+          device_type: string | null
+          fbclid: string | null
+          full_url: string | null
+          id: string
+          landing_page: string
+          referrer: string | null
+          session_id: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_id: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          visitor_id: string | null
+        }
+        Insert: {
+          browser?: string | null
+          created_at?: string
+          device_type?: string | null
+          fbclid?: string | null
+          full_url?: string | null
+          id?: string
+          landing_page: string
+          referrer?: string | null
+          session_id: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_id?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          visitor_id?: string | null
+        }
+        Update: {
+          browser?: string | null
+          created_at?: string
+          device_type?: string | null
+          fbclid?: string | null
+          full_url?: string | null
+          id?: string
+          landing_page?: string
+          referrer?: string | null
+          session_id?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_id?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          visitor_id?: string | null
+        }
+        Relationships: []
+      }
+      partial_signups: {
+        Row: {
+          converted: boolean | null
+          converted_at: string | null
+          created_at: string
+          email: string
+          fbclid: string | null
+          form_step: string | null
+          id: string
+          landing_page: string
+          session_id: string
+          updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          visitor_id: string | null
+        }
+        Insert: {
+          converted?: boolean | null
+          converted_at?: string | null
+          created_at?: string
+          email: string
+          fbclid?: string | null
+          form_step?: string | null
+          id?: string
+          landing_page: string
+          session_id: string
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          visitor_id?: string | null
+        }
+        Update: {
+          converted?: boolean | null
+          converted_at?: string | null
+          created_at?: string
+          email?: string
+          fbclid?: string | null
+          form_step?: string | null
+          id?: string
+          landing_page?: string
+          session_id?: string
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          visitor_id?: string | null
         }
         Relationships: []
       }
@@ -10085,6 +12110,154 @@ export type Database = {
           },
         ]
       }
+      platform_skills: {
+        Row: {
+          category: string
+          content_template: string
+          created_at: string | null
+          created_by: string | null
+          frontmatter: Json
+          id: string
+          is_active: boolean | null
+          skill_key: string
+          updated_at: string | null
+          version: number
+        }
+        Insert: {
+          category: string
+          content_template: string
+          created_at?: string | null
+          created_by?: string | null
+          frontmatter?: Json
+          id?: string
+          is_active?: boolean | null
+          skill_key: string
+          updated_at?: string | null
+          version?: number
+        }
+        Update: {
+          category?: string
+          content_template?: string
+          created_at?: string | null
+          created_by?: string | null
+          frontmatter?: Json
+          id?: string
+          is_active?: boolean | null
+          skill_key?: string
+          updated_at?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_skills_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "platform_skills_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "at_risk_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "platform_skills_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "deal_activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "platform_skills_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "platform_skills_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "team_meeting_analytics"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      platform_skills_history: {
+        Row: {
+          changed_at: string | null
+          changed_by: string | null
+          content_template: string
+          frontmatter: Json
+          id: string
+          skill_id: string | null
+          version: number
+        }
+        Insert: {
+          changed_at?: string | null
+          changed_by?: string | null
+          content_template: string
+          frontmatter: Json
+          id?: string
+          skill_id?: string | null
+          version: number
+        }
+        Update: {
+          changed_at?: string | null
+          changed_by?: string | null
+          content_template?: string
+          frontmatter?: Json
+          id?: string
+          skill_id?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_skills_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "platform_skills_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "at_risk_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "platform_skills_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "deal_activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "platform_skills_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "platform_skills_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "team_meeting_analytics"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "platform_skills_history_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "platform_skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pricing_plans: {
         Row: {
           created_at: string | null
@@ -10127,15 +12300,579 @@ export type Database = {
         }
         Relationships: []
       }
+      process_map_coverage_snapshots: {
+        Row: {
+          branch_coverage_percent: number
+          branch_path_scenarios: number | null
+          calculated_at: string
+          covered_branches: number
+          covered_paths: number
+          created_at: string
+          failure_mode_coverage: Json | null
+          failure_mode_scenarios: number | null
+          happy_path_scenarios: number | null
+          id: string
+          integrations_with_full_coverage: string[] | null
+          integrations_with_partial_coverage: string[] | null
+          org_id: string
+          overall_score: number
+          path_coverage_percent: number
+          process_map_id: string | null
+          process_structure_hash: string | null
+          total_branches: number
+          total_paths: number
+          total_scenarios: number
+          uncovered_paths: Json | null
+          version: number | null
+          workflow_id: string | null
+        }
+        Insert: {
+          branch_coverage_percent?: number
+          branch_path_scenarios?: number | null
+          calculated_at?: string
+          covered_branches?: number
+          covered_paths?: number
+          created_at?: string
+          failure_mode_coverage?: Json | null
+          failure_mode_scenarios?: number | null
+          happy_path_scenarios?: number | null
+          id?: string
+          integrations_with_full_coverage?: string[] | null
+          integrations_with_partial_coverage?: string[] | null
+          org_id: string
+          overall_score?: number
+          path_coverage_percent?: number
+          process_map_id?: string | null
+          process_structure_hash?: string | null
+          total_branches?: number
+          total_paths?: number
+          total_scenarios?: number
+          uncovered_paths?: Json | null
+          version?: number | null
+          workflow_id?: string | null
+        }
+        Update: {
+          branch_coverage_percent?: number
+          branch_path_scenarios?: number | null
+          calculated_at?: string
+          covered_branches?: number
+          covered_paths?: number
+          created_at?: string
+          failure_mode_coverage?: Json | null
+          failure_mode_scenarios?: number | null
+          happy_path_scenarios?: number | null
+          id?: string
+          integrations_with_full_coverage?: string[] | null
+          integrations_with_partial_coverage?: string[] | null
+          org_id?: string
+          overall_score?: number
+          path_coverage_percent?: number
+          process_map_id?: string | null
+          process_structure_hash?: string | null
+          total_branches?: number
+          total_paths?: number
+          total_scenarios?: number
+          uncovered_paths?: Json | null
+          version?: number | null
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_map_coverage_snapshots_process_map_id_fkey"
+            columns: ["process_map_id"]
+            isOneToOne: false
+            referencedRelation: "process_maps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_map_coverage_snapshots_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "process_map_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_map_fixtures: {
+        Row: {
+          created_at: string
+          data: Json
+          description: string | null
+          fixture_type: string
+          id: string
+          is_default: boolean | null
+          name: string
+          org_id: string
+          tags: string[] | null
+          target_integration: string | null
+          target_step_id: string | null
+          updated_at: string
+          workflow_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          data: Json
+          description?: string | null
+          fixture_type: string
+          id?: string
+          is_default?: boolean | null
+          name: string
+          org_id: string
+          tags?: string[] | null
+          target_integration?: string | null
+          target_step_id?: string | null
+          updated_at?: string
+          workflow_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          description?: string | null
+          fixture_type?: string
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          org_id?: string
+          tags?: string[] | null
+          target_integration?: string | null
+          target_step_id?: string | null
+          updated_at?: string
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_map_fixtures_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "process_map_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_map_mocks: {
+        Row: {
+          created_at: string
+          delay_ms: number | null
+          endpoint: string | null
+          error_response: Json | null
+          id: string
+          integration: string
+          is_active: boolean | null
+          match_conditions: Json | null
+          mock_type: string
+          org_id: string
+          priority: number | null
+          response_data: Json | null
+          updated_at: string
+          workflow_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          delay_ms?: number | null
+          endpoint?: string | null
+          error_response?: Json | null
+          id?: string
+          integration: string
+          is_active?: boolean | null
+          match_conditions?: Json | null
+          mock_type?: string
+          org_id: string
+          priority?: number | null
+          response_data?: Json | null
+          updated_at?: string
+          workflow_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          delay_ms?: number | null
+          endpoint?: string | null
+          error_response?: Json | null
+          id?: string
+          integration?: string
+          is_active?: boolean | null
+          match_conditions?: Json | null
+          mock_type?: string
+          org_id?: string
+          priority?: number | null
+          response_data?: Json | null
+          updated_at?: string
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_map_mocks_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "process_map_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_map_scenario_runs: {
+        Row: {
+          duration_ms: number | null
+          error_message: string | null
+          executed_at: string
+          failure_step_id: string | null
+          failure_type: string | null
+          id: string
+          matched_expectation: boolean
+          mismatch_details: string | null
+          result: string
+          scenario_id: string
+          steps_executed: number | null
+          steps_failed: number | null
+          steps_passed: number | null
+          test_run_id: string
+        }
+        Insert: {
+          duration_ms?: number | null
+          error_message?: string | null
+          executed_at?: string
+          failure_step_id?: string | null
+          failure_type?: string | null
+          id?: string
+          matched_expectation?: boolean
+          mismatch_details?: string | null
+          result: string
+          scenario_id: string
+          steps_executed?: number | null
+          steps_failed?: number | null
+          steps_passed?: number | null
+          test_run_id: string
+        }
+        Update: {
+          duration_ms?: number | null
+          error_message?: string | null
+          executed_at?: string
+          failure_step_id?: string | null
+          failure_type?: string | null
+          id?: string
+          matched_expectation?: boolean
+          mismatch_details?: string | null
+          result?: string
+          scenario_id?: string
+          steps_executed?: number | null
+          steps_failed?: number | null
+          steps_passed?: number | null
+          test_run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_map_scenario_runs_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "process_map_test_scenarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_map_scenario_runs_test_run_id_fkey"
+            columns: ["test_run_id"]
+            isOneToOne: false
+            referencedRelation: "process_map_test_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_map_step_results: {
+        Row: {
+          completed_at: string | null
+          duration_ms: number | null
+          error_details: Json | null
+          error_message: string | null
+          error_stack: string | null
+          expected_output: Json | null
+          id: string
+          input_data: Json | null
+          logs: Json | null
+          mock_source: string | null
+          output_data: Json | null
+          sequence_number: number
+          started_at: string | null
+          status: string
+          step_id: string
+          step_name: string
+          test_run_id: string
+          validation_results: Json | null
+          was_mocked: boolean | null
+        }
+        Insert: {
+          completed_at?: string | null
+          duration_ms?: number | null
+          error_details?: Json | null
+          error_message?: string | null
+          error_stack?: string | null
+          expected_output?: Json | null
+          id?: string
+          input_data?: Json | null
+          logs?: Json | null
+          mock_source?: string | null
+          output_data?: Json | null
+          sequence_number: number
+          started_at?: string | null
+          status?: string
+          step_id: string
+          step_name: string
+          test_run_id: string
+          validation_results?: Json | null
+          was_mocked?: boolean | null
+        }
+        Update: {
+          completed_at?: string | null
+          duration_ms?: number | null
+          error_details?: Json | null
+          error_message?: string | null
+          error_stack?: string | null
+          expected_output?: Json | null
+          id?: string
+          input_data?: Json | null
+          logs?: Json | null
+          mock_source?: string | null
+          output_data?: Json | null
+          sequence_number?: number
+          started_at?: string | null
+          status?: string
+          step_id?: string
+          step_name?: string
+          test_run_id?: string
+          validation_results?: Json | null
+          was_mocked?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_map_step_results_test_run_id_fkey"
+            columns: ["test_run_id"]
+            isOneToOne: false
+            referencedRelation: "process_map_test_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_map_test_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          duration_ms: number | null
+          error_details: Json | null
+          error_message: string | null
+          id: string
+          org_id: string
+          overall_result: string | null
+          run_by: string | null
+          run_config: Json | null
+          run_mode: string
+          started_at: string | null
+          status: string
+          steps_failed: number | null
+          steps_passed: number | null
+          steps_skipped: number | null
+          steps_total: number | null
+          test_data: Json | null
+          workflow_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_details?: Json | null
+          error_message?: string | null
+          id?: string
+          org_id: string
+          overall_result?: string | null
+          run_by?: string | null
+          run_config?: Json | null
+          run_mode: string
+          started_at?: string | null
+          status?: string
+          steps_failed?: number | null
+          steps_passed?: number | null
+          steps_skipped?: number | null
+          steps_total?: number | null
+          test_data?: Json | null
+          workflow_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_details?: Json | null
+          error_message?: string | null
+          id?: string
+          org_id?: string
+          overall_result?: string | null
+          run_by?: string | null
+          run_config?: Json | null
+          run_mode?: string
+          started_at?: string | null
+          status?: string
+          steps_failed?: number | null
+          steps_passed?: number | null
+          steps_skipped?: number | null
+          steps_total?: number | null
+          test_data?: Json | null
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_map_test_runs_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "process_map_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_map_test_scenarios: {
+        Row: {
+          created_at: string
+          description: string | null
+          expected_failure_step: string | null
+          expected_failure_type: string | null
+          expected_result: string
+          generated_at: string
+          id: string
+          last_run_result: Json | null
+          mock_overrides: Json | null
+          name: string
+          org_id: string
+          path: Json
+          priority: number | null
+          process_map_id: string | null
+          process_structure_hash: string | null
+          scenario_type: string
+          tags: string[] | null
+          updated_at: string
+          version: number | null
+          workflow_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          expected_failure_step?: string | null
+          expected_failure_type?: string | null
+          expected_result: string
+          generated_at?: string
+          id?: string
+          last_run_result?: Json | null
+          mock_overrides?: Json | null
+          name: string
+          org_id: string
+          path: Json
+          priority?: number | null
+          process_map_id?: string | null
+          process_structure_hash?: string | null
+          scenario_type: string
+          tags?: string[] | null
+          updated_at?: string
+          version?: number | null
+          workflow_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          expected_failure_step?: string | null
+          expected_failure_type?: string | null
+          expected_result?: string
+          generated_at?: string
+          id?: string
+          last_run_result?: Json | null
+          mock_overrides?: Json | null
+          name?: string
+          org_id?: string
+          path?: Json
+          priority?: number | null
+          process_map_id?: string | null
+          process_structure_hash?: string | null
+          scenario_type?: string
+          tags?: string[] | null
+          updated_at?: string
+          version?: number | null
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_map_test_scenarios_process_map_id_fkey"
+            columns: ["process_map_id"]
+            isOneToOne: false
+            referencedRelation: "process_maps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_map_test_scenarios_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "process_map_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_map_workflows: {
+        Row: {
+          connections: Json
+          created_at: string
+          id: string
+          is_active: boolean | null
+          mock_config: Json | null
+          org_id: string
+          parsed_at: string | null
+          process_map_id: string | null
+          steps: Json
+          test_config: Json | null
+          updated_at: string
+          version: number | null
+        }
+        Insert: {
+          connections?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          mock_config?: Json | null
+          org_id: string
+          parsed_at?: string | null
+          process_map_id?: string | null
+          steps?: Json
+          test_config?: Json | null
+          updated_at?: string
+          version?: number | null
+        }
+        Update: {
+          connections?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          mock_config?: Json | null
+          org_id?: string
+          parsed_at?: string | null
+          process_map_id?: string | null
+          steps?: Json
+          test_config?: Json | null
+          updated_at?: string
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_map_workflows_process_map_id_fkey"
+            columns: ["process_map_id"]
+            isOneToOne: false
+            referencedRelation: "process_maps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       process_maps: {
         Row: {
           created_at: string
           description: string | null
+          description_long: string | null
           generated_by: string | null
+          generation_status: string | null
           id: string
           mermaid_code: string
+          mermaid_code_horizontal: string | null
+          mermaid_code_vertical: string | null
           org_id: string
           process_name: string
+          process_structure: Json | null
           process_type: string
           title: string
           updated_at: string
@@ -10144,11 +12881,16 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          description_long?: string | null
           generated_by?: string | null
+          generation_status?: string | null
           id?: string
           mermaid_code: string
+          mermaid_code_horizontal?: string | null
+          mermaid_code_vertical?: string | null
           org_id: string
           process_name: string
+          process_structure?: Json | null
           process_type: string
           title: string
           updated_at?: string
@@ -10157,11 +12899,16 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          description_long?: string | null
           generated_by?: string | null
+          generation_status?: string | null
           id?: string
           mermaid_code?: string
+          mermaid_code_horizontal?: string | null
+          mermaid_code_vertical?: string | null
           org_id?: string
           process_name?: string
+          process_structure?: Json | null
           process_type?: string
           title?: string
           updated_at?: string
@@ -10183,7 +12930,11 @@ export type Database = {
           last_login_at: string | null
           last_name: string | null
           stage: string | null
+          timezone: string | null
           updated_at: string | null
+          week_starts_on: number | null
+          working_hours_end: number | null
+          working_hours_start: number | null
         }
         Insert: {
           auth_provider?: string | null
@@ -10198,7 +12949,11 @@ export type Database = {
           last_login_at?: string | null
           last_name?: string | null
           stage?: string | null
+          timezone?: string | null
           updated_at?: string | null
+          week_starts_on?: number | null
+          working_hours_end?: number | null
+          working_hours_start?: number | null
         }
         Update: {
           auth_provider?: string | null
@@ -10213,7 +12968,11 @@ export type Database = {
           last_login_at?: string | null
           last_name?: string | null
           stage?: string | null
+          timezone?: string | null
           updated_at?: string | null
+          week_starts_on?: number | null
+          working_hours_end?: number | null
+          working_hours_start?: number | null
         }
         Relationships: []
       }
@@ -10393,6 +13152,355 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      recording_rules: {
+        Row: {
+          created_at: string | null
+          domain_mode: string | null
+          id: string
+          internal_domain: string | null
+          is_active: boolean | null
+          max_attendee_count: number | null
+          min_attendee_count: number | null
+          name: string
+          org_id: string
+          priority: number | null
+          specific_domains: string[] | null
+          title_keywords: string[] | null
+          title_keywords_exclude: string[] | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          domain_mode?: string | null
+          id?: string
+          internal_domain?: string | null
+          is_active?: boolean | null
+          max_attendee_count?: number | null
+          min_attendee_count?: number | null
+          name: string
+          org_id: string
+          priority?: number | null
+          specific_domains?: string[] | null
+          title_keywords?: string[] | null
+          title_keywords_exclude?: string[] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          domain_mode?: string | null
+          id?: string
+          internal_domain?: string | null
+          is_active?: boolean | null
+          max_attendee_count?: number | null
+          min_attendee_count?: number | null
+          name?: string
+          org_id?: string
+          priority?: number | null
+          specific_domains?: string[] | null
+          title_keywords?: string[] | null
+          title_keywords_exclude?: string[] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recording_rules_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recording_usage: {
+        Row: {
+          created_at: string | null
+          id: string
+          org_id: string
+          period_end: string
+          period_start: string
+          recordings_count: number | null
+          recordings_limit: number | null
+          storage_used_bytes: number | null
+          total_duration_seconds: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          org_id: string
+          period_end: string
+          period_start: string
+          recordings_count?: number | null
+          recordings_limit?: number | null
+          storage_used_bytes?: number | null
+          total_duration_seconds?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          org_id?: string
+          period_end?: string
+          period_start?: string
+          recordings_count?: number | null
+          recordings_limit?: number | null
+          storage_used_bytes?: number | null
+          total_duration_seconds?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recording_usage_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recordings: {
+        Row: {
+          action_items: Json | null
+          bot_id: string | null
+          calendar_event_id: string | null
+          created_at: string | null
+          crm_activity_id: string | null
+          crm_contacts: Json | null
+          crm_deal_id: string | null
+          crm_synced: boolean | null
+          error_message: string | null
+          highlights: Json | null
+          hitl_data: Json | null
+          hitl_required: boolean | null
+          hitl_resolved_at: string | null
+          hitl_resolved_by: string | null
+          hitl_type: string | null
+          hubspot_engagement_id: string | null
+          id: string
+          meeting_duration_seconds: number | null
+          meeting_end_time: string | null
+          meeting_platform: string
+          meeting_start_time: string | null
+          meeting_title: string | null
+          meeting_url: string
+          meetingbaas_recording_id: string | null
+          org_id: string
+          recording_s3_key: string | null
+          recording_s3_url: string | null
+          speaker_identification_method: string | null
+          speakers: Json | null
+          status: string | null
+          summary: string | null
+          transcript_json: Json | null
+          transcript_s3_key: string | null
+          transcript_text: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          action_items?: Json | null
+          bot_id?: string | null
+          calendar_event_id?: string | null
+          created_at?: string | null
+          crm_activity_id?: string | null
+          crm_contacts?: Json | null
+          crm_deal_id?: string | null
+          crm_synced?: boolean | null
+          error_message?: string | null
+          highlights?: Json | null
+          hitl_data?: Json | null
+          hitl_required?: boolean | null
+          hitl_resolved_at?: string | null
+          hitl_resolved_by?: string | null
+          hitl_type?: string | null
+          hubspot_engagement_id?: string | null
+          id?: string
+          meeting_duration_seconds?: number | null
+          meeting_end_time?: string | null
+          meeting_platform: string
+          meeting_start_time?: string | null
+          meeting_title?: string | null
+          meeting_url: string
+          meetingbaas_recording_id?: string | null
+          org_id: string
+          recording_s3_key?: string | null
+          recording_s3_url?: string | null
+          speaker_identification_method?: string | null
+          speakers?: Json | null
+          status?: string | null
+          summary?: string | null
+          transcript_json?: Json | null
+          transcript_s3_key?: string | null
+          transcript_text?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          action_items?: Json | null
+          bot_id?: string | null
+          calendar_event_id?: string | null
+          created_at?: string | null
+          crm_activity_id?: string | null
+          crm_contacts?: Json | null
+          crm_deal_id?: string | null
+          crm_synced?: boolean | null
+          error_message?: string | null
+          highlights?: Json | null
+          hitl_data?: Json | null
+          hitl_required?: boolean | null
+          hitl_resolved_at?: string | null
+          hitl_resolved_by?: string | null
+          hitl_type?: string | null
+          hubspot_engagement_id?: string | null
+          id?: string
+          meeting_duration_seconds?: number | null
+          meeting_end_time?: string | null
+          meeting_platform?: string
+          meeting_start_time?: string | null
+          meeting_title?: string | null
+          meeting_url?: string
+          meetingbaas_recording_id?: string | null
+          org_id?: string
+          recording_s3_key?: string | null
+          recording_s3_url?: string | null
+          speaker_identification_method?: string | null
+          speakers?: Json | null
+          status?: string | null
+          summary?: string | null
+          transcript_json?: Json | null
+          transcript_s3_key?: string | null
+          transcript_text?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recordings_calendar_event_id_fkey"
+            columns: ["calendar_event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recordings_calendar_event_id_fkey"
+            columns: ["calendar_event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events_with_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recordings_crm_activity_id_fkey"
+            columns: ["crm_activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recordings_crm_activity_id_fkey"
+            columns: ["crm_activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities_with_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recordings_crm_deal_id_fkey"
+            columns: ["crm_deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recordings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reengagement_log: {
+        Row: {
+          action_taken: string | null
+          channel: string
+          clicked_at: string | null
+          created_at: string | null
+          delivered: boolean | null
+          delivered_at: string | null
+          id: string
+          new_segment_after: string | null
+          opened_at: string | null
+          org_id: string
+          outcome: string | null
+          reengagement_type: string
+          returned_at: string | null
+          returned_to_app: boolean | null
+          segment_at_send: string
+          sent_at: string | null
+          trigger_context: Json | null
+          trigger_entity_id: string | null
+          trigger_entity_type: string | null
+          trigger_type: string | null
+          user_id: string
+        }
+        Insert: {
+          action_taken?: string | null
+          channel: string
+          clicked_at?: string | null
+          created_at?: string | null
+          delivered?: boolean | null
+          delivered_at?: string | null
+          id?: string
+          new_segment_after?: string | null
+          opened_at?: string | null
+          org_id: string
+          outcome?: string | null
+          reengagement_type: string
+          returned_at?: string | null
+          returned_to_app?: boolean | null
+          segment_at_send: string
+          sent_at?: string | null
+          trigger_context?: Json | null
+          trigger_entity_id?: string | null
+          trigger_entity_type?: string | null
+          trigger_type?: string | null
+          user_id: string
+        }
+        Update: {
+          action_taken?: string | null
+          channel?: string
+          clicked_at?: string | null
+          created_at?: string | null
+          delivered?: boolean | null
+          delivered_at?: string | null
+          id?: string
+          new_segment_after?: string | null
+          opened_at?: string | null
+          org_id?: string
+          outcome?: string | null
+          reengagement_type?: string
+          returned_at?: string | null
+          returned_to_app?: boolean | null
+          segment_at_send?: string
+          sent_at?: string | null
+          trigger_context?: Json | null
+          trigger_entity_id?: string | null
+          trigger_entity_type?: string | null
+          trigger_type?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reengagement_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       relationship_health_history: {
         Row: {
@@ -11038,6 +14146,974 @@ export type Database = {
           },
         ]
       }
+      sentry_bridge_config: {
+        Row: {
+          created_at: string
+          default_dev_hub_project_id: string | null
+          default_priority: string | null
+          enabled: boolean
+          id: string
+          max_tickets_per_day: number | null
+          max_tickets_per_hour: number | null
+          org_id: string
+          sentry_org_slug: string | null
+          sentry_project_slugs: string[] | null
+          triage_mode_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_dev_hub_project_id?: string | null
+          default_priority?: string | null
+          enabled?: boolean
+          id?: string
+          max_tickets_per_day?: number | null
+          max_tickets_per_hour?: number | null
+          org_id: string
+          sentry_org_slug?: string | null
+          sentry_project_slugs?: string[] | null
+          triage_mode_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_dev_hub_project_id?: string | null
+          default_priority?: string | null
+          enabled?: boolean
+          id?: string
+          max_tickets_per_day?: number | null
+          max_tickets_per_hour?: number | null
+          org_id?: string
+          sentry_org_slug?: string | null
+          sentry_project_slugs?: string[] | null
+          triage_mode_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sentry_bridge_config_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sentry_bridge_metrics: {
+        Row: {
+          avg_processing_time_ms: number | null
+          bucket_end: string
+          bucket_start: string
+          created_at: string
+          dlq_items: number
+          id: string
+          max_processing_time_ms: number | null
+          org_id: string
+          tickets_created: number
+          tickets_triaged: number
+          tickets_updated: number
+          webhooks_failed: number
+          webhooks_processed: number
+          webhooks_received: number
+          webhooks_skipped: number
+        }
+        Insert: {
+          avg_processing_time_ms?: number | null
+          bucket_end: string
+          bucket_start: string
+          created_at?: string
+          dlq_items?: number
+          id?: string
+          max_processing_time_ms?: number | null
+          org_id: string
+          tickets_created?: number
+          tickets_triaged?: number
+          tickets_updated?: number
+          webhooks_failed?: number
+          webhooks_processed?: number
+          webhooks_received?: number
+          webhooks_skipped?: number
+        }
+        Update: {
+          avg_processing_time_ms?: number | null
+          bucket_end?: string
+          bucket_start?: string
+          created_at?: string
+          dlq_items?: number
+          id?: string
+          max_processing_time_ms?: number | null
+          org_id?: string
+          tickets_created?: number
+          tickets_triaged?: number
+          tickets_updated?: number
+          webhooks_failed?: number
+          webhooks_processed?: number
+          webhooks_received?: number
+          webhooks_skipped?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sentry_bridge_metrics_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sentry_bridge_queue: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          event_type: string
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          next_attempt_at: string
+          org_id: string
+          processed_at: string | null
+          routing_rule_id: string | null
+          sentry_event_id: string
+          sentry_issue_id: string
+          status: string
+          target_dev_hub_project_id: string
+          target_owner_user_id: string | null
+          target_priority: string
+          ticket_payload: Json
+          webhook_event_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          event_type: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          next_attempt_at?: string
+          org_id: string
+          processed_at?: string | null
+          routing_rule_id?: string | null
+          sentry_event_id: string
+          sentry_issue_id: string
+          status?: string
+          target_dev_hub_project_id: string
+          target_owner_user_id?: string | null
+          target_priority?: string
+          ticket_payload: Json
+          webhook_event_id: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          next_attempt_at?: string
+          org_id?: string
+          processed_at?: string | null
+          routing_rule_id?: string | null
+          sentry_event_id?: string
+          sentry_issue_id?: string
+          status?: string
+          target_dev_hub_project_id?: string
+          target_owner_user_id?: string | null
+          target_priority?: string
+          ticket_payload?: Json
+          webhook_event_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sentry_bridge_queue_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sentry_bridge_queue_routing_rule_id_fkey"
+            columns: ["routing_rule_id"]
+            isOneToOne: false
+            referencedRelation: "sentry_routing_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sentry_bridge_queue_webhook_event_id_fkey"
+            columns: ["webhook_event_id"]
+            isOneToOne: false
+            referencedRelation: "sentry_webhook_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sentry_dead_letter_queue: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          event_type: string
+          failure_reason: string
+          id: string
+          last_error_details: Json | null
+          org_id: string
+          original_payload: Json
+          original_queue_id: string
+          queue_type: string
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          sentry_issue_id: string
+          status: string
+          webhook_event_id: string
+        }
+        Insert: {
+          attempt_count: number
+          created_at?: string
+          event_type: string
+          failure_reason: string
+          id?: string
+          last_error_details?: Json | null
+          org_id: string
+          original_payload: Json
+          original_queue_id: string
+          queue_type: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          sentry_issue_id: string
+          status?: string
+          webhook_event_id: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          event_type?: string
+          failure_reason?: string
+          id?: string
+          last_error_details?: Json | null
+          org_id?: string
+          original_payload?: Json
+          original_queue_id?: string
+          queue_type?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          sentry_issue_id?: string
+          status?: string
+          webhook_event_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sentry_dead_letter_queue_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sentry_dead_letter_queue_webhook_event_id_fkey"
+            columns: ["webhook_event_id"]
+            isOneToOne: false
+            referencedRelation: "sentry_webhook_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sentry_issue_mappings: {
+        Row: {
+          created_at: string
+          dev_hub_project_id: string
+          dev_hub_status: string | null
+          dev_hub_task_id: string
+          error_hash: string | null
+          event_count: number
+          first_release: string | null
+          first_seen: string
+          id: string
+          last_seen: string
+          latest_release: string | null
+          latest_sentry_event_id: string | null
+          org_id: string
+          sentry_external_issue_id: string | null
+          sentry_issue_id: string
+          sentry_project_slug: string
+          sentry_status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dev_hub_project_id: string
+          dev_hub_status?: string | null
+          dev_hub_task_id: string
+          error_hash?: string | null
+          event_count?: number
+          first_release?: string | null
+          first_seen?: string
+          id?: string
+          last_seen?: string
+          latest_release?: string | null
+          latest_sentry_event_id?: string | null
+          org_id: string
+          sentry_external_issue_id?: string | null
+          sentry_issue_id: string
+          sentry_project_slug: string
+          sentry_status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dev_hub_project_id?: string
+          dev_hub_status?: string | null
+          dev_hub_task_id?: string
+          error_hash?: string | null
+          event_count?: number
+          first_release?: string | null
+          first_seen?: string
+          id?: string
+          last_seen?: string
+          latest_release?: string | null
+          latest_sentry_event_id?: string | null
+          org_id?: string
+          sentry_external_issue_id?: string | null
+          sentry_issue_id?: string
+          sentry_project_slug?: string
+          sentry_status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sentry_issue_mappings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sentry_routing_rules: {
+        Row: {
+          additional_labels: string[] | null
+          attach_runbook_urls: string[] | null
+          config_id: string
+          created_at: string
+          description: string | null
+          enabled: boolean
+          id: string
+          match_culprit: string | null
+          match_environment: string | null
+          match_error_message: string | null
+          match_error_type: string | null
+          match_release_pattern: string | null
+          match_sentry_project: string | null
+          match_tags: Json | null
+          name: string
+          notify_slack_channel: string | null
+          org_id: string
+          priority: number
+          target_dev_hub_project_id: string
+          target_owner_user_id: string | null
+          target_priority: string | null
+          test_mode: boolean
+          updated_at: string
+        }
+        Insert: {
+          additional_labels?: string[] | null
+          attach_runbook_urls?: string[] | null
+          config_id: string
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          match_culprit?: string | null
+          match_environment?: string | null
+          match_error_message?: string | null
+          match_error_type?: string | null
+          match_release_pattern?: string | null
+          match_sentry_project?: string | null
+          match_tags?: Json | null
+          name: string
+          notify_slack_channel?: string | null
+          org_id: string
+          priority?: number
+          target_dev_hub_project_id: string
+          target_owner_user_id?: string | null
+          target_priority?: string | null
+          test_mode?: boolean
+          updated_at?: string
+        }
+        Update: {
+          additional_labels?: string[] | null
+          attach_runbook_urls?: string[] | null
+          config_id?: string
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          match_culprit?: string | null
+          match_environment?: string | null
+          match_error_message?: string | null
+          match_error_type?: string | null
+          match_release_pattern?: string | null
+          match_sentry_project?: string | null
+          match_tags?: Json | null
+          name?: string
+          notify_slack_channel?: string | null
+          org_id?: string
+          priority?: number
+          target_dev_hub_project_id?: string
+          target_owner_user_id?: string | null
+          target_priority?: string | null
+          test_mode?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sentry_routing_rules_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "sentry_bridge_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sentry_routing_rules_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sentry_triage_queue: {
+        Row: {
+          created_at: string
+          culprit: string | null
+          environment: string | null
+          error_message: string | null
+          error_title: string
+          error_type: string | null
+          event_count: number | null
+          first_seen: string | null
+          id: string
+          matched_rule_id: string | null
+          org_id: string
+          rejection_reason: string | null
+          release_version: string | null
+          sentry_issue_id: string
+          sentry_project_slug: string
+          status: string
+          suggested_dev_hub_project_id: string | null
+          suggested_owner_user_id: string | null
+          suggested_priority: string | null
+          ticket_payload: Json
+          triaged_at: string | null
+          triaged_by: string | null
+          webhook_event_id: string
+        }
+        Insert: {
+          created_at?: string
+          culprit?: string | null
+          environment?: string | null
+          error_message?: string | null
+          error_title: string
+          error_type?: string | null
+          event_count?: number | null
+          first_seen?: string | null
+          id?: string
+          matched_rule_id?: string | null
+          org_id: string
+          rejection_reason?: string | null
+          release_version?: string | null
+          sentry_issue_id: string
+          sentry_project_slug: string
+          status?: string
+          suggested_dev_hub_project_id?: string | null
+          suggested_owner_user_id?: string | null
+          suggested_priority?: string | null
+          ticket_payload: Json
+          triaged_at?: string | null
+          triaged_by?: string | null
+          webhook_event_id: string
+        }
+        Update: {
+          created_at?: string
+          culprit?: string | null
+          environment?: string | null
+          error_message?: string | null
+          error_title?: string
+          error_type?: string | null
+          event_count?: number | null
+          first_seen?: string | null
+          id?: string
+          matched_rule_id?: string | null
+          org_id?: string
+          rejection_reason?: string | null
+          release_version?: string | null
+          sentry_issue_id?: string
+          sentry_project_slug?: string
+          status?: string
+          suggested_dev_hub_project_id?: string | null
+          suggested_owner_user_id?: string | null
+          suggested_priority?: string | null
+          ticket_payload?: Json
+          triaged_at?: string | null
+          triaged_by?: string | null
+          webhook_event_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sentry_triage_queue_matched_rule_id_fkey"
+            columns: ["matched_rule_id"]
+            isOneToOne: false
+            referencedRelation: "sentry_routing_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sentry_triage_queue_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sentry_triage_queue_webhook_event_id_fkey"
+            columns: ["webhook_event_id"]
+            isOneToOne: false
+            referencedRelation: "sentry_webhook_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sentry_webhook_events: {
+        Row: {
+          error_message: string | null
+          event_dedupe_key: string | null
+          event_type: string
+          id: string
+          org_id: string
+          processed_at: string | null
+          raw_payload: Json
+          received_at: string
+          sentry_event_id: string
+          sentry_issue_id: string | null
+          status: string
+        }
+        Insert: {
+          error_message?: string | null
+          event_dedupe_key?: string | null
+          event_type: string
+          id?: string
+          org_id: string
+          processed_at?: string | null
+          raw_payload: Json
+          received_at?: string
+          sentry_event_id: string
+          sentry_issue_id?: string | null
+          status?: string
+        }
+        Update: {
+          error_message?: string | null
+          event_dedupe_key?: string | null
+          event_type?: string
+          id?: string
+          org_id?: string
+          processed_at?: string | null
+          raw_payload?: Json
+          received_at?: string
+          sentry_event_id?: string
+          sentry_issue_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sentry_webhook_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sentry_webhook_queue: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          event_type: string
+          id: string
+          max_retries: number
+          next_retry_at: string | null
+          org_id: string
+          payload: Json
+          priority: number
+          processed_at: string | null
+          retry_count: number
+          sentry_issue_id: string
+          sentry_project_slug: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          event_type: string
+          id?: string
+          max_retries?: number
+          next_retry_at?: string | null
+          org_id: string
+          payload: Json
+          priority?: number
+          processed_at?: string | null
+          retry_count?: number
+          sentry_issue_id: string
+          sentry_project_slug?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          max_retries?: number
+          next_retry_at?: string | null
+          org_id?: string
+          payload?: Json
+          priority?: number
+          processed_at?: string | null
+          retry_count?: number
+          sentry_issue_id?: string
+          sentry_project_slug?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sentry_webhook_queue_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sequence_executions: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          current_hitl_request_id: string | null
+          error_message: string | null
+          failed_step_index: number | null
+          final_output: Json | null
+          id: string
+          input_context: Json
+          is_simulation: boolean
+          mock_data_used: Json | null
+          organization_id: string
+          sequence_key: string
+          started_at: string | null
+          status: string
+          step_results: Json
+          updated_at: string | null
+          user_id: string
+          waiting_for_hitl: boolean | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          current_hitl_request_id?: string | null
+          error_message?: string | null
+          failed_step_index?: number | null
+          final_output?: Json | null
+          id?: string
+          input_context?: Json
+          is_simulation?: boolean
+          mock_data_used?: Json | null
+          organization_id: string
+          sequence_key: string
+          started_at?: string | null
+          status?: string
+          step_results?: Json
+          updated_at?: string | null
+          user_id: string
+          waiting_for_hitl?: boolean | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          current_hitl_request_id?: string | null
+          error_message?: string | null
+          failed_step_index?: number | null
+          final_output?: Json | null
+          id?: string
+          input_context?: Json
+          is_simulation?: boolean
+          mock_data_used?: Json | null
+          organization_id?: string
+          sequence_key?: string
+          started_at?: string | null
+          status?: string
+          step_results?: Json
+          updated_at?: string | null
+          user_id?: string
+          waiting_for_hitl?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequence_executions_current_hitl_request_id_fkey"
+            columns: ["current_hitl_request_id"]
+            isOneToOne: false
+            referencedRelation: "hitl_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sequence_executions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sequence_hitl_requests: {
+        Row: {
+          assigned_to_user_id: string | null
+          channels: Json
+          created_at: string
+          default_value: string | null
+          execution_context: Json
+          execution_id: string
+          expires_at: string | null
+          id: string
+          options: Json | null
+          organization_id: string
+          prompt: string
+          request_type: string
+          requested_by_user_id: string
+          responded_at: string | null
+          responded_by_user_id: string | null
+          response_channel: string | null
+          response_context: Json | null
+          response_value: string | null
+          sequence_key: string
+          slack_channel_id: string | null
+          slack_message_ts: string | null
+          status: string
+          step_index: number
+          timeout_action: string
+          timeout_minutes: number
+          timing: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to_user_id?: string | null
+          channels?: Json
+          created_at?: string
+          default_value?: string | null
+          execution_context?: Json
+          execution_id: string
+          expires_at?: string | null
+          id?: string
+          options?: Json | null
+          organization_id: string
+          prompt: string
+          request_type: string
+          requested_by_user_id: string
+          responded_at?: string | null
+          responded_by_user_id?: string | null
+          response_channel?: string | null
+          response_context?: Json | null
+          response_value?: string | null
+          sequence_key: string
+          slack_channel_id?: string | null
+          slack_message_ts?: string | null
+          status?: string
+          step_index: number
+          timeout_action?: string
+          timeout_minutes?: number
+          timing: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to_user_id?: string | null
+          channels?: Json
+          created_at?: string
+          default_value?: string | null
+          execution_context?: Json
+          execution_id?: string
+          expires_at?: string | null
+          id?: string
+          options?: Json | null
+          organization_id?: string
+          prompt?: string
+          request_type?: string
+          requested_by_user_id?: string
+          responded_at?: string | null
+          responded_by_user_id?: string | null
+          response_channel?: string | null
+          response_context?: Json | null
+          response_value?: string | null
+          sequence_key?: string
+          slack_channel_id?: string | null
+          slack_message_ts?: string | null
+          status?: string
+          step_index?: number
+          timeout_action?: string
+          timeout_minutes?: number
+          timing?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequence_hitl_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sequence_references_archive: {
+        Row: {
+          archived_at: string
+          created_at: string
+          id: string
+          location: string
+          organization_id: string
+          reference_type: string
+          sequence_instance_id: string
+          size_bytes: number | null
+          summary: string | null
+        }
+        Insert: {
+          archived_at?: string
+          created_at?: string
+          id?: string
+          location: string
+          organization_id: string
+          reference_type: string
+          sequence_instance_id: string
+          size_bytes?: number | null
+          summary?: string | null
+        }
+        Update: {
+          archived_at?: string
+          created_at?: string
+          id?: string
+          location?: string
+          organization_id?: string
+          reference_type?: string
+          sequence_instance_id?: string
+          size_bytes?: number | null
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequence_references_archive_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sequence_token_budgets: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          over_budget: boolean
+          per_step_ceiling: number
+          sequence_instance_id: string
+          skill_result_tokens: number
+          state_tokens: number
+          step_breakdown: Json | null
+          system_prompt_tokens: number
+          total_used: number
+          updated_at: string
+          warnings: Json | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          over_budget?: boolean
+          per_step_ceiling?: number
+          sequence_instance_id: string
+          skill_result_tokens?: number
+          state_tokens?: number
+          step_breakdown?: Json | null
+          system_prompt_tokens?: number
+          total_used?: number
+          updated_at?: string
+          warnings?: Json | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          over_budget?: boolean
+          per_step_ceiling?: number
+          sequence_instance_id?: string
+          skill_result_tokens?: number
+          state_tokens?: number
+          step_breakdown?: Json | null
+          system_prompt_tokens?: number
+          total_used?: number
+          updated_at?: string
+          warnings?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequence_token_budgets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      skill_output_storage: {
+        Row: {
+          content_type: string
+          created_at: string
+          data: Json
+          expires_at: string | null
+          id: string
+          organization_id: string
+          path: string
+          size_bytes: number
+        }
+        Insert: {
+          content_type?: string
+          created_at?: string
+          data: Json
+          expires_at?: string | null
+          id?: string
+          organization_id: string
+          path: string
+          size_bytes?: number
+        }
+        Update: {
+          content_type?: string
+          created_at?: string
+          data?: Json
+          expires_at?: string | null
+          id?: string
+          organization_id?: string
+          path?: string
+          size_bytes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "skill_output_storage_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       slack_channels: {
         Row: {
           channel_id: string
@@ -11195,9 +15271,12 @@ export type Database = {
           id: string
           is_enabled: boolean | null
           org_id: string | null
+          schedule: string | null
           schedule_time: string | null
           schedule_timezone: string | null
           stakeholder_slack_ids: string[] | null
+          target_channel_id: string | null
+          thresholds: Json | null
           updated_at: string | null
         }
         Insert: {
@@ -11213,9 +15292,12 @@ export type Database = {
           id?: string
           is_enabled?: boolean | null
           org_id?: string | null
+          schedule?: string | null
           schedule_time?: string | null
           schedule_timezone?: string | null
           stakeholder_slack_ids?: string[] | null
+          target_channel_id?: string | null
+          thresholds?: Json | null
           updated_at?: string | null
         }
         Update: {
@@ -11231,9 +15313,12 @@ export type Database = {
           id?: string
           is_enabled?: boolean | null
           org_id?: string | null
+          schedule?: string | null
           schedule_time?: string | null
           schedule_timezone?: string | null
           stakeholder_slack_ids?: string[] | null
+          target_channel_id?: string | null
+          thresholds?: Json | null
           updated_at?: string | null
         }
         Relationships: [
@@ -11248,39 +15333,51 @@ export type Database = {
       }
       slack_notifications_sent: {
         Row: {
+          dedupe_key: string | null
           entity_id: string | null
+          entity_key: string | null
           entity_type: string | null
           feature: string
           id: string
+          metadata: Json | null
           org_id: string | null
           recipient_id: string | null
           recipient_type: string | null
           sent_at: string | null
           slack_channel_id: string | null
+          slack_message_ts: string | null
           slack_ts: string | null
         }
         Insert: {
+          dedupe_key?: string | null
           entity_id?: string | null
+          entity_key?: string | null
           entity_type?: string | null
           feature: string
           id?: string
+          metadata?: Json | null
           org_id?: string | null
           recipient_id?: string | null
           recipient_type?: string | null
           sent_at?: string | null
           slack_channel_id?: string | null
+          slack_message_ts?: string | null
           slack_ts?: string | null
         }
         Update: {
+          dedupe_key?: string | null
           entity_id?: string | null
+          entity_key?: string | null
           entity_type?: string | null
           feature?: string
           id?: string
+          metadata?: Json | null
           org_id?: string | null
           recipient_id?: string | null
           recipient_type?: string | null
           sent_at?: string | null
           slack_channel_id?: string | null
+          slack_message_ts?: string | null
           slack_ts?: string | null
         }
         Relationships: [
@@ -11678,6 +15775,13 @@ export type Database = {
             referencedRelation: "organization_subscriptions"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "subscription_seat_usage_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_facts_view"
+            referencedColumns: ["id"]
+          },
         ]
       }
       system_config: {
@@ -11887,6 +15991,7 @@ export type Database = {
           primary_google_list_id: string | null
           priority: string | null
           source: string | null
+          source_id: string | null
           status: string | null
           sync_status: string | null
           synced_to_lists: Json | null
@@ -11929,6 +16034,7 @@ export type Database = {
           primary_google_list_id?: string | null
           priority?: string | null
           source?: string | null
+          source_id?: string | null
           status?: string | null
           sync_status?: string | null
           synced_to_lists?: Json | null
@@ -11971,6 +16077,7 @@ export type Database = {
           primary_google_list_id?: string | null
           priority?: string | null
           source?: string | null
+          source_id?: string | null
           status?: string | null
           sync_status?: string | null
           synced_to_lists?: Json | null
@@ -12322,6 +16429,65 @@ export type Database = {
           },
         ]
       }
+      user_activity_events: {
+        Row: {
+          action_detail: string | null
+          day_of_week: number | null
+          entity_id: string | null
+          entity_type: string | null
+          event_at: string | null
+          event_category: string | null
+          event_source: string
+          event_type: string
+          hour_of_day: number | null
+          id: string
+          metadata: Json | null
+          org_id: string
+          session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          action_detail?: string | null
+          day_of_week?: number | null
+          entity_id?: string | null
+          entity_type?: string | null
+          event_at?: string | null
+          event_category?: string | null
+          event_source: string
+          event_type: string
+          hour_of_day?: number | null
+          id?: string
+          metadata?: Json | null
+          org_id: string
+          session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          action_detail?: string | null
+          day_of_week?: number | null
+          entity_id?: string | null
+          entity_type?: string | null
+          event_at?: string | null
+          event_category?: string | null
+          event_source?: string
+          event_type?: string
+          hour_of_day?: number | null
+          id?: string
+          metadata?: Json | null
+          org_id?: string
+          session_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_activity_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_ai_feature_settings: {
         Row: {
           created_at: string | null
@@ -12356,6 +16522,69 @@ export type Database = {
           model?: string
           provider?: string
           temperature?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_ai_preferences: {
+        Row: {
+          always_hitl_actions: string[] | null
+          approval_rate: number | null
+          auto_approve_threshold: number | null
+          avg_time_to_decision_seconds: number | null
+          created_at: string | null
+          edit_rate: number | null
+          id: string
+          never_auto_send: boolean | null
+          notification_frequency: string | null
+          preferred_channels: string[] | null
+          preferred_length: string | null
+          preferred_tone: string | null
+          prefers_bullet_points: boolean | null
+          prefers_ctas: boolean | null
+          rejection_rate: number | null
+          total_suggestions: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          always_hitl_actions?: string[] | null
+          approval_rate?: number | null
+          auto_approve_threshold?: number | null
+          avg_time_to_decision_seconds?: number | null
+          created_at?: string | null
+          edit_rate?: number | null
+          id?: string
+          never_auto_send?: boolean | null
+          notification_frequency?: string | null
+          preferred_channels?: string[] | null
+          preferred_length?: string | null
+          preferred_tone?: string | null
+          prefers_bullet_points?: boolean | null
+          prefers_ctas?: boolean | null
+          rejection_rate?: number | null
+          total_suggestions?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          always_hitl_actions?: string[] | null
+          approval_rate?: number | null
+          auto_approve_threshold?: number | null
+          avg_time_to_decision_seconds?: number | null
+          created_at?: string | null
+          edit_rate?: number | null
+          id?: string
+          never_auto_send?: boolean | null
+          notification_frequency?: string | null
+          preferred_channels?: string[] | null
+          preferred_length?: string | null
+          preferred_tone?: string | null
+          prefers_bullet_points?: boolean | null
+          prefers_ctas?: boolean | null
+          rejection_rate?: number | null
+          total_suggestions?: number | null
           updated_at?: string | null
           user_id?: string
         }
@@ -12495,6 +16724,145 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_engagement_metrics: {
+        Row: {
+          app_engagement_score: number | null
+          avg_daily_sessions: number | null
+          avg_session_duration_minutes: number | null
+          created_at: string | null
+          id: string
+          inferred_timezone: string | null
+          last_app_active_at: string | null
+          last_feedback_requested_at: string | null
+          last_login_at: string | null
+          last_notification_clicked_at: string | null
+          last_reengagement_at: string | null
+          last_reengagement_type: string | null
+          last_slack_active_at: string | null
+          notification_engagement_score: number | null
+          notification_fatigue_level: number | null
+          notifications_since_last_feedback: number | null
+          org_id: string
+          overall_engagement_score: number | null
+          peak_activity_hour: number | null
+          preferred_notification_frequency: string | null
+          previous_segment: string | null
+          reengagement_attempts: number | null
+          reengagement_cooldown_until: string | null
+          segment_changed_at: string | null
+          slack_engagement_score: number | null
+          typical_active_hours: Json | null
+          updated_at: string | null
+          user_id: string
+          user_segment: string | null
+        }
+        Insert: {
+          app_engagement_score?: number | null
+          avg_daily_sessions?: number | null
+          avg_session_duration_minutes?: number | null
+          created_at?: string | null
+          id?: string
+          inferred_timezone?: string | null
+          last_app_active_at?: string | null
+          last_feedback_requested_at?: string | null
+          last_login_at?: string | null
+          last_notification_clicked_at?: string | null
+          last_reengagement_at?: string | null
+          last_reengagement_type?: string | null
+          last_slack_active_at?: string | null
+          notification_engagement_score?: number | null
+          notification_fatigue_level?: number | null
+          notifications_since_last_feedback?: number | null
+          org_id: string
+          overall_engagement_score?: number | null
+          peak_activity_hour?: number | null
+          preferred_notification_frequency?: string | null
+          previous_segment?: string | null
+          reengagement_attempts?: number | null
+          reengagement_cooldown_until?: string | null
+          segment_changed_at?: string | null
+          slack_engagement_score?: number | null
+          typical_active_hours?: Json | null
+          updated_at?: string | null
+          user_id: string
+          user_segment?: string | null
+        }
+        Update: {
+          app_engagement_score?: number | null
+          avg_daily_sessions?: number | null
+          avg_session_duration_minutes?: number | null
+          created_at?: string | null
+          id?: string
+          inferred_timezone?: string | null
+          last_app_active_at?: string | null
+          last_feedback_requested_at?: string | null
+          last_login_at?: string | null
+          last_notification_clicked_at?: string | null
+          last_reengagement_at?: string | null
+          last_reengagement_type?: string | null
+          last_slack_active_at?: string | null
+          notification_engagement_score?: number | null
+          notification_fatigue_level?: number | null
+          notifications_since_last_feedback?: number | null
+          org_id?: string
+          overall_engagement_score?: number | null
+          peak_activity_hour?: number | null
+          preferred_notification_frequency?: string | null
+          previous_segment?: string | null
+          reengagement_attempts?: number | null
+          reengagement_cooldown_until?: string | null
+          segment_changed_at?: string | null
+          slack_engagement_score?: number | null
+          typical_active_hours?: Json | null
+          updated_at?: string | null
+          user_id?: string
+          user_segment?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_engagement_metrics_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_engagement_metrics_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "user_engagement_metrics_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "at_risk_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "user_engagement_metrics_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "deal_activities_with_profile"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "user_engagement_metrics_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_engagement_metrics_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "team_meeting_analytics"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       user_file_search_stores: {
         Row: {
@@ -12644,6 +17012,27 @@ export type Database = {
           onboarding_step?: string | null
           skipped_onboarding?: boolean | null
           updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_preferences: {
+        Row: {
+          created_at: string
+          recording_setup_completed_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          recording_setup_completed_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          recording_setup_completed_at?: string | null
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -12900,6 +17289,198 @@ export type Database = {
           updated_at?: string | null
           value?: Json
           workflow_id?: string | null
+        }
+        Relationships: []
+      }
+      voice_recordings: {
+        Row: {
+          action_items: Json | null
+          audio_url: string
+          company_id: string | null
+          contact_id: string | null
+          created_at: string | null
+          deal_id: string | null
+          duration_seconds: number | null
+          error_message: string | null
+          file_name: string
+          file_size_bytes: number | null
+          gladia_result_url: string | null
+          id: string
+          is_public: boolean | null
+          key_topics: Json | null
+          language: string | null
+          last_viewed_at: string | null
+          meeting_id: string | null
+          org_id: string
+          processed_at: string | null
+          recorded_at: string | null
+          recording_type: string
+          sentiment_score: number | null
+          share_token: string | null
+          share_views: number | null
+          speakers: Json | null
+          status: string
+          summary: string | null
+          title: string
+          transcript_segments: Json | null
+          transcript_text: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          action_items?: Json | null
+          audio_url: string
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          deal_id?: string | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          file_name: string
+          file_size_bytes?: number | null
+          gladia_result_url?: string | null
+          id?: string
+          is_public?: boolean | null
+          key_topics?: Json | null
+          language?: string | null
+          last_viewed_at?: string | null
+          meeting_id?: string | null
+          org_id: string
+          processed_at?: string | null
+          recorded_at?: string | null
+          recording_type?: string
+          sentiment_score?: number | null
+          share_token?: string | null
+          share_views?: number | null
+          speakers?: Json | null
+          status?: string
+          summary?: string | null
+          title?: string
+          transcript_segments?: Json | null
+          transcript_text?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          action_items?: Json | null
+          audio_url?: string
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          deal_id?: string | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          file_name?: string
+          file_size_bytes?: number | null
+          gladia_result_url?: string | null
+          id?: string
+          is_public?: boolean | null
+          key_topics?: Json | null
+          language?: string | null
+          last_viewed_at?: string | null
+          meeting_id?: string | null
+          org_id?: string
+          processed_at?: string | null
+          recorded_at?: string | null
+          recording_type?: string
+          sentiment_score?: number | null
+          share_token?: string | null
+          share_views?: number | null
+          speakers?: Json | null
+          status?: string
+          summary?: string | null
+          title?: string
+          transcript_segments?: Json | null
+          transcript_text?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_recordings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_recordings_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_recordings_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_recordings_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_recordings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vsl_video_analytics: {
+        Row: {
+          created_at: string | null
+          duration: number | null
+          event_type: string
+          id: string
+          playback_time: number | null
+          progress_percent: number | null
+          referrer: string | null
+          screen_height: number | null
+          screen_width: number | null
+          session_id: string
+          signup_source: string
+          user_agent: string | null
+          video_public_id: string
+          watch_time: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          duration?: number | null
+          event_type: string
+          id?: string
+          playback_time?: number | null
+          progress_percent?: number | null
+          referrer?: string | null
+          screen_height?: number | null
+          screen_width?: number | null
+          session_id: string
+          signup_source: string
+          user_agent?: string | null
+          video_public_id: string
+          watch_time?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          duration?: number | null
+          event_type?: string
+          id?: string
+          playback_time?: number | null
+          progress_percent?: number | null
+          referrer?: string | null
+          screen_height?: number | null
+          screen_width?: number | null
+          session_id?: string
+          signup_source?: string
+          user_agent?: string | null
+          video_public_id?: string
+          watch_time?: number | null
         }
         Relationships: []
       }
@@ -13223,6 +17804,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      webhook_events: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          event_id: string | null
+          event_type: string
+          headers: Json | null
+          id: string
+          next_retry_at: string | null
+          payload: Json
+          processed_at: string | null
+          retry_count: number | null
+          source: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          event_id?: string | null
+          event_type: string
+          headers?: Json | null
+          id?: string
+          next_retry_at?: string | null
+          payload: Json
+          processed_at?: string | null
+          retry_count?: number | null
+          source: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          event_id?: string | null
+          event_type?: string
+          headers?: Json | null
+          id?: string
+          next_retry_at?: string | null
+          payload?: Json
+          processed_at?: string | null
+          retry_count?: number | null
+          source?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       webhook_mirror_config: {
         Row: {
@@ -14058,6 +18687,32 @@ export type Database = {
           },
         ]
       }
+      deal_sentiment_trends: {
+        Row: {
+          avg_coach_rating: number | null
+          avg_sentiment: number | null
+          avg_talk_time_rep_pct: number | null
+          deal_id: string | null
+          last_meeting_at: string | null
+          max_sentiment: number | null
+          meeting_count: number | null
+          min_sentiment: number | null
+          previous_avg: number | null
+          recent_avg: number | null
+          sentiment_history: number[] | null
+          trend_delta: number | null
+          trend_direction: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deal_splits_with_users: {
         Row: {
           amount: number | null
@@ -14132,6 +18787,23 @@ export type Database = {
           pass_rate: number | null
           passed_count: number | null
           total_tests: number | null
+        }
+        Relationships: []
+      }
+      landing_page_analytics: {
+        Row: {
+          campaign: string | null
+          conversion_rate: number | null
+          conversions: number | null
+          creative_id: string | null
+          date: string | null
+          landing_page: string | null
+          lead_capture_rate: number | null
+          page_views: number | null
+          partial_signups: number | null
+          source: string | null
+          unique_sessions: number | null
+          unique_visitors: number | null
         }
         Relationships: []
       }
@@ -14221,6 +18893,34 @@ export type Database = {
           },
         ]
       }
+      meta_ads_analytics: {
+        Row: {
+          adset_id: string | null
+          campaign_id: string | null
+          conversions: number | null
+          creative_id: string | null
+          first_conversion: string | null
+          landing_page: string | null
+          last_conversion: string | null
+          medium: string | null
+          meta_campaign_id: string | null
+          signups: Json[] | null
+          source: string | null
+          source_name: string | null
+        }
+        Relationships: []
+      }
+      meta_ads_daily_summary: {
+        Row: {
+          campaigns: number | null
+          conversions: number | null
+          creatives: number | null
+          date: string | null
+          landing_page: string | null
+          source: string | null
+        }
+        Relationships: []
+      }
       monthly_ai_usage: {
         Row: {
           model: string | null
@@ -14232,6 +18932,27 @@ export type Database = {
           total_prompt_tokens: number | null
           total_tokens: number | null
           user_id: string | null
+        }
+        Relationships: []
+      }
+      mrr_current_view: {
+        Row: {
+          active_subscriptions: number | null
+          currency: string | null
+          total_mrr_cents: number | null
+          trialing_subscriptions: number | null
+        }
+        Relationships: []
+      }
+      mrr_movement_view: {
+        Row: {
+          canceled_subscriptions: number | null
+          change_date: string | null
+          churned_mrr_cents: number | null
+          currency: string | null
+          new_mrr_cents: number | null
+          new_subscriptions: number | null
+          plan_changes: number | null
         }
         Relationships: []
       }
@@ -14428,6 +19149,58 @@ export type Database = {
           },
         ]
       }
+      subscription_facts_view: {
+        Row: {
+          billing_cycle: string | null
+          cancel_at_period_end: boolean | null
+          canceled_at: string | null
+          cohort_month: string | null
+          cohort_week: string | null
+          created_at: string | null
+          currency: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          current_recurring_amount_cents: number | null
+          customer_country: string | null
+          discount_info: Json | null
+          first_payment_at: string | null
+          id: string | null
+          interval_count: number | null
+          is_active: boolean | null
+          is_trialing: boolean | null
+          last_payment_at: string | null
+          normalized_mrr_cents: number | null
+          org_id: string | null
+          plan_id: string | null
+          plan_name: string | null
+          plan_slug: string | null
+          recurring_interval: string | null
+          started_at: string | null
+          status: string | null
+          stripe_customer_id: string | null
+          stripe_price_id: string | null
+          stripe_subscription_id: string | null
+          trial_ends_at: string | null
+          trial_start_at: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_subscriptions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_meeting_analytics: {
         Row: {
           avg_coach_rating: number | null
@@ -14598,6 +19371,26 @@ export type Database = {
         }
         Relationships: []
       }
+      vsl_analytics_summary: {
+        Row: {
+          avg_completion_percent: number | null
+          avg_watch_time: number | null
+          completions: number | null
+          conversions: number | null
+          daily_conversions: number | null
+          date: string | null
+          reached_25: number | null
+          reached_50: number | null
+          reached_75: number | null
+          signup_source: string | null
+          total_plays: number | null
+          total_views: number | null
+          unique_plays: number | null
+          unique_views: number | null
+          video_public_id: string | null
+        }
+        Relationships: []
+      }
       waitlist_with_rank: {
         Row: {
           access_granted_by: string | null
@@ -14743,6 +19536,10 @@ export type Database = {
           success: boolean
         }[]
       }
+      adjust_notification_fatigue: {
+        Args: { p_adjustment: number; p_user_id: string }
+        Returns: undefined
+      }
       aggregate_company_meeting_insights: {
         Args: { p_company_id: string }
         Returns: undefined
@@ -14812,6 +19609,29 @@ export type Database = {
         }
         Returns: number
       }
+      calculate_churn_rate: {
+        Args: { p_currency?: string; p_end_date: string; p_start_date: string }
+        Returns: {
+          active_subscriptions_start: number
+          currency: string
+          mrr_churn_rate: number
+          mrr_lost_cents: number
+          mrr_start_cents: number
+          period_end: string
+          period_start: string
+          subscriber_churn_rate: number
+          subscribers_canceled: number
+        }[]
+      }
+      calculate_close_plan_progress: {
+        Args: { p_deal_id: string }
+        Returns: {
+          completed: number
+          overdue: number
+          progress_pct: number
+          total: number
+        }[]
+      }
       calculate_contact_engagement_score: {
         Args: {
           p_avg_sentiment: number
@@ -14822,6 +19642,21 @@ export type Database = {
       }
       calculate_deal_annual_value: {
         Args: { p_monthly_mrr: number; p_one_off_revenue: number }
+        Returns: number
+      }
+      calculate_deal_clarity_score: {
+        Args: { p_deal_id: string }
+        Returns: {
+          champion_score: number
+          clarity_score: number
+          economic_buyer_score: number
+          next_step_score: number
+          risks_score: number
+          success_metric_score: number
+        }[]
+      }
+      calculate_deal_momentum_score: {
+        Args: { p_deal_id: string }
         Returns: number
       }
       calculate_deal_risk_aggregate: {
@@ -14839,6 +19674,29 @@ export type Database = {
           topics_cost_cents: number
           total_cost_cents: number
           total_tokens: number
+        }[]
+      }
+      calculate_normalized_monthly_amount: {
+        Args: {
+          p_amount_cents: number
+          p_interval: string
+          p_interval_count?: number
+        }
+        Returns: number
+      }
+      calculate_realized_ltv: {
+        Args: {
+          p_cohort_end?: string
+          p_cohort_start?: string
+          p_currency?: string
+        }
+        Returns: {
+          avg_monthly_revenue_cents: number
+          cohort_month: string
+          currency: string
+          org_id: string
+          subscription_months: number
+          total_paid_cents: number
         }[]
       }
       calculate_seat_overage: {
@@ -14871,6 +19729,17 @@ export type Database = {
         Args: { p_frequency_score: number; p_recency_score: number }
         Returns: number
       }
+      calculate_trial_conversion_rate: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          avg_trial_days: number
+          conversion_rate: number
+          period_end: string
+          period_start: string
+          trials_converted: number
+          trials_started: number
+        }[]
+      }
       calculate_win_rate: {
         Args: { end_date: string; start_date: string; user_id: string }
         Returns: number
@@ -14887,6 +19756,7 @@ export type Database = {
           total_items: number
         }[]
       }
+      call_auto_join_scheduler: { Args: never; Returns: undefined }
       call_suggest_next_actions_async: {
         Args: {
           p_activity_id: string
@@ -14902,6 +19772,7 @@ export type Database = {
         Returns: boolean
       }
       can_write_to_org: { Args: { p_org_id: string }; Returns: boolean }
+      cancel_stale_notifications: { Args: never; Returns: number }
       check_cron_failures_and_notify: { Args: never; Returns: undefined }
       check_meeting_limits: {
         Args: { p_org_id: string }
@@ -14928,20 +19799,32 @@ export type Database = {
           limit_value: number
         }[]
       }
+      check_recording_quota: { Args: { p_org_id: string }; Returns: boolean }
+      check_sentry_bridge_rate_limit: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
       check_user_exists_by_email: {
         Args: { p_email: string }
+        Returns: boolean
+      }
+      claim_notification_for_processing: {
+        Args: { p_queue_id: string }
         Returns: boolean
       }
       claim_waitlist_boost: {
         Args: { p_entry_id: string; p_platform: string }
         Returns: Json
       }
+      cleanup_expired_calendar_channels: { Args: never; Returns: number }
       cleanup_expired_fathom_oauth_states: { Args: never; Returns: undefined }
       cleanup_expired_google_oauth_states: { Args: never; Returns: undefined }
       cleanup_expired_google_tokens: { Args: never; Returns: undefined }
       cleanup_expired_hubspot_oauth_states: { Args: never; Returns: undefined }
       cleanup_expired_justcall_oauth_states: { Args: never; Returns: undefined }
+      cleanup_expired_skill_outputs: { Args: never; Returns: number }
       cleanup_notification_rate_limits: { Args: never; Returns: number }
+      cleanup_old_api_monitor_snapshots: { Args: never; Returns: number }
       cleanup_old_cron_logs: { Args: never; Returns: undefined }
       cleanup_old_notifications: { Args: never; Returns: undefined }
       cleanup_old_rate_limits: { Args: never; Returns: undefined }
@@ -14950,9 +19833,21 @@ export type Database = {
         Returns: number
       }
       clear_audit_context: { Args: never; Returns: undefined }
+      complete_sentry_bridge_item: {
+        Args: { dev_hub_task_id: string; item_id: string; mapping_id?: string }
+        Returns: undefined
+      }
       complete_transcript_retry_job: {
         Args: { p_meeting_id: string }
         Returns: undefined
+      }
+      compute_improvement_deltas: {
+        Args: { p_improvement_id: string }
+        Returns: {
+          actual_delta_error_rate: number
+          actual_delta_requests_per_day: number
+          actual_delta_requests_per_user_per_day: number
+        }[]
       }
       create_api_key: {
         Args: {
@@ -14975,6 +19870,31 @@ export type Database = {
           p_supabase_user_id: string
         }
         Returns: boolean
+      }
+      create_default_recording_rules: {
+        Args: { p_org_id: string }
+        Returns: undefined
+      }
+      create_hitl_approval: {
+        Args: {
+          p_callback_metadata?: Json
+          p_callback_target?: string
+          p_callback_type?: string
+          p_created_by?: string
+          p_expires_hours?: number
+          p_metadata?: Json
+          p_org_id: string
+          p_original_content: Json
+          p_resource_id: string
+          p_resource_name: string
+          p_resource_type: string
+          p_slack_channel_id: string
+          p_slack_message_ts: string
+          p_slack_team_id: string
+          p_slack_thread_ts?: string
+          p_user_id: string
+        }
+        Returns: string
       }
       create_org_admin_notification: {
         Args: {
@@ -15028,13 +19948,46 @@ export type Database = {
         Returns: Json
       }
       current_user_id: { Args: never; Returns: string }
-      current_user_orgs: {
-        Args: { p_user_id: string }
-        Returns: {
-          org_id: string
-        }[]
-      }
+      current_user_orgs:
+        | { Args: never; Returns: string[] }
+        | {
+            Args: { p_user_id: string }
+            Returns: {
+              org_id: string
+            }[]
+          }
       custom_auth_uid: { Args: never; Returns: string }
+      dequeue_sentry_bridge_item: {
+        Args: { batch_size?: number; lock_duration_seconds?: number }
+        Returns: {
+          attempt_count: number
+          created_at: string
+          event_type: string
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          next_attempt_at: string
+          org_id: string
+          processed_at: string | null
+          routing_rule_id: string | null
+          sentry_event_id: string
+          sentry_issue_id: string
+          status: string
+          target_dev_hub_project_id: string
+          target_owner_user_id: string | null
+          target_priority: string
+          ticket_payload: Json
+          webhook_event_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "sentry_bridge_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       dismiss_next_action_suggestion: {
         Args: { p_feedback?: string; p_suggestion_id: string }
         Returns: boolean
@@ -15056,7 +20009,14 @@ export type Database = {
         }
         Returns: Json
       }
+      expire_hitl_approvals: { Args: never; Returns: number }
+      expire_hitl_requests: { Args: never; Returns: number }
       expire_old_recommendations: { Args: never; Returns: number }
+      expire_pending_hitl_requests: { Args: never; Returns: number }
+      fail_sentry_bridge_item: {
+        Args: { error_msg: string; item_id: string; move_to_dlq?: boolean }
+        Returns: undefined
+      }
       find_orgs_by_email_domain: {
         Args: { p_domain: string; p_user_id: string }
         Returns: {
@@ -15325,6 +20285,16 @@ export type Database = {
           total_notes: number
         }[]
       }
+      get_content_triggers_for_user: {
+        Args: { p_user_id: string }
+        Returns: {
+          context: Json
+          entity_id: string
+          entity_type: string
+          priority: number
+          trigger_type: string
+        }[]
+      }
       get_content_with_topics: {
         Args: { p_content_id: string }
         Returns: {
@@ -15391,6 +20361,39 @@ export type Database = {
           pinned_notes: number
           recent_notes: number
           total_notes: number
+        }[]
+      }
+      get_deal_truth_snapshot: {
+        Args: { p_deal_id: string }
+        Returns: {
+          champion_strength: string
+          confidence: number
+          contact_name: string
+          field_key: string
+          next_step_date: string
+          source: string
+          value: string
+        }[]
+      }
+      get_deals_needing_attention: {
+        Args: {
+          p_limit?: number
+          p_min_clarity_score?: number
+          p_org_id: string
+          p_user_id?: string
+        }
+        Returns: {
+          clarity_score: number
+          close_plan_progress: number
+          company_name: string
+          deal_id: string
+          deal_name: string
+          deal_stage: string
+          deal_value: number
+          health_status: string
+          momentum_score: number
+          owner_user_id: string
+          risk_level: string
         }[]
       }
       get_default_waitlist_email_template: {
@@ -15618,6 +20621,29 @@ export type Database = {
           topics: Json
         }[]
       }
+      get_meetings_for_drill_down: {
+        Args: {
+          p_limit?: number
+          p_metric_type: string
+          p_org_id: string
+          p_period_days?: number
+          p_user_id?: string
+        }
+        Returns: {
+          company_name: string
+          duration_minutes: number
+          has_forward_movement: boolean
+          has_objection: boolean
+          meeting_date: string
+          meeting_id: string
+          outcome: string
+          owner_name: string
+          owner_user_id: string
+          sentiment_score: number
+          talk_time_pct: number
+          title: string
+        }[]
+      }
       get_meetings_with_competitors: {
         Args: { p_date_from?: string; p_date_to?: string; p_org_id: string }
         Returns: {
@@ -15639,6 +20665,16 @@ export type Database = {
           next_steps: Json
           owner_user_id: string
           positive_signals: Json
+        }[]
+      }
+      get_mrr_by_date_range: {
+        Args: { p_currency?: string; p_end_date: string; p_start_date: string }
+        Returns: {
+          active_subscriptions: number
+          currency: string
+          date: string
+          mrr_cents: number
+          trialing_subscriptions: number
         }[]
       }
       get_my_google_integration: {
@@ -15678,6 +20714,19 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      get_notification_candidates_for_testing: {
+        Args: { p_limit?: number; p_org_id?: string }
+        Returns: {
+          email: string
+          full_name: string
+          notification_fatigue_level: number
+          org_id: string
+          preferred_notification_frequency: string
+          segment: string
+          slack_user_id: string
+          user_id: string
+        }[]
+      }
       get_notification_health_summary: { Args: never; Returns: Json }
       get_or_create_sync_status: {
         Args: { p_user_id: string }
@@ -15693,6 +20742,7 @@ export type Database = {
       }
       get_org_email_label_mode: { Args: { p_org_id: string }; Returns: string }
       get_org_file_search_store: { Args: { p_org_id: string }; Returns: string }
+      get_org_internal_domain: { Args: { p_org_id: string }; Returns: string }
       get_org_limits: {
         Args: { p_org_id: string }
         Returns: {
@@ -15763,6 +20813,44 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_organization_context: {
+        Args: { p_org_id: string }
+        Returns: {
+          confidence: number
+          context_key: string
+          source: string
+          value: Json
+          value_type: string
+        }[]
+      }
+      get_organization_context_object: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
+      get_organization_skills_for_agent: {
+        Args: { p_org_id: string }
+        Returns: {
+          category: string
+          content: string
+          frontmatter: Json
+          is_enabled: boolean
+          skill_key: string
+        }[]
+      }
+      get_organization_skills_summary: {
+        Args: { p_org_id: string }
+        Returns: {
+          category: string
+          is_compiled: boolean
+          is_enabled: boolean
+          last_compiled_at: string
+          needs_compilation: boolean
+          org_version: number
+          platform_version: number
+          skill_id: string
+          skill_name: string
+        }[]
+      }
       get_pending_aggregation_count: {
         Args: { p_user_id: string }
         Returns: number
@@ -15778,6 +20866,42 @@ export type Database = {
           priority: string
           task_id: string
           title: string
+        }[]
+      }
+      get_pending_hitl_requests: {
+        Args: { p_user_id: string }
+        Returns: {
+          created_at: string
+          default_value: string
+          execution_context: Json
+          execution_id: string
+          expires_at: string
+          id: string
+          options: Json
+          prompt: string
+          request_type: string
+          sequence_key: string
+          step_index: number
+          timeout_action: string
+          timeout_minutes: number
+        }[]
+      }
+      get_pending_notifications: {
+        Args: { p_channel?: string; p_limit?: number }
+        Returns: {
+          channel: string
+          engagement_score: number
+          metadata: Json
+          notification_fatigue: number
+          notification_type: string
+          optimal_send_time: string
+          org_id: string
+          payload: Json
+          preferred_frequency: string
+          priority: string
+          queue_id: string
+          scheduled_for: string
+          user_id: string
         }[]
       }
       get_pending_suggestions_count: {
@@ -15796,6 +20920,18 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_platform_skill: {
+        Args: { p_skill_key: string }
+        Returns: {
+          category: string
+          content_template: string
+          frontmatter: Json
+          id: string
+          is_active: boolean
+          skill_key: string
+          version: number
+        }[]
+      }
       get_profile_for_current_user: {
         Args: never
         Returns: {
@@ -15811,7 +20947,11 @@ export type Database = {
           last_login_at: string | null
           last_name: string | null
           stage: string | null
+          timezone: string | null
           updated_at: string | null
+          week_starts_on: number | null
+          working_hours_end: number | null
+          working_hours_start: number | null
         }[]
         SetofOptions: {
           from: "*"
@@ -15819,6 +20959,25 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      get_prompt_template: {
+        Args: {
+          p_category: string
+          p_organization_id?: string
+          p_user_id?: string
+        }
+        Returns: {
+          category: string
+          description: string
+          id: string
+          max_tokens: number
+          model: string
+          name: string
+          source: string
+          system_prompt: string
+          temperature: number
+          user_prompt: string
+        }[]
       }
       get_public_subscription_plans: {
         Args: never
@@ -15845,6 +21004,33 @@ export type Database = {
           price_yearly: number
           slug: string
           trial_days: number
+        }[]
+      }
+      get_reengagement_candidates: {
+        Args: { p_limit?: number; p_org_id?: string; p_segment?: string }
+        Returns: {
+          days_inactive: number
+          email: string
+          full_name: string
+          last_reengagement_at: string
+          last_reengagement_type: string
+          org_id: string
+          overall_engagement_score: number
+          reengagement_attempts: number
+          segment: string
+          slack_user_id: string
+          user_id: string
+        }[]
+      }
+      get_reengagement_stats: {
+        Args: { p_days?: number; p_org_id?: string }
+        Returns: {
+          opened_count: number
+          returned_count: number
+          segment: string
+          sent_count: number
+          success_rate: number
+          total_candidates: number
         }[]
       }
       get_rep_scorecard_stats: {
@@ -15876,6 +21062,31 @@ export type Database = {
         Args: { contact_id_param: string }
         Returns: string
       }
+      get_sequence_executions: {
+        Args: {
+          p_is_simulation?: boolean
+          p_limit?: number
+          p_organization_id?: string
+          p_sequence_key?: string
+          p_status?: string
+        }
+        Returns: {
+          completed_at: string
+          duration_ms: number
+          error_message: string
+          failed_step_index: number
+          final_output: Json
+          id: string
+          input_context: Json
+          is_simulation: boolean
+          organization_id: string
+          sequence_key: string
+          started_at: string
+          status: string
+          step_results: Json
+          user_id: string
+        }[]
+      }
       get_share_stats: {
         Args: { entry_id: string }
         Returns: {
@@ -15887,6 +21098,28 @@ export type Database = {
           linkedin_shares: number
           total_shares: number
           twitter_shares: number
+        }[]
+      }
+      get_skills_needing_compilation: {
+        Args: never
+        Returns: {
+          org_skill_id: string
+          organization_id: string
+          platform_content: string
+          platform_frontmatter: Json
+          platform_skill_id: string
+          platform_version: number
+          skill_key: string
+          user_overrides: Json
+        }[]
+      }
+      get_skills_needing_recompile: {
+        Args: { p_org_id?: string }
+        Returns: {
+          organization_id: string
+          platform_skill_id: string
+          platform_version: number
+          skill_key: string
         }[]
       }
       get_slack_org_settings_public: {
@@ -15918,6 +21151,21 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_subscription_retention_cohorts: {
+        Args: {
+          p_cohort_end: string
+          p_cohort_start: string
+          p_retention_months?: number[]
+        }
+        Returns: {
+          cohort_month: string
+          cohort_size: number
+          mrr_retained_cents: number
+          retained_count: number
+          retention_month: number
+          retention_rate: number
+        }[]
+      }
       get_supabase_id_for_clerk_user: {
         Args: { p_clerk_user_id: string }
         Returns: string
@@ -15930,6 +21178,51 @@ export type Database = {
           config_id: string
           google_list_id: string
           list_title: string
+        }[]
+      }
+      get_team_aggregates_with_comparison: {
+        Args: { p_org_id: string; p_period_days?: number }
+        Returns: {
+          coach_rating_change_pct: number
+          current_avg_coach_rating: number
+          current_avg_sentiment: number
+          current_avg_talk_time: number
+          current_forward_movement_count: number
+          current_negative_count: number
+          current_objection_count: number
+          current_positive_count: number
+          current_positive_outcome_count: number
+          current_team_members: number
+          current_total_duration: number
+          current_total_meetings: number
+          forward_movement_change_pct: number
+          meetings_change_pct: number
+          positive_outcome_change_pct: number
+          previous_avg_coach_rating: number
+          previous_avg_sentiment: number
+          previous_avg_talk_time: number
+          previous_forward_movement_count: number
+          previous_positive_count: number
+          previous_positive_outcome_count: number
+          previous_total_meetings: number
+          sentiment_change_pct: number
+          talk_time_change_pct: number
+        }[]
+      }
+      get_team_comparison_matrix: {
+        Args: { p_org_id: string; p_period_days?: number }
+        Returns: {
+          avatar_url: string
+          avg_coach_rating: number
+          avg_sentiment: number
+          avg_talk_time: number
+          forward_movement_rate: number
+          positive_outcome_rate: number
+          total_meetings: number
+          trend_data: Json
+          user_email: string
+          user_id: string
+          user_name: string
         }[]
       }
       get_team_members_with_connected_accounts: {
@@ -15952,6 +21245,29 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_team_quality_signals: {
+        Args: { p_org_id: string; p_period_days?: number; p_user_id?: string }
+        Returns: {
+          avg_coach_rating: number
+          avg_sentiment: number
+          avg_talk_time: number
+          classified_meetings: number
+          competitor_mention_count: number
+          forward_movement_count: number
+          forward_movement_rate: number
+          negative_outcome_count: number
+          neutral_outcome_count: number
+          objection_count: number
+          objection_rate: number
+          positive_outcome_count: number
+          positive_outcome_rate: number
+          pricing_discussion_count: number
+          total_meetings: number
+          user_email: string
+          user_id: string
+          user_name: string
+        }[]
+      }
       get_team_scorecard_leaderboard: {
         Args: {
           p_date_from?: string
@@ -15967,6 +21283,27 @@ export type Database = {
           rep_user_id: string
           top_improvement_area: string
           top_strength: string
+        }[]
+      }
+      get_team_time_series_metrics: {
+        Args: {
+          p_granularity?: string
+          p_org_id: string
+          p_period_days?: number
+          p_user_id?: string
+        }
+        Returns: {
+          avg_coach_rating: number
+          avg_sentiment: number
+          avg_talk_time: number
+          forward_movement_count: number
+          meeting_count: number
+          negative_count: number
+          period_start: string
+          positive_count: number
+          total_duration: number
+          user_id: string
+          user_name: string
         }[]
       }
       get_top_objections: {
@@ -16014,6 +21351,18 @@ export type Database = {
         Args: { contact_id_param: string; days?: number }
         Returns: number
       }
+      get_unprocessed_billing_events: {
+        Args: { p_limit?: number; p_provider?: string }
+        Returns: {
+          event_type: string
+          id: string
+          occurred_at: string
+          org_id: string
+          payload: Json
+          provider: string
+          provider_event_id: string
+        }[]
+      }
       get_unread_notification_count: { Args: never; Returns: number }
       get_unread_sentiment_alert_count: { Args: never; Returns: number }
       get_unresolved_ghost_signals_count: {
@@ -16056,8 +21405,10 @@ export type Database = {
           expires_at: string | null
           id: string
           is_active: boolean | null
+          last_token_refresh: string | null
           refresh_token: string | null
           scopes: string
+          token_status: string | null
           updated_at: string | null
           user_id: string
         }[]
@@ -16073,6 +21424,14 @@ export type Database = {
         Returns: string
       }
       get_user_id_from_email: { Args: { email_input: string }; Returns: string }
+      get_user_notification_counts: {
+        Args: { p_user_id: string }
+        Returns: {
+          day_count: number
+          hour_count: number
+          last_sent_at: string
+        }[]
+      }
       get_user_org_id:
         | { Args: never; Returns: string }
         | { Args: { p_user_id: string }; Returns: string }
@@ -16090,12 +21449,58 @@ export type Database = {
           role: string
         }[]
       }
+      get_user_pending_approvals: {
+        Args: { p_limit?: number; p_org_id?: string; p_user_id: string }
+        Returns: {
+          actioned_at: string | null
+          actioned_by: string | null
+          callback_metadata: Json | null
+          callback_target: string | null
+          callback_type: string | null
+          created_at: string | null
+          created_by: string | null
+          edited_content: Json | null
+          expires_at: string | null
+          id: string
+          metadata: Json | null
+          org_id: string
+          original_content: Json
+          resource_id: string
+          resource_name: string | null
+          resource_type: string
+          response: Json | null
+          slack_channel_id: string
+          slack_message_ts: string
+          slack_team_id: string
+          slack_thread_ts: string | null
+          status: string
+          updated_at: string | null
+          user_id: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "hitl_pending_approvals"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_user_primary_org: { Args: never; Returns: string }
       get_user_timezone_from_calendar: {
         Args: { p_user_id: string }
         Returns: string
       }
       get_user_uuid_from_clerk: { Args: never; Returns: string }
+      get_users_due_for_feedback: {
+        Args: { p_limit?: number; p_org_id?: string }
+        Returns: {
+          days_since_last_feedback: number
+          notifications_since_last_feedback: number
+          org_id: string
+          reason: string
+          slack_user_id: string
+          user_id: string
+        }[]
+      }
       get_users_with_targets: {
         Args: never
         Returns: {
@@ -16113,6 +21518,14 @@ export type Database = {
       }
       get_waitlist_analytics: { Args: never; Returns: Json }
       get_waitlist_onboarding_analytics: { Args: never; Returns: Json }
+      handle_hitl_response: {
+        Args: {
+          p_request_id: string
+          p_response_context?: Json
+          p_response_value: string
+        }
+        Returns: Json
+      }
       has_notification_flood: { Args: never; Returns: boolean }
       hash_api_key: { Args: { key_text: string }; Returns: string }
       hubspot_dequeue_jobs: {
@@ -16130,6 +21543,7 @@ export type Database = {
           payload: Json
           priority: number
           run_after: string
+          updated_at: string | null
         }[]
         SetofOptions: {
           from: "*"
@@ -16144,11 +21558,64 @@ export type Database = {
         Args: { code_value: string }
         Returns: undefined
       }
+      increment_notification_count: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
       increment_proposal_views: {
         Args: { p_share_token: string }
         Returns: undefined
       }
+      increment_recording_usage: {
+        Args: {
+          p_duration_seconds?: number
+          p_org_id: string
+          p_period?: string
+          p_storage_bytes?: number
+        }
+        Returns: {
+          created_at: string | null
+          id: string
+          org_id: string
+          period_end: string
+          period_start: string
+          recordings_count: number | null
+          recordings_limit: number | null
+          storage_used_bytes: number | null
+          total_duration_seconds: number | null
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "recording_usage"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      increment_sentry_bridge_metrics: {
+        Args: {
+          p_date: string
+          p_errors?: number
+          p_org_id: string
+          p_processing_time_ms?: number
+          p_tickets_created?: number
+          p_tickets_updated?: number
+        }
+        Returns: undefined
+      }
       increment_source_count: { Args: { topic_id: string }; Returns: number }
+      increment_voice_recording_views: {
+        Args: { p_share_token: string }
+        Returns: undefined
+      }
+      initialize_deal_close_plan: {
+        Args: { p_deal_id: string; p_org_id: string; p_owner_id?: string }
+        Returns: undefined
+      }
+      initialize_user_engagement_metrics: {
+        Args: { p_org_id: string; p_user_id: string }
+        Returns: string
+      }
       is_admin: { Args: never; Returns: boolean }
       is_admin_optimized: { Args: never; Returns: boolean }
       is_clerk_admin: { Args: never; Returns: boolean }
@@ -16160,8 +21627,11 @@ export type Database = {
       }
       is_org_owner: { Args: { p_org_id: string }; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
+      is_platform_admin_for_testing: { Args: never; Returns: boolean }
       is_service_role: { Args: never; Returns: boolean }
-      is_super_admin: { Args: { p_user_id: string }; Returns: boolean }
+      is_super_admin:
+        | { Args: never; Returns: boolean }
+        | { Args: { p_user_id: string }; Returns: boolean }
       is_task_from_meeting: { Args: { p_task_id: string }; Returns: boolean }
       is_user_admin: { Args: { user_id: string }; Returns: boolean }
       link_profile_to_clerk_user: {
@@ -16198,14 +21668,41 @@ export type Database = {
         }
         Returns: string
       }
+      log_user_activity_event: {
+        Args: {
+          p_action_detail?: string
+          p_entity_id?: string
+          p_entity_type?: string
+          p_event_category?: string
+          p_event_source: string
+          p_event_type: string
+          p_metadata?: Json
+          p_org_id: string
+          p_session_id?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       map_deal_activity_to_main_activity: {
         Args: { deal_activity_type: string }
         Returns: string
       }
       mark_all_notifications_read: { Args: never; Returns: number }
+      mark_billing_event_processed: {
+        Args: { p_error?: string; p_id: string }
+        Returns: undefined
+      }
+      mark_notification_failed: {
+        Args: { p_error_message: string; p_queue_id: string }
+        Returns: undefined
+      }
       mark_notification_read: {
         Args: { p_notification_id: string }
         Returns: boolean
+      }
+      mark_notification_sent: {
+        Args: { p_interaction_id?: string; p_queue_id: string }
+        Returns: undefined
       }
       mark_onboarding_complete: {
         Args: { p_org_id: string }
@@ -16214,6 +21711,16 @@ export type Database = {
       mark_sentiment_alert_read: {
         Args: { p_alert_id: string }
         Returns: undefined
+      }
+      mark_skill_compiled: {
+        Args: {
+          p_compiled_content: string
+          p_compiled_frontmatter: Json
+          p_org_skill_id: string
+          p_platform_skill_id: string
+          p_platform_version: number
+        }
+        Returns: boolean
       }
       mark_waitlist_onboarding_step: {
         Args: { p_step: string; p_user_id: string }
@@ -16233,16 +21740,77 @@ export type Database = {
       }
       migrate_existing_list_configs: { Args: never; Returns: undefined }
       normalize_org_name: { Args: { raw_name: string }; Returns: string }
+      notify_api_monitor_improvements: { Args: never; Returns: undefined }
       notify_overdue_tasks: { Args: never; Returns: Json }
       notify_upcoming_task_deadlines: { Args: never; Returns: Json }
       org_has_feature: {
         Args: { p_feature_key: string; p_org_id: string }
         Returns: boolean
       }
+      process_hitl_action: {
+        Args: {
+          p_action: string
+          p_actioned_by: string
+          p_approval_id: string
+          p_edited_content?: Json
+          p_response?: Json
+        }
+        Returns: {
+          actioned_at: string | null
+          actioned_by: string | null
+          callback_metadata: Json | null
+          callback_target: string | null
+          callback_type: string | null
+          created_at: string | null
+          created_by: string | null
+          edited_content: Json | null
+          expires_at: string | null
+          id: string
+          metadata: Json | null
+          org_id: string
+          original_content: Json
+          resource_id: string
+          resource_name: string | null
+          resource_type: string
+          response: Json | null
+          slack_channel_id: string
+          slack_message_ts: string
+          slack_team_id: string
+          slack_thread_ts: string | null
+          status: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hitl_pending_approvals"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      queue_notification: {
+        Args: {
+          p_channel: string
+          p_dedupe_key?: string
+          p_dedupe_window_minutes?: number
+          p_metadata?: Json
+          p_notification_type: string
+          p_org_id: string
+          p_payload: Json
+          p_priority?: string
+          p_related_entity_id?: string
+          p_related_entity_type?: string
+          p_scheduled_for?: string
+          p_send_deadline?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       reanalyze_action_items_with_ai: {
         Args: { p_meeting_id?: string }
         Returns: Json
       }
+      reconcile_billing_subscriptions: { Args: never; Returns: undefined }
       record_activation_event: {
         Args: { p_event_data?: Json; p_event_type: string; p_user_id: string }
         Returns: string
@@ -16257,6 +21825,38 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      record_notification_interaction: {
+        Args: {
+          p_delivered_via: string
+          p_notification_id?: string
+          p_notification_type: string
+          p_org_id: string
+          p_slack_notification_sent_id?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      record_notification_preference_feedback: {
+        Args: { p_feedback_value: string; p_user_id: string }
+        Returns: undefined
+      }
+      record_reengagement_attempt: {
+        Args: {
+          p_channel: string
+          p_org_id: string
+          p_reengagement_type: string
+          p_trigger_context?: Json
+          p_trigger_entity_id?: string
+          p_trigger_entity_type?: string
+          p_trigger_type?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      record_reengagement_response: {
+        Args: { p_action: string; p_action_detail?: string; p_log_id: string }
+        Returns: undefined
       }
       record_usage_event: {
         Args: {
@@ -16320,6 +21920,10 @@ export type Database = {
         Args: { p_admin_user_id: string; p_entry_id: string }
         Returns: Json
       }
+      reset_prompt_to_default: {
+        Args: { p_category: string }
+        Returns: boolean
+      }
       resolve_deal_migration_review: {
         Args: {
           p_company_id: string
@@ -16334,9 +21938,56 @@ export type Database = {
         Args: { p_fathom_email: string; p_org_id: string }
         Returns: string
       }
+      respond_to_hitl_request: {
+        Args: {
+          p_request_id: string
+          p_response_channel?: string
+          p_response_context?: Json
+          p_response_value: string
+        }
+        Returns: boolean
+      }
       retry_roadmap_sync: {
         Args: { suggestion_id_param: string }
         Returns: undefined
+      }
+      save_compiled_organization_skill: {
+        Args: {
+          p_compiled_content: string
+          p_compiled_frontmatter: Json
+          p_org_id: string
+          p_platform_skill_id: string
+          p_platform_version: number
+          p_skill_key: string
+        }
+        Returns: string
+      }
+      save_organization_skill: {
+        Args: {
+          p_ai_generated?: boolean
+          p_change_reason?: string
+          p_config: Json
+          p_org_id: string
+          p_skill_id: string
+          p_skill_name: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      save_prompt_template: {
+        Args: {
+          p_category: string
+          p_description?: string
+          p_is_public?: boolean
+          p_max_tokens?: number
+          p_model?: string
+          p_name: string
+          p_organization_id?: string
+          p_system_prompt: string
+          p_temperature?: number
+          p_user_prompt: string
+        }
+        Returns: string
       }
       search_meetings_by_owner: {
         Args: {
@@ -16384,6 +22035,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      should_request_feedback: {
+        Args: { p_user_id: string }
+        Returns: {
+          days_since_last_feedback: number
+          notifications_since_last_feedback: number
+          reason: string
+          should_request: boolean
+        }[]
+      }
       sync_action_item_to_task: {
         Args: { action_item_id: string }
         Returns: string
@@ -16403,6 +22063,26 @@ export type Database = {
       }
       trigger_all_task_notifications: { Args: never; Returns: Json }
       trigger_fathom_hourly_sync: { Args: never; Returns: undefined }
+      update_notification_interaction: {
+        Args: {
+          p_action: string
+          p_action_taken?: string
+          p_feedback_rating?: string
+          p_interaction_id: string
+        }
+        Returns: undefined
+      }
+      update_subscription_facts: {
+        Args: {
+          p_customer_country?: string
+          p_discount_info?: Json
+          p_interval: string
+          p_interval_count?: number
+          p_recurring_amount_cents: number
+          p_subscription_id: string
+        }
+        Returns: undefined
+      }
       update_template_performance: {
         Args: {
           clicked?: boolean
@@ -16418,6 +22098,21 @@ export type Database = {
         Args: { p_timezone: string; p_user_id: string }
         Returns: undefined
       }
+      upsert_deal_clarity_score: {
+        Args: { p_deal_id: string; p_org_id: string }
+        Returns: undefined
+      }
+      upsert_organization_context: {
+        Args: {
+          p_confidence?: number
+          p_context_key: string
+          p_org_id: string
+          p_source: string
+          p_value: Json
+          p_value_type: string
+        }
+        Returns: string
+      }
       user_org_ids: { Args: { p_user_id: string }; Returns: string[] }
       user_owns_execution: {
         Args: { p_execution_id: string }
@@ -16426,6 +22121,10 @@ export type Database = {
       user_owns_workflow: { Args: { p_workflow_id: string }; Returns: boolean }
       user_shares_org_with: {
         Args: { target_user_id: string }
+        Returns: boolean
+      }
+      users_share_organization: {
+        Args: { user_a: string; user_b: string }
         Returns: boolean
       }
       validate_api_key:
@@ -16491,6 +22190,11 @@ export type Database = {
         | "signed"
         | "deposit_paid"
         | "notice_given"
+      meeting_processing_status:
+        | "pending"
+        | "processing"
+        | "complete"
+        | "failed"
       member_role: "member" | "leader" | "admin"
       waitlist_status: "pending" | "released" | "declined" | "converted"
     }
@@ -16636,6 +22340,12 @@ export const Constants = {
         "signed",
         "deposit_paid",
         "notice_given",
+      ],
+      meeting_processing_status: [
+        "pending",
+        "processing",
+        "complete",
+        "failed",
       ],
       member_role: ["member", "leader", "admin"],
       waitlist_status: ["pending", "released", "declined", "converted"],
