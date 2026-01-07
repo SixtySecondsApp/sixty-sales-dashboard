@@ -15,7 +15,9 @@
 
 import { serve } from 'https://deno.land/std@0.190.0/http/server.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { legacyCorsHeaders as corsHeaders } from '../_shared/corsHelper.ts';
+import { S3Client, PutObjectCommand, HeadObjectCommand } from 'npm:@aws-sdk/client-s3@3';
+import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3';
+import { handleCorsPreflightRequest, getCorsHeaders, jsonResponse, errorResponse } from '../_shared/corsHelper.ts';
 import { captureException, addBreadcrumb } from '../_shared/sentryEdge.ts';
 import { hmacSha256Hex, timingSafeEqual } from '../_shared/use60Signing.ts';
 
@@ -29,6 +31,8 @@ type MeetingBaaSEventType =
   | 'bot.in_meeting'
   | 'bot.left'
   | 'bot.failed'
+  | 'bot.status_change'
+  | 'bot.completed'
   // Recording/transcript events
   | 'recording.ready'
   | 'transcript.ready'
@@ -42,6 +46,53 @@ type MeetingBaaSEventType =
   | 'calendar_event.updated'
   | 'calendar_event.deleted';
 
+type MeetingBaaSStatusCode =
+  | 'joining_call'
+  | 'in_waiting_room'
+  | 'in_call_not_recording'
+  | 'in_call_recording'
+  | 'call_ended'
+  | 'recording_done'
+  | 'error';
+
+// Raw webhook payload from MeetingBaaS (actual format)
+interface MeetingBaaSRawWebhookPayload {
+  event: MeetingBaaSEventType;
+  data: {
+    bot_id: string;
+    // For bot.status_change
+    status?: {
+      code: MeetingBaaSStatusCode;
+    };
+    // For bot.completed
+    audio?: string;
+    video?: string;
+    duration_seconds?: number;
+    joined_at?: string;
+    exited_at?: string;
+    // For recording/transcript
+    transcript?: {
+      text: string;
+      utterances: Array<{
+        speaker: number;
+        start: number;
+        end: number;
+        text: string;
+        confidence?: number;
+      }>;
+    };
+    recording_url?: string;
+    // Calendar events
+    calendar_id?: string;
+    // Error info
+    error_code?: string;
+    error_message?: string;
+    // Additional metadata
+    [key: string]: unknown;
+  };
+}
+
+// Legacy flat payload format (for backward compatibility)
 interface MeetingBaaSWebhookPayload {
   id?: string;
   type: MeetingBaaSEventType;
@@ -119,6 +170,44 @@ function mapEventToRecordingStatus(eventType: MeetingBaaSEventType): RecordingSt
     case 'recording.ready':
     case 'transcript.ready':
       return null; // These don't change recording status directly
+    default:
+      return null;
+  }
+}
+
+function mapStatusCodeToDeploymentStatus(statusCode: string): BotDeploymentStatus | null {
+  switch (statusCode) {
+    case 'joining_call':
+    case 'in_waiting_room':
+      return 'joining';
+    case 'in_call_not_recording':
+    case 'in_call_recording':
+      return 'in_meeting';
+    case 'call_ended':
+      return 'leaving';
+    case 'recording_done':
+      return 'completed';
+    case 'error':
+      return 'failed';
+    default:
+      return null;
+  }
+}
+
+function mapStatusCodeToRecordingStatus(statusCode: string): RecordingStatus | null {
+  switch (statusCode) {
+    case 'joining_call':
+    case 'in_waiting_room':
+      return 'bot_joining';
+    case 'in_call_not_recording':
+      return 'bot_joining';
+    case 'in_call_recording':
+      return 'recording';
+    case 'call_ended':
+    case 'recording_done':
+      return 'processing';
+    case 'error':
+      return 'failed';
     default:
       return null;
   }
@@ -210,6 +299,110 @@ async function updateWebhookEventStatus(
     })
     .eq('id', eventId)
     .catch((err) => console.error('[MeetingBaaS Webhook] Failed to update event status:', err));
+}
+
+// =============================================================================
+// S3 Upload Helper
+// =============================================================================
+
+import { S3Client, PutObjectCommand, HeadObjectCommand } from 'npm:@aws-sdk/client-s3@3';
+import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3';
+
+interface UploadRecordingResult {
+  success: boolean;
+  storageUrl?: string;
+  storagePath?: string;
+  error?: string;
+}
+
+/**
+ * Download recording from MeetingBaaS and upload to AWS S3
+ * Bucket: use60-application (eu-west-2)
+ * Folder structure: /meeting-recordings/{org_id}/{user_id}/{recording_id}/recording.mp4
+ */
+async function uploadRecordingToS3(
+  recordingUrl: string,
+  orgId: string,
+  userId: string,
+  recordingId: string
+): Promise<UploadRecordingResult> {
+  console.log('[MeetingBaaS Webhook] Downloading recording from MeetingBaaS...');
+
+  try {
+    // Initialize S3 client
+    const s3Client = new S3Client({
+      region: Deno.env.get('AWS_REGION') || 'eu-west-2',
+      credentials: {
+        accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID')!,
+        secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY')!,
+      },
+    });
+
+    const bucketName = Deno.env.get('AWS_S3_BUCKET') || 'use60-application';
+
+    // Download the recording
+    const response = await fetch(recordingUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download recording: ${response.status}`);
+    }
+
+    // Get content type and determine file extension
+    const contentType = response.headers.get('content-type') || 'video/mp4';
+    let fileExtension = 'mp4';
+    if (contentType.includes('webm')) {
+      fileExtension = 'webm';
+    } else if (contentType.includes('audio')) {
+      fileExtension = contentType.includes('wav') ? 'wav' : 'mp3';
+    }
+
+    // Create S3 key: meeting-recordings/{org_id}/{user_id}/{recording_id}/recording.{ext}
+    const s3Key = `meeting-recordings/${orgId}/${userId}/${recordingId}/recording.${fileExtension}`;
+
+    console.log(`[MeetingBaaS Webhook] Uploading to S3: s3://${bucketName}/${s3Key}`);
+
+    // Get the recording data as array buffer
+    const arrayBuffer = await response.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+
+    // Upload to S3
+    const putCommand = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: s3Key,
+      Body: uint8Array,
+      ContentType: contentType,
+      Metadata: {
+        'org-id': orgId,
+        'user-id': userId,
+        'recording-id': recordingId,
+      },
+    });
+
+    await s3Client.send(putCommand);
+
+    // Generate a signed URL (7 days expiry)
+    const getCommand = new HeadObjectCommand({
+      Bucket: bucketName,
+      Key: s3Key,
+    });
+
+    const signedUrl = await getSignedUrl(s3Client, getCommand, {
+      expiresIn: 60 * 60 * 24 * 7, // 7 days
+    });
+
+    console.log(`[MeetingBaaS Webhook] S3 upload successful: ${s3Key}`);
+
+    return {
+      success: true,
+      storageUrl: signedUrl,
+      storagePath: s3Key,
+    };
+  } catch (error) {
+    console.error('[MeetingBaaS Webhook] S3 upload error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Upload failed',
+    };
+  }
 }
 
 // =============================================================================
@@ -441,9 +634,33 @@ async function handleTranscriptReady(
 // =============================================================================
 
 serve(async (req) => {
-  // Handle CORS preflight
+  // Handle CORS preflight first (before any async operations)
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    try {
+      const preflightResponse = handleCorsPreflightRequest(req);
+      if (preflightResponse) {
+        return preflightResponse;
+      }
+      // Fallback
+      return new Response('ok', {
+        status: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'authorization, content-type',
+        },
+      });
+    } catch (error) {
+      console.error('[meetingbaas-webhook] OPTIONS handler error:', error);
+      return new Response('ok', {
+        status: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'authorization, content-type',
+        },
+      });
+    }
   }
 
   const webhookEventId = crypto.randomUUID();
@@ -477,10 +694,7 @@ serve(async (req) => {
       console.warn('[MeetingBaaS Webhook] Signature verification failed:', verification.reason);
       // Only fail if we have a secret configured - otherwise allow for development
       if (meetingbaasWebhookSecret) {
-        return new Response(
-          JSON.stringify({ success: false, error: verification.reason }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return errorResponse(verification.reason || 'Invalid signature', req, 401);
       }
     }
 
@@ -489,17 +703,11 @@ serve(async (req) => {
     try {
       payload = JSON.parse(rawBody);
     } catch {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid JSON payload' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('Invalid JSON payload', req, 400);
     }
 
     if (!payload.type || !payload.bot_id) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing required fields: type, bot_id' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('Missing required fields: type, bot_id', req, 400);
     }
 
     // Find organization - try multiple methods
@@ -555,15 +763,15 @@ serve(async (req) => {
         bot_id: payload.bot_id,
         calendar_id: payload.calendar_id,
         token_provided: !!webhookToken,
+        token_value: webhookToken === '{ORG_TOKEN}' ? 'PLACEHOLDER_NOT_REPLACED' : webhookToken?.substring(0, 10) + '...',
       });
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Could not identify organization for this webhook',
-          hint: 'Ensure bot_deployments or meetingbaas_calendars has the org_id set'
-        }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({
+        success: false,
+        error: 'Could not identify organization for this webhook',
+        hint: 'Ensure bot_deployments or meetingbaas_calendars has the org_id set. If token is {ORG_TOKEN}, it was not replaced with actual token.',
+        bot_id: payload.bot_id,
+        calendar_id: payload.calendar_id,
+      }, req, 401);
     }
 
     // Log webhook event
@@ -617,18 +825,12 @@ serve(async (req) => {
       await updateWebhookEventStatus(supabase, eventId, 'failed', result.error);
     }
 
-    return new Response(
-      JSON.stringify({
-        success: result.success,
-        event_id: eventId,
-        event_type: payload.type,
-        error: result.error,
-      }),
-      {
-        status: result.success ? 200 : 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    return jsonResponse({
+      success: result.success,
+      event_id: eventId,
+      event_type: payload.type,
+      error: result.error,
+    }, req, result.success ? 200 : 500);
   } catch (error) {
     console.error('[MeetingBaaS Webhook] Error:', error);
 
@@ -639,12 +841,10 @@ serve(async (req) => {
       },
     });
 
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : 'Webhook processing failed',
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    return errorResponse(
+      error instanceof Error ? error.message : 'Webhook processing failed',
+      req,
+      500
     );
   }
 });

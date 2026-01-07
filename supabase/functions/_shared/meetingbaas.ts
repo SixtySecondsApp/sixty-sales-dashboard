@@ -468,3 +468,23 @@ export async function checkRecordingQuota(
     limit: usage.recordings_limit,
   };
 }
+
+// =============================================================================
+// App Settings Helpers
+// =============================================================================
+
+/**
+ * Get platform default bot image URL from app_settings
+ * Returns the platform default or null if not set
+ */
+export async function getPlatformDefaultBotImage(
+  supabase: any
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'notetaker_default_bot_image_url')
+    .maybeSingle();
+
+  return data?.value || null;
+}

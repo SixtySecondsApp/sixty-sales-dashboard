@@ -7,7 +7,7 @@
 
 import { serve } from 'https://deno.land/std@0.190.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { legacyCorsHeaders as corsHeaders } from '../_shared/corsHelper.ts';
+import { getCorsHeaders, handleCorsPreflightRequest, jsonResponse, errorResponse } from '../_shared/corsHelper.ts';
 import { captureException, addBreadcrumb } from '../_shared/sentryEdge.ts';
 
 // =============================================================================
@@ -44,7 +44,7 @@ async function createMeetingBaaSCalendar(
     raw_calendar_id: string;
     calendar_platform: 'google' | 'microsoft';
   }
-): Promise<{ data?: MeetingBaaSCalendarResponse; error?: string }> {
+): Promise<{ data?: MeetingBaaSCalendarResponse; error?: string; errorData?: unknown }> {
   try {
     console.log('[MeetingBaaS API] Creating calendar with params:', {
       raw_calendar_id: params.raw_calendar_id,
@@ -74,7 +74,10 @@ async function createMeetingBaaSCalendar(
     });
 
     if (!response.ok) {
-      return { error: data.message || data.error || `HTTP ${response.status}` };
+      return {
+        error: (data && (data.message || data.error)) || `HTTP ${response.status}`,
+        errorData: data,
+      };
     }
 
     return { data };
@@ -102,7 +105,30 @@ async function listMeetingBaaSCalendars(
       return { error: data.message || data.error || `HTTP ${response.status}` };
     }
 
-    return { data: data.calendars || data };
+    /**
+     * MeetingBaaS API responses have varied over time.
+     * Normalize to an array of calendars to avoid runtime crashes.
+     */
+    const calendarsCandidate =
+      // common: { calendars: [...] }
+      (data && typeof data === 'object' && 'calendars' in data ? (data as any).calendars : undefined) ??
+      // sometimes: { data: [...] } or { data: { calendars: [...] } }
+      (data && typeof data === 'object' && 'data' in data ? (data as any).data : undefined) ??
+      // fallback: the response itself might be the array
+      data;
+
+    const calendars: MeetingBaaSCalendarResponse[] =
+      Array.isArray(calendarsCandidate)
+        ? calendarsCandidate
+        : Array.isArray((calendarsCandidate as any)?.calendars)
+          ? (calendarsCandidate as any).calendars
+          : [];
+
+    if (!Array.isArray(calendars)) {
+      return { error: 'Unexpected MeetingBaaS calendars response format' };
+    }
+
+    return { data: calendars };
   } catch (error) {
     console.error('[MeetingBaaS API] List calendars exception:', error);
     return { error: error instanceof Error ? error.message : 'Network error' };
@@ -114,17 +140,43 @@ async function listMeetingBaaSCalendars(
 // =============================================================================
 
 serve(async (req) => {
+  // Handle CORS preflight first (before any async operations)
+  // This must be synchronous and never throw
+  if (req.method === 'OPTIONS') {
+    try {
+      const preflightResponse = handleCorsPreflightRequest(req);
+      if (preflightResponse) {
+        return preflightResponse;
+      }
+      // Fallback if handleCorsPreflightRequest returns null (shouldn't happen)
+      return new Response('ok', {
+        status: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        },
+      });
+    } catch (error) {
+      // Even if CORS helper fails, return a valid OPTIONS response
+      console.error('[meetingbaas-connect-calendar] OPTIONS handler error:', error);
+      return new Response('ok', {
+        status: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        },
+      });
+    }
+  }
+
   console.log('[meetingbaas-connect-calendar] Request received:', {
     method: req.method,
     url: req.url,
     hasAuth: !!req.headers.get('authorization'),
     contentType: req.headers.get('content-type'),
   });
-
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
 
   try {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -142,17 +194,11 @@ serve(async (req) => {
     });
 
     if (!meetingbaasApiKey) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'MeetingBaaS API key not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('MeetingBaaS API key not configured', req, 500);
     }
 
     if (!googleClientId || !googleClientSecret) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Google OAuth credentials not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('Google OAuth credentials not configured', req, 500);
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -164,10 +210,7 @@ serve(async (req) => {
     const { user_id, calendar_id = 'primary', access_token: fallbackAccessToken } = body;
 
     if (!user_id) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'user_id is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('user_id is required', req, 400);
     }
 
     addBreadcrumb(`Connecting calendar for user: ${user_id}`, 'meetingbaas');
@@ -195,14 +238,11 @@ serve(async (req) => {
       // If we don't have a stored refresh token, provide helpful error
       console.warn('[MeetingBaaS Connect] No refresh token available for user:', user_id);
 
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Google Calendar refresh token not found. Please reconnect Google Calendar with offline access enabled.',
-          recovery: 'Visit the Integrations page and reconnect your Google Calendar to enable automatic recording setup.',
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({
+        success: false,
+        error: 'Google Calendar refresh token not found. Please reconnect Google Calendar with offline access enabled.',
+        recovery: 'Visit the Integrations page and reconnect your Google Calendar to enable automatic recording setup.',
+      }, req, 400);
     }
 
     // Check if calendar already connected to MeetingBaaS
@@ -214,34 +254,89 @@ serve(async (req) => {
       .maybeSingle();
 
     if (existingConnection?.meetingbaas_calendar_id) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'Calendar already connected to MeetingBaaS',
-          calendar_id: existingConnection.meetingbaas_calendar_id
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({
+        success: true,
+        message: 'Calendar already connected to MeetingBaaS',
+        calendar_id: existingConnection.meetingbaas_calendar_id
+      }, req);
     }
 
     // Create calendar in MeetingBaaS
-    const { data: mbCalendar, error: mbError } = await createMeetingBaaSCalendar(
+    const { data: mbCalendar, error: mbError, errorData: mbErrorData } = await createMeetingBaaSCalendar(
       meetingbaasApiKey,
       {
         oauth_client_id: googleClientId,
         oauth_client_secret: googleClientSecret,
-        oauth_refresh_token: googleIntegration.refresh_token,
+        // Use the validated refresh token (googleIntegration may be null due to maybeSingle())
+        oauth_refresh_token: refreshToken,
         raw_calendar_id: calendar_id,
         calendar_platform: 'google',
       }
     );
 
-    if (mbError || !mbCalendar) {
+    // Handle case where calendar already exists in MeetingBaaS but not in our DB
+    let finalMbCalendar = mbCalendar;
+    if (mbError && mbError.includes('already exists')) {
+      console.log('[MeetingBaaS Connect] Calendar already exists in MeetingBaaS, fetching existing calendars...');
+
+      // Some MeetingBaaS error payloads include the existing calendar id — try to use it first
+      const existingIdCandidate =
+        (mbErrorData && typeof mbErrorData === 'object' && (mbErrorData as any).id) ||
+        (mbErrorData && typeof mbErrorData === 'object' && (mbErrorData as any).calendar_id) ||
+        (mbErrorData && typeof mbErrorData === 'object' && (mbErrorData as any).calendar?.id);
+
+      if (typeof existingIdCandidate === 'string' && existingIdCandidate.length > 0) {
+        finalMbCalendar = {
+          id: existingIdCandidate,
+          platform: 'google',
+          raw_calendar_id: calendar_id,
+          email: userEmail || undefined,
+          created_at: new Date().toISOString(),
+        };
+        console.log('[MeetingBaaS Connect] Using existing calendar id from error payload:', existingIdCandidate);
+      }
+      
+      // Try to find the existing calendar by listing all calendars
+      const { data: existingCalendars, error: listError } = await listMeetingBaaSCalendars(meetingbaasApiKey);
+      
+      if (!listError && existingCalendars && !finalMbCalendar) {
+        // Find the calendar matching our raw_calendar_id
+        const matchingCalendar = existingCalendars.find((cal: any) => {
+          const rawId =
+            cal?.raw_calendar_id ??
+            cal?.rawCalendarId ??
+            cal?.raw_calendarId ??
+            cal?.calendar_id ??
+            cal?.calendarId ??
+            null;
+          const platform = String(cal?.platform ?? cal?.calendar_platform ?? '').toLowerCase();
+          const isGoogle = !platform || platform.includes('google');
+          return rawId === calendar_id && isGoogle;
+        });
+        
+        if (matchingCalendar) {
+          console.log('[MeetingBaaS Connect] Found existing calendar in MeetingBaaS:', matchingCalendar.id);
+          finalMbCalendar = matchingCalendar;
+        } else {
+          console.error('[MeetingBaaS Connect] Calendar exists but could not find matching calendar');
+          return errorResponse(
+            'Calendar already exists in MeetingBaaS but could not be retrieved. Please disconnect/reconnect Google Calendar and try again.',
+            req,
+            409
+          );
+        }
+      } else if (listError && !finalMbCalendar) {
+        console.error('[MeetingBaaS Connect] Failed to list calendars:', listError);
+        return errorResponse(mbError || 'Failed to connect calendar', req, 500);
+      }
+    } else if (mbError || !mbCalendar) {
       console.error('[MeetingBaaS Connect] Failed to create calendar:', mbError);
-      return new Response(
-        JSON.stringify({ success: false, error: mbError || 'Failed to connect calendar' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse(mbError || 'Failed to connect calendar', req, 500);
+    }
+
+    // Safety net: by here we must have a MeetingBaaS calendar
+    if (!finalMbCalendar) {
+      return errorResponse('Failed to connect calendar', req, 500);
     }
 
     // Get user's org_id
@@ -294,11 +389,11 @@ serve(async (req) => {
       .upsert({
         user_id,
         org_id: orgId,
-        meetingbaas_calendar_id: mbCalendar.id,
+        meetingbaas_calendar_id: finalMbCalendar.id,
         raw_calendar_id: calendar_id,
         platform: 'google',
-        email: googleIntegration.email || mbCalendar.email,
-        name: mbCalendar.name,
+        email: userEmail || finalMbCalendar.email,
+        name: finalMbCalendar.name,
         is_active: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -312,27 +407,23 @@ serve(async (req) => {
     }
 
     // Build webhook URL for reference
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const webhookUrl = webhookToken
       ? `${supabaseUrl}/functions/v1/meetingbaas-webhook?token=${webhookToken}`
       : null;
 
-    console.log(`[MeetingBaaS Connect] Calendar connected: ${mbCalendar.id} for user ${user_id}`);
+    console.log(`[MeetingBaaS Connect] Calendar connected: ${finalMbCalendar.id} for user ${user_id}`);
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'Calendar connected to MeetingBaaS successfully',
-        calendar: {
-          id: mbCalendar.id,
-          platform: mbCalendar.platform,
-          raw_calendar_id: mbCalendar.raw_calendar_id,
-          email: googleIntegration.email || mbCalendar.email,
-        },
-        webhook_url: webhookUrl,
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({
+      success: true,
+      message: 'Calendar connected to MeetingBaaS successfully',
+      calendar: {
+        id: finalMbCalendar.id,
+        platform: finalMbCalendar.platform,
+        raw_calendar_id: finalMbCalendar.raw_calendar_id,
+        email: userEmail || finalMbCalendar.email,
+      },
+      webhook_url: webhookUrl,
+    }, req);
 
   } catch (error) {
     console.error('[MeetingBaaS Connect] Error:', error);
@@ -344,12 +435,9 @@ serve(async (req) => {
       },
     });
 
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : 'Connection failed',
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Connection failed',
+    }, req, 500);
   }
 });

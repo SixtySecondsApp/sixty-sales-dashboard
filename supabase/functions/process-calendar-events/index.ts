@@ -18,9 +18,11 @@ import {
   isValidMeetingUrl,
   formatEntryMessage,
   checkRecordingQuota,
+  getPlatformDefaultBotImage,
   extractDomain,
   isInternalEmail,
   DEFAULT_BOT_NAME,
+  DEFAULT_BOT_IMAGE,
   DEFAULT_ENTRY_MESSAGE,
   type MeetingBaaSBotConfig,
   type RecordingSettings,
@@ -313,8 +315,11 @@ async function deployBotForEvent(
     return { success: false, error: 'Recording not configured' };
   }
 
+  // Get bot image URL: org override > platform default > code fallback
+  const platformDefaultBotImage = await getPlatformDefaultBotImage(supabase);
+  const botImageUrl = settings.bot_image_url || platformDefaultBotImage || DEFAULT_BOT_IMAGE;
+
   const botName = settings.bot_name || DEFAULT_BOT_NAME;
-  const botImageUrl = settings.bot_image_url || DEFAULT_BOT_IMAGE;
 
   // Get user profile for entry message
   const { data: profile } = await supabase

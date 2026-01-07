@@ -19,6 +19,7 @@ import {
   isValidMeetingUrl,
   formatEntryMessage,
   checkRecordingQuota,
+  getPlatformDefaultBotImage,
   DEFAULT_BOT_NAME,
   DEFAULT_BOT_IMAGE,
   DEFAULT_ENTRY_MESSAGE,
@@ -371,8 +372,11 @@ serve(async (req) => {
       settings: settings ? JSON.stringify(settings) : null,
     });
 
+    // Get bot image URL: org override > platform default > code fallback
+    const platformDefaultBotImage = await getPlatformDefaultBotImage(supabase);
+    const botImageUrl = settings?.bot_image_url || platformDefaultBotImage || DEFAULT_BOT_IMAGE;
+
     const botName = settings?.bot_name || DEFAULT_BOT_NAME;
-    const botImageUrl = settings?.bot_image_url || DEFAULT_BOT_IMAGE;
     const entryMessageEnabled = settings?.entry_message_enabled ?? true;
 
     console.log('[DeployBot] Bot config values:', {
