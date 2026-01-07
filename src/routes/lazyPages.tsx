@@ -32,6 +32,7 @@ export const SkillDetailPage = lazyWithRetry(() => import('@/pages/skills/SkillD
 export const AgentSequencesPage = lazyWithRetry(() => import('@/pages/platform/AgentSequencesPage'));
 export const AgentSequenceBuilderPage = lazyWithRetry(() => import('@/pages/platform/AgentSequenceBuilderPage'));
 export const CopilotTestPage = lazyWithRetry(() => import('@/pages/platform/CopilotTestPage'));
+export const NotetakerBranding = lazyWithRetry(() => import('@/pages/platform/NotetakerBranding'));
 
 // Admin Configuration
 export const Users = lazyWithRetry(() => import('@/pages/admin/Users'));

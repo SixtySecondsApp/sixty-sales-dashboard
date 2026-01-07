@@ -68,6 +68,7 @@ import {
   CronJobsAdmin, ApiMonitor, BillingAnalytics, SaasAdminDashboard, IntegrationsDashboard, FathomIntegrationTests,
   HubSpotIntegrationTests, SlackIntegrationTests, SavvyCalIntegrationTests,
   QuickAddSimulator, ProactiveSimulator, DealTruthSimulator, EngagementSimulator,
+  NotetakerBranding,
   // Auth
   Signup, VerifyEmail, ForgotPassword, ResetPassword, SetPassword, Onboarding, UpdatePassword,
   // CRM & Data
@@ -396,6 +397,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/integrations/booking-sources" element={<PlatformAdminRouteGuard><AppLayout><SettingsBookingSources /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/roadmap/:integrationId" element={<PlatformAdminRouteGuard><AppLayout><IntegrationRoadmap /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/integrations/roadmap" element={<PlatformAdminRouteGuard><AppLayout><IntegrationRoadmap /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* MeetingBaaS Bot Branding */}
+                <Route path="/platform/integrations/notetaker-branding" element={<PlatformAdminRouteGuard><AppLayout><NotetakerBranding /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Integration Testing Dashboard - Main page */}
                 <Route path="/platform/integrations" element={<PlatformAdminRouteGuard><AppLayout><IntegrationsDashboard /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Platform Admin - Security & Audit */}
