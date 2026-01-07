@@ -305,9 +305,6 @@ async function updateWebhookEventStatus(
 // S3 Upload Helper
 // =============================================================================
 
-import { S3Client, PutObjectCommand, HeadObjectCommand } from 'npm:@aws-sdk/client-s3@3';
-import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3';
-
 interface UploadRecordingResult {
   success: boolean;
   storageUrl?: string;
