@@ -54,6 +54,16 @@ export function Footer() {
             className="h-8 w-auto"
           />
 
+          {/* Links */}
+          <div className="flex items-center gap-4">
+            <a
+              href="/privacy-policy"
+              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+            >
+              Privacy Policy
+            </a>
+          </div>
+
           {/* Copyright */}
           <p className="font-body text-gray-500 dark:text-gray-400 text-sm text-center">
             © 2025 Sixty Seconds Ltd. All rights reserved. All systems operational.

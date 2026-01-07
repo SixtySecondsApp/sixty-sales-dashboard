@@ -14,6 +14,7 @@ import { IntroductionPage } from './pages/IntroductionPage';
 import { IntroPage } from './pages/IntroPage';
 import { IntroducingPage } from './pages/IntroducingPage';
 import { LearnMore } from './pages/LearnMore';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { getAppUrl } from './lib/utils/siteUrl';
 import { trackPageView } from './lib/pageViewTracker';
 
@@ -53,6 +54,7 @@ function App() {
         <Route path="/leaderboard" element={<LeaderboardLookup />} />
         <Route path="/waitlist-hero" element={<WaitlistLanding />} />
         <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         {/* Redirect auth routes to app domain */}
         <Route path="/auth/*" element={<RedirectToApp />} />
         <Route path="/login" element={<RedirectToApp />} />
