@@ -43,6 +43,7 @@ import {
   Activity,
   Eye,
   GitBranch,
+  Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -284,6 +285,14 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: Tag,
       href: '/platform/integrations/booking-sources',
       color: 'text-cyan-600 bg-cyan-100 dark:bg-cyan-900/30',
+    },
+    {
+      id: 'notetaker-branding',
+      title: 'MeetingBaaS Bot Branding',
+      description: 'Configure default bot avatar image for all organizations',
+      icon: Bot,
+      href: '/platform/integrations/notetaker-branding',
+      color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30',
     },
   ],
   'Email & Communications': [

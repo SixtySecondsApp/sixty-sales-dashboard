@@ -10,8 +10,6 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
-        heading: ['Urbanist', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
-        body: ['Questrial', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
