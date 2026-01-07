@@ -184,7 +184,8 @@ export function NotificationCenter({ onClose }: NotificationCenterProps) {
   // Get notifications for current tab
   const displayNotifications = useMemo(() => {
     if (activeTab === 'all') {
-      return Object.entries(groupedNotifications).filter(([key]) => key !== 'all');
+      // When on "All" tab, show all notifications in a flat list
+      return [['all', groupedNotifications.all]];
     }
     return [[activeTab, groupedNotifications[activeTab] || []]];
   }, [activeTab, groupedNotifications]);
@@ -355,35 +356,12 @@ export function NotificationCenter({ onClose }: NotificationCenterProps) {
               if (groupNotifications.length === 0) return null;
 
               const groupIdTyped = groupId as TabId;
-              const isExpanded = activeTab === 'all' 
-                ? expandedGroup === groupIdTyped 
-                : true;
+              // Always expanded - no collapsed groups
+              const isExpanded = true;
 
               return (
                 <div key={groupId}>
-                  {activeTab === 'all' && (
-                    <button
-                      onClick={() => setExpandedGroup(
-                        expandedGroup === groupIdTyped ? null : groupIdTyped
-                      )}
-                      className="w-full flex items-center justify-between px-4 py-2 transition-colors bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800"
-                    >
-                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                        {GROUP_LABELS[groupIdTyped]}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500 dark:text-gray-500">
-                          {groupNotifications.length}
-                        </span>
-                        <ChevronRight
-                          className={cn(
-                            "w-4 h-4 transition-transform text-gray-600 dark:text-gray-400",
-                            isExpanded && "rotate-90"
-                          )}
-                        />
-                      </div>
-                    </button>
-                  )}
+                  {/* Group headers removed - showing flat list */}
                   
                   {isExpanded && (
                     <div className="divide-y divide-gray-200 dark:divide-gray-800">

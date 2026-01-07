@@ -79,19 +79,10 @@ export function useNotetakerIntegration() {
    */
   useEffect(() => {
     if (!userId) return;
-    if (googleLoading) return;
-    if (googleConnected) return;
-
-    // Avoid spamming requests: if we checked recently, don't re-check.
-    const lastSyncMs = googleLastSync ? new Date(googleLastSync).getTime() : 0;
-    const now = Date.now();
-    const checkedRecently = lastSyncMs > 0 && now - lastSyncMs < 60_000;
-
-    if (!checkedRecently) {
-      // Fire and forget; store will update `googleConnected`/`googleStatus`.
-      void checkGoogleConnection();
-    }
-  }, [userId, googleLoading, googleConnected, googleLastSync, checkGoogleConnection]);
+    // Only check once on mount - don't re-check on state changes to avoid loops
+    void checkGoogleConnection();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]); // Only run when userId becomes available
 
   // Fetch org-level settings (from organizations.recording_settings JSONB column)
   const {

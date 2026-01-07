@@ -103,37 +103,52 @@ export function useMeetingBaaSCalendar() {
       const accessToken = sessionData?.session?.access_token;
 
       if (!accessToken) {
-        throw new Error('No access token available');
+        throw new Error('No access token available. Please log in again.');
       }
 
-      console.log('[useMeetingBaaSCalendar] Connecting calendar:', { calendarId, userId });
+      // Get the Supabase project URL for the edge function
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const functionUrl = `${supabaseUrl}/functions/v1/meetingbaas-connect-calendar`;
 
-      // Use Supabase client's functions.invoke() for better CORS and auth handling
-      const { data: result, error: invokeError } = await supabase.functions.invoke(
-        'meetingbaas-connect-calendar',
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-          body: {
-            user_id: userId,
-            calendar_id: calendarId,
-            // Pass the access token as fallback in case google_integrations is missing
-            access_token: accessToken,
-          },
-        }
-      );
+      console.log('[useMeetingBaaSCalendar] Connecting calendar:', {
+        calendarId,
+        userId,
+        hasAccessToken: !!accessToken,
+        tokenLength: accessToken?.length,
+        functionUrl,
+      });
 
-      if (invokeError) {
-        console.error('[useMeetingBaaSCalendar] Edge function error:', invokeError);
-        
-        let errorMessage = invokeError.message || 'Failed to connect calendar';
-        
+      // Use direct fetch to have complete control over the request
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          calendar_id: calendarId,
+        }),
+      });
+
+      const result = await response.json();
+
+      console.log('[useMeetingBaaSCalendar] Edge function response:', {
+        status: response.status,
+        ok: response.ok,
+        resultSuccess: result?.success,
+      });
+
+      if (!response.ok) {
+        console.error('[useMeetingBaaSCalendar] Edge function error:', result);
+
+        let errorMessage = result?.error || result?.message || 'Failed to connect calendar';
+
         // Check if this is a refresh token missing error
         if (errorMessage.includes('refresh token')) {
           errorMessage = 'Please reconnect Google Calendar to enable offline access for automatic recording setup';
         }
-        
+
         throw new Error(errorMessage);
       }
 
@@ -150,7 +165,15 @@ export function useMeetingBaaSCalendar() {
       toast.success('Calendar connected to MeetingBaaS', {
         description: data.message || 'Your calendar events will now be monitored for automatic recording.',
       });
+      console.log('[useMeetingBaaSCalendar] Invalidating queries for userId:', userId);
+      // Invalidate and refetch to ensure UI updates
       queryClient.invalidateQueries({ queryKey: meetingBaaSKeys.calendars(userId || '') });
+      // Also invalidate the base key to catch any related queries
+      queryClient.invalidateQueries({ queryKey: meetingBaaSKeys.all });
+      // Force refetch after a short delay to ensure DB has committed
+      setTimeout(() => {
+        queryClient.refetchQueries({ queryKey: meetingBaaSKeys.calendars(userId || '') });
+      }, 500);
     },
     onError: (error) => {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

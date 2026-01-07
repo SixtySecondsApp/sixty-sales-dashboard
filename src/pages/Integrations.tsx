@@ -640,12 +640,14 @@ export default function Integrations() {
       toast.error(`Failed to connect HubSpot: ${desc || hubspotError}`);
       window.history.replaceState({}, '', '/integrations');
     }
-  }, [searchParams, checkGoogleConnection]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]); // Only depend on searchParams, not checkGoogleConnection
 
   // Check integration status on mount
   useEffect(() => {
     checkGoogleConnection();
-  }, [checkGoogleConnection]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount to avoid infinite loop
 
   // Get integration status
   const getIntegrationStatus = (integrationId: string): IntegrationStatus => {

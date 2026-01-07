@@ -27,7 +27,8 @@ export function EmailSyncPanel() {
 
   useEffect(() => {
     checkConnection();
-  }, [checkConnection]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only on mount
 
   const handleSync = () => {
     performSync(selectedPeriod);

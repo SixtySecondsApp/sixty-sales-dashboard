@@ -71,8 +71,8 @@ export class GoogleIntegrationAPI {
       : await supabase.rpc('get_my_google_integration');
 
     if (!rpcError && rpcData) {
-      // RPC returns an array, get the first item
-      return Array.isArray(rpcData) ? rpcData[0] : rpcData;
+      // RPC returns an array, get the first item - ensure we return null instead of undefined
+      return Array.isArray(rpcData) ? (rpcData[0] ?? null) : (rpcData ?? null);
     }
 
     // If RPC is missing, remember it for this session
@@ -98,8 +98,9 @@ export class GoogleIntegrationAPI {
     if (directError && directError.code !== 'PGRST116') {
       return null;
     }
-    
-    return directData;
+
+    // Ensure we always return null instead of undefined for React Query
+    return directData ?? null;
   }
 
   /**

@@ -70,7 +70,7 @@ async function createMeetingBaaSCalendar(
     console.log('[MeetingBaaS API] Response:', {
       status: response.status,
       ok: response.ok,
-      data: JSON.stringify(data).substring(0, 500),
+      data: JSON.stringify(data).substring(0, 1000),
     });
 
     if (!response.ok) {
@@ -80,7 +80,35 @@ async function createMeetingBaaSCalendar(
       };
     }
 
-    return { data };
+    // Normalize the response to extract the calendar object
+    // MeetingBaaS API may return data in different formats:
+    // - { id: "...", ... } - direct calendar object
+    // - { calendar: { id: "...", ... } } - wrapped in calendar key
+    // - { data: { id: "...", ... } } - wrapped in data key
+    const calendar: MeetingBaaSCalendarResponse | undefined =
+      (data && typeof data === 'object' && 'id' in data && typeof data.id === 'string')
+        ? data
+        : (data?.calendar && typeof data.calendar === 'object' && 'id' in data.calendar)
+          ? data.calendar
+          : (data?.data && typeof data.data === 'object' && 'id' in data.data)
+            ? data.data
+            : undefined;
+
+    if (!calendar || !calendar.id) {
+      console.error('[MeetingBaaS API] Could not extract calendar ID from response:', data);
+      return {
+        error: 'MeetingBaaS API returned unexpected format - no calendar ID found',
+        errorData: data,
+      };
+    }
+
+    console.log('[MeetingBaaS API] Extracted calendar:', {
+      id: calendar.id,
+      platform: calendar.platform,
+      raw_calendar_id: calendar.raw_calendar_id,
+    });
+
+    return { data: calendar };
   } catch (error) {
     console.error('[MeetingBaaS API] Exception:', error);
     return { error: error instanceof Error ? error.message : 'Network error' };
@@ -100,6 +128,7 @@ async function listMeetingBaaSCalendars(
     });
 
     const data = await response.json();
+    console.log('[MeetingBaaS API] List calendars raw response:', JSON.stringify(data).substring(0, 2000));
 
     if (!response.ok) {
       return { error: data.message || data.error || `HTTP ${response.status}` };
@@ -171,10 +200,17 @@ serve(async (req) => {
     }
   }
 
+  // Log all headers for debugging
+  const headersObj: Record<string, string> = {};
+  req.headers.forEach((value, key) => {
+    headersObj[key] = key.toLowerCase() === 'authorization' ? `${value.substring(0, 20)}...` : value;
+  });
   console.log('[meetingbaas-connect-calendar] Request received:', {
     method: req.method,
     url: req.url,
+    headers: headersObj,
     hasAuth: !!req.headers.get('authorization'),
+    authHeaderValue: req.headers.get('authorization')?.substring(0, 30),
     contentType: req.headers.get('content-type'),
   });
 
@@ -205,21 +241,44 @@ serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
+    // Verify user authentication from Authorization header
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return errorResponse('Missing or invalid authorization header', req, 401);
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !authUser) {
+      console.error('[meetingbaas-connect-calendar] Auth verification failed:', authError?.message);
+      return errorResponse('Invalid or expired authentication token', req, 401);
+    }
+
+    console.log('[meetingbaas-connect-calendar] Authenticated user:', authUser.id);
+
     // Get request body
     const body: ConnectCalendarRequest = await req.json();
     const { user_id, calendar_id = 'primary', access_token: fallbackAccessToken } = body;
 
-    if (!user_id) {
+    // Ensure the authenticated user matches the requested user_id (or use auth user if not provided)
+    const effectiveUserId = user_id || authUser.id;
+    if (user_id && user_id !== authUser.id) {
+      console.warn('[meetingbaas-connect-calendar] User ID mismatch:', { bodyUserId: user_id, authUserId: authUser.id });
+      return errorResponse('Unauthorized: user_id does not match authenticated user', req, 403);
+    }
+
+    if (!effectiveUserId) {
       return errorResponse('user_id is required', req, 400);
     }
 
-    addBreadcrumb(`Connecting calendar for user: ${user_id}`, 'meetingbaas');
+    addBreadcrumb(`Connecting calendar for user: ${effectiveUserId}`, 'meetingbaas');
 
     // Get user's Google integration
     const { data: googleIntegration, error: googleError } = await supabase
       .from('google_integrations')
       .select('refresh_token, email, is_active')
-      .eq('user_id', user_id)
+      .eq('user_id', effectiveUserId)
       .eq('is_active', true)
       .maybeSingle();
 
@@ -236,7 +295,7 @@ serve(async (req) => {
 
     if (!refreshToken) {
       // If we don't have a stored refresh token, provide helpful error
-      console.warn('[MeetingBaaS Connect] No refresh token available for user:', user_id);
+      console.warn('[MeetingBaaS Connect] No refresh token available for user:', effectiveUserId);
 
       return jsonResponse({
         success: false,
@@ -249,7 +308,7 @@ serve(async (req) => {
     const { data: existingConnection } = await supabase
       .from('meetingbaas_calendars')
       .select('id, meetingbaas_calendar_id')
-      .eq('user_id', user_id)
+      .eq('user_id', effectiveUserId)
       .eq('raw_calendar_id', calendar_id)
       .maybeSingle();
 
@@ -298,9 +357,28 @@ serve(async (req) => {
       
       // Try to find the existing calendar by listing all calendars
       const { data: existingCalendars, error: listError } = await listMeetingBaaSCalendars(meetingbaasApiKey);
-      
+
+      console.log('[MeetingBaaS Connect] List calendars result:', {
+        listError,
+        calendarCount: existingCalendars?.length ?? 0,
+        // Log the full calendar objects to see all field names
+        calendarsRaw: existingCalendars?.map((c: any) => JSON.stringify(c)),
+        calendars: existingCalendars?.map((c: any) => ({
+          id: c.id,
+          calendar_id: c.calendar_id,
+          calendarId: c.calendarId,
+          uuid: c.uuid,
+          raw_calendar_id: c.raw_calendar_id,
+          rawCalendarId: c.rawCalendarId,
+          platform: c.platform,
+          email: c.email,
+        })),
+        lookingFor: calendar_id,
+        userEmail,
+      });
+
       if (!listError && existingCalendars && !finalMbCalendar) {
-        // Find the calendar matching our raw_calendar_id
+        // Find the calendar matching our raw_calendar_id OR user email
         const matchingCalendar = existingCalendars.find((cal: any) => {
           const rawId =
             cal?.raw_calendar_id ??
@@ -309,21 +387,65 @@ serve(async (req) => {
             cal?.calendar_id ??
             cal?.calendarId ??
             null;
+          const calEmail = cal?.email ?? null;
           const platform = String(cal?.platform ?? cal?.calendar_platform ?? '').toLowerCase();
           const isGoogle = !platform || platform.includes('google');
-          return rawId === calendar_id && isGoogle;
+
+          // Match by raw_calendar_id OR by email (for "primary" calendar)
+          const matchesRawId = rawId === calendar_id;
+          const matchesPrimary = calendar_id === 'primary' && calEmail === userEmail;
+
+          console.log('[MeetingBaaS Connect] Checking calendar:', {
+            calId: cal.id,
+            rawId,
+            calEmail,
+            platform,
+            isGoogle,
+            matchesRawId,
+            matchesPrimary,
+          });
+
+          return (matchesRawId || matchesPrimary) && isGoogle;
         });
-        
+
         if (matchingCalendar) {
-          console.log('[MeetingBaaS Connect] Found existing calendar in MeetingBaaS:', matchingCalendar.id);
-          finalMbCalendar = matchingCalendar;
+          // Extract the calendar ID from the matching calendar (handle different field names)
+          const extractedId = matchingCalendar.id ?? matchingCalendar.calendar_id ?? matchingCalendar.calendarId ?? matchingCalendar.uuid;
+          console.log('[MeetingBaaS Connect] Found existing calendar in MeetingBaaS:', {
+            extractedId,
+            rawCalendar: JSON.stringify(matchingCalendar),
+          });
+          // Normalize the calendar object to ensure it has an `id` field
+          finalMbCalendar = {
+            ...matchingCalendar,
+            id: extractedId,
+          };
         } else {
-          console.error('[MeetingBaaS Connect] Calendar exists but could not find matching calendar');
-          return errorResponse(
-            'Calendar already exists in MeetingBaaS but could not be retrieved. Please disconnect/reconnect Google Calendar and try again.',
-            req,
-            409
-          );
+          // If we still can't match but there's only one Google calendar, use it
+          const googleCalendars = existingCalendars.filter((cal: any) => {
+            const platform = String(cal?.platform ?? cal?.calendar_platform ?? '').toLowerCase();
+            return !platform || platform.includes('google');
+          });
+
+          if (googleCalendars.length === 1) {
+            const singleCal = googleCalendars[0];
+            const extractedId = singleCal.id ?? singleCal.calendar_id ?? singleCal.calendarId ?? singleCal.uuid;
+            console.log('[MeetingBaaS Connect] Only one Google calendar found, using it:', {
+              extractedId,
+              rawCalendar: JSON.stringify(singleCal),
+            });
+            finalMbCalendar = {
+              ...singleCal,
+              id: extractedId,
+            };
+          } else {
+            console.error('[MeetingBaaS Connect] Calendar exists but could not find matching calendar. Google calendars:', googleCalendars.length);
+            return errorResponse(
+              'Calendar already exists in MeetingBaaS but could not be retrieved. Please disconnect/reconnect Google Calendar and try again.',
+              req,
+              409
+            );
+          }
         }
       } else if (listError && !finalMbCalendar) {
         console.error('[MeetingBaaS Connect] Failed to list calendars:', listError);
@@ -343,7 +465,7 @@ serve(async (req) => {
     const { data: profile } = await supabase
       .from('profiles')
       .select('org_id')
-      .eq('id', user_id)
+      .eq('id', effectiveUserId)
       .single();
 
     const orgId = profile?.org_id;
@@ -383,27 +505,70 @@ serve(async (req) => {
       }
     }
 
+    // Log what we have before safety check
+    console.log('[MeetingBaaS Connect] Before safety check, finalMbCalendar:', {
+      hasCalendar: !!finalMbCalendar,
+      id: finalMbCalendar?.id,
+      calendar_id: (finalMbCalendar as any)?.calendar_id,
+      calendarId: (finalMbCalendar as any)?.calendarId,
+      uuid: (finalMbCalendar as any)?.uuid,
+      fullObject: JSON.stringify(finalMbCalendar),
+    });
+
+    // Try to extract ID from various possible field names
+    const calendarId = finalMbCalendar.id ??
+                       (finalMbCalendar as any).calendar_id ??
+                       (finalMbCalendar as any).calendarId ??
+                       (finalMbCalendar as any).uuid;
+
+    // Normalize the ID onto the object
+    if (calendarId && !finalMbCalendar.id) {
+      console.log('[MeetingBaaS Connect] Normalizing calendar ID from alternative field:', calendarId);
+      finalMbCalendar.id = calendarId;
+    }
+
+    // Final safety check: ensure we have a valid calendar ID
+    if (!finalMbCalendar.id) {
+      console.error('[MeetingBaaS Connect] finalMbCalendar has no ID:', JSON.stringify(finalMbCalendar));
+      return errorResponse('Failed to get calendar ID from MeetingBaaS', req, 500);
+    }
+
     // Store the connection in our database
+    const upsertData = {
+      user_id: effectiveUserId,
+      org_id: orgId,
+      meetingbaas_calendar_id: finalMbCalendar.id,
+      raw_calendar_id: calendar_id,
+      platform: 'google',
+      email: userEmail || finalMbCalendar.email,
+      name: finalMbCalendar.name,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    console.log('[MeetingBaaS Connect] Upserting calendar record:', upsertData);
+
     const { error: insertError } = await supabase
       .from('meetingbaas_calendars')
-      .upsert({
-        user_id,
-        org_id: orgId,
-        meetingbaas_calendar_id: finalMbCalendar.id,
-        raw_calendar_id: calendar_id,
-        platform: 'google',
-        email: userEmail || finalMbCalendar.email,
-        name: finalMbCalendar.name,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }, {
+      .upsert(upsertData, {
         onConflict: 'user_id,raw_calendar_id'
       });
 
     if (insertError) {
       console.error('[MeetingBaaS Connect] Failed to store connection:', insertError);
-      // Don't fail - the MeetingBaaS connection is already made
+      console.error('[MeetingBaaS Connect] Insert error details:', {
+        code: insertError.code,
+        message: insertError.message,
+        details: insertError.details,
+        hint: insertError.hint,
+      });
+      // Return error - we need the DB record for the UI to work
+      return errorResponse(
+        `Calendar connected to MeetingBaaS but failed to save: ${insertError.message}`,
+        req,
+        500
+      );
     }
 
     // Build webhook URL for reference
@@ -411,7 +576,7 @@ serve(async (req) => {
       ? `${supabaseUrl}/functions/v1/meetingbaas-webhook?token=${webhookToken}`
       : null;
 
-    console.log(`[MeetingBaaS Connect] Calendar connected: ${finalMbCalendar.id} for user ${user_id}`);
+    console.log(`[MeetingBaaS Connect] Calendar connected: ${finalMbCalendar.id} for user ${effectiveUserId}`);
 
     return jsonResponse({
       success: true,

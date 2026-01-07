@@ -2956,20 +2956,30 @@ function buildFeatureBlocks(feature: ProactiveSimulateFeature): { text: string; 
     }
 
     case 'email_reply_alert': {
+      // Use a demo contact with logo
+      const replyContact = DEMO_CONTACTS[Math.floor(Math.random() * DEMO_CONTACTS.length)];
+      const replyDomain = replyContact.email.split('@')[1];
+      const replyLogoUrl = `https://img.logo.dev/${replyDomain}?token=pk_X-1ZO13GSgeOoUrIuJ6GMQ`;
+      
       const blocks = [
-        ...baseBlocks('📬 New Reply — High Priority', '*Sarah Chen* from Nexus Technologies just responded'),
+        ...baseBlocks('📬 New Reply — High Priority', `*${replyContact.name}* from ${replyContact.company} just responded`),
         {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: '*Subject:* Re: Nexus Technologies Proposal + Volume Pricing\n*Received:* 2 minutes ago',
+            text: `*From:* ${replyContact.name} (${replyContact.email})\n*Subject:* Re: ${replyContact.company} Proposal + Next Steps\n*Received:* 2 minutes ago`,
+          },
+          accessory: {
+            type: 'image',
+            image_url: replyLogoUrl,
+            alt_text: `${replyContact.company} logo`,
           },
         },
         {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: '*📝 Summary:*\n_"Thanks for the call! The 12% discount on 3-year works. Quick Qs: 1) Can we do quarterly billing instead of annual? 2) What\'s the security review turnaround? Our IT lead (James) is anxious about timeline. Let\'s aim to wrap this up before the 15th."_',
+            text: '*📝 Summary:*\n_"Thanks for the call! This all looks good. Quick Qs: 1) Can we do quarterly billing instead of annual? 2) What\'s the onboarding timeline? Our team lead is anxious about the transition. Let\'s aim to wrap this up this month."_',
           },
         },
         { type: 'divider' },
@@ -3015,13 +3025,24 @@ function buildFeatureBlocks(feature: ProactiveSimulateFeature): { text: string; 
     }
 
     case 'hitl_followup_email': {
+      // Use the same contact that will be used for the HITL approval
+      const demoContact = DEMO_CONTACTS[Math.floor(Math.random() * DEMO_CONTACTS.length)];
+      const firstName = demoContact.name.split(' ')[0];
+      const domain = demoContact.email.split('@')[1];
+      const logoUrl = `https://img.logo.dev/${domain}?token=pk_X-1ZO13GSgeOoUrIuJ6GMQ`;
+      
       const blocks = [
-        ...baseBlocks('✍️ Follow-up Email Ready', '*Review before sending* — Nexus Technologies post-call follow-up'),
+        ...baseBlocks('✍️ Follow-up Email Ready', `*Review before sending* — ${demoContact.company} post-call follow-up`),
         {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: '*To:* Sarah Chen (sarah.chen@nexustech.com)\n*Subject:* Great call today + next steps for Nexus 🚀',
+            text: `*To:* ${demoContact.name} (${demoContact.email})\n*Subject:* Great call today — next steps for ${demoContact.company}`,
+          },
+          accessory: {
+            type: 'image',
+            image_url: logoUrl,
+            alt_text: `${demoContact.company} logo`,
           },
         },
         { type: 'divider' },
@@ -3029,13 +3050,13 @@ function buildFeatureBlocks(feature: ProactiveSimulateFeature): { text: string; 
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: '*📝 Draft email:*\n\n_Hi Sarah,_\n\n_Thanks for the great conversation today! I\'m excited about the momentum we\'re building toward getting Nexus live before your fiscal year end._\n\n_Quick recap of what we covered:_\n_• Budget: $85K confirmed ✅_\n_• Discount: 12% on 3-year commitment ✅_\n_• Timeline: Go-live target before Feb 15th_\n_• Next step: Security review with your IT team_\n\n_I\'m attaching our SOC 2 Type II report and security questionnaire. Happy to set up a call with James and our security team — would tomorrow or Thursday work?_\n\n_Looking forward to making this happen!_\n\n_Best,_\n_[Your name]_',
+            text: `*📝 Draft email:*\n\n_Hi ${firstName},_\n\n_Thanks for the great conversation today! I'm excited about the momentum we're building._\n\n_Quick recap of what we covered:_\n_• Discussed your current workflow challenges_\n_• Walked through our integration capabilities_\n_• Timeline: Pilot kickoff in the next 2 weeks_\n_• Next step: Technical demo with your team_\n\n_Would Thursday at 2pm work for the technical demo? I'll send over the prep materials beforehand._\n\n_Looking forward to working together!_\n\n_Best,_\n_Andrew_`,
           },
         },
         { type: 'divider' },
         {
           type: 'context',
-          elements: [{ type: 'mrkdwn', text: '💡 _Tone: Professional but warm • Length: Concise • Attachments: SOC 2 report, Security questionnaire_' }],
+          elements: [{ type: 'mrkdwn', text: '💡 _Tone: Professional but warm • Length: Concise • Personalized for your conversation_' }],
         },
       ];
       return { text: '✍️ 60 drafted your follow-up email — ready for review', blocks, hitlMode: true };
@@ -3138,22 +3159,41 @@ function buildHitlBlocks(approvalId: string): any[] {
   ];
 }
 
-function buildSimulatedHitlFollowUpEmailDraft(): { subject: string; body: string; recipient: string } {
+// Demo contacts for simulated emails
+const DEMO_CONTACTS = [
+  { name: 'Sarah Ellis-Barker', email: 'sarah@hamilton-barnes.co.uk', company: 'Hamilton Barnes' },
+  { name: 'Dan Debnam', email: 'dan@conturae.com', company: 'Conturae' },
+  { name: 'Anton Peruga', email: 'anton@resource-agent.ai', company: 'Resource Agent' },
+  { name: 'Will Kellett', email: 'will.kellett@evolvegrp.io', company: 'Evolve Group' },
+];
+
+function buildSimulatedHitlFollowUpEmailDraft(): { subject: string; body: string; recipient: string; recipientName: string } {
+  // Pick a random demo contact
+  const contact = DEMO_CONTACTS[Math.floor(Math.random() * DEMO_CONTACTS.length)];
+  const firstName = contact.name.split(' ')[0];
+  
   return {
-    subject: 'Great meeting — next steps',
-    recipient: 'prospect@example.com',
-    body: [
-      'Hi there,',
-      '',
-      'Thanks for the time today. Here are the next steps we agreed:',
-      '- Security review call this week',
-      '- Confirm success criteria and timeline',
-      '',
-      'Would Thursday at 2pm work for the security review?',
-      '',
-      'Best,',
-      'Andrew',
-    ].join('\n'),
+    subject: `Great call today — next steps for ${contact.company}`,
+    recipient: contact.email,
+    recipientName: contact.name,
+    body: `Hi ${firstName},
+
+Thanks so much for taking the time to chat today. It was great learning more about ${contact.company} and the challenges you're facing with your current workflow.
+
+As we discussed, here's a quick recap of the next steps:
+
+**1. Technical Demo** — I'll set up a session with your team to walk through the integration specifically for your use case.
+
+**2. Success Criteria** — Let's nail down the specific metrics you'd like to track (you mentioned pipeline visibility and response times).
+
+**3. Timeline** — Targeting a pilot kickoff in the next 2 weeks, with full rollout by end of month.
+
+Would Thursday at 2pm work for the technical demo? I'll send over the prep materials beforehand.
+
+Looking forward to working together!
+
+Best,
+Andrew`,
   };
 }
 
@@ -3379,6 +3419,8 @@ serve(async (req) => {
               body: draft.body,
               // Slack modal looks for `recipient` (not `to`) for the "To:" context line
               recipient: draft.recipient,
+              recipientName: draft.recipientName,
+              recipientEmail: draft.recipient,
               to: draft.recipient,
             };
 
@@ -3415,6 +3457,45 @@ serve(async (req) => {
 
     // In-app mirror (if enabled)
     if (createInApp) {
+      // For HITL features, create approval record even without Slack
+      // This ensures the Email Action Center can display the draft
+      if (hitlMode && !result.hitl.approvalId) {
+        const draft = buildSimulatedHitlFollowUpEmailDraft();
+        const originalContent = {
+          subject: draft.subject,
+          body: draft.body,
+          recipient: draft.recipient,
+          recipientName: draft.recipientName,
+          recipientEmail: draft.recipient,
+          to: draft.recipient,
+        };
+
+        const { data: approvalId, error: approvalError } = await supabase.rpc('create_hitl_approval', {
+          p_org_id: body.orgId,
+          p_user_id: targetUserId,
+          p_resource_type: 'email_draft',
+          p_resource_id: crypto.randomUUID(),
+          p_resource_name: `Follow-up email to ${draft.recipientName}`,
+          p_slack_team_id: null,
+          p_slack_channel_id: null,
+          p_slack_message_ts: null,
+          p_original_content: originalContent,
+          p_callback_type: null,
+          p_callback_target: null,
+          p_callback_metadata: { source: 'proactive_simulator' },
+          p_expires_hours: 24,
+          p_created_by: authCtx.userId,
+          p_slack_thread_ts: null,
+          p_metadata: { feature: 'hitl_followup_email', source: 'proactive_simulator' },
+        });
+
+        if (approvalError || !approvalId) {
+          result.hitl.error = approvalError?.message || 'Failed to create HITL approval';
+        } else {
+          result.hitl.approvalId = approvalId as string;
+        }
+      }
+
       const { data: inserted, error: insertError } = await supabase
         .from('notifications')
         .insert({

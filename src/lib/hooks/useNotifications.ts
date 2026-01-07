@@ -37,6 +37,14 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
         notificationService.getUnreadCount(currentUser.id) // 30s cache prevents bursts
       ]);
 
+      console.log('[useNotifications] Fetched:', {
+        notificationsCount: notificationsList.length,
+        unreadCount: count,
+        userId: currentUser.id,
+        limit,
+        category,
+      });
+
       setNotifications(notificationsList);
       setUnreadCount(count);
     } catch (err) {

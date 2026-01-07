@@ -194,26 +194,54 @@ function getSupabaseClient(): TypedSupabaseClient {
       },
       functions: functionsUrl ? { url: functionsUrl } : undefined,
       global: {
-        // Use custom fetch when Clerk auth is enabled to inject JWT
-        // Also use custom fetch for API monitoring (wrap native fetch)
+        // Use custom fetch for both Clerk and Supabase auth modes
+        // This ensures auth headers are properly added and enables API monitoring
         fetch: USE_CLERK_AUTH ? clerkFetch : async (input: RequestInfo | URL, init?: RequestInit) => {
-          const url = typeof input === 'string' ? input : input instanceof URL ? input : input.url;
+          const headers = new Headers(init?.headers);
+          const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
           const method = init?.method || 'GET';
-          
-          const response = await fetch(input, init);
-          
+
+          // For Edge Functions, we need to manually add the auth token since we're overriding fetch
+          // The Supabase client's internal auth header injection doesn't work with custom fetch
+          if (url.includes('/functions/v1/') || url.includes('.functions.supabase.co')) {
+            try {
+              // Get current session and add auth header if available
+              // Note: We can't use supabaseInstance here as it would be circular,
+              // so we read directly from localStorage
+              const projectRef = supabaseUrl.split('//')[1]?.split('.')[0];
+              const storageKey = `sb-${projectRef}-auth-token`;
+              const storedSession = localStorage.getItem(storageKey);
+
+              if (storedSession) {
+                const sessionData = JSON.parse(storedSession);
+                const accessToken = sessionData?.access_token;
+                if (accessToken && !headers.has('Authorization')) {
+                  headers.set('Authorization', `Bearer ${accessToken}`);
+                  console.log('🔐 Added auth token to Edge Function request');
+                }
+              }
+            } catch (err) {
+              console.warn('⚠️ Failed to add auth token to request:', err);
+            }
+          }
+
+          const response = await fetch(input, {
+            ...init,
+            headers,
+          });
+
           // Track request for API monitoring (non-blocking)
           try {
             const urlObj = typeof input === 'string' ? new URL(input) : input instanceof URL ? input : new URL(input.url);
             const endpoint = urlObj.pathname;
-            
+
             if (endpoint.includes('/rest/v1/') || endpoint.includes('/rpc/')) {
               apiMonitorService.trackRequest(endpoint, method, response.status);
             }
           } catch (err) {
             // Silently fail - monitoring should not break requests
           }
-          
+
           return response;
         },
         headers: {

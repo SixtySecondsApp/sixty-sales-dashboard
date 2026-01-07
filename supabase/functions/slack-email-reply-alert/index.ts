@@ -335,7 +335,7 @@ serve(async (req) => {
               entityId: email.id,
               title: `Reply from ${alertData.contact?.name || email.from_email}`,
               message: `New reply: ${email.subject}`,
-              actionUrl: `${APP_URL}/emails${email.thread_id ? `?thread=${email.thread_id}` : ''}`,
+              actionUrl: `${APP_URL}/email-actions`,
               inAppCategory: 'deal',
               inAppType: sentiment === 'positive' ? 'success' : sentiment === 'negative' ? 'warning' : 'info',
               priority: sentiment === 'positive' || dealId ? 'high' : 'medium',

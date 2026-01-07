@@ -143,7 +143,14 @@ class NotificationService {
 
       const { data, error } = await query;
 
+      console.log('[notificationService.getNotifications] Query result:', {
+        count: data?.length,
+        error: error?.message,
+        userId: resolvedUserId,
+      });
+
       if (error) {
+        console.error('[notificationService.getNotifications] Error:', error);
         return [];
       }
 

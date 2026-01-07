@@ -93,3 +93,13 @@ verify_jwt = false
 # External service sends unauthenticated requests, we verify via signature
 [functions.meetingbaas-webhook]
 verify_jwt = false
+
+# Process recording - called internally by meetingbaas-webhook
+# Triggered by webhook handler, so no JWT verification needed
+[functions.process-recording]
+verify_jwt = false
+
+# MeetingBaaS Connect Calendar - called from frontend with user JWT
+# We handle auth verification manually inside the function
+[functions.meetingbaas-connect-calendar]
+verify_jwt = false

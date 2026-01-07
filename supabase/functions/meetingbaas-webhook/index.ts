@@ -289,7 +289,7 @@ async function updateWebhookEventStatus(
   status: 'processing' | 'processed' | 'failed' | 'ignored',
   errorMessage?: string
 ): Promise<void> {
-  await supabase
+  const { error } = await supabase
     .from('webhook_events')
     .update({
       status,
@@ -297,8 +297,11 @@ async function updateWebhookEventStatus(
       error_message: errorMessage || null,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', eventId)
-    .catch((err) => console.error('[MeetingBaaS Webhook] Failed to update event status:', err));
+    .eq('id', eventId);
+
+  if (error) {
+    console.error('[MeetingBaaS Webhook] Failed to update event status:', error);
+  }
 }
 
 // =============================================================================
@@ -483,11 +486,14 @@ async function handleBotStatusEvent(
       recordingUpdate.error_message = error_message || 'Recording failed';
     }
 
-    await supabase
+    const { error: recordingError } = await supabase
       .from('recordings')
       .update(recordingUpdate)
-      .eq('id', deployment.recording_id)
-      .catch((err) => console.error('[MeetingBaaS Webhook] Failed to update recording:', err));
+      .eq('id', deployment.recording_id);
+
+    if (recordingError) {
+      console.error('[MeetingBaaS Webhook] Failed to update recording:', recordingError);
+    }
   }
 
   // Send Slack notifications for key events
@@ -599,11 +605,14 @@ async function handleBotStatusChange(
       recordingUpdate.error_message = data.error_message || 'Recording failed';
     }
 
-    await supabase
+    const { error: recordingUpdateError } = await supabase
       .from('recordings')
       .update(recordingUpdate)
-      .eq('id', deployment.recording_id)
-      .catch((err) => console.error('[MeetingBaaS Webhook] Failed to update recording:', err));
+      .eq('id', deployment.recording_id);
+
+    if (recordingUpdateError) {
+      console.error('[MeetingBaaS Webhook] Failed to update recording:', recordingUpdateError);
+    }
   }
 
   return { success: true };
@@ -727,13 +736,21 @@ async function handleBotCompleted(
 
   addBreadcrumb(`Processing bot.completed for bot: ${bot_id}`, 'meetingbaas');
 
+  console.log(`[MeetingBaaS Webhook] handleBotCompleted - bot_id: ${bot_id}, orgId: ${orgId}`);
+
   // Find deployment and recording
-  const { data: deployment } = await supabase
+  const { data: deployment, error: deploymentError } = await supabase
     .from('bot_deployments')
-    .select('id, recording_id, user_id')
+    .select('id, recording_id')
     .eq('bot_id', bot_id)
     .eq('org_id', orgId)
     .maybeSingle();
+
+  console.log(`[MeetingBaaS Webhook] Deployment lookup result:`, {
+    found: !!deployment,
+    recording_id: deployment?.recording_id,
+    error: deploymentError
+  });
 
   if (!deployment?.recording_id) {
     return { success: false, error: `Recording not found for bot_id: ${bot_id}` };
@@ -957,15 +974,24 @@ serve(async (req) => {
 
     // Method 2: Look up org from bot_id via bot_deployments
     if (!orgId) {
-      const { data: deployment } = await supabase
+      console.log(`[MeetingBaaS Webhook] Attempting Method 2: bot_id lookup for ${botId}`);
+      const { data: deployment, error: lookupError } = await supabase
         .from('bot_deployments')
         .select('org_id')
         .eq('bot_id', botId)
         .maybeSingle();
 
+      console.log(`[MeetingBaaS Webhook] Method 2 result:`, {
+        found: !!deployment,
+        org_id: deployment?.org_id,
+        error: lookupError
+      });
+
       if (deployment?.org_id) {
         orgId = deployment.org_id;
         console.log(`[MeetingBaaS Webhook] Org identified via bot_id: ${orgId}`);
+      } else {
+        console.warn(`[MeetingBaaS Webhook] Method 2 failed - no deployment found for bot_id: ${botId}`);
       }
     }
 
