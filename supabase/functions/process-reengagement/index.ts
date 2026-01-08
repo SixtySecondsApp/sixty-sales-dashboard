@@ -15,6 +15,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { sendEmail, isSESConfigured } from "../_shared/ses.ts";
 import {
   selectReengagementType,
   buildReengagementSlackBlocks,
@@ -27,7 +28,6 @@ import type { UserSegment } from "../_shared/engagement/types.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 
 interface ReengagementCandidate {
   user_id: string;
@@ -208,31 +208,24 @@ async function sendViaEmail(
     return { success: false, error: "No email address" };
   }
 
-  if (!RESEND_API_KEY) {
-    return { success: false, error: "No Resend API key configured" };
+  if (!isSESConfigured()) {
+    return { success: false, error: "AWS SES not configured" };
   }
 
   // Build email content
   const emailContent = buildReengagementEmailContent(reengagementType, context);
 
-  // Send via Resend
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-    },
-    body: JSON.stringify({
-      from: "60 <notifications@sixtyseconds.video>",
-      to: candidate.email,
-      subject: emailContent.subject,
-      html: emailContent.bodyHtml,
-    }),
+  // Send via AWS SES
+  const result = await sendEmail({
+    to: candidate.email,
+    subject: emailContent.subject,
+    html: emailContent.bodyHtml,
+    from: "notifications@sixtyseconds.ai",
+    fromName: "60",
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    return { success: false, error: `Resend error: ${errorText}` };
+  if (!result.success) {
+    return { success: false, error: result.error || "SES send failed" };
   }
 
   return { success: true };

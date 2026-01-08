@@ -15,10 +15,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { sendEmail, isSESConfigured } from "../_shared/ses.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 
 interface CronJob {
   jobid: number;
@@ -341,26 +341,21 @@ serve(async (req) => {
 
           for (const notification of pending) {
             try {
-              // Send via Resend
-              if (RESEND_API_KEY) {
-                const emailResponse = await fetch("https://api.resend.com/emails", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${RESEND_API_KEY}`,
-                  },
-                  body: JSON.stringify({
-                    from: "Sixty Seconds <alerts@sixtyseconds.video>",
-                    to: notification.recipients,
-                    subject: notification.subject,
-                    text: notification.message,
-                  }),
+              // Send via AWS SES
+              if (isSESConfigured()) {
+                const result = await sendEmail({
+                  to: notification.recipients,
+                  subject: notification.subject,
+                  text: notification.message,
+                  from: "alerts@sixtyseconds.ai",
+                  fromName: "Sixty Seconds",
                 });
 
-                if (!emailResponse.ok) {
-                  const errorText = await emailResponse.text();
-                  throw new Error(`Resend error: ${errorText}`);
+                if (!result.success) {
+                  throw new Error(result.error || "SES send failed");
                 }
+              } else {
+                throw new Error("AWS SES not configured");
               }
 
               // Mark as sent

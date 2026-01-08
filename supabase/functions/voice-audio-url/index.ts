@@ -23,7 +23,7 @@ interface AudioUrlRequest {
  * - SUPABASE_SERVICE_ROLE_KEY
  * - AWS_ACCESS_KEY_ID
  * - AWS_SECRET_ACCESS_KEY
- * - VOICE_S3_BUCKET (defaults to use60-voice-notes)
+ * - AWS_S3_BUCKET (defaults to use60-application)
  * - AWS_REGION (defaults to eu-west-2)
  */
 serve(async (req) => {
@@ -127,7 +127,7 @@ serve(async (req) => {
     const awsAccessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID')
     const awsSecretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY')
     const awsRegion = Deno.env.get('AWS_REGION') || 'eu-west-2'
-    const awsBucket = Deno.env.get('VOICE_S3_BUCKET') || 'use60-voice-notes'
+    const awsBucket = Deno.env.get('AWS_S3_BUCKET') || 'use60-application'
 
     if (!awsAccessKeyId || !awsSecretAccessKey) {
       return new Response(

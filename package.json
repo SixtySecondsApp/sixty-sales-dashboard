@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev": "vite",
+    "dev:staging": "vite --mode staging",
     "dev:api": "node server/api.js",
     "dev:api-optimized": "node server/api-optimized.js",
     "dev:api-production": "node server/api-production.js",
@@ -41,6 +42,8 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
+    "test:e2e:staging": "playwright test --config=playwright.staging.config.ts",
+    "test:e2e:staging:headed": "playwright test --config=playwright.staging.config.ts --headed",
     "test:regression": "playwright test tests/regression",
     "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e && npm run test:regression",
     "test:ci": "npm run test:unit -- --reporter=junit --outputFile=test-results-unit.xml && npm run test:integration -- --reporter=junit --outputFile=test-results-integration.xml && npm run test:e2e -- --reporter=junit",
@@ -60,7 +63,14 @@
     "playwright:report": "playwright show-report",
     "version:update": "node scripts/update-version.js",
     "release:add": "node scripts/add-release.js",
-    "release:build": "node scripts/build-release.js"
+    "release:build": "node scripts/build-release.js",
+    "sync:staging": "node scripts/sync-production-to-staging.js",
+    "sync:staging:compare": "node scripts/sync-production-to-staging.js --compare",
+    "sync:staging:dry-run": "node scripts/sync-production-to-staging.js --tables=all --dry-run",
+    "deploy:functions:staging": "./scripts/deploy-functions-staging.sh",
+    "deploy:functions:production": "./scripts/deploy-functions-production.sh",
+    "deploy:migrations:staging": "./scripts/deploy-migrations.sh staging",
+    "deploy:migrations:production": "./scripts/deploy-migrations.sh production"
   },
   "dependencies": {
     "@apollo/server": "^5.0.0",

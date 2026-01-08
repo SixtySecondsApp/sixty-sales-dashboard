@@ -1,7 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { sendEmail } from '../_shared/ses.ts';
 
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -50,28 +50,21 @@ serve(async (req) => {
 
     const results: InviteResult[] = [];
 
-    // Send emails using Resend API
+    // Send emails using AWS SES
     for (const invite of invites) {
       try {
         const emailHtml = generateEmailTemplate(sender_name, referral_url);
 
-        const response = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${RESEND_API_KEY}`,
-          },
-          body: JSON.stringify({
-            from: 'Meeting Intelligence <invites@meetingintelligence.ai>',
-            to: [invite.email],
-            subject: `${sender_name} invited you to skip the line for Meeting Intelligence`,
-            html: emailHtml,
-          }),
+        const result = await sendEmail({
+          to: invite.email,
+          subject: `${sender_name} invited you to skip the line for Meeting Intelligence`,
+          html: emailHtml,
+          from: 'invites@sixtyseconds.ai',
+          fromName: 'Meeting Intelligence',
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to send email');
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to send email');
         }
 
         results.push({

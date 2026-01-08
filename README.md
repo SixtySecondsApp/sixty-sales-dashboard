@@ -40,6 +40,7 @@ Full documentation available in [`/docs`](./docs/):
 - [Getting Started](./docs/getting-started/quick-start.md)
 - [Architecture](./docs/architecture/overview.md)
 - [API Reference](./docs/api/)
+- [Deployment Guide](./docs/DEPLOYMENT.md)
 
 ## Project Structure
 
@@ -59,6 +60,11 @@ Full documentation available in [`/docs`](./docs/):
 | `npm run build` | Production build |
 | `npm run test` | Run tests |
 | `npm run playwright` | E2E tests |
+| `npm run deploy:functions:staging` | Deploy edge functions to staging |
+| `npm run deploy:functions:production` | Deploy edge functions to production |
+| `npm run deploy:migrations:staging` | Deploy migrations to staging |
+| `npm run deploy:migrations:production` | Deploy migrations to production |
+| `npm run sync:staging` | Sync production data to staging |
 
 ## Contributing
 
