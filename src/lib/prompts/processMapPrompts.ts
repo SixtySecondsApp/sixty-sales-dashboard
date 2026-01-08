@@ -21,6 +21,7 @@ export const INTEGRATION_DESCRIPTIONS: Record<string, string> = {
   slack: `Send deal alerts and meeting summaries to Slack channels via bot integration.`,
   justcall: `Sync call recordings via API. Fetch transcripts and run AI analysis.`,
   savvycal: `Sync bookings via webhook. Auto-create contacts and log activities.`,
+  meetingbaas: `Auto-record meetings via calendar sync. Extract meeting URLs from descriptions. Deploy recording bots. Process webhooks for status updates. Run AI analysis for sentiment, coaching scores, and talk time. Generate thumbnails from video frames.`,
 };
 
 /**

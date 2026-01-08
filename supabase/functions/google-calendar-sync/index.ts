@@ -19,6 +19,7 @@ import { getCorsHeaders, handleCorsPreflightRequest, errorResponse, jsonResponse
 import { authenticateRequest, getUserOrgId } from '../_shared/edgeAuth.ts';
 import { getGoogleIntegration } from '../_shared/googleOAuth.ts';
 import { captureException } from '../_shared/sentryEdge.ts';
+import { extractMeetingUrl } from '../_shared/meetingUrlExtractor.ts';
 
 // Helper for logging sync operations to integration_sync_logs table
 async function logSyncOperation(
@@ -355,7 +356,7 @@ serve(async (req) => {
             end_time: ev.end?.dateTime || ev.end?.date || ev.start?.dateTime || now,
             all_day: !ev.start?.dateTime,
             status: ev.status || 'confirmed',
-            meeting_url: ev.hangoutLink || null,
+            meeting_url: extractMeetingUrl(ev),
             attendees_count: Array.isArray(ev.attendees) ? ev.attendees.length : 0,
             attendees: ev.attendees || null,
             color: ev.colorId || null,

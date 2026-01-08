@@ -28,6 +28,7 @@ import {
   DialogTitle 
 } from '@/components/ui/dialog';
 import { OwnerFilterV3 } from '@/components/OwnerFilterV3';
+import { VisuallyHidden } from '@/components/calendar/ScreenReaderAnnouncements';
 import { toast } from 'sonner';
 import ConnectedFilterSidebar from '@/components/ConnectedFilterSidebar';
 import ContactsView from '@/components/ContactsView';
@@ -962,7 +963,10 @@ export default function ElegantCRM() {
         {/* Deal Form Modal */}
         {addDealModalOpen && (
           <Dialog open={addDealModalOpen} onOpenChange={setAddDealModalOpen}>
-            <DialogContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+              <VisuallyHidden>
+                <DialogTitle>Add Deal</DialogTitle>
+              </VisuallyHidden>
               <DealForm
                 onSave={handleSaveDeal}
                 onCancel={() => setAddDealModalOpen(false)}

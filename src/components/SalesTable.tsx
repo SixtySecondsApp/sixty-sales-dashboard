@@ -53,6 +53,7 @@ import { IdentifierType } from '../components/IdentifierField';
 import { EditActivityForm } from './EditActivityForm';
 import { useActivityFilters } from '@/lib/hooks/useActivityFilters';
 import { ActivityUploadModal } from './admin/ActivityUploadModal'; // Import the new modal
+import { VisuallyHidden } from '@/components/calendar/ScreenReaderAnnouncements';
 import { exportActivitiesToCSV, getExportSummary } from '@/lib/utils/csvExport';
 import { calculateLTVValue, formatActivityAmount } from '@/lib/utils/calculations';
 import { DateFilter, DateRangePreset, DateRange } from '@/components/ui/date-filter';
@@ -1190,9 +1191,12 @@ export function SalesTable() {
                     <Edit2 className="w-4 h-4 text-gray-400 hover:text-[#37bd7e]" />
                   </motion.button>
                 </DialogTrigger>
-                <DialogContent className="bg-white dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 text-gray-900 dark:text-white p-6 rounded-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
+                <DialogContent className="bg-white dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 text-gray-900 dark:text-white p-6 rounded-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto" aria-describedby={undefined}>
+                  <VisuallyHidden>
+                    <DialogTitle>Edit Activity</DialogTitle>
+                  </VisuallyHidden>
                   {editingActivity && editingActivity.id === activity.id && (
-                    <EditActivityForm 
+                    <EditActivityForm
                       activity={editingActivity}
                       onSave={handleSave}
                       onCancel={() => setEditingActivity(null)}

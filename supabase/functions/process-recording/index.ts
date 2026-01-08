@@ -25,6 +25,8 @@ import {
   isInternalEmail,
   formatDuration,
 } from '../_shared/meetingbaas.ts';
+// Import AI analysis function from fathom-sync for sentiment, talk time, and coaching
+import { analyzeTranscriptWithClaude, TranscriptAnalysis } from '../fathom-sync/aiAnalysis.ts';
 
 // =============================================================================
 // Storage Upload Helper
@@ -650,6 +652,34 @@ async function processRecording(
     // Update speakers with any AI enhancements
     speakers = analysis.speakers;
 
+    // Step 4.5: Run enhanced AI analysis for sentiment, talk time, and coaching
+    // Uses the same analysis pipeline as Fathom recordings for consistency
+    console.log('[ProcessRecording] Step 4.5: Running enhanced AI analysis...');
+    let enhancedAnalysis: TranscriptAnalysis | null = null;
+    try {
+      enhancedAnalysis = await analyzeTranscriptWithClaude(
+        transcript.text,
+        {
+          id: recordingId,
+          title: recording.meeting_title || 'Meeting',
+          meeting_start: recording.meeting_start_time || new Date().toISOString(),
+          owner_email: null, // Will be populated from user if needed
+        },
+        supabase,
+        recording.user_id,
+        recording.org_id
+      );
+      console.log('[ProcessRecording] Enhanced AI analysis complete:', {
+        sentiment: enhancedAnalysis.sentiment.score,
+        talkTimeRep: enhancedAnalysis.talkTime.repPct,
+        coachRating: enhancedAnalysis.coaching.rating,
+        actionItems: enhancedAnalysis.actionItems.length,
+      });
+    } catch (aiError) {
+      console.warn('[ProcessRecording] Enhanced AI analysis failed (non-fatal):', aiError);
+      // Continue with basic analysis only
+    }
+
     // Step 5: Check for HITL needs
     const needsHITL = await checkAndFlagForHITL(supabase, recordingId, speakers, attendees);
 
@@ -663,24 +693,121 @@ async function processRecording(
 
     // Step 7: Update recording with all results
     console.log('[ProcessRecording] Step 7: Saving results...');
+
+    // Determine talk time judgement based on rep percentage
+    const getTalkTimeJudgement = (repPct: number): 'good' | 'high' | 'low' | null => {
+      if (repPct >= 40 && repPct <= 60) return 'good';
+      if (repPct > 60) return 'high';
+      if (repPct < 40) return 'low';
+      return null;
+    };
+
+    const recordingUpdate: Record<string, unknown> = {
+      status: 'ready',
+      // Use our storage URL if available, fallback to MeetingBaaS URL
+      recording_s3_url: uploadResult.storageUrl || recordingData.url,
+      recording_s3_key: uploadResult.storagePath || null,
+      transcript_json: transcript,
+      transcript_text: transcript.text,
+      summary: analysis.summary,
+      highlights: analysis.highlights,
+      action_items: analysis.action_items,
+      speakers: speakers,
+      speaker_identification_method: speakers[0]?.identification_method || 'unknown',
+      meeting_duration_seconds: durationSeconds,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Add enhanced AI analysis fields if available
+    if (enhancedAnalysis) {
+      recordingUpdate.sentiment_score = enhancedAnalysis.sentiment.score;
+      recordingUpdate.coach_rating = enhancedAnalysis.coaching.rating * 10; // Convert 1-10 to 0-100 scale
+      recordingUpdate.coach_summary = enhancedAnalysis.coaching.summary;
+      recordingUpdate.talk_time_rep_pct = enhancedAnalysis.talkTime.repPct;
+      recordingUpdate.talk_time_customer_pct = enhancedAnalysis.talkTime.customerPct;
+      recordingUpdate.talk_time_judgement = getTalkTimeJudgement(enhancedAnalysis.talkTime.repPct);
+    }
+
     await supabase
       .from('recordings')
-      .update({
-        status: needsHITL ? 'ready' : 'ready', // Both cases are 'ready', HITL is tracked separately
-        // Use our storage URL if available, fallback to MeetingBaaS URL
-        recording_s3_url: uploadResult.storageUrl || recordingData.url,
-        recording_s3_key: uploadResult.storagePath || null,
-        transcript_json: transcript,
-        transcript_text: transcript.text,
-        summary: analysis.summary,
-        highlights: analysis.highlights,
-        action_items: analysis.action_items,
-        speakers: speakers,
-        speaker_identification_method: speakers[0]?.identification_method || 'unknown',
-        meeting_duration_seconds: durationSeconds,
-        updated_at: new Date().toISOString(),
-      })
+      .update(recordingUpdate)
       .eq('id', recordingId);
+
+    // Step 7.5: Sync to unified meetings table for 60_notetaker source
+    console.log('[ProcessRecording] Step 7.5: Syncing to meetings table...');
+    const meetingUpdate: Record<string, unknown> = {
+      title: recording.meeting_title,
+      summary: analysis.summary,
+      transcript_text: transcript.text,
+      transcript_json: transcript,
+      duration_minutes: durationSeconds ? Math.round(durationSeconds / 60) : null,
+      processing_status: 'ready',
+      recording_s3_key: uploadResult.storagePath || null,
+      recording_s3_url: uploadResult.storageUrl || recordingData.url,
+      speakers: speakers,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Add enhanced AI analysis fields to meeting
+    if (enhancedAnalysis) {
+      meetingUpdate.sentiment_score = enhancedAnalysis.sentiment.score;
+      meetingUpdate.coach_rating = enhancedAnalysis.coaching.rating * 10; // Convert 1-10 to 0-100 scale
+      meetingUpdate.coach_summary = enhancedAnalysis.coaching.summary;
+      meetingUpdate.talk_time_rep_pct = enhancedAnalysis.talkTime.repPct;
+      meetingUpdate.talk_time_customer_pct = enhancedAnalysis.talkTime.customerPct;
+      meetingUpdate.talk_time_judgement = getTalkTimeJudgement(enhancedAnalysis.talkTime.repPct);
+    }
+
+    const { error: meetingError } = await supabase
+      .from('meetings')
+      .update(meetingUpdate)
+      .eq('bot_id', effectiveBotId)
+      .eq('source_type', '60_notetaker');
+
+    if (meetingError) {
+      console.warn('[ProcessRecording] Failed to sync to meetings table (non-fatal):', meetingError.message);
+    } else {
+      console.log('[ProcessRecording] Successfully synced to meetings table');
+    }
+
+    // Step 7.6: Insert action items to meeting_action_items if enhanced analysis available
+    if (enhancedAnalysis && enhancedAnalysis.actionItems.length > 0) {
+      console.log('[ProcessRecording] Step 7.6: Inserting action items...');
+      try {
+        // Get the meeting ID for the action items
+        const { data: meeting } = await supabase
+          .from('meetings')
+          .select('id')
+          .eq('bot_id', effectiveBotId)
+          .eq('source_type', '60_notetaker')
+          .maybeSingle();
+
+        if (meeting) {
+          const actionItemsToInsert = enhancedAnalysis.actionItems.map((item) => ({
+            meeting_id: meeting.id,
+            title: item.title,
+            assignee: item.assignedTo,
+            due_date: item.deadline,
+            priority: item.priority,
+            status: 'pending',
+            confidence: item.confidence,
+            created_at: new Date().toISOString(),
+          }));
+
+          const { error: actionError } = await supabase
+            .from('meeting_action_items')
+            .insert(actionItemsToInsert);
+
+          if (actionError) {
+            console.warn('[ProcessRecording] Failed to insert action items:', actionError.message);
+          } else {
+            console.log(`[ProcessRecording] Inserted ${actionItemsToInsert.length} action items`);
+          }
+        }
+      } catch (actionError) {
+        console.warn('[ProcessRecording] Action items insertion error (non-fatal):', actionError);
+      }
+    }
 
     // Step 8: Update bot deployment status
     await supabase
@@ -718,7 +845,35 @@ async function processRecording(
       }
     }
 
-    // Step 10: Send recording ready notification
+    // Step 10: Generate thumbnail for the recording
+    if (supabaseUrl && serviceRoleKey && uploadResult.storagePath) {
+      try {
+        console.log('[ProcessRecording] Step 10: Triggering thumbnail generation...');
+        const thumbnailResponse = await fetch(`${supabaseUrl}/functions/v1/generate-s3-video-thumbnail`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${serviceRoleKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            recording_id: recordingId,
+            bot_id: effectiveBotId,
+            timestamp: 30, // Extract frame at 30 seconds
+          }),
+        });
+
+        if (thumbnailResponse.ok) {
+          const thumbnailResult = await thumbnailResponse.json();
+          console.log('[ProcessRecording] Thumbnail generated:', thumbnailResult.success);
+        } else {
+          console.warn('[ProcessRecording] Thumbnail generation failed:', await thumbnailResponse.text());
+        }
+      } catch (err) {
+        console.warn('[ProcessRecording] Thumbnail error (non-blocking):', err);
+      }
+    }
+
+    // Step 11: Send recording ready notification
     if (supabaseUrl && serviceRoleKey) {
       try {
         await fetch(`${supabaseUrl}/functions/v1/send-recording-notification`, {

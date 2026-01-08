@@ -177,8 +177,8 @@ export class DefaultStepExecutor implements StepExecutor {
       };
     }
 
-    // Check for applicable mock
-    const mock = this.findMock(step, mocks);
+    // Check for applicable mock (pass inputData for matchConditions evaluation)
+    const mock = this.findMock(step, mocks, inputData);
     if (mock && context.runMode !== 'production_readonly') {
       wasMocked = true;
       mockSource = mock.integration;
@@ -253,16 +253,86 @@ export class DefaultStepExecutor implements StepExecutor {
     };
   }
 
-  private findMock(step: WorkflowStepDefinition, mocks: ProcessMapMock[]): ProcessMapMock | undefined {
+  private findMock(
+    step: WorkflowStepDefinition,
+    mocks: ProcessMapMock[],
+    inputData?: Record<string, unknown>
+  ): ProcessMapMock | undefined {
     if (!step.integration) return undefined;
 
     // Find active mocks for this integration, sorted by priority
     const applicableMocks = mocks
-      .filter(m => m.isActive && m.integration === step.integration)
+      .filter(m => {
+        // Must be active and match integration
+        if (!m.isActive || m.integration !== step.integration) {
+          return false;
+        }
+
+        // Check matchConditions if present
+        if (m.matchConditions) {
+          // Check bodyContains condition
+          if (m.matchConditions.bodyContains) {
+            // If no input data provided, this condition can't be satisfied
+            if (!inputData) {
+              return false;
+            }
+
+            // Check if all required fields are present in the input data
+            for (const [key, value] of Object.entries(m.matchConditions.bodyContains)) {
+              if (inputData[key] !== value) {
+                return false;
+              }
+            }
+          }
+
+          // Check pathPattern condition
+          if (m.matchConditions.pathPattern) {
+            if (step.id !== m.matchConditions.pathPattern) {
+              return false;
+            }
+          }
+
+          // Check endpoint condition using flexible word matching
+          if (m.endpoint && !this.matchesEndpoint(step, m.endpoint)) {
+            return false;
+          }
+        } else if (m.endpoint) {
+          // If no matchConditions but has endpoint, check endpoint match
+          if (!this.matchesEndpoint(step, m.endpoint)) {
+            return false;
+          }
+        }
+
+        return true;
+      })
       .sort((a, b) => b.priority - a.priority);
 
-    // Return highest priority mock that matches
+    // Return highest priority mock that matches all conditions
     return applicableMocks[0];
+  }
+
+  /**
+   * Flexible endpoint matching using word-level comparison
+   * Handles variations like "deploy-bot" matching "Schedule Bot Deployment"
+   */
+  private matchesEndpoint(step: WorkflowStepDefinition, endpoint: string): boolean {
+    // Normalize: lowercase, split on hyphens/underscores/spaces, remove empty strings
+    const normalize = (s: string): string[] =>
+      s.toLowerCase().split(/[-_\s]+/).filter(w => w.length > 0);
+
+    const stepNameWords = normalize(step.name);
+    const stepIdWords = normalize(step.id);
+    const endpointWords = normalize(endpoint);
+
+    // Check if ALL endpoint words appear in step name OR step ID
+    const matchesName = endpointWords.every(ew =>
+      stepNameWords.some(sw => sw.includes(ew) || ew.includes(sw))
+    );
+    const matchesId = endpointWords.every(ew =>
+      stepIdWords.some(sw => sw.includes(ew) || ew.includes(sw))
+    );
+
+    return matchesName || matchesId;
   }
 
   private validateAgainstSchema(

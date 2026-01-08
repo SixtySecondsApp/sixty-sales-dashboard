@@ -39,11 +39,27 @@ export type SupportedIntegration =
   | 'hubspot'
   | 'fathom'
   | 'google'
+  | 'google-calendar'
+  | 'microsoft-calendar'
   | 'slack'
   | 'justcall'
   | 'savvycal'
   | 'supabase'
-  | 'meetingbaas';
+  | 'meetingbaas'
+  | 'openai'
+  | 'aws-s3'
+  | 'cloudfront';
+
+/**
+ * Map integration variants to their canonical mock handlers
+ */
+const INTEGRATION_ALIASES: Record<string, SupportedIntegration> = {
+  'google-calendar': 'google',
+  'microsoft-calendar': 'google', // Use Google mocks as fallback for MS Calendar
+  'openai': 'supabase', // Use Supabase mocks for AI (Edge Function based)
+  'aws-s3': 'supabase', // Use Supabase mocks for S3 operations
+  'cloudfront': 'supabase', // Use Supabase mocks for CDN operations
+};
 
 // ============================================================================
 // Mock Registry
@@ -79,7 +95,16 @@ export class MockRegistry {
    * Get the best matching mock for an integration and step
    */
   getMock(integration: string, endpoint?: string): ProcessMapMock | undefined {
-    const integrationMocks = this.mocks.get(integration.toLowerCase());
+    const normalizedIntegration = integration.toLowerCase();
+    // Try original integration name first, then canonical alias
+    let integrationMocks = this.mocks.get(normalizedIntegration);
+    if (!integrationMocks) {
+      const canonicalIntegration =
+        INTEGRATION_ALIASES[normalizedIntegration as keyof typeof INTEGRATION_ALIASES];
+      if (canonicalIntegration) {
+        integrationMocks = this.mocks.get(canonicalIntegration);
+      }
+    }
     if (!integrationMocks) return undefined;
 
     // Find the most specific matching mock
@@ -104,7 +129,17 @@ export class MockRegistry {
    * Get all mocks for an integration
    */
   getIntegrationMocks(integration: string): ProcessMapMock[] {
-    return this.mocks.get(integration.toLowerCase()) || [];
+    const normalizedIntegration = integration.toLowerCase();
+    // Try original integration name first, then canonical alias
+    let mocks = this.mocks.get(normalizedIntegration);
+    if (!mocks || mocks.length === 0) {
+      const canonicalIntegration =
+        INTEGRATION_ALIASES[normalizedIntegration as keyof typeof INTEGRATION_ALIASES];
+      if (canonicalIntegration) {
+        mocks = this.mocks.get(canonicalIntegration);
+      }
+    }
+    return mocks || [];
   }
 
   /**
@@ -116,16 +151,20 @@ export class MockRegistry {
     orgId: string
   ): IntegrationMockInstance | undefined {
     const normalizedIntegration = integration.toLowerCase();
+    // Resolve aliases to canonical mock handlers (e.g., 'google-calendar' → 'google')
+    const canonicalIntegration =
+      INTEGRATION_ALIASES[normalizedIntegration as keyof typeof INTEGRATION_ALIASES] ||
+      normalizedIntegration;
     const key = `${normalizedIntegration}:${workflowId}`;
 
     if (this.instances.has(key)) {
       return this.instances.get(key);
     }
 
-    // Create new instance based on integration type
+    // Create new instance based on canonical integration type
     let instance: IntegrationMockInstance | undefined;
 
-    switch (normalizedIntegration) {
+    switch (canonicalIntegration) {
       case 'hubspot': {
         const mock = new HubSpotMock({ preloadData: true });
         const configs = createHubSpotMockConfigs(workflowId, orgId);
@@ -235,7 +274,16 @@ export class MockRegistry {
    * Check if an integration has any mocks registered
    */
   hasMocks(integration: string): boolean {
-    const mocks = this.mocks.get(integration.toLowerCase());
+    const normalizedIntegration = integration.toLowerCase();
+    let mocks = this.mocks.get(normalizedIntegration);
+    if (!mocks || mocks.length === 0) {
+      // Try canonical alias
+      const canonicalIntegration =
+        INTEGRATION_ALIASES[normalizedIntegration as keyof typeof INTEGRATION_ALIASES];
+      if (canonicalIntegration) {
+        mocks = this.mocks.get(canonicalIntegration);
+      }
+    }
     return !!mocks && mocks.length > 0;
   }
 

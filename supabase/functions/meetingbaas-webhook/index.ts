@@ -213,6 +213,39 @@ function mapStatusCodeToRecordingStatus(statusCode: string): RecordingStatus | n
   }
 }
 
+/**
+ * Sync meeting record processing_status with recording status
+ * Updates the unified meetings table for 60_notetaker source type
+ */
+async function syncMeetingStatus(
+  supabase: SupabaseClient,
+  botId: string,
+  processingStatus: RecordingStatus,
+  additionalFields?: Record<string, unknown>
+): Promise<void> {
+  try {
+    const updateFields: Record<string, unknown> = {
+      processing_status: processingStatus,
+      updated_at: new Date().toISOString(),
+      ...additionalFields,
+    };
+
+    const { error } = await supabase
+      .from('meetings')
+      .update(updateFields)
+      .eq('bot_id', botId)
+      .eq('source_type', '60_notetaker');
+
+    if (error) {
+      console.warn('[MeetingBaaS Webhook] Failed to sync meeting status:', error.message);
+    } else {
+      console.log(`[MeetingBaaS Webhook] Synced meeting status to: ${processingStatus}`);
+    }
+  } catch (error) {
+    console.error('[MeetingBaaS Webhook] Error syncing meeting status:', error);
+  }
+}
+
 async function verifyMeetingBaaSSignature(
   secret: string,
   rawBody: string,
@@ -494,6 +527,12 @@ async function handleBotStatusEvent(
     if (recordingError) {
       console.error('[MeetingBaaS Webhook] Failed to update recording:', recordingError);
     }
+
+    // Sync meeting status for 60_notetaker source
+    await syncMeetingStatus(supabase, bot_id, recordingStatus, {
+      ...(eventType === 'bot.in_meeting' && { meeting_start: timestamp || new Date().toISOString() }),
+      ...(eventType === 'bot.failed' && { error_message: error_message || 'Recording failed' }),
+    });
   }
 
   // Send Slack notifications for key events
@@ -613,6 +652,12 @@ async function handleBotStatusChange(
     if (recordingUpdateError) {
       console.error('[MeetingBaaS Webhook] Failed to update recording:', recordingUpdateError);
     }
+
+    // Sync meeting status for 60_notetaker source
+    await syncMeetingStatus(supabase, bot_id, recordingStatus, {
+      ...(statusCode === 'in_call_recording' && { meeting_start: new Date().toISOString() }),
+      ...(statusCode === 'error' && { error_message: data.error_message || 'Recording failed' }),
+    });
   }
 
   return { success: true };
@@ -817,6 +862,13 @@ async function handleBotCompleted(
       updated_at: new Date().toISOString(),
     })
     .eq('id', deployment.id);
+
+  // Sync meeting status for 60_notetaker source with recording details
+  await syncMeetingStatus(supabase, bot_id, 'processing', {
+    meeting_start: joined_at,
+    meeting_end: exited_at,
+    duration_minutes: duration_seconds ? Math.round(duration_seconds / 60) : null,
+  });
 
   // Trigger process-recording for transcription and AI analysis
   try {

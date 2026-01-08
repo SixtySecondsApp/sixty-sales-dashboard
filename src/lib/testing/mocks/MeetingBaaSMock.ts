@@ -54,6 +54,24 @@ export type BotStatus =
   | 'recording_done'
   | 'error';
 
+export interface MockAIAnalysis {
+  sentiment_score: number; // -1.0 to 1.0
+  coach_rating: number; // 0-100 scale
+  coach_summary: string | null;
+  talk_time_rep_pct: number; // 0-100
+  talk_time_customer_pct: number; // 0-100
+  talk_time_judgement: 'good' | 'high' | 'low';
+  summary: string | null;
+  action_items: { text: string; assignee?: string }[];
+  highlights: { timestamp: number; text: string; type: string }[];
+}
+
+export interface MockThumbnail {
+  thumbnail_s3_key: string | null;
+  thumbnail_url: string | null;
+  thumbnail_generated_at: string | null;
+}
+
 export interface MockRecording {
   id: string;
   bot_id: string;
@@ -64,11 +82,22 @@ export interface MockRecording {
   video_url: string | null;
   audio_url: string | null;
   transcript_id: string | null;
+  // AI Analysis fields
+  ai_analysis: MockAIAnalysis | null;
+  // Thumbnail fields
+  thumbnail: MockThumbnail | null;
   created_at: string;
   updated_at: string;
 }
 
 export type RecordingStatus = 'processing' | 'ready' | 'failed';
+
+export interface MockMeetingUrlExtraction {
+  raw_description: string;
+  extracted_url: string | null;
+  platform: 'zoom' | 'google_meet' | 'microsoft_teams' | 'webex' | 'other' | null;
+  extraction_source: 'hangout_link' | 'conference_data' | 'description' | 'location' | null;
+}
 
 export interface MockTranscript {
   id: string;
@@ -160,6 +189,39 @@ const SAMPLE_TRANSCRIPT_SEGMENTS = [
   "Let me share my screen to show you the latest updates.",
   "I think we should schedule a follow-up to dive deeper into this.",
   "Great point. Let me add that to the action items.",
+];
+
+const SAMPLE_AI_SUMMARIES = [
+  "Productive discovery call covering timeline, requirements, and next steps. Client expressed interest in moving forward.",
+  "Deep dive into technical architecture. Team aligned on solution approach with clear action items.",
+  "Pipeline review showing strong momentum. Several deals moved to late stage with expected close dates.",
+  "Kick-off meeting established project scope, milestones, and communication cadence.",
+  "Customer success check-in revealed upsell opportunity. Client mentioned expansion plans.",
+];
+
+const SAMPLE_ACTION_ITEMS = [
+  { text: "Send proposal with updated pricing", assignee: "sales_rep" },
+  { text: "Schedule technical deep dive with engineering", assignee: "se" },
+  { text: "Share case study from similar customer", assignee: "sales_rep" },
+  { text: "Follow up on budget approval timeline", assignee: "sales_rep" },
+  { text: "Prepare demo environment for next call", assignee: "se" },
+  { text: "Connect client with customer success for references", assignee: "csm" },
+];
+
+const SAMPLE_COACH_SUMMARIES = [
+  "Strong discovery questions uncovered key pain points. Consider asking more about decision timeline.",
+  "Good objection handling. Opportunity to use more specific customer success stories.",
+  "Excellent technical explanation. Could improve by summarizing key points at end.",
+  "Active listening demonstrated. Consider more open-ended questions to understand priorities.",
+  "Clear value proposition. Room to tie features more directly to stated business objectives.",
+];
+
+const SAMPLE_MEETING_DESCRIPTIONS_WITH_URLS = [
+  { description: "Join Zoom Meeting\nhttps://zoom.us/j/1234567890\nMeeting ID: 123 456 7890", platform: 'zoom' as const },
+  { description: "Microsoft Teams meeting\nJoin on your computer or mobile app\nClick here to join the meeting\nhttps://teams.microsoft.com/l/meetup-join/12345", platform: 'microsoft_teams' as const },
+  { description: "Google Meet joining info\nVideo call link: https://meet.google.com/abc-defg-hij", platform: 'google_meet' as const },
+  { description: "Webex meeting\nJoin meeting: https://company.webex.com/meet/username", platform: 'webex' as const },
+  { description: "Discussion agenda:\n1. Project update\n2. Timeline review\nZoom: https://zoom.us/j/9876543210", platform: 'zoom' as const },
 ];
 
 // ============================================================================
@@ -278,6 +340,120 @@ export class MeetingBaaSMock {
       video_url: null,
       audio_url: null,
       transcript_id: null,
+      ai_analysis: null,
+      thumbnail: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      ...overrides,
+    };
+
+    this.recordings.set(recording.id, recording);
+    return recording;
+  }
+
+  // ============================================================================
+  // AI Analysis Generators
+  // ============================================================================
+
+  generateAIAnalysis(): MockAIAnalysis {
+    // Generate realistic talk time distribution
+    const repPct = Math.floor(Math.random() * 40) + 30; // 30-70%
+    const customerPct = 100 - repPct;
+
+    // Determine talk time judgement based on rep percentage
+    let talkTimeJudgement: 'good' | 'high' | 'low';
+    if (repPct >= 40 && repPct <= 60) {
+      talkTimeJudgement = 'good';
+    } else if (repPct > 60) {
+      talkTimeJudgement = 'high';
+    } else {
+      talkTimeJudgement = 'low';
+    }
+
+    // Generate sentiment score (-1.0 to 1.0, biased towards positive)
+    const sentimentScore = parseFloat((Math.random() * 1.5 - 0.3).toFixed(2));
+    const clampedSentiment = Math.max(-1, Math.min(1, sentimentScore));
+
+    // Generate coach rating (0-100, normally distributed around 70)
+    const coachRating = Math.floor(Math.random() * 40) + 50; // 50-90
+
+    // Generate random action items (2-4)
+    const actionItemCount = Math.floor(Math.random() * 3) + 2;
+    const shuffledActions = [...SAMPLE_ACTION_ITEMS].sort(() => Math.random() - 0.5);
+    const actionItems = shuffledActions.slice(0, actionItemCount);
+
+    // Generate highlights
+    const duration = Math.floor(Math.random() * 3600) + 600;
+    const highlightCount = Math.floor(Math.random() * 4) + 2;
+    const highlights = Array.from({ length: highlightCount }).map((_, i) => ({
+      timestamp: Math.floor((duration / (highlightCount + 1)) * (i + 1)),
+      text: randomElement(SAMPLE_TRANSCRIPT_SEGMENTS),
+      type: randomElement(['key_point', 'decision', 'action_item', 'question', 'objection']),
+    }));
+
+    return {
+      sentiment_score: clampedSentiment,
+      coach_rating: coachRating,
+      coach_summary: randomElement(SAMPLE_COACH_SUMMARIES),
+      talk_time_rep_pct: repPct,
+      talk_time_customer_pct: customerPct,
+      talk_time_judgement: talkTimeJudgement,
+      summary: randomElement(SAMPLE_AI_SUMMARIES),
+      action_items: actionItems,
+      highlights,
+    };
+  }
+
+  // ============================================================================
+  // Thumbnail Generators
+  // ============================================================================
+
+  generateThumbnail(recordingId: string): MockThumbnail {
+    const thumbnailId = generateId('thumb');
+    return {
+      thumbnail_s3_key: `thumbnails/${recordingId}/${thumbnailId}.jpg`,
+      thumbnail_url: `https://storage.meetingbaas.com/thumbnails/${recordingId}/${thumbnailId}.jpg`,
+      thumbnail_generated_at: new Date().toISOString(),
+    };
+  }
+
+  // ============================================================================
+  // Meeting URL Extraction Mock
+  // ============================================================================
+
+  generateMeetingUrlExtraction(): MockMeetingUrlExtraction {
+    const sample = randomElement(SAMPLE_MEETING_DESCRIPTIONS_WITH_URLS);
+    const urlMatch = sample.description.match(/https?:\/\/[^\s]+/);
+
+    return {
+      raw_description: sample.description,
+      extracted_url: urlMatch ? urlMatch[0] : null,
+      platform: sample.platform,
+      extraction_source: 'description',
+    };
+  }
+
+  // ============================================================================
+  // Recording with AI Analysis (complete flow)
+  // ============================================================================
+
+  generateRecordingWithAnalysis(overrides?: Partial<MockRecording>): MockRecording {
+    const recordingId = generateId('rec');
+    const aiAnalysis = this.generateAIAnalysis();
+    const thumbnail = this.generateThumbnail(recordingId);
+
+    const recording: MockRecording = {
+      id: recordingId,
+      bot_id: overrides?.bot_id || generateId('bot'),
+      meeting_id: overrides?.meeting_id || generateId('meeting'),
+      status: 'ready',
+      duration_seconds: Math.floor(Math.random() * 3600) + 600,
+      file_size_bytes: Math.floor(Math.random() * 500000000) + 10000000,
+      video_url: `https://storage.meetingbaas.com/recordings/${recordingId}.mp4`,
+      audio_url: `https://storage.meetingbaas.com/recordings/${recordingId}.mp3`,
+      transcript_id: null,
+      ai_analysis: aiAnalysis,
+      thumbnail: thumbnail,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       ...overrides,
@@ -409,13 +585,17 @@ export class MeetingBaaSMock {
     webhookEvents: MockWebhookEvent[];
     recording: MockRecording;
     transcript: MockTranscript;
+    aiAnalysis: MockAIAnalysis;
+    meetingUrlExtraction: MockMeetingUrlExtraction;
   } {
-    // 1. Create calendar connection
+    // 1. Create calendar connection with meeting URL extraction
     const calendar = this.generateCalendar({ user_id: userId, org_id: orgId });
+    const meetingUrlExtraction = this.generateMeetingUrlExtraction();
 
-    // 2. Create bot deployment
+    // 2. Create bot deployment using extracted meeting URL
     const deployment = this.generateBotDeployment({
       calendar_event_id: `evt_${generateId('cal')}`,
+      meeting_url: meetingUrlExtraction.extracted_url || generateMeetingUrl(randomElement(MEETING_PLATFORMS)),
     });
 
     // 3. Generate webhook events in sequence
@@ -448,13 +628,12 @@ export class MeetingBaaSMock {
       this.generateWebhookEvent('bot.completed', deployment.bot_id, deployment.meeting_id)
     );
 
-    // 4. Create recording
-    const recording = this.generateRecording({
+    // 4. Create recording with AI analysis and thumbnail
+    const aiAnalysis = this.generateAIAnalysis();
+    const recording = this.generateRecordingWithAnalysis({
       bot_id: deployment.bot_id,
       meeting_id: deployment.meeting_id,
-      status: 'ready',
-      video_url: `https://storage.meetingbaas.com/recordings/${deployment.bot_id}.mp4`,
-      audio_url: `https://storage.meetingbaas.com/recordings/${deployment.bot_id}.mp3`,
+      ai_analysis: aiAnalysis,
     });
 
     // Recording ready webhook
@@ -502,6 +681,8 @@ export class MeetingBaaSMock {
       webhookEvents,
       recording,
       transcript,
+      aiAnalysis,
+      meetingUrlExtraction,
     };
   }
 
@@ -616,6 +797,65 @@ export class MeetingBaaSMock {
           headers: { 'content-type': 'application/json' },
         };
       }
+    }
+
+    // AI Analysis endpoint
+    if (normalizedEndpoint.includes('analyze-recording') || normalizedEndpoint.includes('ai-analysis')) {
+      const recordingId = body?.recording_id as string || this.extractId(endpoint);
+      const aiAnalysis = this.generateAIAnalysis();
+
+      // Update recording with analysis if it exists
+      if (recordingId && this.recordings.has(recordingId)) {
+        const recording = this.recordings.get(recordingId)!;
+        recording.ai_analysis = aiAnalysis;
+        this.recordings.set(recordingId, recording);
+      }
+
+      return {
+        status: 200,
+        data: {
+          success: true,
+          recording_id: recordingId || generateId('rec'),
+          analysis: aiAnalysis,
+        },
+        headers: { 'content-type': 'application/json' },
+      };
+    }
+
+    // Thumbnail generation endpoint
+    if (normalizedEndpoint.includes('generate-thumbnail') || normalizedEndpoint.includes('thumbnail')) {
+      const recordingId = body?.recording_id as string || this.extractId(endpoint);
+      const thumbnail = this.generateThumbnail(recordingId || generateId('rec'));
+
+      // Update recording with thumbnail if it exists
+      if (recordingId && this.recordings.has(recordingId)) {
+        const recording = this.recordings.get(recordingId)!;
+        recording.thumbnail = thumbnail;
+        this.recordings.set(recordingId, recording);
+      }
+
+      return {
+        status: 200,
+        data: {
+          success: true,
+          recording_id: recordingId || generateId('rec'),
+          thumbnail,
+        },
+        headers: { 'content-type': 'application/json' },
+      };
+    }
+
+    // Meeting URL extraction endpoint
+    if (normalizedEndpoint.includes('extract-meeting-url') || normalizedEndpoint.includes('meeting-url')) {
+      const extraction = this.generateMeetingUrlExtraction();
+      return {
+        status: 200,
+        data: {
+          success: true,
+          ...extraction,
+        },
+        headers: { 'content-type': 'application/json' },
+      };
     }
 
     // Webhook simulation
@@ -793,7 +1033,7 @@ export function createMeetingBaaSMockConfigs(
       matchConditions: { bodyContains: { event_type: 'recording.ready' } },
       priority: 5,
     },
-    // Get recording
+    // Get recording (with AI analysis and thumbnail)
     {
       id: generateId('mock'),
       ...baseConfig,
@@ -807,11 +1047,100 @@ export function createMeetingBaaSMockConfigs(
         duration_seconds: 2400,
         video_url: 'https://storage.meetingbaas.com/mock/video.mp4',
         audio_url: 'https://storage.meetingbaas.com/mock/audio.mp3',
+        ai_analysis: {
+          sentiment_score: 0.65,
+          coach_rating: 78,
+          coach_summary: 'Strong discovery questions with good objection handling.',
+          talk_time_rep_pct: 45,
+          talk_time_customer_pct: 55,
+          talk_time_judgement: 'good',
+          summary: 'Productive discovery call covering timeline and requirements.',
+          action_items: [
+            { text: 'Send proposal with updated pricing', assignee: 'sales_rep' },
+            { text: 'Schedule technical deep dive', assignee: 'se' },
+          ],
+          highlights: [
+            { timestamp: 300, text: 'Key pain point discussed', type: 'key_point' },
+            { timestamp: 900, text: 'Decision to move forward', type: 'decision' },
+          ],
+        },
+        thumbnail: {
+          thumbnail_s3_key: 'thumbnails/mock_rec_001/thumb.jpg',
+          thumbnail_url: 'https://storage.meetingbaas.com/thumbnails/mock_rec_001/thumb.jpg',
+          thumbnail_generated_at: new Date().toISOString(),
+        },
       },
       errorResponse: null,
       delayMs: 100,
       matchConditions: null,
       priority: 5,
+    },
+    // AI Analysis endpoint
+    {
+      id: generateId('mock'),
+      ...baseConfig,
+      endpoint: 'analyze-recording',
+      mockType: 'success' as MockType,
+      responseData: {
+        success: true,
+        recording_id: 'mock_rec_001',
+        analysis: {
+          sentiment_score: 0.65,
+          coach_rating: 78,
+          coach_summary: 'Strong discovery questions with good objection handling.',
+          talk_time_rep_pct: 45,
+          talk_time_customer_pct: 55,
+          talk_time_judgement: 'good',
+          summary: 'Productive discovery call covering timeline and requirements.',
+          action_items: [
+            { text: 'Send proposal with updated pricing', assignee: 'sales_rep' },
+          ],
+          highlights: [
+            { timestamp: 300, text: 'Key pain point discussed', type: 'key_point' },
+          ],
+        },
+      },
+      errorResponse: null,
+      delayMs: 500,
+      matchConditions: null,
+      priority: 10,
+    },
+    // Thumbnail generation endpoint
+    {
+      id: generateId('mock'),
+      ...baseConfig,
+      endpoint: 'generate-thumbnail',
+      mockType: 'success' as MockType,
+      responseData: {
+        success: true,
+        recording_id: 'mock_rec_001',
+        thumbnail: {
+          thumbnail_s3_key: 'thumbnails/mock_rec_001/thumb.jpg',
+          thumbnail_url: 'https://storage.meetingbaas.com/thumbnails/mock_rec_001/thumb.jpg',
+          thumbnail_generated_at: new Date().toISOString(),
+        },
+      },
+      errorResponse: null,
+      delayMs: 200,
+      matchConditions: null,
+      priority: 10,
+    },
+    // Meeting URL extraction (calendar sync)
+    {
+      id: generateId('mock'),
+      ...baseConfig,
+      endpoint: 'extract-meeting-url',
+      mockType: 'success' as MockType,
+      responseData: {
+        success: true,
+        extracted_url: 'https://zoom.us/j/1234567890',
+        platform: 'zoom',
+        extraction_source: 'description',
+      },
+      errorResponse: null,
+      delayMs: 50,
+      matchConditions: null,
+      priority: 10,
     },
     // Auth failure mock
     {

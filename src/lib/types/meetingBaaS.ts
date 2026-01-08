@@ -173,6 +173,18 @@ export interface Recording {
   highlights?: RecordingHighlight[] | null;
   action_items?: { text: string; assignee?: string; due_date?: string }[] | null;
 
+  // Enhanced AI Analysis (sentiment, talk time, coaching)
+  sentiment_score?: number | null; // -1.0 to 1.0
+  coach_rating?: number | null; // 0-100 scale
+  coach_summary?: string | null;
+  talk_time_rep_pct?: number | null;
+  talk_time_customer_pct?: number | null;
+  talk_time_judgement?: 'good' | 'high' | 'low' | null;
+
+  // Thumbnail
+  thumbnail_s3_key?: string | null;
+  thumbnail_url?: string | null;
+
   // Speaker identification
   speakers?: RecordingSpeaker[] | null;
   speaker_identification_method?: SpeakerIdentificationMethod | null;

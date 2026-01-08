@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import DealCard from '@/components/DealCard';
 import ViewModeToggle from '@/components/ViewModeToggle';
 import { OwnerFilterV3 } from '@/components/OwnerFilterV3';
+import { VisuallyHidden } from '@/components/calendar/ScreenReaderAnnouncements';
 import { DealForm } from '@/components/Pipeline/DealForm';
 import { useUser } from '@/lib/hooks/useUser';
 import { useDeals } from '@/lib/hooks/useDeals';
@@ -654,7 +655,10 @@ export function DealsView({
       {/* Edit Deal Modal */}
       {editModalOpen && editingDeal && (
         <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-          <DialogContent className="bg-gray-900 border-gray-800 max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="bg-gray-900 border-gray-800 max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+            <VisuallyHidden>
+              <DialogTitle>Edit Deal</DialogTitle>
+            </VisuallyHidden>
             <DealForm
               deal={editingDeal}
               onSave={handleSaveEditDeal}

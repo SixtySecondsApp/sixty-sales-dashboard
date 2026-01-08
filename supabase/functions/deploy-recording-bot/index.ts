@@ -62,6 +62,18 @@ interface RecordingInsert {
   status: string;
 }
 
+interface MeetingInsert {
+  source_type: '60_notetaker';
+  org_id: string;
+  owner_user_id: string;
+  title: string | null;
+  meeting_platform: string;
+  meeting_url: string;
+  processing_status: string;
+  recording_id?: string;
+  bot_id?: string;
+}
+
 interface BotDeploymentInsert {
   org_id: string;
   recording_id: string;
@@ -528,6 +540,30 @@ serve(async (req) => {
         status: 'bot_joining',
       })
       .eq('id', recording.id);
+
+    // Create unified meeting record for 60 Notetaker recordings
+    const meetingData: MeetingInsert = {
+      source_type: '60_notetaker',
+      org_id: orgId,
+      owner_user_id: userId,
+      title: body.meeting_title || null,
+      meeting_platform: platform,
+      meeting_url: body.meeting_url,
+      processing_status: 'bot_joining',
+      recording_id: recording.id,
+      bot_id: botResponse.id,
+    };
+
+    const { error: meetingError } = await supabase
+      .from('meetings')
+      .insert(meetingData);
+
+    if (meetingError) {
+      // Log but don't fail - the trigger will sync on completion
+      console.warn('[DeployBot] Failed to create meeting record (non-fatal):', meetingError.message);
+    } else {
+      console.log('[DeployBot] Created unified meeting record for 60 Notetaker');
+    }
 
     // Create bot deployment record
     const deploymentData: BotDeploymentInsert = {

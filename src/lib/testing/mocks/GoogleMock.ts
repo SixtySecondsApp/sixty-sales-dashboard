@@ -398,20 +398,41 @@ export class GoogleMock {
 // ============================================================================
 
 export function createGoogleMockConfigs(workflowId: string, orgId: string): ProcessMapMock[] {
+  const timestamp = new Date().toISOString();
+
+  // Helper to create mocks for multiple integration name variants
+  const createMocksForIntegrations = (
+    integrations: string[],
+    mockData: Omit<ProcessMapMock, 'id' | 'workflowId' | 'orgId' | 'integration' | 'isActive' | 'createdAt' | 'updatedAt'>
+  ): ProcessMapMock[] => {
+    return integrations.map(integration => ({
+      id: generateId('mock'),
+      workflowId,
+      orgId,
+      integration,
+      isActive: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      ...mockData,
+    }));
+  };
+
+  // Support both 'google' and 'google-calendar' integration names
+  const googleIntegrations = ['google', 'google-calendar'];
+
   const baseConfig = {
     workflowId,
     orgId,
     integration: 'google',
     isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: timestamp,
+    updatedAt: timestamp,
   };
 
   return [
-    {
-      id: generateId('mock'),
-      ...baseConfig,
-      endpoint: 'oauth2/token',
+    // OAuth mocks - support both google and google-calendar
+    ...createMocksForIntegrations(googleIntegrations, {
+      endpoint: 'oauth',
       mockType: 'success' as MockType,
       responseData: {
         access_token: 'google_mock_access_12345',
@@ -423,11 +444,10 @@ export function createGoogleMockConfigs(workflowId: string, orgId: string): Proc
       delayMs: 100,
       matchConditions: null,
       priority: 10,
-    },
-    {
-      id: generateId('mock'),
-      ...baseConfig,
-      endpoint: 'calendar/events',
+    }),
+    // Calendar events mocks - support both google and google-calendar
+    ...createMocksForIntegrations(googleIntegrations, {
+      endpoint: 'calendar',
       mockType: 'success' as MockType,
       responseData: {
         kind: 'calendar#events',
@@ -440,11 +460,26 @@ export function createGoogleMockConfigs(workflowId: string, orgId: string): Proc
       delayMs: 150,
       matchConditions: null,
       priority: 5,
-    },
+    }),
+    // Sync/fetch mocks for calendar operations
+    ...createMocksForIntegrations(googleIntegrations, {
+      endpoint: 'sync',
+      mockType: 'success' as MockType,
+      responseData: {
+        success: true,
+        syncedCount: 5,
+        lastSyncAt: timestamp,
+      },
+      errorResponse: null,
+      delayMs: 200,
+      matchConditions: null,
+      priority: 5,
+    }),
+    // Gmail messages - only for 'google' integration
     {
       id: generateId('mock'),
       ...baseConfig,
-      endpoint: 'gmail/messages',
+      endpoint: 'gmail',
       mockType: 'success' as MockType,
       responseData: {
         messages: [
@@ -458,9 +493,8 @@ export function createGoogleMockConfigs(workflowId: string, orgId: string): Proc
       matchConditions: null,
       priority: 5,
     },
-    {
-      id: generateId('mock'),
-      ...baseConfig,
+    // Auth failure mocks - support both integrations
+    ...createMocksForIntegrations(googleIntegrations, {
       endpoint: null,
       mockType: 'auth_failure' as MockType,
       responseData: null,
@@ -471,6 +505,6 @@ export function createGoogleMockConfigs(workflowId: string, orgId: string): Proc
       delayMs: 0,
       matchConditions: { bodyContains: { trigger_auth_failure: true } },
       priority: 100,
-    },
+    }),
   ];
 }

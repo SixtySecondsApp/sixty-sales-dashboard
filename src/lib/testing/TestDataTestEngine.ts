@@ -112,7 +112,7 @@ class TestDataStepExecutor {
   async execute(
     step: WorkflowStepDefinition,
     context: ExecutionContext,
-    _mocks: ProcessMapMock[]
+    mocks: ProcessMapMock[]
   ): Promise<StepExecutionResult> {
     const logs: LogEntry[] = [];
 
@@ -192,9 +192,36 @@ class TestDataStepExecutor {
       } catch (error) {
         logs.push({
           timestamp: new Date().toISOString(),
-          level: 'error',
-          message: `[TestData] Error executing integration`,
+          level: 'warn',
+          message: `[TestData] Integration call failed, attempting mock fallback`,
           data: { error: error instanceof Error ? error.message : 'Unknown error' },
+        });
+
+        // Try to find a matching mock as fallback
+        const mock = this.findMock(step, mocks, inputData);
+        if (mock && mock.mockType === 'success') {
+          logs.push({
+            timestamp: new Date().toISOString(),
+            level: 'info',
+            message: `[TestData] Using mock fallback for ${step.integration}`,
+            data: { mockId: mock.id },
+          });
+
+          return {
+            success: true,
+            outputData: mock.responseData || this.generateOutput(step, inputData),
+            wasMocked: true,
+            mockSource: mock.integration,
+            validationResults: [],
+            logs,
+          };
+        }
+
+        // No mock available, return error
+        logs.push({
+          timestamp: new Date().toISOString(),
+          level: 'error',
+          message: `[TestData] No mock fallback available`,
         });
 
         return {
@@ -246,6 +273,70 @@ class TestDataStepExecutor {
       validationResults: [],
       logs,
     };
+  }
+
+  /**
+   * Find a matching mock for a step, using flexible word-level endpoint matching
+   */
+  private findMock(
+    step: WorkflowStepDefinition,
+    mocks: ProcessMapMock[],
+    inputData?: Record<string, unknown>
+  ): ProcessMapMock | undefined {
+    if (!step.integration) return undefined;
+
+    const applicableMocks = mocks
+      .filter(m => {
+        if (!m.isActive || m.integration !== step.integration) {
+          return false;
+        }
+
+        // Check matchConditions if present
+        if (m.matchConditions) {
+          if (m.matchConditions.bodyContains) {
+            if (!inputData) return false;
+            for (const [key, value] of Object.entries(m.matchConditions.bodyContains)) {
+              if (inputData[key] !== value) return false;
+            }
+          }
+          if (m.matchConditions.pathPattern) {
+            if (step.id !== m.matchConditions.pathPattern) return false;
+          }
+          if (m.endpoint && !this.matchesEndpoint(step, m.endpoint)) {
+            return false;
+          }
+        } else if (m.endpoint) {
+          if (!this.matchesEndpoint(step, m.endpoint)) {
+            return false;
+          }
+        }
+
+        return true;
+      })
+      .sort((a, b) => b.priority - a.priority);
+
+    return applicableMocks[0];
+  }
+
+  /**
+   * Flexible endpoint matching using word-level comparison
+   */
+  private matchesEndpoint(step: WorkflowStepDefinition, endpoint: string): boolean {
+    const normalize = (s: string): string[] =>
+      s.toLowerCase().split(/[-_\s]+/).filter(w => w.length > 0);
+
+    const stepNameWords = normalize(step.name);
+    const stepIdWords = normalize(step.id);
+    const endpointWords = normalize(endpoint);
+
+    const matchesName = endpointWords.every(ew =>
+      stepNameWords.some(sw => sw.includes(ew) || ew.includes(sw))
+    );
+    const matchesId = endpointWords.every(ew =>
+      stepIdWords.some(sw => sw.includes(ew) || ew.includes(sw))
+    );
+
+    return matchesName || matchesId;
   }
 
   private inferResourceType(step: WorkflowStepDefinition): Parameters<typeof this.integrationExecutor.execute>[2] {

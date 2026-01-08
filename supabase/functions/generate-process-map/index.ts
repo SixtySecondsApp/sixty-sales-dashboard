@@ -10,7 +10,7 @@
  * This ensures both views display identical steps, which is critical for the testing system.
  *
  * Supported process types:
- * - integration: HubSpot, Google, Fathom, Slack, JustCall, SavvyCal
+ * - integration: HubSpot, Google, Fathom, Slack, JustCall, SavvyCal, MeetingBaaS
  * - workflow: Meeting Intelligence, Task Extraction, VSL Analytics, Sentry Bridge, API Optimization, Onboarding V2
  */
 
@@ -259,6 +259,50 @@ const PROCESS_DESCRIPTIONS: Record<string, Record<string, ProcessDescriptionData
 - Notification triggers
 
 **Features**: Link-based lead source mapping, custom field mapping, duplicate prevention`
+    },
+    meetingbaas: {
+      short: `Auto-record meetings via calendar sync. Extract meeting URLs, deploy bots, run AI analysis.`,
+      long: `**MeetingBaaS Integration** provides automated meeting recording with AI-powered analysis.
+
+**Calendar Connection**:
+- OAuth connection to Google or Microsoft calendars
+- Real-time event monitoring via MeetingBaaS API
+- Automatic meeting URL extraction from event descriptions
+- Support for Zoom, Google Meet, Teams, and Webex
+
+**Meeting URL Extraction**:
+- Parse calendar event descriptions for meeting links
+- Check conferenceData and hangoutLink fields
+- Multi-platform URL pattern matching
+- Priority-based URL selection
+
+**Bot Deployment**:
+- Automatic bot scheduling based on calendar events
+- Just-in-time bot deployment before meeting start
+- Real-time status tracking via webhooks
+- Graceful handling of cancellations
+
+**Webhook Processing**:
+- Status update webhooks (joining, recording, completed)
+- Recording availability notifications
+- Error and failure event handling
+- Retry logic for transient failures
+
+**AI Analysis Pipeline**:
+- Sentiment scoring (-1.0 to 1.0)
+- Coaching ratings (0-100 scale)
+- Talk time analysis (rep vs customer)
+- Action item extraction
+- Meeting summary generation
+- Key moment highlighting
+
+**Thumbnail Generation**:
+- Automatic thumbnail extraction from video
+- Multiple frame sampling
+- S3 storage with CDN delivery
+- Lazy loading optimization
+
+**Features**: Multi-platform support, AI insights, automatic transcription, real-time status tracking`
     },
   },
   workflow: {
@@ -1053,25 +1097,23 @@ You will receive:
 ## OUTPUT
 Return ONLY valid Mermaid code starting with "flowchart <direction>".
 
-## SHAPE MAPPING
+## SHAPE MAPPING (NEVER use quotes inside these shapes)
 Convert shape types to Mermaid syntax:
-- terminal: ((Label))
-- process: [Label]
-- storage: [(Label)]
-- decision: {Label}
-- subroutine: [[Label]]
-- async: >Label]
+- terminal: ((Label))   - Example: Start((Start))
+- process: [Label]      - Example: Step1[Process Data]
+- storage: [(Label)]    - Example: DB[(Database)]
+- decision: {Label}     - Example: Check{Valid?}
+- subroutine: [[Label]] - Example: Func[[API Call]]
+- async: >Label]        - Example: Hook>Webhook]
 
-## CONNECTION MAPPING
-Convert connection styles (IMPORTANT: follow syntax exactly):
+## CONNECTION MAPPING (CRITICAL - follow syntax exactly)
+NEVER use pipe syntax like -->|Label|. Use these formats ONLY:
 - normal without label: A --> B
 - normal with label: A -- Label --> B
 - critical without label: A ==> B
 - critical with label: A == Label ==> B
 - optional without label: A -.-> B
 - optional with label: A -. Label .-> B
-
-NEVER use |pipes| for labels. NEVER use quotes around labels. Use the exact syntax shown above.
 
 ## REQUIRED STRUCTURE
 1. flowchart <LR or TB>
@@ -1096,13 +1138,17 @@ NEVER use |pipes| for labels. NEVER use quotes around labels. Use the exact synt
 
     linkStyle default stroke:#64748b,stroke-width:2px
 
-## RULES
-- NO quotes inside shape brackets
-- NO special characters in labels
-- NO <br/> tags
+## STRICT RULES
+- NEVER use quotes inside shape brackets: [Label] not ["Label"]
+- NEVER use pipe labels: A -- Label --> B not A -->|Label| B
+- NEVER use colons in labels: "OAuth Flow" not "OAuth: Flow"
+- NEVER use special characters: no &, #, <, >, :, or quotes in labels
+- NEVER use parentheses in labels: "API Call" not "API (Call)"
+- NEVER use <br/> tags
+- Use "and" instead of "&"
 - Every node MUST have a class assigned from styling.nodeClasses
 - Use subgraph order from JSON
-- Use "and" instead of "&"
+- Keep labels to 2-4 words maximum
 
 CRITICAL: Return ONLY the Mermaid code. No markdown, no explanation.`
 
@@ -1175,12 +1221,41 @@ Generate the Mermaid flowchart code starting with "flowchart ${mermaidDirection}
 
 /**
  * Sanitize Mermaid code to fix common AI generation issues
+ * This handles many edge cases that can cause Mermaid parser errors
  */
 function sanitizeMermaidCode(code: string): string {
   let sanitized = code
 
+  // ============================================================================
+  // PHASE 1: Fix special characters that break parsing
+  // ============================================================================
+
   // Replace & with "and" (common parse error cause)
   sanitized = sanitized.replace(/&(?!amp;|lt;|gt;|quot;)/g, 'and')
+
+  // Remove colons from labels (breaks parsing) - replace with dash
+  // Match text inside brackets that contains colons
+  sanitized = sanitized.replace(/(\[|\(|\{|>)([^\]\)\}]*):([^\]\)\}]*)(\]|\)|\})/g, '$1$2-$3$4')
+
+  // Remove hash symbols from labels
+  sanitized = sanitized.replace(/(\[|\(|\{|>)([^\]\)\}]*)#([^\]\)\}]*)(\]|\)|\})/g, '$1$2$3$4')
+
+  // Remove angle brackets from labels (< and >)
+  sanitized = sanitized.replace(/(\[|\(|\{)([^\]\)\}]*)<([^\]\)\}]*)(\]|\)|\})/g, '$1$2$3$4')
+  sanitized = sanitized.replace(/(\[|\(|\{)([^\]\)\}]*)>([^\]\)\}]*)(\]|\)|\})/g, '$1$2$3$4')
+
+  // ============================================================================
+  // PHASE 2: Fix connection labels (pipe syntax is invalid in many cases)
+  // ============================================================================
+
+  // Fix all pipe labels in any connection: NodeA -->|Label| NodeB -> NodeA -- Label --> NodeB
+  sanitized = sanitized.replace(/(\w+)\s*-->\s*\|([^|]+)\|\s*(\w+)/g, '$1 -- $2 --> $3')
+
+  // Fix pipe labels with dotted arrows: NodeA -.->|Label| NodeB -> NodeA -. Label .-> NodeB
+  sanitized = sanitized.replace(/(\w+)\s*-\.?-?>\s*\|([^|]+)\|\s*(\w+)/g, '$1 -. $2 .-> $3')
+
+  // Fix pipe labels with thick arrows: NodeA ==>|Label| NodeB -> NodeA == Label ==> NodeB
+  sanitized = sanitized.replace(/(\w+)\s*==>\s*\|([^|]+)\|\s*(\w+)/g, '$1 == $2 ==> $3')
 
   // Fix malformed dotted connections with pipe labels: -.-- |Label| NodeId -> -. Label .-> NodeId
   sanitized = sanitized.replace(/\.-{1,2}\s*\|([^|]+)\|\s*(\w+)/g, '-. $1 .-> $2')
@@ -1191,6 +1266,13 @@ function sanitizeMermaidCode(code: string): string {
   // Fix malformed critical connections with pipe labels: == |Label| ==> -> == Label ==>
   sanitized = sanitized.replace(/==\s*\|([^|]+)\|\s*==>/g, '== $1 ==>')
 
+  // ============================================================================
+  // PHASE 3: Fix node shapes with quotes inside brackets
+  // ============================================================================
+
+  // Fix standard rectangles with quotes: ["Text"] -> [Text]
+  sanitized = sanitized.replace(/\["([^"]*)"\]/g, '[$1]')
+
   // Fix cylinders with quotes: [("Text")] -> [(Text)]
   sanitized = sanitized.replace(/\[\("([^"]*)"\)\]/g, '[($1)]')
 
@@ -1200,11 +1282,34 @@ function sanitizeMermaidCode(code: string): string {
   // Fix double brackets with quotes: [["Text"]] -> [[Text]]
   sanitized = sanitized.replace(/\[\["([^"]*)"\]\]/g, '[[$1]]')
 
+  // Fix terminal circles with quotes: (("Text")) -> ((Text))
+  sanitized = sanitized.replace(/\(\("([^"]*)"\)\)/g, '(($1))')
+
+  // Fix single parentheses with quotes: ("Text") -> (Text)
+  sanitized = sanitized.replace(/\("([^"]*)"\)/g, '($1)')
+
   // Fix flags with quotes: >"Text"] -> >Text]
   sanitized = sanitized.replace(/>"([^"]*)"\]/g, '>$1]')
 
+  // Fix flags with square brackets and quotes: >["Text"] -> >Text]
+  sanitized = sanitized.replace(/>\["([^"]*)"\]/g, '>$1]')
+
+  // Fix flags with just square brackets: >[Text] -> >Text]
+  sanitized = sanitized.replace(/>\[([^\]]*)\]/g, '>$1]')
+
   // Fix parallelograms with quotes: [/"Text"/] -> [/Text/]
   sanitized = sanitized.replace(/\[\/"([^"]*)"\/\]/g, '[/$1/]')
+
+  // ============================================================================
+  // PHASE 4: Fix subgraph syntax
+  // ============================================================================
+
+  // Fix subgraph labels with quotes inside brackets: subgraph Name ["Label"] -> subgraph Name [Label]
+  sanitized = sanitized.replace(/subgraph\s+(\w+)\s+\["([^"]*)"\]/g, 'subgraph $1 [$2]')
+
+  // ============================================================================
+  // PHASE 5: Clean up whitespace and formatting
+  // ============================================================================
 
   // Remove <br/> from inside any shape brackets and replace with space
   sanitized = sanitized.replace(/<br\s*\/?>/gi, ' ')
@@ -1216,6 +1321,17 @@ function sanitizeMermaidCode(code: string): string {
   sanitized = sanitized.replace(/ +\]/g, ']')
   sanitized = sanitized.replace(/ +\)/g, ')')
   sanitized = sanitized.replace(/ +\}/g, '}')
+
+  // Remove empty lines (multiple newlines -> single newline)
+  sanitized = sanitized.replace(/\n\s*\n/g, '\n')
+
+  // ============================================================================
+  // PHASE 6: Fix edge cases with parentheses in labels
+  // ============================================================================
+
+  // Remove parentheses from inside node labels: [Text (note)] -> [Text note]
+  // Be careful not to affect valid syntax like ((terminal))
+  sanitized = sanitized.replace(/\[([^\]]*)\(([^\)]*)\)([^\]]*)\]/g, '[$1$2$3]')
 
   return sanitized
 }

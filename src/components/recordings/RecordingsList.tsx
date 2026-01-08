@@ -44,7 +44,15 @@ import {
   Search,
   Filter,
   Radio,
-  Plus
+  Plus,
+  MessageSquare,
+  TrendingUp,
+  TrendingDown,
+  Star,
+  BarChart3,
+  Smile,
+  Frown,
+  Meh
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
@@ -83,6 +91,94 @@ const platformConfig: Record<MeetingPlatform, { label: string; color: string }> 
   zoom: { label: 'Zoom', color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400' },
   google_meet: { label: 'Google Meet', color: 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400' },
   microsoft_teams: { label: 'Teams', color: 'bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400' },
+}
+
+// Sentiment Badge Component
+const SentimentBadge: React.FC<{ score: number | null | undefined }> = ({ score }) => {
+  if (score === null || score === undefined) return null
+
+  const getSentimentConfig = (s: number) => {
+    if (s >= 0.3) return { label: 'Positive', icon: <Smile className="h-3 w-3" />, color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-500/30' }
+    if (s >= -0.3) return { label: 'Neutral', icon: <Meh className="h-3 w-3" />, color: 'bg-gray-100 text-gray-700 dark:bg-gray-500/10 dark:text-gray-400 border-gray-500/30' }
+    return { label: 'Needs Review', icon: <Frown className="h-3 w-3" />, color: 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 border-amber-500/30' }
+  }
+
+  const config = getSentimentConfig(score)
+
+  return (
+    <Badge variant="outline" className={cn("text-xs gap-1 border", config.color)}>
+      {config.icon}
+      {config.label}
+    </Badge>
+  )
+}
+
+// Coach Rating Badge Component
+const CoachRatingBadge: React.FC<{ rating: number | null | undefined }> = ({ rating }) => {
+  if (rating === null || rating === undefined) return null
+
+  const getRatingConfig = (r: number) => {
+    if (r >= 80) return { label: `${r}`, color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-500/30' }
+    if (r >= 60) return { label: `${r}`, color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border-blue-500/30' }
+    if (r >= 40) return { label: `${r}`, color: 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 border-amber-500/30' }
+    return { label: `${r}`, color: 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400 border-red-500/30' }
+  }
+
+  const config = getRatingConfig(rating)
+
+  return (
+    <Badge variant="outline" className={cn("text-xs gap-1 border", config.color)}>
+      <Star className="h-3 w-3" />
+      {config.label}
+    </Badge>
+  )
+}
+
+// Talk Time Badge Component
+const TalkTimeBadge: React.FC<{ repPct: number | null | undefined; judgement: 'good' | 'high' | 'low' | null | undefined }> = ({ repPct, judgement }) => {
+  if (repPct === null || repPct === undefined) return null
+
+  const getConfig = (j: 'good' | 'high' | 'low' | null | undefined) => {
+    if (j === 'good') return { color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-500/30' }
+    if (j === 'high') return { color: 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 border-amber-500/30' }
+    return { color: 'bg-gray-100 text-gray-700 dark:bg-gray-500/10 dark:text-gray-400 border-gray-500/30' }
+  }
+
+  const config = getConfig(judgement)
+
+  return (
+    <Badge variant="outline" className={cn("text-xs gap-1 border", config.color)}>
+      <BarChart3 className="h-3 w-3" />
+      {Math.round(repPct)}% rep
+    </Badge>
+  )
+}
+
+// Thumbnail Component
+const RecordingThumbnail: React.FC<{ url?: string | null; title?: string; className?: string }> = ({ url, title, className }) => {
+  if (!url) {
+    // Placeholder thumbnail
+    const initial = (title || 'M')[0].toUpperCase()
+    return (
+      <div className={cn("bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center", className)}>
+        <span className="text-white text-xl font-bold">{initial}</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn("rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800", className)}>
+      <img
+        src={url}
+        alt={title || 'Recording thumbnail'}
+        className="w-full h-full object-cover"
+        onError={(e) => {
+          // Hide image on error, show placeholder
+          e.currentTarget.style.display = 'none'
+        }}
+      />
+    </div>
+  )
 }
 
 // Stats Card Component
@@ -178,8 +274,8 @@ const RecordingsListSkeleton: React.FC<{ view: 'list' | 'grid' }> = ({ view }) =
         </div>
       </div>
     </div>
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      {[...Array(4)].map((_, i) => (
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      {[...Array(5)].map((_, i) => (
         <StatCardSkeleton key={i} />
       ))}
     </div>
@@ -539,7 +635,7 @@ const RecordingsList: React.FC = () => {
       </motion.div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard
           title="This Month"
           value={usageData?.used?.toString() || '0'}
@@ -560,6 +656,13 @@ const RecordingsList: React.FC = () => {
           title="Processing"
           value={(activeRecordings?.length || 0).toString()}
           icon={<Loader2 className="h-5 w-5" />}
+        />
+        <StatCard
+          title="Need Review"
+          value={(attentionRecordings?.length || 0).toString()}
+          sub={attentionRecordings && attentionRecordings.length > 0 ? 'Action required' : undefined}
+          icon={<AlertCircle className="h-5 w-5" />}
+          trend={attentionRecordings && attentionRecordings.length > 0 ? 'down' : 'neutral'}
         />
       </div>
 
@@ -628,6 +731,7 @@ const RecordingsList: React.FC = () => {
                   <TableHead className="text-gray-500 dark:text-gray-400">Platform</TableHead>
                   <TableHead className="text-gray-500 dark:text-gray-400">Date</TableHead>
                   <TableHead className="text-gray-500 dark:text-gray-400">Duration</TableHead>
+                  <TableHead className="text-gray-500 dark:text-gray-400">AI Insights</TableHead>
                   <TableHead className="text-gray-500 dark:text-gray-400">Status</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
@@ -647,7 +751,14 @@ const RecordingsList: React.FC = () => {
                       onClick={() => openRecording(recording.id)}
                     >
                       <TableCell className="font-medium text-gray-900 dark:text-gray-200">
-                        {recording.meeting_title || 'Untitled Recording'}
+                        <div className="flex items-center gap-3">
+                          <RecordingThumbnail
+                            url={recording.thumbnail_url}
+                            title={recording.meeting_title}
+                            className="w-12 h-8 flex-shrink-0"
+                          />
+                          <span className="line-clamp-1">{recording.meeting_title || 'Untitled Recording'}</span>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn("text-xs", platform?.color)}>
@@ -665,6 +776,13 @@ const RecordingsList: React.FC = () => {
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           {formatDuration(recording.meeting_duration_seconds)}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1.5">
+                          <SentimentBadge score={recording.sentiment_score} />
+                          <CoachRatingBadge rating={recording.coach_rating} />
+                          <TalkTimeBadge repPct={recording.talk_time_rep_pct} judgement={recording.talk_time_judgement} />
                         </div>
                       </TableCell>
                       <TableCell>
@@ -711,62 +829,78 @@ const RecordingsList: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.05 }}
                   whileHover={{ scale: 1.02, y: -4 }}
-                  className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl p-5 border border-gray-200/50 dark:border-gray-700/30 hover:border-gray-300/50 dark:hover:border-gray-600/40 transition-all duration-300 cursor-pointer group"
+                  className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl overflow-hidden border border-gray-200/50 dark:border-gray-700/30 hover:border-gray-300/50 dark:hover:border-gray-600/40 transition-all duration-300 cursor-pointer group"
                   onClick={() => openRecording(recording.id)}
                 >
-                  {/* Header with Status */}
-                  <div className="flex items-start justify-between mb-3">
-                    <Badge variant={status.variant} className="gap-1">
-                      {status.icon}
-                      {status.label}
-                    </Badge>
-                    <Badge variant="outline" className={cn("text-xs", platform?.color)}>
-                      {platform?.label || recording.meeting_platform}
-                    </Badge>
-                  </div>
+                  {/* Thumbnail */}
+                  <RecordingThumbnail
+                    url={recording.thumbnail_url}
+                    title={recording.meeting_title}
+                    className="w-full h-32"
+                  />
 
-                  {/* Content */}
-                  <div className="space-y-3">
-                    <div>
-                      <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors line-clamp-2">
-                        {recording.meeting_title || 'Untitled Recording'}
-                      </h3>
-                      {recording.summary && (
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                          {recording.summary}
-                        </p>
-                      )}
+                  <div className="p-5">
+                    {/* Header with Status */}
+                    <div className="flex items-start justify-between mb-3">
+                      <Badge variant={status.variant} className="gap-1">
+                        {status.icon}
+                        {status.label}
+                      </Badge>
+                      <Badge variant="outline" className={cn("text-xs", platform?.color)}>
+                        {platform?.label || recording.meeting_platform}
+                      </Badge>
                     </div>
 
-                    {/* Badges */}
-                    <div className="flex flex-wrap gap-2">
-                      {recording.speakers && recording.speakers.length > 0 && (
-                        <Badge variant="outline" className="text-xs gap-1">
-                          <Users className="h-3 w-3" />
-                          {recording.speakers.length} speakers
-                        </Badge>
-                      )}
-                      {recording.hitl_required && (
-                        <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-600 dark:text-amber-400 gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          Review needed
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Footer */}
-                    <div className="flex items-center justify-between pt-3 border-t border-gray-200/50 dark:border-gray-700/30">
-                      <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {recording.meeting_start_time
-                          ? formatDistanceToNow(new Date(recording.meeting_start_time), { addSuffix: true })
-                          : recording.created_at
-                          ? formatDistanceToNow(new Date(recording.created_at), { addSuffix: true })
-                          : '—'}
+                    {/* Content */}
+                    <div className="space-y-3">
+                      <div>
+                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors line-clamp-2">
+                          {recording.meeting_title || 'Untitled Recording'}
+                        </h3>
+                        {recording.summary && (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                            {recording.summary}
+                          </p>
+                        )}
                       </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {formatDuration(recording.meeting_duration_seconds)}
+
+                      {/* AI Metrics Badges */}
+                      <div className="flex flex-wrap gap-2">
+                        <SentimentBadge score={recording.sentiment_score} />
+                        <CoachRatingBadge rating={recording.coach_rating} />
+                        <TalkTimeBadge repPct={recording.talk_time_rep_pct} judgement={recording.talk_time_judgement} />
+                      </div>
+
+                      {/* Additional Badges */}
+                      <div className="flex flex-wrap gap-2">
+                        {recording.speakers && recording.speakers.length > 0 && (
+                          <Badge variant="outline" className="text-xs gap-1">
+                            <Users className="h-3 w-3" />
+                            {recording.speakers.length} speakers
+                          </Badge>
+                        )}
+                        {recording.hitl_required && (
+                          <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-600 dark:text-amber-400 gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            Review needed
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Footer */}
+                      <div className="flex items-center justify-between pt-3 border-t border-gray-200/50 dark:border-gray-700/30">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {recording.meeting_start_time
+                            ? formatDistanceToNow(new Date(recording.meeting_start_time), { addSuffix: true })
+                            : recording.created_at
+                            ? formatDistanceToNow(new Date(recording.created_at), { addSuffix: true })
+                            : '—'}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {formatDuration(recording.meeting_duration_seconds)}
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { captureException } from '../_shared/sentryEdge.ts';
+import { extractMeetingUrl } from '../_shared/meetingUrlExtractor.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -235,7 +236,7 @@ serve(async (req) => {
             end_time: ev.end?.dateTime || ev.end?.date || ev.start?.dateTime || new Date().toISOString(),
             all_day: !ev.start?.dateTime,
             status: ev.status || 'confirmed',
-            meeting_url: ev.hangoutLink || null,
+            meeting_url: extractMeetingUrl(ev),
             attendees_count: Array.isArray(ev.attendees) ? ev.attendees.length : 0,
             color: ev.colorId || null,
             creator_email: ev.creator?.email || null,
