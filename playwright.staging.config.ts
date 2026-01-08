@@ -6,6 +6,11 @@ dotenv.config({ path: '.env.test.staging' });
 
 /**
  * Playwright configuration for STAGING environment
+ *
+ * Strategy: Run local Vite dev server connected to STAGING Supabase backend
+ * This bypasses Vercel's SSO protection on preview deployments while still
+ * testing against the staging database and edge functions.
+ *
  * Run with: npx playwright test --config=playwright.staging.config.ts
  * Or: npm run test:e2e:staging
  */
@@ -21,8 +26,8 @@ export default defineConfig({
     ['junit', { outputFile: 'test-results-staging.xml' }]
   ],
   use: {
-    // Use staging URL
-    baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'https://staging.use60.com',
+    // Local dev server connected to staging backend
+    baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5175',
 
     // Collect trace when retrying the failed test
     trace: 'on-first-retry',
@@ -45,6 +50,17 @@ export default defineConfig({
     },
   ],
 
-  // No webServer for staging - we test against the deployed staging URL
-  // webServer: undefined,
+  // Start local dev server with staging environment variables
+  // The .env.test.staging file configures Supabase to use staging backend
+  webServer: {
+    command: 'npm run dev -- --mode staging',
+    url: 'http://localhost:5175',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120000,
+    env: {
+      ...process.env,
+      VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL,
+      VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY,
+    },
+  },
 });

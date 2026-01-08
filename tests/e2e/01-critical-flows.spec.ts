@@ -189,7 +189,7 @@ test.describe('Critical User Flows', () => {
     });
 
     // Try to create a contact (adjust based on your UI)
-    const contactsLink = page.locator('a[href*="contact"], text=/Contacts/i');
+    const contactsLink = page.locator('a[href*="contact"]').or(page.getByText(/Contacts/i));
     if (await contactsLink.count() > 0) {
       await contactsLink.click();
       
@@ -291,27 +291,29 @@ test.describe('Critical User Flows', () => {
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
 
-    const navigationLinks = [
-      { name: 'Dashboard', selector: 'a[href*="dashboard"], text=/Dashboard/i' },
-      { name: 'Contacts', selector: 'a[href*="contact"], text=/Contacts/i' },
-      { name: 'Deals', selector: 'a[href*="deal"], text=/Deals/i' },
-      { name: 'Activities', selector: 'a[href*="activit"], text=/Activities/i' },
-      { name: 'Tasks', selector: 'a[href*="task"], text=/Tasks/i' }
+    // Navigation sections to test
+    const navigationTests = [
+      { name: 'Dashboard', href: 'dashboard' },
+      { name: 'Contacts', href: 'contact' },
+      { name: 'Deals', href: 'deal' },
+      { name: 'Activities', href: 'activit' },
+      { name: 'Tasks', href: 'task' }
     ];
 
-    for (const link of navigationLinks) {
-      const element = page.locator(link.selector).first();
+    for (const nav of navigationTests) {
+      // Use .or() to combine CSS and text selectors properly
+      const element = page.locator(`a[href*="${nav.href}"]`).or(page.getByText(new RegExp(nav.name, 'i'))).first();
       if (await element.count() > 0) {
         await element.click();
         await page.waitForLoadState('networkidle');
-        
+
         // Check for any errors
-        const errorMessages = page.locator('text=/Error|Failed|Something went wrong/i');
+        const errorMessages = page.getByText(/Error|Failed|Something went wrong/i);
         const errorCount = await errorMessages.count();
-        
+
         if (errorCount > 0) {
         }
-        
+
         expect(errorCount).toBe(0);
       }
     }
