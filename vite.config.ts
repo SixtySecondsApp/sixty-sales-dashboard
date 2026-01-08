@@ -81,10 +81,18 @@ export default defineConfig({
     },
   },
   
-  // Handle CommonJS/ESM compatibility issues
+  // Handle CommonJS/ESM compatibility issues and Vercel env var mapping
   define: {
     // Fix recharts lodash import issues
     global: 'globalThis',
+    // Map non-prefixed env vars to VITE_ prefixed for Vercel compatibility
+    // Vercel sets non-prefixed vars; Vite needs VITE_ prefix for client exposure
+    ...(process.env.SUPABASE_URL && !process.env.VITE_SUPABASE_URL && {
+      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL),
+    }),
+    ...(process.env.SUPABASE_ANON_KEY && !process.env.VITE_SUPABASE_ANON_KEY && {
+      'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(process.env.SUPABASE_ANON_KEY),
+    }),
   },
   server: {
     // Force a specific port to maintain authentication consistency
