@@ -9,7 +9,12 @@
  * - Responsive design
  */
 
-import { test, expect, Page } from '@playwright/test';
+import { describe, test, expect as vitestExpect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { expect as playwrightExpect } from '../fixtures/playwright-assertions';
+import { setupPlaywriter, teardownPlaywriter } from '../fixtures/playwriter-setup';
+import type { Page } from 'playwright-core';
+
+const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || process.env.VITE_BASE_URL || 'http://localhost:5175';
 
 // Test data constants
 const TEST_COMPANY = {
@@ -34,7 +39,8 @@ class CompanyProfilePage {
   constructor(private page: Page) {}
 
   async navigateToCompany(companyId: string) {
-    await this.page.goto(`/companies/${companyId}`);
+    const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || process.env.VITE_BASE_URL || 'http://localhost:5175';
+    await this.page.goto(`${BASE_URL}/companies/${companyId}`);
   }
 
   async waitForPageLoad() {
@@ -198,10 +204,20 @@ class CompanyProfilePage {
   }
 }
 
-test.describe('Company Profile Page', () => {
+describe('Company Profile Page', () => {
+  let page: Page;
   let companyPage: CompanyProfilePage;
 
-  test.beforeEach(async ({ page }) => {
+  beforeAll(async () => {
+    const setup = await setupPlaywriter();
+    page = setup.page;
+  });
+
+  afterAll(async () => {
+    await teardownPlaywriter();
+  });
+
+  beforeEach(async () => {
     companyPage = new CompanyProfilePage(page);
     
     // Mock API responses to avoid external dependencies
@@ -254,13 +270,13 @@ test.describe('Company Profile Page', () => {
     });
   });
 
-  test.describe('Valid Company Access', () => {
+  describe('Valid Company Access', () => {
     test('should load company profile successfully', async () => {
       await companyPage.navigateToCompany('1');
       await companyPage.waitForPageLoad();
 
       const companyName = await companyPage.getCompanyName();
-      expect(companyName).toContain('Test Company');
+      vitestExpect(companyName).toContain('Test Company');
     });
 
     test('should display company header information', async () => {
@@ -286,7 +302,7 @@ test.describe('Company Profile Page', () => {
         }
       }
 
-      expect(iconFound).toBe(true);
+      vitestExpect(iconFound).toBe(true);
     });
 
     test('should show navigation tabs', async () => {
@@ -297,7 +313,7 @@ test.describe('Company Profile Page', () => {
       
       for (const tab of expectedTabs) {
         const tabExists = await companyPage.checkTabExists(tab);
-        expect(tabExists).toBe(true);
+        vitestExpect(tabExists).toBe(true);
       }
     });
 
@@ -310,7 +326,7 @@ test.describe('Company Profile Page', () => {
       
       for (const tab of tabs) {
         const clicked = await companyPage.clickTab(tab);
-        expect(clicked).toBe(true);
+        vitestExpect(clicked).toBe(true);
         
         // Wait for tab content to load
         await companyPage.page.waitForTimeout(500);
@@ -343,7 +359,7 @@ test.describe('Company Profile Page', () => {
         }
       }
 
-      expect(dealFound).toBe(true);
+      vitestExpect(dealFound).toBe(true);
     });
 
     test('should display activities information', async () => {
@@ -372,7 +388,7 @@ test.describe('Company Profile Page', () => {
         }
       }
 
-      expect(activityFound).toBe(true);
+      vitestExpect(activityFound).toBe(true);
     });
 
     test('should show back button and navigate correctly', async () => {
@@ -380,24 +396,24 @@ test.describe('Company Profile Page', () => {
       await companyPage.waitForPageLoad();
 
       const backButtonExists = await companyPage.checkBackButton();
-      expect(backButtonExists).toBe(true);
+      vitestExpect(backButtonExists).toBe(true);
 
       // Click back button
       await companyPage.clickBackButton();
       
       // Should navigate to companies list
       await companyPage.page.waitForTimeout(1000);
-      expect(companyPage.page.url()).toContain('/companies');
+      vitestExpect(companyPage.page.url()).toContain('/companies');
     });
   });
 
-  test.describe('Error Handling', () => {
+  describe('Error Handling', () => {
     test('should handle non-existent company gracefully', async () => {
       await companyPage.navigateToCompany('999999');
       
       // Should show error message
       const errorMessage = await companyPage.getErrorMessage();
-      expect(errorMessage).toBeTruthy();
+      vitestExpect(errorMessage).toBeTruthy();
       expect(errorMessage?.toLowerCase()).toContain('not found');
     });
 
@@ -410,13 +426,13 @@ test.describe('Company Profile Page', () => {
         
         if (errorMessage) {
           // Error message should not contain the malicious input
-          expect(errorMessage).not.toContain('<script>');
-          expect(errorMessage).not.toContain('DROP TABLE');
-          expect(errorMessage).not.toContain('../');
+          vitestExpect(errorMessage).not.toContain('<script>');
+          vitestExpect(errorMessage).not.toContain('DROP TABLE');
+          vitestExpect(errorMessage).not.toContain('../');
         }
         
         // Page should not crash
-        expect(companyPage.page.isClosed()).toBe(false);
+        vitestExpect(companyPage.page.isClosed()).toBe(false);
       }
     });
 
@@ -435,7 +451,7 @@ test.describe('Company Profile Page', () => {
       await companyPage.navigateToCompany('500');
       
       const errorMessage = await companyPage.getErrorMessage();
-      expect(errorMessage).toBeTruthy();
+      vitestExpect(errorMessage).toBeTruthy();
     });
 
     test('should handle network timeouts', async () => {
@@ -453,47 +469,47 @@ test.describe('Company Profile Page', () => {
       
       // Should show loading state initially
       const loadingState = await companyPage.getLoadingState();
-      expect(loadingState).toBe(true);
+      vitestExpect(loadingState).toBe(true);
     });
   });
 
-  test.describe('Responsive Design', () => {
-    test('should work on mobile devices', async ({ page }) => {
+  describe('Responsive Design', () => {
+    test('should work on mobile devices', async () => {
       await page.setViewportSize({ width: 375, height: 667 }); // iPhone SE
       
       await companyPage.navigateToCompany('1');
       await companyPage.waitForPageLoad();
 
       const companyName = await companyPage.getCompanyName();
-      expect(companyName).toContain('Test Company');
+      vitestExpect(companyName).toContain('Test Company');
 
       // Tabs should be accessible on mobile
       const tabExists = await companyPage.checkTabExists('Overview');
       expect(tabExists).toBe(true);
     });
 
-    test('should work on tablet devices', async ({ page }) => {
+    test('should work on tablet devices', async () => {
       await page.setViewportSize({ width: 768, height: 1024 }); // iPad
       
       await companyPage.navigateToCompany('1');
       await companyPage.waitForPageLoad();
 
       const companyName = await companyPage.getCompanyName();
-      expect(companyName).toContain('Test Company');
+      vitestExpect(companyName).toContain('Test Company');
     });
 
-    test('should work on desktop devices', async ({ page }) => {
+    test('should work on desktop devices', async () => {
       await page.setViewportSize({ width: 1920, height: 1080 }); // Desktop
       
       await companyPage.navigateToCompany('1');
       await companyPage.waitForPageLoad();
 
       const companyName = await companyPage.getCompanyName();
-      expect(companyName).toContain('Test Company');
+      vitestExpect(companyName).toContain('Test Company');
     });
   });
 
-  test.describe('Performance', () => {
+  describe('Performance', () => {
     test('should load within acceptable time limits', async () => {
       const startTime = Date.now();
       
@@ -526,7 +542,7 @@ test.describe('Company Profile Page', () => {
     });
   });
 
-  test.describe('Data Integrity', () => {
+  describe('Data Integrity', () => {
     test('should display financial data correctly', async () => {
       await companyPage.navigateToCompany('1');
       await companyPage.waitForPageLoad();
@@ -622,7 +638,7 @@ test.describe('Company Profile Page', () => {
     });
   });
 
-  test.describe('Security', () => {
+  describe('Security', () => {
     test('should not expose sensitive information in errors', async () => {
       await companyPage.navigateToCompany('999999');
       

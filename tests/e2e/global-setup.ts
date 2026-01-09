@@ -1,11 +1,12 @@
-import { chromium, FullConfig } from '@playwright/test';
+import { chromium } from 'playwright-core';
+import { setupPlaywriter } from '../fixtures/playwriter-setup';
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * Global setup for Foreign Key Constraint Fix E2E tests
+ * Global setup for E2E tests using Playwriter MCP
  * Prepares test environment and database state
  */
-async function globalSetup(config: FullConfig) {
+async function globalSetup() {
   // Environment variables
   const supabaseUrl = process.env.VITE_SUPABASE_URL || 'http://localhost:54321';
   const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
@@ -39,13 +40,11 @@ async function globalSetup(config: FullConfig) {
     if (error) {
       throw new Error(`Database setup failed: ${error.message}`);
     }
-    // Create test user session if needed
-    const browser = await chromium.launch();
-    const context = await browser.newContext();
-    const page = await context.newPage();
+    // Create test user session using Playwriter
+    const { browser, page } = await setupPlaywriter();
     
     // Set up authentication state
-    await page.goto(config.webServer?.url || 'http://localhost:5173');
+    await page.goto(process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173');
     
     // Mock authentication for tests
     await page.evaluate(() => {

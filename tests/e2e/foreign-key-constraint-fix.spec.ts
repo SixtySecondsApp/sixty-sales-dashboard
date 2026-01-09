@@ -1,21 +1,32 @@
-import { test, expect } from '@playwright/test';
+import { describe, test, expect as vitestExpect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import { expect as playwrightExpect } from '../fixtures/playwright-assertions';
+import { setupPlaywriter, teardownPlaywriter } from '../fixtures/playwriter-setup';
 import { createClient } from '@supabase/supabase-js';
+import type { Page } from 'playwright-core';
 
 // Test configuration
+const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || process.env.VITE_BASE_URL || 'http://localhost:5175';
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'http://localhost:54321';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'test-key';
 
-test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
+describe('Foreign Key Constraint Fix - E2E Tests', () => {
+  let page: Page;
   let supabaseClient: any;
 
-  test.beforeAll(async () => {
+  beforeAll(async () => {
+    const setup = await setupPlaywriter();
+    page = setup.page;
     // Initialize Supabase client for test data setup
     supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   });
 
-  test.beforeEach(async ({ page }) => {
+  afterAll(async () => {
+    await teardownPlaywriter();
+  });
+
+  beforeEach(async () => {
     // Navigate to the application
-    await page.goto('/');
+    await page.goto(`${BASE_URL}/`);
     
     // Mock authentication if needed
     await page.evaluate(() => {
@@ -28,7 +39,7 @@ test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
     await page.waitForSelector('[data-testid="dashboard"]', { timeout: 10000 });
   });
 
-  test.afterEach(async () => {
+  afterEach(async () => {
     // Clean up test data after each test
     if (supabaseClient) {
       await supabaseClient
@@ -43,18 +54,18 @@ test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
     }
   });
 
-  test.describe('Successful Proposal Creation Flow', () => {
-    test('should create deal and proposal activity successfully via UI', async ({ page }) => {
+  describe('Successful Proposal Creation Flow', () => {
+    test('should create deal and proposal activity successfully via UI', async () => {
       // Click Quick Add button
       await page.click('[data-testid="quick-add-button"]');
-      await expect(page.locator('[data-testid="quick-add-menu"]')).toBeVisible();
+      await playwrightExpect(page.locator('[data-testid="quick-add-menu"]')).toBeVisible();
 
       // Click "Add Proposal"
       await page.click('text="Add Proposal"');
       
       // Wait for DealWizard to open
-      await expect(page.locator('[data-testid="deal-wizard"]')).toBeVisible();
-      await expect(page.locator('text="Create Deal & Proposal"')).toBeVisible();
+      await playwrightExpect(page.locator('[data-testid="deal-wizard"]')).toBeVisible();
+      await playwrightExpect(page.locator('text="Create Deal & Proposal"')).toBeVisible();
 
       // Fill in deal details
       await page.fill('[data-testid="deal-name-input"]', 'E2E Test Deal - Proposal');
@@ -64,7 +75,7 @@ test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
 
       // Handle contact selection
       await page.click('[data-testid="select-contact-button"]');
-      await expect(page.locator('[data-testid="contact-search-modal"]')).toBeVisible();
+      await playwrightExpect(page.locator('[data-testid="contact-search-modal"]')).toBeVisible();
       
       // Create or select a contact
       await page.fill('[data-testid="contact-search-input"]', 'test@e2e-company.com');
@@ -76,30 +87,30 @@ test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
       await page.click('[data-testid="save-contact-button"]');
 
       // Wait for contact to be selected
-      await expect(page.locator('[data-testid="selected-contact"]')).toBeVisible();
+      await playwrightExpect(page.locator('[data-testid="selected-contact"]')).toBeVisible();
 
       // Create the deal and proposal
       await page.click('text="Create Deal & Proposal"');
 
       // Wait for success message
-      await expect(page.locator('text="Deal and proposal created successfully!"')).toBeVisible({
+      await playwrightExpect(page.locator('text="Deal and proposal created successfully!"')).toBeVisible({
         timeout: 15000 // Allow time for delays and retries
       });
 
       // Verify deal appears in pipeline
-      await expect(page.locator('text="E2E Test Deal - Proposal"')).toBeVisible();
+      await playwrightExpect(page.locator('text="E2E Test Deal - Proposal"')).toBeVisible();
 
       // Navigate to activities to verify proposal was created
       await page.click('[data-testid="activities-tab"]');
-      await expect(page.locator('text="Proposal sent: E2E Test Deal - Proposal"')).toBeVisible();
+      await playwrightExpect(page.locator('text="Proposal sent: E2E Test Deal - Proposal"')).toBeVisible();
 
       // Verify the activity has the correct deal_id by checking details
       const activityRow = page.locator('[data-testid="activity-row"]').filter({ hasText: 'E2E Test Deal - Proposal' });
-      await expect(activityRow).toBeVisible();
-      await expect(activityRow.locator('text="proposal"')).toBeVisible();
+      await playwrightExpect(activityRow).toBeVisible();
+      await playwrightExpect(activityRow.locator('text="proposal"')).toBeVisible();
     });
 
-    test('should create only deal when using "Create Deal" action', async ({ page }) => {
+    test('should create only deal when using "Create Deal" action', async () => {
       // Click Quick Add button
       await page.click('[data-testid="quick-add-button"]');
       
@@ -107,8 +118,8 @@ test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
       await page.click('text="Create Deal"');
       
       // Wait for DealWizard to open
-      await expect(page.locator('[data-testid="deal-wizard"]')).toBeVisible();
-      await expect(page.locator('text="Create New Deal"')).toBeVisible();
+      await playwrightExpect(page.locator('[data-testid="deal-wizard"]')).toBeVisible();
+      await playwrightExpect(page.locator('text="Create New Deal"')).toBeVisible();
 
       // Fill in deal details
       await page.fill('[data-testid="deal-name-input"]', 'E2E Test Deal - Only');
@@ -129,19 +140,19 @@ test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
       await page.click('text="Create New Deal"');
 
       // Wait for success message (should not mention proposal)
-      await expect(page.locator('text="Deal created successfully!"')).toBeVisible();
+      await playwrightExpect(page.locator('text="Deal created successfully!"')).toBeVisible();
 
       // Verify deal appears in pipeline
-      await expect(page.locator('text="E2E Test Deal - Only"')).toBeVisible();
+      await playwrightExpect(page.locator('text="E2E Test Deal - Only"')).toBeVisible();
 
       // Verify NO proposal activity was created
       await page.click('[data-testid="activities-tab"]');
-      await expect(page.locator('text="Proposal sent: E2E Test Deal - Only"')).not.toBeVisible();
+      await playwrightExpect(page.locator('text="Proposal sent: E2E Test Deal - Only"')).toBeHidden();
     });
   });
 
-  test.describe('Race Condition Simulation', () => {
-    test('should handle foreign key constraint errors gracefully', async ({ page }) => {
+  describe('Race Condition Simulation', () => {
+    test('should handle foreign key constraint errors gracefully', async () => {
       // Intercept and delay database requests to simulate race conditions
       await page.route('**/rest/v1/deals*', async (route) => {
         // Delay deal creation to simulate slow database
@@ -175,7 +186,7 @@ test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
       await page.click('[data-testid="quick-add-button"]');
       await page.click('text="Add Proposal"');
       
-      await expect(page.locator('[data-testid="deal-wizard"]')).toBeVisible();
+      await playwrightExpect(page.locator('[data-testid="deal-wizard"]')).toBeVisible();
 
       // Fill form with race condition test data
       await page.fill('[data-testid="deal-name-input"]', 'E2E Race Test Deal');
@@ -190,7 +201,7 @@ test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
       await page.fill('[data-testid="contact-company-input"]', 'Race Test Company');
       await page.click('[data-testid="save-contact-button"]');
 
-      await expect(page.locator('[data-testid="selected-contact"]')).toBeVisible();
+      await playwrightExpect(page.locator('[data-testid="selected-contact"]')).toBeVisible();
 
       // Create the deal - this should trigger the retry logic
       await page.click('text="Create Deal & Proposal"');
@@ -202,10 +213,10 @@ test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
       });
 
       // Verify deal was created regardless
-      await expect(page.locator('text="E2E Race Test Deal"')).toBeVisible();
+      await playwrightExpect(page.locator('text="E2E Race Test Deal"')).toBeVisible();
     });
 
-    test('should handle network interruptions during proposal creation', async ({ page }) => {
+    test('should handle network interruptions during proposal creation', async () => {
       // Simulate network issues during activity creation
       let activityAttempts = 0;
       
@@ -250,12 +261,12 @@ test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
       });
 
       // Deal should still be created
-      await expect(page.locator('text="E2E Network Test Deal"')).toBeVisible();
+      await playwrightExpect(page.locator('text="E2E Network Test Deal"')).toBeVisible();
     });
   });
 
-  test.describe('Performance and Reliability', () => {
-    test('should handle rapid successive proposal creations', async ({ page }) => {
+  describe('Performance and Reliability', () => {
+    test('should handle rapid successive proposal creations', async () => {
       const dealNames = ['Rapid Test 1', 'Rapid Test 2', 'Rapid Test 3'];
       
       for (let i = 0; i < dealNames.length; i++) {
@@ -288,17 +299,17 @@ test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
 
       // Verify all deals were created
       for (const dealName of dealNames) {
-        await expect(page.locator(`text="${dealName}"`)).toBeVisible();
+        await playwrightExpect(page.locator(`text="${dealName}"`)).toBeVisible();
       }
 
       // Check activities were created
       await page.click('[data-testid="activities-tab"]');
       for (const dealName of dealNames) {
-        await expect(page.locator(`text="Proposal sent: ${dealName}"`)).toBeVisible();
+        await playwrightExpect(page.locator(`text="Proposal sent: ${dealName}"`)).toBeVisible();
       }
     });
 
-    test('should handle browser refresh during creation process', async ({ page }) => {
+    test('should handle browser refresh during creation process', async () => {
       // Start creation process
       await page.click('[data-testid="quick-add-button"]');
       await page.click('text="Add Proposal"');
@@ -311,7 +322,7 @@ test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
       
       // Should return to normal state without errors
       await page.waitForSelector('[data-testid="dashboard"]');
-      await expect(page.locator('[data-testid="deal-wizard"]')).not.toBeVisible();
+      await playwrightExpect(page.locator('[data-testid="deal-wizard"]')).toBeHidden();
       
       // Should be able to create normally after refresh
       await page.click('[data-testid="quick-add-button"]');
@@ -330,16 +341,16 @@ test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
 
       await page.click('text="Create Deal & Proposal"');
       
-      await expect(page.locator('text="Deal and proposal created successfully!"')).toBeVisible({
+      await playwrightExpect(page.locator('text="Deal and proposal created successfully!"')).toBeVisible({
         timeout: 15000
       });
       
-      await expect(page.locator('text="Post Refresh Deal"')).toBeVisible();
+      await playwrightExpect(page.locator('text="Post Refresh Deal"')).toBeVisible();
     });
   });
 
-  test.describe('Data Consistency Verification', () => {
-    test('should maintain referential integrity between deals and activities', async ({ page }) => {
+  describe('Data Consistency Verification', () => {
+    test('should maintain referential integrity between deals and activities', async () => {
       let createdDealId: string;
       let createdActivityId: string;
 
@@ -386,7 +397,7 @@ test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
 
       await page.click('text="Create Deal & Proposal"');
       
-      await expect(page.locator('text="Deal and proposal created successfully!"')).toBeVisible({
+      await playwrightExpect(page.locator('text="Deal and proposal created successfully!"')).toBeVisible({
         timeout: 15000
       });
 
@@ -398,17 +409,17 @@ test.describe('Foreign Key Constraint Fix - E2E Tests', () => {
           .eq('id', createdDealId)
           .single();
         
-        expect(deal).toBeTruthy();
-        expect(deal.name).toBe('Integrity Test Deal');
+        vitestExpect(deal).toBeTruthy();
+        vitestExpect(deal.name).toBe('Integrity Test Deal');
 
         const { data: activities } = await supabaseClient
           .from('activities')
           .select('*')
           .eq('deal_id', createdDealId);
         
-        expect(activities).toHaveLength(1);
-        expect(activities[0].type).toBe('proposal');
-        expect(activities[0].deal_id).toBe(createdDealId);
+        vitestExpect(activities).toHaveLength(1);
+        vitestExpect(activities[0].type).toBe('proposal');
+        vitestExpect(activities[0].deal_id).toBe(createdDealId);
       }
     });
   });

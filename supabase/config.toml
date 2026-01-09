@@ -103,3 +103,27 @@ verify_jwt = false
 # We handle auth verification manually inside the function
 [functions.meetingbaas-connect-calendar]
 verify_jwt = false
+
+# Company logo fetcher - public utility function, no auth needed
+# Fetches logos from logo.dev and caches in S3
+[functions.fetch-company-logo]
+verify_jwt = false
+
+# Integration config functions - called from browser with user JWT
+# We handle auth verification manually inside the functions (CORS preflight needs to work)
+[functions.justcall-config]
+verify_jwt = false
+
+[functions.savvycal-config]
+verify_jwt = false
+
+[functions.hubspot-admin]
+verify_jwt = false
+
+# OAuth initiate functions - called from browser to start OAuth flows
+# Handle auth internally (CORS preflight needs to work)
+[functions.google-oauth-initiate]
+verify_jwt = false
+
+[functions.hubspot-oauth-initiate]
+verify_jwt = false

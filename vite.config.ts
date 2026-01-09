@@ -287,7 +287,8 @@ export default defineConfig({
       
       // Test dependencies
       '@testing-library/react',
-      '@playwright/test',
+      'playwriter',
+      'playwright-core',
       'vitest'
     ],
     

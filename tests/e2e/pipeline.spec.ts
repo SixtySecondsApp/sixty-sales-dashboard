@@ -1,85 +1,87 @@
 // tests/pipeline.spec.ts
-import { test, expect, Page } from '@playwright/test';
+import { describe, test, expect as vitestExpect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { expect as playwrightExpect } from '../fixtures/playwright-assertions';
+import { setupPlaywriter, teardownPlaywriter } from '../fixtures/playwriter-setup';
+import type { Page } from 'playwright-core';
 
 // --- Constants and Test Data ---
-const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173';
+const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || process.env.VITE_BASE_URL || 'http://localhost:5175';
 const PIPELINE_URL = `${BASE_URL}/pipeline`; // Adjust if your pipeline route is different
 
 const TEST_USER_EMAIL = process.env.PLAYWRIGHT_TEST_USER_EMAIL || 'test@example.com'; // Store test credentials securely
 const TEST_USER_PASSWORD = process.env.PLAYWRIGHT_TEST_USER_PASSWORD || 'password';
 
-// Helper function for logging in
-async function login(page: Page) {
-  await page.goto(`${BASE_URL}/auth/login`);
-  // Add a short explicit wait after navigation before interacting
-  await page.waitForTimeout(1000); // Wait 1 second
+describe('Pipeline and Deal Management', () => {
+  let page: Page;
 
-  // --- Selectors based on screenshots --- 
-  const emailInputSelector = 'input[type="email"], input[placeholder="sarah@example.com"]'; // Multiple selectors
-  const passwordInputSelector = 'input[type="password"]'; // Assuming type="password"
-  const submitButtonSelector = 'button:has-text("Sign in"), button[type="submit"]'; // Multiple selectors
+  // Helper function for logging in
+  async function login(page: Page) {
+    await page.goto(`${BASE_URL}/auth/login`);
+    // Add a short explicit wait after navigation before interacting
+    await page.waitForTimeout(1000); // Wait 1 second
 
-  const emailInput = page.locator(emailInputSelector).first();
-  try {
-     await expect(emailInput).toBeVisible({ timeout: 15000 });
-     await emailInput.fill(TEST_USER_EMAIL);
-  } catch (e) {
-     await page.screenshot({ path: 'logs/login-email-error.png' });
-     throw e;
-  }
+    // --- Selectors based on screenshots --- 
+    const emailInputSelector = 'input[type="email"], input[placeholder="sarah@example.com"]'; // Multiple selectors
+    const passwordInputSelector = 'input[type="password"]'; // Assuming type="password"
+    const submitButtonSelector = 'button:has-text("Sign in"), button[type="submit"]'; // Multiple selectors
 
-  const passwordInput = page.locator(passwordInputSelector);
-   try {
-      await expect(passwordInput).toBeVisible({ timeout: 5000 });
+    const emailInput = page.locator(emailInputSelector).first();
+    try {
+      await playwrightExpect(emailInput).toBeVisible({ timeout: 15000 });
+      await emailInput.fill(TEST_USER_EMAIL);
+    } catch (e) {
+      await page.screenshot({ path: 'logs/login-email-error.png' });
+      throw e;
+    }
+
+    const passwordInput = page.locator(passwordInputSelector);
+    try {
+      await playwrightExpect(passwordInput).toBeVisible({ timeout: 5000 });
       await passwordInput.fill(TEST_USER_PASSWORD);
-   } catch (e) {
+    } catch (e) {
       await page.screenshot({ path: 'logs/login-password-error.png' });
       throw e;
-   }
+    }
 
-  const submitButton = page.locator(submitButtonSelector);
-   try {
-      await expect(submitButton).toBeEnabled({ timeout: 5000 });
+    const submitButton = page.locator(submitButtonSelector);
+    try {
+      await playwrightExpect(submitButton).toBeEnabled({ timeout: 5000 });
       await submitButton.click();
-   } catch (e) {
+    } catch (e) {
       await page.screenshot({ path: 'logs/login-submit-error.png' });
       throw e;
-   }
+    }
 
-  // Wait for navigation to a post-login page (e.g., dashboard or pipeline)
-  try {
+    // Wait for navigation to a post-login page (e.g., dashboard or pipeline)
+    try {
       // Wait for either navigation away from login or for authenticated UI elements
       await Promise.race([
         page.waitForURL(url => !url.pathname.includes('/login') && !url.pathname.includes('/auth'), { timeout: 10000 }),
         page.waitForSelector('body:has([data-testid^="pipeline-column-"]), body:has(text("Dashboard")), body:has(text("CRM"))', { timeout: 10000 })
       ]);
-  } catch(e) {
-       await page.screenshot({ path: 'logs/login-navigation-error.png' });
-       // Don't throw error, continue to pipeline
+    } catch(e) {
+      await page.screenshot({ path: 'logs/login-navigation-error.png' });
+      // Don't throw error, continue to pipeline
+    }
   }
-}
-
-// --- Test Suite ---
-test.describe('Pipeline and Deal Management', () => {
-  let page: Page;
 
   // Increase timeout for beforeAll hook  
-  test.beforeAll(async ({ browser }) => {
-    page = await browser.newPage();
+  beforeAll(async () => {
+    const setup = await setupPlaywriter();
+    page = setup.page;
     await login(page);
     
     // Give some extra time after login for the app to settle
     await page.waitForTimeout(3000);
     // Save authentication state for potential future use
     // await page.context().storageState({ path: 'storageState.json' });
-  });
-  test.beforeAll.timeout = 120000; // Increase timeout to 120 seconds
+  }, 120000); // Increase timeout to 120 seconds
 
-  test.afterAll(async () => {
-    await page.close();
+  afterAll(async () => {
+    await teardownPlaywriter();
   });
 
-  test.beforeEach(async () => {
+  beforeEach(async () => {
     // Navigate to pipeline page before each test
     await page.goto(PIPELINE_URL);
     
@@ -113,7 +115,7 @@ test.describe('Pipeline and Deal Management', () => {
       // Verify specific known stage names exist (4-stage pipeline: SQL, Opportunity, Verbal, Signed)
       const stageNames = ['SQL', 'Opportunity', 'Verbal', 'Signed'];
       for (const stageName of stageNames) {
-        await expect(page.locator(`[data-testid^="pipeline-column-"] h3:has-text("${stageName}")`)).toBeVisible();
+        await playwrightExpect(page.locator(`[data-testid^="pipeline-column-"] h3:has-text("${stageName}")`)).toBeVisible();
       }
     } else {
       // Fail the test with a clear message
@@ -144,12 +146,12 @@ test.describe('Pipeline and Deal Management', () => {
     // --- 1. Open Add Deal Modal ---
     // Click the 'Add Deal' button in the first column (SQL stage)
     const addDealButton = page.locator('[data-testid^="pipeline-column-"]').first().locator('button:has-text("Add deal"), button:has-text("Add Deal"), button[class*="add"]');
-    await expect(addDealButton).toBeVisible({ timeout: 10000 });
+    await playwrightExpect(addDealButton).toBeVisible({ timeout: 10000 });
     await addDealButton.click();
 
     // Wait for modal
     const modalSelector = '#edit-deal-modal-content'; // Use the ID from EditDealModal
-    await expect(page.locator(modalSelector)).toBeVisible();
+    await playwrightExpect(page.locator(modalSelector)).toBeVisible();
 
     // --- 2. Fill Form ---
     await page.locator(modalSelector).locator('input#dealName').fill(newDealData.name);
@@ -171,26 +173,26 @@ test.describe('Pipeline and Deal Management', () => {
     await page.locator(modalSelector).locator('button[aria-label="Save deal"]').click();
 
     // --- 4. Verify ---
-    await expect(page.locator(modalSelector)).not.toBeVisible({ timeout: 10000 }); // Wait longer for save + close
+    await playwrightExpect(page.locator(modalSelector)).not.toBeVisible({ timeout: 10000 }); // Wait longer for save + close
     // Verify the deal appears in the pipeline (look for company name in any pipeline column)
-    await expect(page.locator(`[data-testid^="pipeline-column-"] *:has-text("${newDealData.company}")`)).toBeVisible({ timeout: 15000 });
+    await playwrightExpect(page.locator(`[data-testid^="pipeline-column-"] *:has-text("${newDealData.company}")`)).toBeVisible({ timeout: 15000 });
     // Verify deal amount is visible
-    await expect(page.locator(`[data-testid^="pipeline-column-"] *:has-text("£${newDealData.amount}")`)).toBeVisible();
+    await playwrightExpect(page.locator(`[data-testid^="pipeline-column-"] *:has-text("£${newDealData.amount}")`)).toBeVisible();
 
     // --- 5. (Optional) Verify All Fields Saved Correctly ---
     // Click on the deal card we just created (find by company name)
     const dealCard = page.locator(`[data-testid^="pipeline-column-"] *:has-text("${newDealData.company}")`).first();
     await dealCard.click();
-    await expect(page.locator(modalSelector)).toBeVisible();
+    await playwrightExpect(page.locator(modalSelector)).toBeVisible();
     
     // Verify form fields - these selectors may need adjustment based on actual form structure
-    await expect(page.locator(modalSelector).locator('input[name="name"], input#dealName, input[placeholder*="deal name"]')).toHaveValue(newDealData.name);
-    await expect(page.locator(modalSelector).locator('input[name="company"], input#company, input[placeholder*="company"]')).toHaveValue(newDealData.company);
-    await expect(page.locator(modalSelector).locator('input[name="contactName"], input#contactName, input[placeholder*="contact"]')).toHaveValue(newDealData.contactName);
+    await playwrightExpect(page.locator(modalSelector).locator('input[name="name"], input#dealName, input[placeholder*="deal name"]')).toHaveValue(newDealData.name);
+    await playwrightExpect(page.locator(modalSelector).locator('input[name="company"], input#company, input[placeholder*="company"]')).toHaveValue(newDealData.company);
+    await playwrightExpect(page.locator(modalSelector).locator('input[name="contactName"], input#contactName, input[placeholder*="contact"]')).toHaveValue(newDealData.contactName);
 
     // Close modal
     await page.locator(modalSelector).locator('button:has-text("Close"), button[aria-label*="Close"], .close-button').click();
-    await expect(page.locator(modalSelector)).not.toBeVisible();
+    await playwrightExpect(page.locator(modalSelector)).not.toBeVisible();
 
   });
 
@@ -202,11 +204,11 @@ test.describe('Pipeline and Deal Management', () => {
 
     // Find the deal created in the previous test by company name
     const dealToEdit = page.locator(`[data-testid^="pipeline-column-"] *:has-text("Test Co")`).first();
-    await expect(dealToEdit).toBeVisible();
+    await playwrightExpect(dealToEdit).toBeVisible();
     await dealToEdit.click();
 
     const modalSelector = '#edit-deal-modal-content';
-    await expect(page.locator(modalSelector)).toBeVisible();
+    await playwrightExpect(page.locator(modalSelector)).toBeVisible();
 
     // --- Edit Data ---
     const uniqueId = Date.now();
@@ -243,23 +245,23 @@ test.describe('Pipeline and Deal Management', () => {
     await page.locator(modalSelector).locator('button[aria-label="Save deal"]').click();
 
     // --- Verify Save ---
-    await expect(page.locator(modalSelector)).not.toBeVisible({ timeout: 10000 });
+    await playwrightExpect(page.locator(modalSelector)).not.toBeVisible({ timeout: 10000 });
     // Verify the deal appears with the edited company name
-    await expect(page.locator(`[data-testid^="pipeline-column-"] *:has-text("${editedData.company}")`)).toBeVisible({ timeout: 15000 });
+    await playwrightExpect(page.locator(`[data-testid^="pipeline-column-"] *:has-text("${editedData.company}")`)).toBeVisible({ timeout: 15000 });
 
     // --- Re-open and Verify Key Fields ---
     const editedDealCard = page.locator(`[data-testid^="pipeline-column-"] *:has-text("${editedData.company}")`).first();
     await editedDealCard.click();
-    await expect(page.locator(modalSelector)).toBeVisible();
+    await playwrightExpect(page.locator(modalSelector)).toBeVisible();
     
     // Verify key fields were updated
-    await expect(page.locator(modalSelector).locator('input[name="name"], input#dealName, input[placeholder*="deal name"]')).toHaveValue(editedData.name);
-    await expect(page.locator(modalSelector).locator('input[name="company"], input#company, input[placeholder*="company"]')).toHaveValue(editedData.company);
-    await expect(page.locator(modalSelector).locator('input[name="contactName"], input#contactName, input[placeholder*="contact"]')).toHaveValue(editedData.contactName);
+    await playwrightExpect(page.locator(modalSelector).locator('input[name="name"], input#dealName, input[placeholder*="deal name"]')).toHaveValue(editedData.name);
+    await playwrightExpect(page.locator(modalSelector).locator('input[name="company"], input#company, input[placeholder*="company"]')).toHaveValue(editedData.company);
+    await playwrightExpect(page.locator(modalSelector).locator('input[name="contactName"], input#contactName, input[placeholder*="contact"]')).toHaveValue(editedData.contactName);
 
     // Close modal
     await page.locator(modalSelector).locator('button:has-text("Close"), button[aria-label*="Close"], .close-button').click();
-    await expect(page.locator(modalSelector)).not.toBeVisible();
+    await playwrightExpect(page.locator(modalSelector)).not.toBeVisible();
   });
 
   test('should drag and drop a deal to a different stage', async () => {
@@ -269,8 +271,8 @@ test.describe('Pipeline and Deal Management', () => {
     const originalColumn = page.locator('[data-testid^="pipeline-column-"]').nth(0); // SQL column
     const targetColumn = page.locator('[data-testid^="pipeline-column-"]').nth(1); // Opportunity column
 
-    await expect(dealCard).toBeVisible();
-    await expect(targetColumn).toBeVisible();
+    await playwrightExpect(dealCard).toBeVisible();
+    await playwrightExpect(targetColumn).toBeVisible();
 
     // --- Perform Drag and Drop ---
     const dealCardBoundingBox = await dealCard.boundingBox();
@@ -286,31 +288,30 @@ test.describe('Pipeline and Deal Management', () => {
 
     // --- Verification ---
     // Wait for the deal to appear in the target column
-    await expect(targetColumn.locator('*:has-text("Edited Co")')).toBeVisible({ timeout: 10000 });
+    await playwrightExpect(targetColumn.locator('*:has-text("Edited Co")')).toBeVisible({ timeout: 10000 });
   });
 
   test('should delete a deal', async () => {
       // --- Prerequisite: Ensure a test deal exists to delete ---
       // Find the deal we edited in the previous test
       const dealToDelete = page.locator(`[data-testid^="pipeline-column-"] *:has-text("Edited Co")`).first();
-      await expect(dealToDelete).toBeVisible();
+      await playwrightExpect(dealToDelete).toBeVisible();
       await dealToDelete.click();
 
       const modalSelector = '#edit-deal-modal-content';
-      await expect(page.locator(modalSelector)).toBeVisible();
+      await playwrightExpect(page.locator(modalSelector)).toBeVisible();
 
       // --- Delete ---
       page.on('dialog', dialog => dialog.accept()); // Auto-accept the confirm() dialog
       const deleteButton = page.locator(modalSelector).locator('button:has-text("Delete"), button[aria-label*="Delete"], button[class*="delete"]');
-      await expect(deleteButton).toBeVisible();
+      await playwrightExpect(deleteButton).toBeVisible();
       await deleteButton.click();
 
       // --- Verify ---
-      await expect(page.locator(modalSelector)).not.toBeVisible({ timeout: 10000 });
+      await playwrightExpect(page.locator(modalSelector)).not.toBeVisible({ timeout: 10000 });
       // Verify the deal is no longer visible in any pipeline column
-      await expect(page.locator(`[data-testid^="pipeline-column-"] *:has-text("Edited Co")`)).not.toBeVisible();
+      await playwrightExpect(page.locator(`[data-testid^="pipeline-column-"] *:has-text("Edited Co")`)).not.toBeVisible();
 
       // Optional: Add DB/API check to verify deal deletion
   });
-
 }); 

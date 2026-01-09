@@ -1,16 +1,19 @@
-import { FullConfig } from '@playwright/test';
+import { teardownPlaywriter } from '../fixtures/playwriter-setup';
 import { createClient } from '@supabase/supabase-js';
 import { promises as fs } from 'fs';
 
 /**
- * Global teardown for Foreign Key Constraint Fix E2E tests
+ * Global teardown for E2E tests using Playwriter MCP
  * Cleans up test environment and generates final reports
  */
-async function globalTeardown(config: FullConfig) {
+async function globalTeardown() {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || 'http://localhost:54321';
   const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
   
   try {
+    // Cleanup Playwriter resources
+    await teardownPlaywriter();
+    
     // Initialize Supabase client
     const supabase = createClient(supabaseUrl, supabaseKey);
     

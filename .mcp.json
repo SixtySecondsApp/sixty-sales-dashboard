@@ -1,10 +1,15 @@
 {
   "mcpServers": {
     "ai-dev-hub": {
+      "type": "sse",
+      "url": "https://ai-dev-hub-mcp-server-production.up.railway.app/mcp",
+      "headers": {}
+    },
+    "playwriter": {
       "command": "npx",
       "args": [
-        "mcp-remote",
-        "https://ai-dev-hub-mcp-server-production.up.railway.app/mcp?token=ae9483bd8f5fbc613719ec3813c56a3d34db81f67da9cc20c0a33f5971b345e2"
+        "-y",
+        "playwriter@latest"
       ]
     }
   }

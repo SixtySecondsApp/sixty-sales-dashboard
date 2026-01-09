@@ -18,7 +18,21 @@ vi.mock('@/lib/hooks/useDealsActions', () => ({
 
 vi.mock('@/lib/hooks/useUser', () => ({
   useUser: () => ({
-    userData: { id: 'test-user', email: 'test@example.com' }
+    userData: { id: 'test-user', email: 'test@example.com' },
+    isLoading: false
+  })
+}));
+
+// Mock UserPermissionsContext to avoid needing full provider chain
+vi.mock('@/contexts/UserPermissionsContext', () => ({
+  UserPermissionsProvider: ({ children }: { children: React.ReactNode }) => children,
+  useUserPermissions: () => ({
+    effectiveUserType: 'internal',
+    isLoading: false,
+    canManageUsers: false,
+    canAccessAdminFeatures: false,
+    isExternalUser: false,
+    isInternalUser: true
   })
 }));
 

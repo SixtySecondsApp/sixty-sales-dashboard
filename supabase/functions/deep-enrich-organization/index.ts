@@ -247,33 +247,61 @@ async function startEnrichment(
       console.log('[startEnrichment] Force re-enrichment requested for domain:', domain);
     }
 
-    // If existing record, delete it to start fresh (for force or domain change)
-    if (existing) {
-      console.log('[startEnrichment] Deleting existing enrichment to start fresh');
-      await supabase
-        .from('organization_enrichment')
-        .delete()
-        .eq('id', existing.id);
-    }
-
-    // Create new enrichment record
-    const { data: enrichment, error: insertError } = await supabase
+    // Use upsert to handle race conditions - update if exists, insert if not
+    // This prevents "duplicate key" errors when multiple requests come in simultaneously
+    const { data: enrichment, error: upsertError } = await supabase
       .from('organization_enrichment')
-      .insert({
+      .upsert({
         organization_id: organizationId,
         domain: domain,
         status: 'scraping',
         error_message: null,
+        // Reset all fields for a fresh start
+        company_name: null,
+        logo_url: null,
+        tagline: null,
+        description: null,
+        industry: null,
+        employee_count: null,
+        funding_stage: null,
+        founded_year: null,
+        headquarters: null,
+        products: [],
+        value_propositions: [],
+        use_cases: [],
+        competitors: [],
+        target_market: null,
+        ideal_customer_profile: {},
+        key_people: [],
+        recent_hires: [],
+        open_roles: [],
+        tech_stack: [],
+        customer_logos: [],
+        case_studies: [],
+        reviews_summary: {},
+        pain_points: [],
+        buying_signals: [],
+        recent_news: [],
+        sources_used: [],
+        confidence_score: null,
+        raw_scraped_data: null,
+        generated_skills: {},
+      }, {
+        onConflict: 'organization_id',
+        ignoreDuplicates: false,
       })
       .select('id')
       .single();
 
-    if (insertError) throw insertError;
+    if (upsertError) throw upsertError;
+
+    const enrichment_id = enrichment?.id || existing?.id;
+    if (!enrichment_id) throw new Error('Failed to get enrichment ID');
 
     // Run the enrichment pipeline asynchronously
-    runEnrichmentPipeline(supabase, enrichment.id, organizationId, domain).catch(console.error);
+    runEnrichmentPipeline(supabase, enrichment_id, organizationId, domain).catch(console.error);
 
-    return { success: true, enrichment_id: enrichment.id };
+    return { success: true, enrichment_id };
 
   } catch (error) {
     const errorMessage = extractErrorMessage(error);

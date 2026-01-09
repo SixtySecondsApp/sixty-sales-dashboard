@@ -154,8 +154,8 @@ export const errorScenarios = {
 };
 
 export const testEnvironment = {
-  baseUrl: 'http://127.0.0.1:5173',
-  apiUrl: 'http://127.0.0.1:5173/api',
+  baseUrl: 'http://127.0.0.1:5175',
+  apiUrl: 'http://127.0.0.1:5175/api',
   timeout: {
     short: 5000,
     medium: 15000,

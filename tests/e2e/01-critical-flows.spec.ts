@@ -1,16 +1,34 @@
-import { test, expect } from '@playwright/test';
-import { testContacts, testActivities, testDeals, testTasks } from '../fixtures/test-data';
+import { describe, test, expect as vitestExpect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { expect as playwrightExpect } from '../fixtures/playwright-assertions';
+import { setupPlaywriter, teardownPlaywriter, getPage } from '../fixtures/playwriter-setup';
+import { testContacts, testActivities, testDeals, testTasks, testEnvironment } from '../fixtures/test-data';
+import type { Page } from 'playwright-core';
 
-test.describe('Critical User Flows', () => {
-  test.beforeEach(async ({ page }) => {
+// Base URL for the application
+const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || process.env.VITE_BASE_URL || testEnvironment.baseUrl;
+
+// Test suite using Playwriter MCP
+describe('Critical User Flows', () => {
+  let page: Page;
+
+  beforeAll(async () => {
+    const setup = await setupPlaywriter();
+    page = setup.page;
+  });
+
+  afterAll(async () => {
+    await teardownPlaywriter();
+  });
+
+  beforeEach(async () => {
     // Navigate to the application
-    await page.goto('/');
+    await page.goto(BASE_URL);
     
     // Wait for the page to load completely
     await page.waitForLoadState('networkidle');
   });
 
-  test('Page loads without 404 errors for static resources', async ({ page }) => {
+  test('Page loads without 404 errors for static resources', async () => {
     const responses: any[] = [];
     
     // Listen for all network responses
@@ -23,7 +41,7 @@ test.describe('Critical User Flows', () => {
     });
 
     // Navigate and wait for load
-    await page.goto('/');
+    await page.goto(BASE_URL);
     await page.waitForLoadState('networkidle');
 
     // Check for 404 errors on static resources
@@ -39,10 +57,10 @@ test.describe('Critical User Flows', () => {
     if (staticResourceErrors.length > 0) {
     }
 
-    expect(staticResourceErrors).toHaveLength(0);
+    vitestExpect(staticResourceErrors).toHaveLength(0);
   });
 
-  test('No console errors on page load', async ({ page }) => {
+  test('No console errors on page load', async () => {
     const errors: string[] = [];
     
     // Listen for console errors
@@ -52,7 +70,7 @@ test.describe('Critical User Flows', () => {
       }
     });
 
-    await page.goto('/');
+    await page.goto(BASE_URL);
     await page.waitForLoadState('networkidle');
     
     // Wait a bit to catch any delayed errors
@@ -68,21 +86,21 @@ test.describe('Critical User Flows', () => {
     if (criticalErrors.length > 0) {
     }
 
-    expect(criticalErrors).toHaveLength(0);
+    vitestExpect(criticalErrors).toHaveLength(0);
   });
 
-  test('Authentication flow works correctly', async ({ page }) => {
+  test('Authentication flow works correctly', async () => {
     // Start at login page
-    await page.goto('/auth');
+    await page.goto(`${BASE_URL}/auth`);
 
     // Check if login form is present
     const emailInput = page.locator('input[type="email"]');
     const passwordInput = page.locator('input[type="password"]');
     const submitButton = page.locator('button[type="submit"]');
 
-    await expect(emailInput).toBeVisible();
-    await expect(passwordInput).toBeVisible();
-    await expect(submitButton).toBeVisible();
+    await playwrightExpect(emailInput).toBeVisible();
+    await playwrightExpect(passwordInput).toBeVisible();
+    await playwrightExpect(submitButton).toBeVisible();
 
     // Test with invalid credentials first
     await emailInput.fill('invalid@example.com');
@@ -90,7 +108,7 @@ test.describe('Critical User Flows', () => {
     await submitButton.click();
 
     // Should show error message
-    await expect(page.locator('text=/Invalid|Error|Failed/i')).toBeVisible({ timeout: 10000 });
+    await playwrightExpect(page.locator('text=/Invalid|Error|Failed/i')).toBeVisible({ timeout: 10000 });
 
     // Clear and try with valid test credentials (if available)
     if (process.env.TEST_USER_EMAIL && process.env.TEST_USER_PASSWORD) {
@@ -99,13 +117,13 @@ test.describe('Critical User Flows', () => {
       await submitButton.click();
 
       // Should redirect to dashboard
-      await expect(page).toHaveURL('/dashboard', { timeout: 30000 });
+      await playwrightExpect(page).toHaveURL(`${BASE_URL}/dashboard`, { timeout: 30000 });
     }
   });
 
-  test('QuickAdd modal opens and closes correctly', async ({ page }) => {
+  test('QuickAdd modal opens and closes correctly', async () => {
     // Assuming user is logged in or on a page where QuickAdd is available
-    await page.goto('/dashboard');
+    await page.goto(`${BASE_URL}/dashboard`);
     
     // Wait for page to load
     await page.waitForLoadState('networkidle');
@@ -118,23 +136,23 @@ test.describe('Critical User Flows', () => {
 
       // Modal should be visible
       const modal = page.locator('[role="dialog"], .modal, .quick-add-modal');
-      await expect(modal).toBeVisible();
+      await playwrightExpect(modal).toBeVisible();
 
       // Should have action buttons
-      await expect(page.locator('text=/Add Task|Add Deal|Add Sale|Add Meeting/i')).toBeVisible();
+      await playwrightExpect(page.locator('text=/Add Task|Add Deal|Add Sale|Add Meeting/i')).toBeVisible();
 
       // Close modal with X button
       const closeButton = page.locator('[aria-label="close"], button:has-text("×"), .close-btn');
       await closeButton.click();
 
       // Modal should be hidden
-      await expect(modal).toBeHidden();
+      await playwrightExpect(modal).toBeHidden();
     } else {
     }
   });
 
-  test('Task creation through QuickAdd works', async ({ page }) => {
-    await page.goto('/dashboard');
+  test('Task creation through QuickAdd works', async () => {
+    await page.goto(`${BASE_URL}/dashboard`);
     await page.waitForLoadState('networkidle');
 
     // Open QuickAdd
@@ -167,13 +185,13 @@ test.describe('Critical User Flows', () => {
       await submitButton.click();
 
       // Should show success message
-      await expect(page.locator('text=/Task created|Success|Added successfully/i')).toBeVisible({ timeout: 10000 });
+      await playwrightExpect(page.locator('text=/Task created|Success|Added successfully/i')).toBeVisible({ timeout: 10000 });
     } else {
     }
   });
 
-  test('Contact creation works without 403 errors', async ({ page }) => {
-    await page.goto('/dashboard');
+  test('Contact creation works without 403 errors', async () => {
+    await page.goto(`${BASE_URL}/dashboard`);
     await page.waitForLoadState('networkidle');
 
     // Monitor network requests for 403 errors
@@ -229,12 +247,12 @@ test.describe('Critical User Flows', () => {
     if (forbiddenRequests.length > 0) {
     }
 
-    expect(forbiddenRequests).toHaveLength(0);
+    vitestExpect(forbiddenRequests).toHaveLength(0);
   });
 
-  test('Web vitals and performance metrics load correctly', async ({ page }) => {
+  test('Web vitals and performance metrics load correctly', async () => {
     // Navigate to page
-    await page.goto('/dashboard');
+    await page.goto(`${BASE_URL}/dashboard`);
     
     // Check that performance monitoring is working
     const webVitalsScript = await page.locator('script').evaluateAll(scripts => {
@@ -259,11 +277,11 @@ test.describe('Critical User Flows', () => {
     await page.waitForTimeout(2000);
 
     // Should not have vitals-related errors
-    expect(errors).toHaveLength(0);
+    vitestExpect(errors).toHaveLength(0);
   });
 
-  test('Forms show proper validation errors', async ({ page }) => {
-    await page.goto('/dashboard');
+  test('Forms show proper validation errors', async () => {
+    await page.goto(`${BASE_URL}/dashboard`);
     await page.waitForLoadState('networkidle');
 
     // Try QuickAdd with invalid data
@@ -282,13 +300,13 @@ test.describe('Critical User Flows', () => {
         await submitButton.click();
 
         // Should show validation error
-        await expect(page.locator('text=/required|Required|Please fill|Please enter/i')).toBeVisible({ timeout: 5000 });
+        await playwrightExpect(page.locator('text=/required|Required|Please fill|Please enter/i')).toBeVisible({ timeout: 5000 });
       }
     }
   });
 
-  test('User can navigate between main sections without errors', async ({ page }) => {
-    await page.goto('/dashboard');
+  test('User can navigate between main sections without errors', async () => {
+    await page.goto(`${BASE_URL}/dashboard`);
     await page.waitForLoadState('networkidle');
 
     // Navigation sections to test
@@ -314,7 +332,7 @@ test.describe('Critical User Flows', () => {
         if (errorCount > 0) {
         }
 
-        expect(errorCount).toBe(0);
+        vitestExpect(errorCount).toBe(0);
       }
     }
   });

@@ -32,18 +32,19 @@ Object.defineProperty(window, 'caches', {
   writable: true,
 });
 
-describe('useVersionCheck', () => {
+describe('useVersionCheck', { timeout: 10000 }, () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers();
-    
+    // Use real timers for async operations to work properly
+    vi.useRealTimers();
+
     // Clear localStorage and sessionStorage
     localStorage.clear();
     sessionStorage.clear();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    vi.clearAllMocks();
   });
 
   const mockVersionResponse = {

@@ -1,61 +1,77 @@
-import { test, expect } from '@playwright/test';
+import { describe, test, expect as vitestExpect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { expect as playwrightExpect } from '../fixtures/playwright-assertions';
+import { setupPlaywriter, teardownPlaywriter } from '../fixtures/playwriter-setup';
+import type { Page } from 'playwright-core';
 
-test.describe('Performance and Accessibility Tests', () => {
-  test.beforeEach(async ({ page }) => {
+const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || process.env.VITE_BASE_URL || 'http://localhost:5175';
+
+describe('Performance and Accessibility Tests', () => {
+  let page: Page;
+
+  beforeAll(async () => {
+    const setup = await setupPlaywriter();
+    page = setup.page;
+  });
+
+  afterAll(async () => {
+    await teardownPlaywriter();
+  });
+
+  beforeEach(async () => {
     // Start from the app root
-    await page.goto('/');
+    await page.goto(`${BASE_URL}/`);
     await page.waitForLoadState('networkidle');
   });
 
-  test.describe('Performance Testing', () => {
-    test('should load payments page within acceptable time limits', async ({ page }) => {
+  describe('Performance Testing', () => {
+    test('should load payments page within acceptable time limits', async () => {
       const startTime = Date.now();
       
-      await page.goto('/payments');
+      await page.goto(`${BASE_URL}/payments`);
       await page.waitForLoadState('networkidle');
       
       const loadTime = Date.now() - startTime;
       
       // Should load within 5 seconds (reasonable for local development)
-      expect(loadTime).toBeLessThan(5000);
+      vitestExpect(loadTime).toBeLessThan(5000);
       
       // Verify page is fully loaded
-      await expect(page.locator('h1')).toContainText('Payment Management');
+      await playwrightExpect(page.locator('h1')).toHaveText(/Payment Management/i);
     });
 
-    test('should load clients page within acceptable time limits', async ({ page }) => {
+    test('should load clients page within acceptable time limits', async () => {
       const startTime = Date.now();
       
-      await page.goto('/clients');
+      await page.goto(`${BASE_URL}/clients`);
       await page.waitForLoadState('networkidle');
       
       const loadTime = Date.now() - startTime;
       
       // Should load within 5 seconds
-      expect(loadTime).toBeLessThan(5000);
+      vitestExpect(loadTime).toBeLessThan(5000);
       
       // Verify page is fully loaded
-      await expect(page.locator('h1')).toContainText('Client Management');
+      await playwrightExpect(page.locator('h1')).toHaveText(/Client Management/i);
     });
 
-    test('should handle view switching with minimal delay', async ({ page }) => {
-      await page.goto('/clients');
+    test('should handle view switching with minimal delay', async () => {
+      await page.goto(`${BASE_URL}/clients`);
       await page.waitForLoadState('networkidle');
       
       const startTime = Date.now();
       
       // Switch to detailed view
       await page.locator('button', { hasText: 'Deal Details' }).click();
-      await expect(page.locator('p')).toContainText('Detailed view showing individual deals');
+      await playwrightExpect(page.locator('p')).toHaveText(/Detailed view showing individual deals/i);
       
       const switchTime = Date.now() - startTime;
       
       // View switching should be near-instantaneous (under 1 second)
-      expect(switchTime).toBeLessThan(1000);
+      vitestExpect(switchTime).toBeLessThan(1000);
     });
 
-    test('should measure Core Web Vitals on payments page', async ({ page }) => {
-      await page.goto('/payments');
+    test('should measure Core Web Vitals on payments page', async () => {
+      await page.goto(`${BASE_URL}/payments`);
       
       // Wait for page to fully load
       await page.waitForLoadState('networkidle');
@@ -94,22 +110,22 @@ test.describe('Performance and Accessibility Tests', () => {
         });
       });
       // Assert reasonable performance
-      expect(metrics.ttfb).toBeLessThan(1000); // TTFB under 1 second
-      expect(metrics.domContentLoaded).toBeLessThan(2000); // DOM ready under 2 seconds
+      vitestExpect(metrics.ttfb).toBeLessThan(1000); // TTFB under 1 second
+      vitestExpect(metrics.domContentLoaded).toBeLessThan(2000); // DOM ready under 2 seconds
     });
 
-    test('should measure memory usage during navigation', async ({ page }) => {
+    test('should measure memory usage during navigation', async () => {
       // Enable memory monitoring
       const client = await page.context().newCDPSession(page);
       await client.send('Performance.enable');
       
       // Navigate through pages
-      await page.goto('/payments');
+      await page.goto(`${BASE_URL}/payments`);
       await page.waitForLoadState('networkidle');
       
       const memoryBefore = await client.send('Performance.getMetrics');
       
-      await page.goto('/clients');
+      await page.goto(`${BASE_URL}/clients`);
       await page.waitForLoadState('networkidle');
       
       // Switch views multiple times
@@ -127,10 +143,10 @@ test.describe('Performance and Accessibility Tests', () => {
                           (memoryBefore.metrics.find(m => m.name === 'JSHeapUsedSize')?.value || 0);
       
       // Memory growth should be reasonable (less than 50MB)
-      expect(memoryGrowth).toBeLessThan(50 * 1024 * 1024);
+      vitestExpect(memoryGrowth).toBeLessThan(50 * 1024 * 1024);
     });
 
-    test('should handle concurrent API requests efficiently', async ({ page }) => {
+    test('should handle concurrent API requests efficiently', async () => {
       // Mock multiple API endpoints
       let requestCount = 0;
       await page.route('**/api/**', (route) => {
@@ -147,72 +163,72 @@ test.describe('Performance and Accessibility Tests', () => {
       const startTime = Date.now();
       
       // Navigate to page that might make multiple API calls
-      await page.goto('/payments');
+      await page.goto(`${BASE_URL}/payments`);
       await page.waitForLoadState('networkidle');
       
       const totalTime = Date.now() - startTime;
       // Should complete within reasonable time even with multiple requests
-      expect(totalTime).toBeLessThan(3000);
+      vitestExpect(totalTime).toBeLessThan(3000);
     });
   });
 
-  test.describe('Accessibility Testing', () => {
-    test('should have proper heading hierarchy on payments page', async ({ page }) => {
-      await page.goto('/payments');
+  describe('Accessibility Testing', () => {
+    test('should have proper heading hierarchy on payments page', async () => {
+      await page.goto(`${BASE_URL}/payments`);
       await page.waitForLoadState('networkidle');
       
       // Check for h1
       const h1Elements = page.locator('h1');
-      expect(await h1Elements.count()).toBe(1);
-      await expect(h1Elements).toContainText('Payment Management');
+      vitestExpect(await h1Elements.count()).toBe(1);
+      await playwrightExpect(h1Elements).toHaveText(/Payment Management/i);
       
       // Check for h2
       const h2Elements = page.locator('h2');
-      expect(await h2Elements.count()).toBeGreaterThanOrEqual(1);
-      await expect(h2Elements.first()).toContainText('Revenue Overview');
+      vitestExpect(await h2Elements.count()).toBeGreaterThanOrEqual(1);
+      await playwrightExpect(h2Elements.first()).toHaveText(/Revenue Overview/i);
       
       // Ensure no heading levels are skipped (basic check)
       const allHeadings = await page.locator('h1, h2, h3, h4, h5, h6').allTextContents();
-      expect(allHeadings.length).toBeGreaterThan(0);
+      vitestExpect(allHeadings.length).toBeGreaterThan(0);
     });
 
-    test('should have proper heading hierarchy on clients page', async ({ page }) => {
-      await page.goto('/clients');
+    test('should have proper heading hierarchy on clients page', async () => {
+      await page.goto(`${BASE_URL}/clients`);
       await page.waitForLoadState('networkidle');
       
       // Check for h1
       const h1Elements = page.locator('h1');
-      expect(await h1Elements.count()).toBe(1);
-      await expect(h1Elements).toContainText('Client Management');
+      vitestExpect(await h1Elements.count()).toBe(1);
+      await playwrightExpect(h1Elements).toHaveText(/Client Management/i);
       
       // Check for proper heading structure
       const allHeadings = await page.locator('h1, h2, h3, h4, h5, h6').allTextContents();
-      expect(allHeadings.length).toBeGreaterThan(0);
+      vitestExpect(allHeadings.length).toBeGreaterThan(0);
     });
 
-    test('should have accessible buttons with proper labels', async ({ page }) => {
-      await page.goto('/clients');
+    test('should have accessible buttons with proper labels', async () => {
+      await page.goto(`${BASE_URL}/clients`);
       await page.waitForLoadState('networkidle');
       
       // Check toggle buttons
       const buttons = page.locator('button');
       const buttonCount = await buttons.count();
-      expect(buttonCount).toBeGreaterThanOrEqual(2);
+      vitestExpect(buttonCount).toBeGreaterThanOrEqual(2);
       
       // Each button should have accessible text
       for (let i = 0; i < buttonCount; i++) {
         const button = buttons.nth(i);
         const buttonText = await button.textContent();
-        expect(buttonText?.trim()).toBeTruthy();
+        vitestExpect(buttonText?.trim()).toBeTruthy();
       }
       
       // Specific button checks
-      await expect(page.locator('button', { hasText: 'Client Overview' })).toBeVisible();
-      await expect(page.locator('button', { hasText: 'Deal Details' })).toBeVisible();
+      await playwrightExpect(page.locator('button', { hasText: 'Client Overview' })).toBeVisible();
+      await playwrightExpect(page.locator('button', { hasText: 'Deal Details' })).toBeVisible();
     });
 
-    test('should support keyboard navigation', async ({ page }) => {
-      await page.goto('/clients');
+    test('should support keyboard navigation', async () => {
+      await page.goto(`${BASE_URL}/clients`);
       await page.waitForLoadState('networkidle');
       
       // Test tab navigation through buttons
@@ -225,15 +241,15 @@ test.describe('Performance and Accessibility Tests', () => {
       
       // Focus on deal details button
       await dealDetailsButton.focus();
-      expect(await dealDetailsButton.evaluate(el => el === document.activeElement)).toBeTruthy();
+      vitestExpect(await dealDetailsButton.evaluate(el => el === document.activeElement)).toBeTruthy();
       
       // Activate with keyboard
       await page.keyboard.press('Enter');
-      await expect(page.locator('p')).toContainText('Detailed view showing individual deals');
+      await playwrightExpect(page.locator('p')).toHaveText(/Detailed view showing individual deals/i);
     });
 
-    test('should have sufficient color contrast', async ({ page }) => {
-      await page.goto('/payments');
+    test('should have sufficient color contrast', async () => {
+      await page.goto(`${BASE_URL}/payments`);
       await page.waitForLoadState('networkidle');
       
       // Check main heading color
@@ -247,12 +263,12 @@ test.describe('Performance and Accessibility Tests', () => {
       });
       
       // Should have visible text (not transparent)
-      expect(h1Styles.color).not.toBe('rgba(0, 0, 0, 0)');
-      expect(h1Styles.color).not.toBe('transparent');
+      vitestExpect(h1Styles.color).not.toBe('rgba(0, 0, 0, 0)');
+      vitestExpect(h1Styles.color).not.toBe('transparent');
     });
 
-    test('should have proper focus indicators', async ({ page }) => {
-      await page.goto('/clients');
+    test('should have proper focus indicators', async () => {
+      await page.goto(`${BASE_URL}/clients`);
       await page.waitForLoadState('networkidle');
       
       const dealDetailsButton = page.locator('button', { hasText: 'Deal Details' });
@@ -262,11 +278,11 @@ test.describe('Performance and Accessibility Tests', () => {
       
       // Check if focus is visible (element should be focused)
       const isFocused = await dealDetailsButton.evaluate(el => el === document.activeElement);
-      expect(isFocused).toBeTruthy();
+      vitestExpect(isFocused).toBeTruthy();
     });
 
-    test('should have semantic HTML structure', async ({ page }) => {
-      await page.goto('/payments');
+    test('should have semantic HTML structure', async () => {
+      await page.goto(`${BASE_URL}/payments`);
       await page.waitForLoadState('networkidle');
       
       // Check for main content area
@@ -276,17 +292,17 @@ test.describe('Performance and Accessibility Tests', () => {
       // If no main element, should at least have proper heading structure
       if (!hasMain) {
         const h1 = page.locator('h1');
-        expect(await h1.count()).toBe(1);
+        vitestExpect(await h1.count()).toBe(1);
       }
       
       // Check for proper button roles
       const buttons = page.locator('button, [role="button"]');
       const buttonCount = await buttons.count();
-      expect(buttonCount).toBeGreaterThanOrEqual(0);
+      vitestExpect(buttonCount).toBeGreaterThanOrEqual(0);
     });
 
-    test('should provide alternative text for images and icons', async ({ page }) => {
-      await page.goto('/clients');
+    test('should provide alternative text for images and icons', async () => {
+      await page.goto(`${BASE_URL}/clients`);
       await page.waitForLoadState('networkidle');
       
       // Check for images without alt text
@@ -300,12 +316,12 @@ test.describe('Performance and Accessibility Tests', () => {
         const ariaHidden = await img.getAttribute('aria-hidden');
         
         // Images should have alt text, aria-label, or be decorative (aria-hidden="true")
-        expect(alt !== null || ariaLabel !== null || ariaHidden === 'true').toBeTruthy();
+        vitestExpect(alt !== null || ariaLabel !== null || ariaHidden === 'true').toBeTruthy();
       }
     });
 
-    test('should handle screen reader compatibility', async ({ page }) => {
-      await page.goto('/payments');
+    test('should handle screen reader compatibility', async () => {
+      await page.goto(`${BASE_URL}/payments`);
       await page.waitForLoadState('networkidle');
       
       // Check for ARIA landmarks and labels
@@ -315,72 +331,72 @@ test.describe('Performance and Accessibility Tests', () => {
       // Should have some ARIA structure (even if minimal)
       // This is a basic check - in a real app you'd want more comprehensive ARIA
       const pageContent = await page.textContent('body');
-      expect(pageContent).toBeTruthy();
+      vitestExpect(pageContent).toBeTruthy();
       
       // Check that content is readable
-      expect(pageContent).toContain('Payment Management');
+      vitestExpect(pageContent).toContain('Payment Management');
     });
   });
 
-  test.describe('Mobile Responsiveness', () => {
-    test('should render correctly on mobile viewport', async ({ page }) => {
+  describe('Mobile Responsiveness', () => {
+    test('should render correctly on mobile viewport', async () => {
       // Set mobile viewport
       await page.setViewportSize({ width: 375, height: 667 });
       
-      await page.goto('/payments');
+      await page.goto(`${BASE_URL}/payments`);
       await page.waitForLoadState('networkidle');
       
       // Should still render main content
-      await expect(page.locator('h1')).toContainText('Payment Management');
+      await playwrightExpect(page.locator('h1')).toHaveText(/Payment Management/i);
       
       // Check if content is accessible (not cut off)
       const h1 = page.locator('h1');
       const boundingBox = await h1.boundingBox();
-      expect(boundingBox?.width).toBeLessThanOrEqual(375);
+      vitestExpect(boundingBox?.width).toBeLessThanOrEqual(375);
     });
 
-    test('should handle view switching on mobile', async ({ page }) => {
+    test('should handle view switching on mobile', async () => {
       // Set mobile viewport
       await page.setViewportSize({ width: 375, height: 667 });
       
-      await page.goto('/clients');
+      await page.goto(`${BASE_URL}/clients`);
       await page.waitForLoadState('networkidle');
       
       // Toggle buttons should be accessible on mobile
       const dealDetailsButton = page.locator('button', { hasText: 'Deal Details' });
-      await expect(dealDetailsButton).toBeVisible();
+      await playwrightExpect(dealDetailsButton).toBeVisible();
       
       // Should be clickable
       await dealDetailsButton.click();
-      await expect(page.locator('p')).toContainText('Detailed view showing individual deals');
+      await playwrightExpect(page.locator('p')).toHaveText(/Detailed view showing individual deals/i);
     });
 
-    test('should maintain usability on tablet viewport', async ({ page }) => {
+    test('should maintain usability on tablet viewport', async () => {
       // Set tablet viewport
       await page.setViewportSize({ width: 768, height: 1024 });
       
-      await page.goto('/clients');
+      await page.goto(`${BASE_URL}/clients`);
       await page.waitForLoadState('networkidle');
       
       // Content should be properly laid out
-      await expect(page.locator('h1')).toContainText('Client Management');
+      await playwrightExpect(page.locator('h1')).toHaveText(/Client Management/i);
       
       // Buttons should be properly sized and spaced
       const buttons = page.locator('button');
       const buttonCount = await buttons.count();
-      expect(buttonCount).toBeGreaterThanOrEqual(2);
+      vitestExpect(buttonCount).toBeGreaterThanOrEqual(2);
     });
   });
 
-  test.describe('Browser Performance', () => {
-    test('should not cause memory leaks during extended use', async ({ page }) => {
+  describe('Browser Performance', () => {
+    test('should not cause memory leaks during extended use', async () => {
       // Simulate extended usage
       for (let i = 0; i < 3; i++) {
-        await page.goto('/payments');
+        await page.goto(`${BASE_URL}/payments`);
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(500);
         
-        await page.goto('/clients');
+        await page.goto(`${BASE_URL}/clients`);
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(500);
         
@@ -392,11 +408,11 @@ test.describe('Performance and Accessibility Tests', () => {
       }
       
       // Should still be responsive
-      await expect(page.locator('h1')).toContainText('Client Management');
+      await playwrightExpect(page.locator('h1')).toHaveText(/Client Management/i);
     });
 
-    test('should handle rapid interactions without breaking', async ({ page }) => {
-      await page.goto('/clients');
+    test('should handle rapid interactions without breaking', async () => {
+      await page.goto(`${BASE_URL}/clients`);
       await page.waitForLoadState('networkidle');
       
       // Rapid button clicking
@@ -409,7 +425,7 @@ test.describe('Performance and Accessibility Tests', () => {
       }
       
       // Should end in a stable state
-      await expect(page.locator('h1')).toContainText('Client Management');
+      await playwrightExpect(page.locator('h1')).toHaveText(/Client Management/i);
     });
   });
 });
