@@ -28370,7 +28370,7 @@ COMMENT ON TABLE "public"."organization_feature_flags" IS 'Per-organization feat
 CREATE TABLE IF NOT EXISTS "public"."organization_invitations" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "org_id" "uuid" NOT NULL,
-    "email" "citext" NOT NULL,
+    "email" "public"."citext" NOT NULL,
     "role" "text" DEFAULT 'member'::"text" NOT NULL,
     "invited_by" "uuid",
     "token" "text" DEFAULT "encode"("extensions"."gen_random_bytes"(32), 'hex'::"text") NOT NULL,
@@ -55391,13 +55391,13 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 --
--- Name: FUNCTION "citextout"("citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "citextout"("public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."citextout"("citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citextout"("citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citextout"("citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citextout"("citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."citextout"("public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citextout"("public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citextout"("public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citextout"("public"."citext") TO "service_role";
 
 
 --
@@ -55411,13 +55411,13 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 --
--- Name: FUNCTION "citextsend"("citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "citextsend"("public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."citextsend"("citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citextsend"("citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citextsend"("citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citextsend"("citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."citextsend"("public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citextsend"("public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citextsend"("public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citextsend"("public"."citext") TO "service_role";
 
 
 --
@@ -55441,33 +55441,33 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 --
--- Name: FUNCTION "citext"(boolean); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "public"."citext"(boolean); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "citext"(boolean) TO "postgres";
--- GRANT ALL ON FUNCTION "citext"(boolean) TO "anon";
--- GRANT ALL ON FUNCTION "citext"(boolean) TO "authenticated";
--- GRANT ALL ON FUNCTION "citext"(boolean) TO "service_role";
-
-
---
--- Name: FUNCTION "citext"(character); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "citext"(character) TO "postgres";
--- GRANT ALL ON FUNCTION "citext"(character) TO "anon";
--- GRANT ALL ON FUNCTION "citext"(character) TO "authenticated";
--- GRANT ALL ON FUNCTION "citext"(character) TO "service_role";
+-- GRANT ALL ON FUNCTION "public"."citext"(boolean) TO "postgres";
+-- GRANT ALL ON FUNCTION "public"."citext"(boolean) TO "anon";
+-- GRANT ALL ON FUNCTION "public"."citext"(boolean) TO "authenticated";
+-- GRANT ALL ON FUNCTION "public"."citext"(boolean) TO "service_role";
 
 
 --
--- Name: FUNCTION "citext"("inet"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "public"."citext"(character); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "citext"("inet") TO "postgres";
--- GRANT ALL ON FUNCTION "citext"("inet") TO "anon";
--- GRANT ALL ON FUNCTION "citext"("inet") TO "authenticated";
--- GRANT ALL ON FUNCTION "citext"("inet") TO "service_role";
+-- GRANT ALL ON FUNCTION "public"."citext"(character) TO "postgres";
+-- GRANT ALL ON FUNCTION "public"."citext"(character) TO "anon";
+-- GRANT ALL ON FUNCTION "public"."citext"(character) TO "authenticated";
+-- GRANT ALL ON FUNCTION "public"."citext"(character) TO "service_role";
+
+
+--
+-- Name: FUNCTION "public"."citext"("inet"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "public"."citext"("inet") TO "postgres";
+-- GRANT ALL ON FUNCTION "public"."citext"("inet") TO "anon";
+-- GRANT ALL ON FUNCTION "public"."citext"("inet") TO "authenticated";
+-- GRANT ALL ON FUNCTION "public"."citext"("inet") TO "service_role";
 
 
 --
@@ -55544,163 +55544,163 @@ GRANT ALL ON FUNCTION "app_auth"."is_admin"() TO "service_role";
 
 
 --
--- Name: FUNCTION "citext_cmp"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "citext_cmp"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."citext_cmp"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_cmp"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_cmp"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_cmp"("citext", "citext") TO "service_role";
-
-
---
--- Name: FUNCTION "citext_eq"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."citext_eq"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_eq"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_eq"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_eq"("citext", "citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."citext_cmp"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_cmp"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_cmp"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_cmp"("public"."citext", "public"."citext") TO "service_role";
 
 
 --
--- Name: FUNCTION "citext_ge"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "citext_eq"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."citext_ge"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_ge"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_ge"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_ge"("citext", "citext") TO "service_role";
-
-
---
--- Name: FUNCTION "citext_gt"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."citext_gt"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_gt"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_gt"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_gt"("citext", "citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."citext_eq"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_eq"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_eq"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_eq"("public"."citext", "public"."citext") TO "service_role";
 
 
 --
--- Name: FUNCTION "citext_hash"("citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "citext_ge"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."citext_hash"("citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_hash"("citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_hash"("citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_hash"("citext") TO "service_role";
-
-
---
--- Name: FUNCTION "citext_hash_extended"("citext", bigint); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."citext_hash_extended"("citext", bigint) TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_hash_extended"("citext", bigint) TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_hash_extended"("citext", bigint) TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_hash_extended"("citext", bigint) TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."citext_ge"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_ge"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_ge"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_ge"("public"."citext", "public"."citext") TO "service_role";
 
 
 --
--- Name: FUNCTION "citext_larger"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "citext_gt"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."citext_larger"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_larger"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_larger"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_larger"("citext", "citext") TO "service_role";
-
-
---
--- Name: FUNCTION "citext_le"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."citext_le"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_le"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_le"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_le"("citext", "citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."citext_gt"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_gt"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_gt"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_gt"("public"."citext", "public"."citext") TO "service_role";
 
 
 --
--- Name: FUNCTION "citext_lt"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "citext_hash"("public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."citext_lt"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_lt"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_lt"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_lt"("citext", "citext") TO "service_role";
-
-
---
--- Name: FUNCTION "citext_ne"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."citext_ne"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_ne"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_ne"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_ne"("citext", "citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."citext_hash"("public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_hash"("public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_hash"("public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_hash"("public"."citext") TO "service_role";
 
 
 --
--- Name: FUNCTION "citext_pattern_cmp"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "citext_hash_extended"("public"."citext", bigint); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_cmp"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_cmp"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_cmp"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_cmp"("citext", "citext") TO "service_role";
-
-
---
--- Name: FUNCTION "citext_pattern_ge"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_ge"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_ge"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_ge"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_ge"("citext", "citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."citext_hash_extended"("public"."citext", bigint) TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_hash_extended"("public"."citext", bigint) TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_hash_extended"("public"."citext", bigint) TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_hash_extended"("public"."citext", bigint) TO "service_role";
 
 
 --
--- Name: FUNCTION "citext_pattern_gt"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "citext_larger"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_gt"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_gt"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_gt"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_gt"("citext", "citext") TO "service_role";
-
-
---
--- Name: FUNCTION "citext_pattern_le"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_le"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_le"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_le"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_le"("citext", "citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."citext_larger"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_larger"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_larger"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_larger"("public"."citext", "public"."citext") TO "service_role";
 
 
 --
--- Name: FUNCTION "citext_pattern_lt"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "citext_le"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_lt"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_lt"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_lt"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_pattern_lt"("citext", "citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."citext_le"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_le"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_le"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_le"("public"."citext", "public"."citext") TO "service_role";
 
 
 --
--- Name: FUNCTION "citext_smaller"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "citext_lt"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."citext_smaller"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."citext_smaller"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."citext_smaller"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."citext_smaller"("citext", "citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."citext_lt"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_lt"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_lt"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_lt"("public"."citext", "public"."citext") TO "service_role";
+
+
+--
+-- Name: FUNCTION "citext_ne"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."citext_ne"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_ne"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_ne"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_ne"("public"."citext", "public"."citext") TO "service_role";
+
+
+--
+-- Name: FUNCTION "citext_pattern_cmp"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_cmp"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_cmp"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_cmp"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_cmp"("public"."citext", "public"."citext") TO "service_role";
+
+
+--
+-- Name: FUNCTION "citext_pattern_ge"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_ge"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_ge"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_ge"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_ge"("public"."citext", "public"."citext") TO "service_role";
+
+
+--
+-- Name: FUNCTION "citext_pattern_gt"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_gt"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_gt"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_gt"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_gt"("public"."citext", "public"."citext") TO "service_role";
+
+
+--
+-- Name: FUNCTION "citext_pattern_le"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_le"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_le"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_le"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_le"("public"."citext", "public"."citext") TO "service_role";
+
+
+--
+-- Name: FUNCTION "citext_pattern_lt"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_lt"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_lt"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_lt"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_pattern_lt"("public"."citext", "public"."citext") TO "service_role";
+
+
+--
+-- Name: FUNCTION "citext_smaller"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."citext_smaller"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."citext_smaller"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."citext_smaller"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."citext_smaller"("public"."citext", "public"."citext") TO "service_role";
 
 
 --
@@ -56129,113 +56129,113 @@ GRANT ALL ON FUNCTION "app_auth"."is_admin"() TO "service_role";
 
 
 --
--- Name: FUNCTION "regexp_match"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "regexp_match"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."regexp_match"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."regexp_match"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."regexp_match"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."regexp_match"("citext", "citext") TO "service_role";
-
-
---
--- Name: FUNCTION "regexp_match"("citext", "citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."regexp_match"("citext", "citext", "text") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."regexp_match"("citext", "citext", "text") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."regexp_match"("citext", "citext", "text") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."regexp_match"("citext", "citext", "text") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_match"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_match"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_match"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_match"("public"."citext", "public"."citext") TO "service_role";
 
 
 --
--- Name: FUNCTION "regexp_matches"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "regexp_match"("public"."citext", "public"."citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("citext", "citext") TO "service_role";
-
-
---
--- Name: FUNCTION "regexp_matches"("citext", "citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("citext", "citext", "text") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("citext", "citext", "text") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("citext", "citext", "text") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("citext", "citext", "text") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_match"("public"."citext", "public"."citext", "text") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_match"("public"."citext", "public"."citext", "text") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_match"("public"."citext", "public"."citext", "text") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_match"("public"."citext", "public"."citext", "text") TO "service_role";
 
 
 --
--- Name: FUNCTION "regexp_replace"("citext", "citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "regexp_matches"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("citext", "citext", "text") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("citext", "citext", "text") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("citext", "citext", "text") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("citext", "citext", "text") TO "service_role";
-
-
---
--- Name: FUNCTION "regexp_replace"("citext", "citext", "text", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("citext", "citext", "text", "text") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("citext", "citext", "text", "text") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("citext", "citext", "text", "text") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("citext", "citext", "text", "text") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("public"."citext", "public"."citext") TO "service_role";
 
 
 --
--- Name: FUNCTION "regexp_split_to_array"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "regexp_matches"("public"."citext", "public"."citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("citext", "citext") TO "service_role";
-
-
---
--- Name: FUNCTION "regexp_split_to_array"("citext", "citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("citext", "citext", "text") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("citext", "citext", "text") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("citext", "citext", "text") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("citext", "citext", "text") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("public"."citext", "public"."citext", "text") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("public"."citext", "public"."citext", "text") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("public"."citext", "public"."citext", "text") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_matches"("public"."citext", "public"."citext", "text") TO "service_role";
 
 
 --
--- Name: FUNCTION "regexp_split_to_table"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "regexp_replace"("public"."citext", "public"."citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("citext", "citext") TO "service_role";
-
-
---
--- Name: FUNCTION "regexp_split_to_table"("citext", "citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("citext", "citext", "text") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("citext", "citext", "text") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("citext", "citext", "text") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("citext", "citext", "text") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("public"."citext", "public"."citext", "text") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("public"."citext", "public"."citext", "text") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("public"."citext", "public"."citext", "text") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("public"."citext", "public"."citext", "text") TO "service_role";
 
 
 --
--- Name: FUNCTION "replace"("citext", "citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "regexp_replace"("public"."citext", "public"."citext", "text", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."replace"("citext", "citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."replace"("citext", "citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."replace"("citext", "citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."replace"("citext", "citext", "citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("public"."citext", "public"."citext", "text", "text") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("public"."citext", "public"."citext", "text", "text") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("public"."citext", "public"."citext", "text", "text") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_replace"("public"."citext", "public"."citext", "text", "text") TO "service_role";
+
+
+--
+-- Name: FUNCTION "regexp_split_to_array"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("public"."citext", "public"."citext") TO "service_role";
+
+
+--
+-- Name: FUNCTION "regexp_split_to_array"("public"."citext", "public"."citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("public"."citext", "public"."citext", "text") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("public"."citext", "public"."citext", "text") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("public"."citext", "public"."citext", "text") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_array"("public"."citext", "public"."citext", "text") TO "service_role";
+
+
+--
+-- Name: FUNCTION "regexp_split_to_table"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("public"."citext", "public"."citext") TO "service_role";
+
+
+--
+-- Name: FUNCTION "regexp_split_to_table"("public"."citext", "public"."citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("public"."citext", "public"."citext", "text") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("public"."citext", "public"."citext", "text") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("public"."citext", "public"."citext", "text") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."regexp_split_to_table"("public"."citext", "public"."citext", "text") TO "service_role";
+
+
+--
+-- Name: FUNCTION "replace"("public"."citext", "public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."replace"("public"."citext", "public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."replace"("public"."citext", "public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."replace"("public"."citext", "public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."replace"("public"."citext", "public"."citext", "public"."citext") TO "service_role";
 
 
 --
@@ -56307,13 +56307,13 @@ GRANT ALL ON FUNCTION "app_auth"."is_admin"() TO "service_role";
 
 
 --
--- Name: FUNCTION "split_part"("citext", "citext", integer); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "split_part"("public"."citext", "public"."citext", integer); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."split_part"("citext", "citext", integer) TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."split_part"("citext", "citext", integer) TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."split_part"("citext", "citext", integer) TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."split_part"("citext", "citext", integer) TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."split_part"("public"."citext", "public"."citext", integer) TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."split_part"("public"."citext", "public"."citext", integer) TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."split_part"("public"."citext", "public"."citext", integer) TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."split_part"("public"."citext", "public"."citext", integer) TO "service_role";
 
 
 --
@@ -56367,103 +56367,103 @@ GRANT ALL ON FUNCTION "app_auth"."is_admin"() TO "service_role";
 
 
 --
--- Name: FUNCTION "strpos"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "strpos"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."strpos"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."strpos"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."strpos"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."strpos"("citext", "citext") TO "service_role";
-
-
---
--- Name: FUNCTION "texticlike"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."texticlike"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."texticlike"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."texticlike"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."texticlike"("citext", "citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."strpos"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."strpos"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."strpos"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."strpos"("public"."citext", "public"."citext") TO "service_role";
 
 
 --
--- Name: FUNCTION "texticlike"("citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "texticlike"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."texticlike"("citext", "text") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."texticlike"("citext", "text") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."texticlike"("citext", "text") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."texticlike"("citext", "text") TO "service_role";
-
-
---
--- Name: FUNCTION "texticnlike"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."texticnlike"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."texticnlike"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."texticnlike"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."texticnlike"("citext", "citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."texticlike"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."texticlike"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."texticlike"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."texticlike"("public"."citext", "public"."citext") TO "service_role";
 
 
 --
--- Name: FUNCTION "texticnlike"("citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "texticlike"("public"."citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."texticnlike"("citext", "text") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."texticnlike"("citext", "text") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."texticnlike"("citext", "text") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."texticnlike"("citext", "text") TO "service_role";
-
-
---
--- Name: FUNCTION "texticregexeq"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("citext", "citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."texticlike"("public"."citext", "text") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."texticlike"("public"."citext", "text") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."texticlike"("public"."citext", "text") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."texticlike"("public"."citext", "text") TO "service_role";
 
 
 --
--- Name: FUNCTION "texticregexeq"("citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "texticnlike"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("citext", "text") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("citext", "text") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("citext", "text") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("citext", "text") TO "service_role";
-
-
---
--- Name: FUNCTION "texticregexne"("citext", "citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
---
-
--- GRANT ALL ON FUNCTION "extensions"."texticregexne"("citext", "citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."texticregexne"("citext", "citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."texticregexne"("citext", "citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."texticregexne"("citext", "citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."texticnlike"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."texticnlike"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."texticnlike"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."texticnlike"("public"."citext", "public"."citext") TO "service_role";
 
 
 --
--- Name: FUNCTION "texticregexne"("citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "texticnlike"("public"."citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."texticregexne"("citext", "text") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."texticregexne"("citext", "text") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."texticregexne"("citext", "text") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."texticregexne"("citext", "text") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."texticnlike"("public"."citext", "text") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."texticnlike"("public"."citext", "text") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."texticnlike"("public"."citext", "text") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."texticnlike"("public"."citext", "text") TO "service_role";
 
 
 --
--- Name: FUNCTION "translate"("citext", "citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "texticregexeq"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."translate"("citext", "citext", "text") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."translate"("citext", "citext", "text") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."translate"("citext", "citext", "text") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."translate"("citext", "citext", "text") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("public"."citext", "public"."citext") TO "service_role";
+
+
+--
+-- Name: FUNCTION "texticregexeq"("public"."citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("public"."citext", "text") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("public"."citext", "text") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("public"."citext", "text") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."texticregexeq"("public"."citext", "text") TO "service_role";
+
+
+--
+-- Name: FUNCTION "texticregexne"("public"."citext", "public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."texticregexne"("public"."citext", "public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."texticregexne"("public"."citext", "public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."texticregexne"("public"."citext", "public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."texticregexne"("public"."citext", "public"."citext") TO "service_role";
+
+
+--
+-- Name: FUNCTION "texticregexne"("public"."citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."texticregexne"("public"."citext", "text") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."texticregexne"("public"."citext", "text") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."texticregexne"("public"."citext", "text") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."texticregexne"("public"."citext", "text") TO "service_role";
+
+
+--
+-- Name: FUNCTION "translate"("public"."citext", "public"."citext", "text"); Type: ACL; Schema: extensions; Owner: supabase_admin
+--
+
+-- GRANT ALL ON FUNCTION "extensions"."translate"("public"."citext", "public"."citext", "text") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."translate"("public"."citext", "public"."citext", "text") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."translate"("public"."citext", "public"."citext", "text") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."translate"("public"."citext", "public"."citext", "text") TO "service_role";
 
 
 --
@@ -60959,23 +60959,23 @@ GRANT ALL ON FUNCTION "public"."was_email_sent"("p_user_id" "uuid", "p_email_typ
 
 
 --
--- Name: FUNCTION "max"("citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "max"("public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."max"("citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."max"("citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."max"("citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."max"("citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."max"("public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."max"("public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."max"("public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."max"("public"."citext") TO "service_role";
 
 
 --
--- Name: FUNCTION "min"("citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "min"("public"."citext"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
--- GRANT ALL ON FUNCTION "extensions"."min"("citext") TO "postgres";
--- GRANT ALL ON FUNCTION "extensions"."min"("citext") TO "anon";
--- GRANT ALL ON FUNCTION "extensions"."min"("citext") TO "authenticated";
--- GRANT ALL ON FUNCTION "extensions"."min"("citext") TO "service_role";
+-- GRANT ALL ON FUNCTION "extensions"."min"("public"."citext") TO "postgres";
+-- GRANT ALL ON FUNCTION "extensions"."min"("public"."citext") TO "anon";
+-- GRANT ALL ON FUNCTION "extensions"."min"("public"."citext") TO "authenticated";
+-- GRANT ALL ON FUNCTION "extensions"."min"("public"."citext") TO "service_role";
 
 
 --
