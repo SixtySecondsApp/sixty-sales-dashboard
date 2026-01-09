@@ -38,15 +38,19 @@ export function SkillsConfigStep() {
     return skillStatuses[skillId] || 'pending';
   };
 
-  const moveNext = useCallback(() => {
+  const moveNext = useCallback(async () => {
     if (currentSkillIndex < SKILLS.length - 1) {
       setCurrentSkillIndex(currentSkillIndex + 1);
     } else {
       // All skills reviewed, save and complete
       if (organizationId) {
-        saveAllSkills(organizationId);
+        const success = await saveAllSkills(organizationId);
+        if (success) {
+          setStep('complete');
+        }
+      } else {
+        setStep('complete');
       }
-      setStep('completion');
     }
   }, [currentSkillIndex, organizationId, saveAllSkills, setStep]);
 
@@ -56,20 +60,20 @@ export function SkillsConfigStep() {
     }
   }, [currentSkillIndex]);
 
-  const handleSaveSkill = useCallback(() => {
+  const handleSaveSkill = useCallback(async () => {
     setSkillStatuses((prev) => ({
       ...prev,
       [activeSkill.id]: 'configured',
     }));
-    moveNext();
+    await moveNext();
   }, [activeSkill.id, moveNext]);
 
-  const handleSkipSkill = useCallback(() => {
+  const handleSkipSkill = useCallback(async () => {
     setSkillStatuses((prev) => ({
       ...prev,
       [activeSkill.id]: 'skipped',
     }));
-    moveNext();
+    await moveNext();
   }, [activeSkill.id, moveNext]);
 
   const renderSkillConfig = () => {

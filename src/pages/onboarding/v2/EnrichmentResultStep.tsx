@@ -2,7 +2,8 @@
  * EnrichmentResultStep
  *
  * Displays the discovered company information from AI enrichment.
- * Shows company name, industry, products, and competitors before skill configuration.
+ * Shows company name, industry, products, and competitors.
+ * User then proceeds to verify/amend the AI-generated skills in the tabbed config step.
  */
 
 import { motion } from 'framer-motion';
@@ -13,6 +14,7 @@ export function EnrichmentResultStep() {
   const { enrichment, setStep } = useOnboardingV2Store();
 
   const handleContinue = () => {
+    // Go to skills_config where user can verify/amend AI-generated skill data
     setStep('skills_config');
   };
 
@@ -122,7 +124,7 @@ export function EnrichmentResultStep() {
             onClick={handleContinue}
             className="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium transition-all flex items-center justify-center gap-2 group"
           >
-            Configure Skills
+            Review AI Suggestions
             <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </button>
         </div>
