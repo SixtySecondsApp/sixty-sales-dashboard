@@ -4,13 +4,13 @@
  */
 export function getSiteUrl(): string {
   const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  
+
   if (isLocalhost) {
     return window.location.origin;
   }
-  
-  // Always use the correct production domain
-  return 'https://app.use60.com';
+
+  // Use PUBLIC_URL from environment, fallback to production domain
+  return import.meta.env.VITE_PUBLIC_URL || 'https://app.use60.com';
 }
 
 /**

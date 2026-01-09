@@ -405,7 +405,9 @@ function formatMeetingSummaryForNote(summary: {
   lines.push(summary.content);
   lines.push('');
   lines.push('---');
-  lines.push('Synced from use60 • https://app.use60.com');
+  // Use environment-specific URL (staging or production)
+  const appUrl = import.meta.env.VITE_PUBLIC_URL || 'https://app.use60.com';
+  lines.push(`Synced from use60 • ${appUrl}`);
 
   return lines.join('\n');
 }
