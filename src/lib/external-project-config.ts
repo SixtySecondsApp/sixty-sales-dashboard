@@ -17,8 +17,8 @@ export const EXTERNAL_PROJECT_CONFIG = {
 
 // Internal project credentials (STAGING BRANCH)
 export const INTERNAL_PROJECT_CONFIG = {
-  projectRef: 'dzypskjhoupsdwfsrkeo',
-  url: import.meta.env.VITE_SUPABASE_URL || 'https://dzypskjhoupsdwfsrkeo.supabase.co',
+  projectRef: 'caerqjzvuerejfrdtygb',
+  url: import.meta.env.VITE_SUPABASE_URL || 'https://caerqjzvuerejfrdtygb.supabase.co',
   anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
 } as const;
 

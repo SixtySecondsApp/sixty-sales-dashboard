@@ -10,8 +10,8 @@ echo "=========================================================="
 echo ""
 
 PROD_REF="ygdpgliavpxeugaajgrb"
-STAGING_REF="dzypskjhoupsdwfsrkeo"
-STAGING_PASSWORD="afPwkmKLLzfMaJVVKfRDOmhysExLeKEe"
+STAGING_REF="caerqjzvuerejfrdtygb"
+STAGING_PASSWORD="${STAGING_DATABASE_PASSWORD:?STAGING_DATABASE_PASSWORD not set. Get from Supabase dashboard: Project Settings > Database > Connection string}"
 
 echo "📊 Source: Production ($PROD_REF)"
 echo "📊 Target: Staging ($STAGING_REF)"
