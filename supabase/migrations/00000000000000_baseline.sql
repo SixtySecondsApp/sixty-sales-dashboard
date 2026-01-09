@@ -81,7 +81,7 @@ COMMENT ON SCHEMA "public" IS 'Function volatility fixed: 20250128200000';
 -- Name: citext; Type: EXTENSION; Schema: -; Owner: -
 --
 
-CREATE EXTENSION IF NOT EXISTS "citext" WITH SCHEMA "extensions";
+CREATE EXTENSION IF NOT EXISTS "citext" WITH SCHEMA "public";
 
 
 --
