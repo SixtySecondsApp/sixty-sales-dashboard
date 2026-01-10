@@ -679,18 +679,29 @@ export default function SlackSettings() {
     setTestingFeature(feature);
     try {
       const settings = getSettingsForFeature(feature);
+      const deliveryMethod = settings?.delivery_method || 'channel';
+      const sendToChannel = deliveryMethod === 'channel' || deliveryMethod === 'both';
+      const sendToDm = deliveryMethod === 'dm' || deliveryMethod === 'both';
+
       await sendTest.mutateAsync({
         feature,
         orgId: activeOrgId,
-        channelId: settings?.channel_id || undefined,
+        channelId: sendToChannel ? settings?.channel_id : undefined,
       });
-      toast.success(
-        settings?.channel_name
-          ? `Test notification sent to #${settings.channel_name}!`
-          : 'Test notification sent!'
-      );
-    } catch (error) {
-      toast.error('Failed to send test notification');
+
+      // Build success message based on delivery method
+      let successMessage = 'Test notification sent!';
+      if (sendToDm && sendToChannel && settings?.channel_name) {
+        successMessage = `Test notification sent to #${settings.channel_name} and your DM!`;
+      } else if (sendToDm) {
+        successMessage = 'Test notification sent to your DM!';
+      } else if (settings?.channel_name) {
+        successMessage = `Test notification sent to #${settings.channel_name}!`;
+      }
+
+      toast.success(successMessage);
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to send test notification');
     } finally {
       setTestingFeature(null);
     }

@@ -664,7 +664,37 @@ serve(async (req) => {
 
     let channelId = requestedChannelId;
     let channelName: string | undefined;
+    let isDmMode = false;
 
+    // If no channelId provided and user is authenticated, try to send DM to user
+    if (!channelId && auth.mode === 'user' && auth.userId) {
+      const { data: mapping } = await supabase
+        .from('slack_user_mappings')
+        .select('slack_user_id')
+        .eq('org_id', orgId)
+        .eq('sixty_user_id', auth.userId)
+        .maybeSingle();
+
+      if (mapping?.slack_user_id) {
+        // Open DM to the user
+        try {
+          channelId = await openDm(botToken, mapping.slack_user_id);
+          isDmMode = true;
+        } catch (error) {
+          return new Response(JSON.stringify({ error: 'Failed to open DM. Make sure your Slack account is linked.' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      } else {
+        return new Response(JSON.stringify({ error: 'No Slack user mapping found. Please link your Slack account in Personal Slack settings.' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    // If still no channelId, fall back to a public channel
     if (!channelId) {
       const channels = await listChannels(botToken);
       const preferred =
@@ -684,7 +714,9 @@ serve(async (req) => {
       channelName = preferred.name;
     }
 
-    const text = '✅ Sixty Slack test message: your workspace is connected and the bot can post messages.';
+    const text = isDmMode
+      ? '✅ Sixty Slack test DM: your personal Slack account is linked and you can receive direct messages.'
+      : '✅ Sixty Slack test message: your workspace is connected and the bot can post messages.';
     let result = await postMessage(botToken, channelId, text);
 
     if (!result.ok && result.error === 'not_in_channel') {
@@ -706,6 +738,7 @@ serve(async (req) => {
         success: true,
         channelId: result.channel,
         channelName,
+        isDm: isDmMode,
         ts: result.ts,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
