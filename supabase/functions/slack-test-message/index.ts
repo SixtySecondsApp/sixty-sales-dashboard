@@ -481,8 +481,28 @@ serve(async (req) => {
       });
     }
 
+    console.log('[slack-test-message] Environment check:', {
+      supabaseUrl: supabaseUrl ? 'SET' : 'MISSING',
+      serviceKey: supabaseServiceKey ? `SET (${supabaseServiceKey.slice(0, 20)}...)` : 'MISSING'
+    });
+
+    if (!supabaseServiceKey) {
+      return new Response(JSON.stringify({
+        error: 'Internal configuration error: service role key not available'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const auth = await getAuthContext(req, supabase, supabaseServiceKey);
+
+    console.log('[slack-test-message] Auth context:', {
+      mode: auth.mode,
+      userId: auth.userId,
+      isPlatformAdmin: auth.isPlatformAdmin
+    });
 
     const body = await req.json().catch(() => ({}));
     const orgId = body.orgId as string | undefined;
@@ -507,7 +527,18 @@ serve(async (req) => {
       const allowed = isDmOnly
         ? (['owner', 'admin', 'member', 'readonly'] as const)
         : (['owner', 'admin'] as const);
+
+      console.log('[slack-test-message] Checking permissions:', {
+        orgId,
+        userId: auth.userId,
+        isDmOnly,
+        allowedRoles: allowed,
+        dmAudience,
+        requestedChannelId
+      });
+
       await requireOrgRole(supabase, orgId, auth.userId, [...allowed]);
+      console.log('[slack-test-message] Permission check passed');
     }
 
     const botToken = await getBotToken(supabase, orgId);
