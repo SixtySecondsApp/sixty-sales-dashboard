@@ -678,8 +678,17 @@ export default function SlackSettings() {
 
     setTestingFeature(feature);
     try {
-      await sendTest.mutateAsync({ feature, orgId: activeOrgId });
-      toast.success('Test notification sent!');
+      const settings = getSettingsForFeature(feature);
+      await sendTest.mutateAsync({
+        feature,
+        orgId: activeOrgId,
+        channelId: settings?.channel_id || undefined,
+      });
+      toast.success(
+        settings?.channel_name
+          ? `Test notification sent to #${settings.channel_name}!`
+          : 'Test notification sent!'
+      );
     } catch (error) {
       toast.error('Failed to send test notification');
     } finally {
