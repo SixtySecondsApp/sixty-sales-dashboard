@@ -500,8 +500,13 @@ serve(async (req) => {
     }
 
     if (auth.mode === 'user' && auth.userId && !auth.isPlatformAdmin) {
-      // Allow members to preview/send DMs to themselves; keep admin-only for channel posting.
-      const allowed = action === 'simple' ? (['owner', 'admin'] as const) : (['owner', 'admin', 'member', 'readonly'] as const);
+      // Allow members to send DMs to themselves; keep admin-only for channel posting.
+      // If sending DM only (dmAudience set, no channelId), allow all members
+      // If posting to channel (channelId set) or simple action, require owner/admin
+      const isDmOnly = dmAudience && !requestedChannelId;
+      const allowed = isDmOnly
+        ? (['owner', 'admin', 'member', 'readonly'] as const)
+        : (['owner', 'admin'] as const);
       await requireOrgRole(supabase, orgId, auth.userId, [...allowed]);
     }
 
