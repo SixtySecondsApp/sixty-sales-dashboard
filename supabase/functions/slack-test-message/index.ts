@@ -676,17 +676,24 @@ serve(async (req) => {
 
       // Add owner's Slack ID
       if (sendToOwner && auth.mode === 'user' && auth.userId) {
-        const { data: mapping } = await supabase
+        console.log('[slack-test-message] Looking up Slack mapping:', { orgId, userId: auth.userId, authMode: auth.mode });
+
+        const { data: mapping, error: mappingError } = await supabase
           .from('slack_user_mappings')
           .select('slack_user_id')
           .eq('org_id', orgId)
           .eq('sixty_user_id', auth.userId)
           .maybeSingle();
 
+        console.log('[slack-test-message] Mapping query result:', { mapping, error: mappingError });
+
         if (mapping?.slack_user_id) {
           dmRecipients.push(mapping.slack_user_id);
         } else {
-          return new Response(JSON.stringify({ error: 'No Slack user mapping found. Please link your Slack account in Personal Slack settings.' }), {
+          return new Response(JSON.stringify({
+            error: 'No Slack user mapping found. Please link your Slack account in Personal Slack settings.',
+            debug: { orgId, userId: auth.userId, authMode: auth.mode, mappingError: mappingError?.message }
+          }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
