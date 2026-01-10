@@ -157,3 +157,4 @@ watch-*.ts
 
 # Env backups
 envs/
+restore-*.mjs
