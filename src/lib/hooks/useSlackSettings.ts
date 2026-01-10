@@ -317,6 +317,12 @@ export function useSendTestNotification() {
       });
 
       if (error) throw error;
+
+      // Check if the Slack API call actually succeeded
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to send Slack notification');
+      }
+
       return data;
     },
   });
