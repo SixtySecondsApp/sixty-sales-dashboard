@@ -8,6 +8,9 @@
 import type { UserSegment } from "./types.ts";
 import { getMessageTone, getPreferredReengagementChannel } from "./segmentation.ts";
 
+// Environment-aware app URL (falls back to production if not set)
+const APP_URL = Deno.env.get('APP_URL') || Deno.env.get('SITE_URL') || Deno.env.get('PUBLIC_URL') || 'https://app.use60.com';
+
 /**
  * Re-engagement notification types
  */
@@ -181,7 +184,7 @@ export function buildReengagementSlackBlocks(
               text: { type: "plain_text", text: "Open 60", emoji: true },
               style: "primary",
               action_id: "reengagement_open_app",
-              url: "https://app.use60.com",
+              url: APP_URL,
             },
             {
               type: "button",
@@ -228,7 +231,7 @@ export function buildReengagementSlackBlocks(
                 type: "button",
                 text: { type: "plain_text", text: "View All Meetings", emoji: true },
                 action_id: "reengagement_view_meetings",
-                url: "https://app.use60.com/meetings",
+                url: `${APP_URL}/meetings`,
               },
             ],
           }
@@ -285,7 +288,7 @@ export function buildReengagementSlackBlocks(
                 text: { type: "plain_text", text: "See Full Summary", emoji: true },
                 style: "primary",
                 action_id: "reengagement_full_summary",
-                url: "https://app.use60.com/dashboard",
+                url: `${APP_URL}/dashboard`,
               },
             ],
           }
@@ -310,7 +313,7 @@ export function buildReengagementSlackBlocks(
               text: { type: "plain_text", text: "Show Pipeline", emoji: true },
               style: "primary",
               action_id: "reengagement_show_pipeline",
-              url: "https://app.use60.com/pipeline",
+              url: `${APP_URL}/pipeline`,
             },
             {
               type: "button",
@@ -375,7 +378,7 @@ export function buildReengagementSlackBlocks(
                 text: { type: "plain_text", text: "View Emails", emoji: true },
                 style: "primary",
                 action_id: "reengagement_view_emails",
-                url: "https://app.use60.com/inbox",
+                url: `${APP_URL}/inbox`,
               },
             ],
           }
@@ -428,7 +431,7 @@ export function buildReengagementSlackBlocks(
               text: { type: "plain_text", text: "See What's New", emoji: true },
               style: "primary",
               action_id: "reengagement_product_update",
-              url: "https://app.use60.com/updates",
+              url: `${APP_URL}/updates`,
             },
           ],
         }
@@ -528,10 +531,10 @@ function buildEmailBodyHtml(
       <div class="container">
         <p>Hi ${firstName},</p>
         <p>${getEmailBodyText(type, context)}</p>
-        <a href="https://app.use60.com" class="button">Open 60</a>
+        <a href="${APP_URL}" class="button">Open 60</a>
         <div class="footer">
           <p>— The 60 Team</p>
-          <p>You're receiving this because you haven't logged in recently. <a href="https://app.use60.com/settings/notifications">Manage preferences</a></p>
+          <p>You're receiving this because you haven't logged in recently. <a href="${APP_URL}/settings/notifications">Manage preferences</a></p>
         </div>
       </div>
     </body>
