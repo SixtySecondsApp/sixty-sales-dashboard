@@ -147,6 +147,7 @@ function FeatureSettingsCard({
   const sendDmToStakeholders = dmAudience === 'stakeholders' || dmAudience === 'both';
   const currentStakeholders = (settings?.stakeholder_slack_ids || []).filter(Boolean);
   const [stakeholdersCsv, setStakeholdersCsv] = useState(currentStakeholders.join(', '));
+  const [localThreshold, setLocalThreshold] = useState<string>(String(settings?.deal_value_threshold || 25000));
   const dealRoomArchiveMode = settings?.deal_room_archive_mode || 'delayed';
   const dealRoomArchiveDelayHours = settings?.deal_room_archive_delay_hours ?? 24;
 
@@ -154,6 +155,10 @@ function FeatureSettingsCard({
     setStakeholdersCsv(currentStakeholders.join(', '));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStakeholders.join(',')]);
+
+  useEffect(() => {
+    setLocalThreshold(String(settings?.deal_value_threshold || 25000));
+  }, [settings?.deal_value_threshold]);
 
   return (
     <Card>
@@ -426,10 +431,12 @@ function FeatureSettingsCard({
                     </span>
                     <Input
                       type="number"
-                      value={settings?.deal_value_threshold || 25000}
-                      onChange={(e) =>
-                        onUpdate({ deal_value_threshold: parseInt(e.target.value) || 25000 })
-                      }
+                      value={localThreshold}
+                      onChange={(e) => setLocalThreshold(e.target.value)}
+                      onBlur={() => {
+                        const parsed = parseInt(localThreshold) || 25000;
+                        onUpdate({ deal_value_threshold: parsed });
+                      }}
                       className="pl-7"
                     />
                   </div>

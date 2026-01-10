@@ -158,3 +158,9 @@ watch-*.ts
 # Env backups
 envs/
 restore-*.mjs
+
+# Data migration scripts
+production-data.sql
+*.sql.dump
+check-staging-*.mjs
+setup-staging-*.mjs

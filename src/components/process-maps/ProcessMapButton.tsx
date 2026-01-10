@@ -12,6 +12,8 @@ import { GitBranch, Loader2, ExternalLink, RefreshCw, ArrowRight, ArrowDown } fr
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { MermaidRenderer } from './MermaidRenderer';
+import { useUser } from '@/lib/hooks/useUser';
+import { isUserAdmin } from '@/lib/utils/adminUtils';
 
 export type ProcessType = 'integration' | 'workflow';
 export type ProcessName =
@@ -70,12 +72,18 @@ export function ProcessMapButton({
   onGenerated,
 }: ProcessMapButtonProps) {
   const navigate = useNavigate();
+  const { userData } = useUser();
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [processMap, setProcessMap] = useState<ProcessMap | null>(null);
   const [regenerating, setRegenerating] = useState(false);
   // View direction in modal - defaults to vertical
   const [activeDirection, setActiveDirection] = useState<'horizontal' | 'vertical'>('vertical');
+
+  // Only show process map button to platform admins (internal users)
+  if (!isUserAdmin(userData)) {
+    return null;
+  }
 
   const formatProcessTitle = useCallback(() => {
     const formattedName = processName
