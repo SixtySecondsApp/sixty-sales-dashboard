@@ -682,20 +682,39 @@ export default function SlackSettings() {
       const deliveryMethod = settings?.delivery_method || 'channel';
       const sendToChannel = deliveryMethod === 'channel' || deliveryMethod === 'both';
       const sendToDm = deliveryMethod === 'dm' || deliveryMethod === 'both';
+      const dmAudience = settings?.dm_audience || 'owner';
+      const stakeholderSlackIds = settings?.stakeholder_slack_ids || [];
 
       await sendTest.mutateAsync({
         feature,
         orgId: activeOrgId,
         channelId: sendToChannel ? settings?.channel_id : undefined,
+        dmAudience: sendToDm ? dmAudience : undefined,
+        stakeholderSlackIds: sendToDm ? stakeholderSlackIds : undefined,
       });
 
-      // Build success message based on delivery method
+      // Build success message based on delivery method and audience
       let successMessage = 'Test notification sent!';
       if (sendToDm && sendToChannel && settings?.channel_name) {
-        successMessage = `Test notification sent to #${settings.channel_name} and your DM!`;
+        // Both channel and DM
+        if (dmAudience === 'both') {
+          successMessage = `Test notification sent to #${settings.channel_name}, your DM, and stakeholder DMs!`;
+        } else if (dmAudience === 'stakeholders') {
+          successMessage = `Test notification sent to #${settings.channel_name} and stakeholder DMs!`;
+        } else {
+          successMessage = `Test notification sent to #${settings.channel_name} and your DM!`;
+        }
       } else if (sendToDm) {
-        successMessage = 'Test notification sent to your DM!';
+        // DM only
+        if (dmAudience === 'both') {
+          successMessage = 'Test notification sent to your DM and stakeholder DMs!';
+        } else if (dmAudience === 'stakeholders') {
+          successMessage = 'Test notification sent to stakeholder DMs!';
+        } else {
+          successMessage = 'Test notification sent to your DM!';
+        }
       } else if (settings?.channel_name) {
+        // Channel only
         successMessage = `Test notification sent to #${settings.channel_name}!`;
       }
 

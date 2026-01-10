@@ -489,6 +489,8 @@ serve(async (req) => {
     const requestedChannelId = body.channelId as string | undefined;
     const action = (body.action as string | undefined) || 'simple';
     const mode = (body.mode as string | undefined) || 'live';
+    const dmAudience = body.dmAudience as 'owner' | 'stakeholders' | 'both' | undefined;
+    const stakeholderSlackIds = (body.stakeholderSlackIds as string[] | undefined) || [];
 
     if (!orgId) {
       return new Response(JSON.stringify({ error: 'orgId required' }), {
@@ -664,38 +666,82 @@ serve(async (req) => {
 
     let channelId = requestedChannelId;
     let channelName: string | undefined;
-    let isDmMode = false;
+    const dmRecipients: string[] = [];
+    const dmResults: any[] = [];
 
-    // If no channelId provided and user is authenticated, try to send DM to user
-    if (!channelId && auth.mode === 'user' && auth.userId) {
-      const { data: mapping } = await supabase
-        .from('slack_user_mappings')
-        .select('slack_user_id')
-        .eq('org_id', orgId)
-        .eq('sixty_user_id', auth.userId)
-        .maybeSingle();
+    // Handle DM audience if specified
+    if (dmAudience) {
+      const sendToOwner = dmAudience === 'owner' || dmAudience === 'both';
+      const sendToStakeholders = dmAudience === 'stakeholders' || dmAudience === 'both';
 
-      if (mapping?.slack_user_id) {
-        // Open DM to the user
-        try {
-          channelId = await openDm(botToken, mapping.slack_user_id);
-          isDmMode = true;
-        } catch (error) {
-          return new Response(JSON.stringify({ error: 'Failed to open DM. Make sure your Slack account is linked.' }), {
+      // Add owner's Slack ID
+      if (sendToOwner && auth.mode === 'user' && auth.userId) {
+        const { data: mapping } = await supabase
+          .from('slack_user_mappings')
+          .select('slack_user_id')
+          .eq('org_id', orgId)
+          .eq('sixty_user_id', auth.userId)
+          .maybeSingle();
+
+        if (mapping?.slack_user_id) {
+          dmRecipients.push(mapping.slack_user_id);
+        } else {
+          return new Response(JSON.stringify({ error: 'No Slack user mapping found. Please link your Slack account in Personal Slack settings.' }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
-      } else {
-        return new Response(JSON.stringify({ error: 'No Slack user mapping found. Please link your Slack account in Personal Slack settings.' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      }
+
+      // Add stakeholder Slack IDs
+      if (sendToStakeholders && stakeholderSlackIds.length > 0) {
+        dmRecipients.push(...stakeholderSlackIds.filter(Boolean));
+      }
+
+      // Send DMs to all recipients
+      const dmText = '✅ Sixty Slack test DM: you are configured to receive notifications.';
+      for (const slackUserId of dmRecipients) {
+        try {
+          const dmChannelId = await openDm(botToken, slackUserId);
+          const dmResult = await postMessage(botToken, dmChannelId, dmText);
+          dmResults.push({
+            slackUserId,
+            success: dmResult.ok,
+            error: dmResult.error,
+          });
+        } catch (error) {
+          dmResults.push({
+            slackUserId,
+            success: false,
+            error: error.message || 'Failed to send DM',
+          });
+        }
       }
     }
 
-    // If still no channelId, fall back to a public channel
-    if (!channelId) {
+    // Handle channel posting if channelId provided
+    let channelResult: any = null;
+    if (channelId) {
+      const text = '✅ Sixty Slack test message: your workspace is connected and the bot can post messages.';
+      let result = await postMessage(botToken, channelId, text);
+
+      if (!result.ok && result.error === 'not_in_channel') {
+        const joined = await joinChannel(botToken, channelId);
+        if (joined.ok) {
+          result = await postMessage(botToken, channelId, text);
+        }
+      }
+
+      if (!result.ok) {
+        return new Response(JSON.stringify({ success: false, error: result.error || 'Slack API error' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      channelResult = result;
+    } else if (dmRecipients.length === 0) {
+      // If no channel and no DMs, fall back to general channel
       const channels = await listChannels(botToken);
       const preferred =
         channels.find((c) => c.name === 'general') ||
@@ -712,34 +758,26 @@ serve(async (req) => {
 
       channelId = preferred.id;
       channelName = preferred.name;
-    }
 
-    const text = isDmMode
-      ? '✅ Sixty Slack test DM: your personal Slack account is linked and you can receive direct messages.'
-      : '✅ Sixty Slack test message: your workspace is connected and the bot can post messages.';
-    let result = await postMessage(botToken, channelId, text);
+      const text = '✅ Sixty Slack test message: your workspace is connected and the bot can post messages.';
+      channelResult = await postMessage(botToken, channelId, text);
 
-    if (!result.ok && result.error === 'not_in_channel') {
-      const joined = await joinChannel(botToken, channelId);
-      if (joined.ok) {
-        result = await postMessage(botToken, channelId, text);
+      if (!channelResult.ok) {
+        return new Response(JSON.stringify({ success: false, error: channelResult.error || 'Slack API error' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
-    }
-
-    if (!result.ok) {
-      return new Response(JSON.stringify({ success: false, error: result.error || 'Slack API error' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        channelId: result.channel,
+        channelId: channelResult?.channel,
         channelName,
-        isDm: isDmMode,
-        ts: result.ts,
+        dmCount: dmRecipients.length,
+        dmResults,
+        ts: channelResult?.ts,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
