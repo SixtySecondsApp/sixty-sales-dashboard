@@ -8,7 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Test if we can import OTEL without crashing
   let otelStatus = 'not-tested';
   try {
-    const { getOtel } = await import('../_shared/otel');
+    const { getOtel } = await import('../lib/otel');
     const otel = getOtel();
     otelStatus = otel ? 'initialized' : 'disabled (no endpoint)';
   } catch (err: any) {
