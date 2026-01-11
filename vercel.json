@@ -1,11 +1,6 @@
 {
   "buildCommand": "npm run build",
   "framework": "vite",
-  "functions": {
-    "api/**/*.ts": {
-      "includeFiles": "{api/lib,node_modules/@opentelemetry}/**"
-    }
-  },
   "headers": [
     {
       "source": "/api/(.*)",
