@@ -27,7 +27,11 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Track progress for debugging - declared OUTSIDE try for catch access
+  let debugStep = 'init'
+
   try {
+    debugStep = 'parsing_request'
     // Get code and state from request body (POST) or URL params (GET redirect)
     let code: string | null = null
     let state: string | null = null
@@ -79,6 +83,8 @@ serve(async (req) => {
     if (!code || !state) {
       throw new Error('Missing code or state parameter')
     }
+
+    debugStep = 'creating_supabase_client'
     // Use service role to bypass RLS for token storage
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -91,6 +97,7 @@ serve(async (req) => {
       }
     )
 
+    debugStep = 'validating_state'
     // Validate state (CSRF protection)
     const { data: stateRecord, error: stateError } = await supabase
       .from('fathom_oauth_states')
@@ -109,27 +116,43 @@ serve(async (req) => {
 
     const userId = stateRecord.user_id
 
-    // Delete used state
-    await supabase
-      .from('fathom_oauth_states')
-      .delete()
-      .eq('state', state)
+    // NOTE: We delete the state AFTER successful token exchange (moved below)
+    // This allows retries if token exchange fails
 
+    debugStep = 'getting_oauth_config'
     // Get OAuth configuration
     const clientId = Deno.env.get('FATHOM_CLIENT_ID')
     const clientSecret = Deno.env.get('FATHOM_CLIENT_SECRET')
     const redirectUri = Deno.env.get('FATHOM_REDIRECT_URI')
 
+    console.log('[fathom-oauth] OAuth config check:', {
+      hasClientId: !!clientId,
+      clientIdPrefix: clientId?.substring(0, 10) + '...',
+      hasClientSecret: !!clientSecret,
+      secretLength: clientSecret?.length,
+      redirectUri,
+    })
+
     if (!clientId || !clientSecret || !redirectUri) {
       throw new Error('Missing Fathom OAuth configuration')
     }
 
+    debugStep = 'exchanging_token'
     // Exchange authorization code for access token
     const tokenParams = new URLSearchParams({
       grant_type: 'authorization_code',
       code,
       client_id: clientId,
       client_secret: clientSecret,
+      redirect_uri: redirectUri,
+    })
+
+    console.log('[fathom-oauth] Token exchange request:', {
+      endpoint: 'https://fathom.video/external/v1/oauth2/token',
+      grant_type: 'authorization_code',
+      hasCode: !!code,
+      codeLength: code?.length,
+      client_id: clientId,
       redirect_uri: redirectUri,
     })
 
@@ -141,13 +164,29 @@ serve(async (req) => {
       body: tokenParams.toString(),
     })
 
+    console.log('[fathom-oauth] Token response status:', tokenResponse.status, tokenResponse.statusText)
+
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
-      throw new Error(`Token exchange failed: ${errorText}`)
+      console.error('[fathom-oauth] Token exchange error response:', {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        body: errorText,
+      })
+      throw new Error(`Token exchange failed (${tokenResponse.status}): ${errorText}`)
     }
 
+    debugStep = 'parsing_token_response'
     const tokenData = await tokenResponse.json()
 
+    debugStep = 'deleting_state'
+    // NOW delete the used state (after successful token exchange)
+    await supabase
+      .from('fathom_oauth_states')
+      .delete()
+      .eq('state', state)
+
+    debugStep = 'getting_user_info'
     // Get the connecting user's info from Supabase
     let fathomUserId: string | null = null
     let fathomUserEmail: string | null = null
@@ -197,6 +236,7 @@ serve(async (req) => {
 
     console.log(`[fathom-oauth] Storing per-user integration for user ${userId}`)
 
+    debugStep = 'storing_integration'
     // Store per-user integration (includes tokens directly)
     const { data: userIntegration, error: insertError } = await supabase
       .from('fathom_integrations')
@@ -220,6 +260,7 @@ serve(async (req) => {
       throw new Error(`Failed to store integration: ${insertError.message}`)
     }
 
+    debugStep = 'creating_sync_state'
     // Create initial sync state for the user
     const { error: syncStateError } = await supabase
       .from('fathom_sync_state')
@@ -238,6 +279,7 @@ serve(async (req) => {
       // Continue anyway - sync state can be created later
     }
 
+    debugStep = 'returning_response'
     // Return JSON response for POST requests, HTML for GET redirects
     if (req.method === 'POST') {
       return new Response(
@@ -323,19 +365,57 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    await captureException(error, {
-      tags: {
-        function: 'fathom-oauth-callback',
-        integration: 'fathom',
-      },
-    });
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+
+    console.error('[fathom-oauth] Fatal error:', {
+      message: errorMessage,
+      stack: errorStack,
+    })
+
+    // Try to capture to Sentry, but don't let it crash the function
+    try {
+      await captureException(error, {
+        tags: {
+          function: 'fathom-oauth-callback',
+          integration: 'fathom',
+        },
+      });
+    } catch (sentryError) {
+      console.error('[fathom-oauth] Failed to capture exception to Sentry:', sentryError)
+    }
+
+    // Return JSON for POST requests (from frontend)
+    if (req.method === 'POST') {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: errorMessage,
+          debugStep,
+          debug: {
+            hasSupabaseUrl: !!Deno.env.get('SUPABASE_URL'),
+            hasServiceKey: !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+            hasFathomClientId: !!Deno.env.get('FATHOM_CLIENT_ID'),
+            hasFathomSecret: !!Deno.env.get('FATHOM_CLIENT_SECRET'),
+            hasFathomRedirect: !!Deno.env.get('FATHOM_REDIRECT_URI'),
+            fathomRedirectUri: Deno.env.get('FATHOM_REDIRECT_URI') || 'NOT SET',
+          }
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
+    }
+
+    // HTML response for GET requests
     return new Response(
       `<!DOCTYPE html>
       <html>
         <head><title>Connection Failed</title></head>
         <body>
           <h1>Fathom Connection Failed</h1>
-          <p>Error: ${error.message}</p>
+          <p>Error: ${errorMessage}</p>
           <a href="${publicUrl}/integrations">Return to Integrations</a>
           <script>
             setTimeout(() => {

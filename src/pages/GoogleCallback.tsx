@@ -129,49 +129,47 @@ export default function GoogleCallback() {
 
         // Success!
         setStatus('success');
-        setMessage(`Successfully connected to Google as ${data.email}!`);
+        setMessage(`Successfully connected to Google as ${data.email}! Redirecting...`);
 
-        // Automatically sync calendar events
-        try {
-          setMessage('Syncing Google Calendar events...');
-          const syncResult = await calendarService.syncCalendarEvents('sync-incremental');
+        // Redirect immediately (don't block on sync)
+        navigate('/dashboard', { replace: true });
 
-          if (syncResult.error) {
-            logger.error('Calendar sync error:', syncResult.error);
-            toast.warning(`Google connected, but calendar sync failed: ${syncResult.error}`);
-          } else {
-            const eventCount = (syncResult.eventsCreated || 0) + (syncResult.eventsUpdated || 0);
-            logger.log(`Synced ${eventCount} calendar events`);
-            toast.success(`Google connected! Synced ${eventCount} calendar events`);
+        toast.success('Google connected — syncing calendar in the background');
+
+        // Fire-and-forget: initial calendar sync + webhook subscription
+        void (async () => {
+          // Automatically sync calendar events
+          try {
+            const syncResult = await calendarService.syncCalendarEvents('sync-incremental');
+
+            if (syncResult.error) {
+              logger.error('Calendar sync error:', syncResult.error);
+              toast.warning(`Google connected, but calendar sync failed: ${syncResult.error}`);
+            } else {
+              const eventCount = (syncResult.eventsCreated || 0) + (syncResult.eventsUpdated || 0);
+              logger.log(`Synced ${eventCount} calendar events`);
+              toast.success(`Calendar synced (${eventCount} events)`);
+            }
+          } catch (syncError: unknown) {
+            logger.error('Calendar sync exception:', syncError);
+            toast.warning('Google connected, but calendar sync encountered an error');
           }
-        } catch (syncError: any) {
-          logger.error('Calendar sync exception:', syncError);
-          toast.warning('Google connected, but calendar sync encountered an error');
-        }
 
-        // Subscribe to real-time push notifications (webhooks)
-        try {
-          setMessage('Setting up real-time calendar sync...');
-          const channel = await googleCalendarWebhookService.subscribe();
+          // Subscribe to real-time push notifications (webhooks)
+          try {
+            const channel = await googleCalendarWebhookService.subscribe();
 
-          if (channel) {
-            logger.log('Successfully subscribed to calendar push notifications');
-            toast.success('Real-time calendar sync enabled!');
-          } else {
-            logger.warn('Webhook subscription skipped (no org or already subscribed)');
-            toast.info('Webhook subscription skipped - you may need to refresh');
+            if (channel) {
+              logger.log('Successfully subscribed to calendar push notifications');
+              toast.success('Real-time calendar sync enabled');
+            } else {
+              logger.warn('Webhook subscription skipped (no org or already subscribed)');
+            }
+          } catch (webhookError: unknown) {
+            logger.error('Webhook subscription error:', webhookError);
+            toast.error('Webhook setup failed');
           }
-        } catch (webhookError: any) {
-          logger.error('Webhook subscription error:', webhookError);
-          toast.error(`Webhook setup failed: ${webhookError.message || 'Unknown error'}`);
-        }
-
-        setMessage(`Successfully connected to Google as ${data.email}!`);
-
-        // Redirect to integrations page with success message
-        setTimeout(() => {
-          navigate(`/integrations?status=connected&email=${encodeURIComponent(data.email || '')}`);
-        }, 2000);
+        })();
 
       } catch (error: any) {
         setStatus('error');
