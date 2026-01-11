@@ -60,11 +60,13 @@ function getOtlpUrls(): { tracesUrl?: string; metricsUrl?: string; headers: Reco
 
 function getResource(): Resource {
   const serviceName = process.env.OTEL_SERVICE_NAME || 'use60-vercel-api';
+  const serviceNamespace = process.env.OTEL_SERVICE_NAMESPACE || 'use60';
   const env = process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown';
   const region = process.env.VERCEL_REGION;
 
   const attrs: Record<string, string> = {
     [SemanticResourceAttributes.SERVICE_NAME]: serviceName,
+    [SemanticResourceAttributes.SERVICE_NAMESPACE]: serviceNamespace,
     [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: env,
   };
   if (region) attrs[SemanticResourceAttributes.CLOUD_REGION] = region;
