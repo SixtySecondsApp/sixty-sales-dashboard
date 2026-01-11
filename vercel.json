@@ -3,7 +3,7 @@
   "framework": "vite",
   "functions": {
     "api/**/*.ts": {
-      "includeFiles": "api/lib/**"
+      "includeFiles": ["api/lib/**", "node_modules/@opentelemetry/**"]
     }
   },
   "headers": [
