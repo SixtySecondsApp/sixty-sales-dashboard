@@ -1,6 +1,11 @@
 {
   "buildCommand": "npm run build",
   "framework": "vite",
+  "functions": {
+    "api/**/*.ts": {
+      "includeFiles": "api/lib/**"
+    }
+  },
   "headers": [
     {
       "source": "/api/(.*)",
