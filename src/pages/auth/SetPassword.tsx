@@ -112,20 +112,53 @@ export default function SetPassword() {
       // Verify we still have a session
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) {
+        console.error('[SetPassword] No session found when trying to update password');
         toast.error('Session expired. Please click the magic link again.');
         navigate('/auth/login');
         return;
       }
+
+      console.log('[SetPassword] Session found, updating password for user:', session.user.email);
 
       // Update the user's password
       const { error: updateError } = await supabase.auth.updateUser({
         password: password
       });
 
+      console.log('[SetPassword] Password update response:', { 
+        hasError: !!updateError, 
+        errorMessage: updateError?.message,
+        errorStatus: (updateError as any)?.status
+      });
+
       if (updateError) {
         console.error('Password update error:', updateError);
-        toast.error(updateError.message || 'Failed to set password. Please try again.');
-        return;
+        // Check if it's a token issue - if so, try to refresh session first
+        if (updateError.message?.includes('session') || updateError.status === 401) {
+          try {
+            const { error: refreshError } = await supabase.auth.refreshSession();
+            if (!refreshError) {
+              // Try again after refresh
+              const { error: retryError } = await supabase.auth.updateUser({
+                password: password
+              });
+              if (retryError) {
+                toast.error(retryError.message || 'Failed to set password. Please try again.');
+                return;
+              }
+            } else {
+              toast.error('Session expired. Please click the invitation link again.');
+              navigate('/auth/login');
+              return;
+            }
+          } catch (refreshErr) {
+            toast.error(updateError.message || 'Failed to set password. Please try again.');
+            return;
+          }
+        } else {
+          toast.error(updateError.message || 'Failed to set password. Please try again.');
+          return;
+        }
       }
 
       // Ensure waitlist entry is linked to this user
