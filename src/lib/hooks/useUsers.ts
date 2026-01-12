@@ -452,38 +452,34 @@ export function useUsers() {
 
   const inviteUser = async (email: string, firstName?: string, lastName?: string) => {
     try {
-      // Trim and normalize names (convert empty strings to undefined/null)
+      // Trim and normalize names
       const trimmedFirstName = firstName?.trim() || undefined;
       const trimmedLastName = lastName?.trim() || undefined;
 
-      // Encode names in the redirect URL so they persist through the OTP flow
-      // This ensures the names are available in AuthCallback when the user verifies
-      let redirectUrl = `${window.location.origin}/auth/callback`;
-      const params = new URLSearchParams();
-      if (trimmedFirstName) params.append('first_name', trimmedFirstName);
-      if (trimmedLastName) params.append('last_name', trimmedLastName);
-      if (params.toString()) {
-        redirectUrl += `?${params.toString()}`;
-      }
+      // Use base redirect URL without query params to avoid browser issues
+      // Names will be stored in user metadata instead
+      const redirectUrl = `${window.location.origin}/auth/callback`;
 
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: redirectUrl,
-          data: {
-            first_name: trimmedFirstName,
-            last_name: trimmedLastName,
-            full_name: trimmedFirstName && trimmedLastName ? `${trimmedFirstName} ${trimmedLastName}` : undefined,
-            // Pass admin ID so invited user is automatically added to admin's organization
-            invited_by_admin_id: userId,
-          }
+      // Call the invite-user edge function to properly handle invitations
+      const { data, error: functionError } = await supabase.functions.invoke('invite-user', {
+        body: {
+          email: email.toLowerCase().trim(),
+          first_name: trimmedFirstName,
+          last_name: trimmedLastName,
+          redirectTo: redirectUrl,
+          invitedByAdminId: userId,
         }
       });
 
-      if (error) throw error;
+      if (functionError) {
+        throw new Error(functionError.message || 'Failed to send invitation');
+      }
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
 
       toast.success(`Invitation sent to ${email}`);
-      // Refresh logic if needed, but the user won't appear until they sign in.
     } catch (error: any) {
       logger.error('Invite error:', error);
       toast.error('Failed to invite user: ' + error.message);
