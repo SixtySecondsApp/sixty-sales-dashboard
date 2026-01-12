@@ -202,30 +202,29 @@ export default function AuthCallback() {
           const firstNameToSave = invitedFirstName || session.user.user_metadata?.first_name;
           const lastNameToSave = invitedLastName || session.user.user_metadata?.last_name;
 
-          // Save invited user names to profile if available
-          if ((firstNameToSave || lastNameToSave) && session.user.id) {
+          // Ensure profile exists and save names (upsert to handle new invited users)
+          if (session.user.id) {
             try {
-              console.log('[AuthCallback] Saving invited user names to profile:', { 
-                firstNameToSave, 
-                lastNameToSave,
-                source: invitedFirstName ? 'URL' : 'user_metadata'
-              });
+              console.log('[AuthCallback] Ensuring profile exists for user:', session.user.id);
               const { error: profileError } = await supabase
                 .from('profiles')
-                .update({
+                .upsert({
+                  id: session.user.id,
+                  email: session.user.email,
                   first_name: firstNameToSave || null,
                   last_name: lastNameToSave || null,
                   updated_at: new Date().toISOString(),
-                })
-                .eq('id', session.user.id);
+                }, {
+                  onConflict: 'id'
+                });
 
               if (profileError) {
-                console.warn('[AuthCallback] Failed to update profile with names:', profileError);
+                console.warn('[AuthCallback] Failed to upsert profile:', profileError);
               } else {
-                console.log('[AuthCallback] Successfully saved names to profile');
+                console.log('[AuthCallback] Successfully ensured profile exists');
               }
             } catch (err) {
-              console.error('[AuthCallback] Error updating profile names:', err);
+              console.error('[AuthCallback] Error upserting profile:', err);
             }
           }
 

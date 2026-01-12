@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { setImpersonationData } from '@/lib/utils/impersonationUtils';
-import { getSiteUrl } from '@/lib/utils/siteUrl';
+import { getSiteUrl, getAuthRedirectUrl } from '@/lib/utils/siteUrl';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import logger from '@/lib/utils/logger';
 
@@ -452,41 +452,32 @@ export function useUsers() {
 
   const inviteUser = async (email: string, firstName?: string, lastName?: string) => {
     try {
-      // Trim and normalize names
       const trimmedFirstName = firstName?.trim() || undefined;
       const trimmedLastName = lastName?.trim() || undefined;
+      // Use getAuthRedirectUrl to ensure correct domain for staging/production
+      // This is critical because Supabase embeds this URL in the invitation email
+      const redirectUrl = getAuthRedirectUrl('/auth/callback');
 
-      // Get current session for auth token
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error('Not authenticated');
-      }
+      logger.log('Sending invitation:', { email, redirectUrl });
 
-      // Call app API (same origin) to avoid browser->Supabase Edge CORS issues
-      const response = await fetch('/api/admin/invite-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          email: email.toLowerCase().trim(),
-          first_name: trimmedFirstName,
-          last_name: trimmedLastName,
-        }),
+      // Use Supabase's built-in signInWithOtp - no CORS issues
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.toLowerCase().trim(),
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: {
+            first_name: trimmedFirstName,
+            last_name: trimmedLastName,
+            full_name: trimmedFirstName && trimmedLastName ? `${trimmedFirstName} ${trimmedLastName}` : undefined,
+            invited_by_admin_id: userId,
+          }
+        }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to invite user (${response.status})`);
-      }
+      if (error) throw error;
 
-      const data = await response.json();
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      toast.success(`Invitation sent to ${email}`);
+      toast.success(`Invitation email sent to ${email}`);
+      logger.log('Invitation sent successfully to:', email);
     } catch (error: any) {
       logger.error('Invite error:', error);
       toast.error('Failed to invite user: ' + error.message);
