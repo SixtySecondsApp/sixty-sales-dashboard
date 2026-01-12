@@ -456,18 +456,14 @@ export function useUsers() {
       const trimmedFirstName = firstName?.trim() || undefined;
       const trimmedLastName = lastName?.trim() || undefined;
 
-      // Use base redirect URL without query params to avoid browser issues
-      const redirectUrl = `${window.location.origin}/auth/callback`;
-
       // Get current session for auth token
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         throw new Error('Not authenticated');
       }
 
-      // Call the invite-user edge function using fetch directly to avoid CORS issues with supabase.functions.invoke
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl}/functions/v1/invite-user`, {
+      // Call app API (same origin) to avoid browser->Supabase Edge CORS issues
+      const response = await fetch('/api/admin/invite-user', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -477,8 +473,6 @@ export function useUsers() {
           email: email.toLowerCase().trim(),
           first_name: trimmedFirstName,
           last_name: trimmedLastName,
-          redirectTo: redirectUrl,
-          invitedByAdminId: userId,
         }),
       });
 
