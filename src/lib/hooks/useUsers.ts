@@ -456,26 +456,33 @@ export function useUsers() {
       const trimmedFirstName = firstName?.trim() || undefined;
       const trimmedLastName = lastName?.trim() || undefined;
 
-      // Use base redirect URL without query params to avoid browser issues
-      // Names will be stored in user metadata instead
-      const redirectUrl = `${window.location.origin}/auth/callback`;
+      // Get current session for auth token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
 
-      // Call the invite-user edge function to properly handle invitations
-      const { data, error: functionError } = await supabase.functions.invoke('invite-user', {
-        body: {
+      // Call app API (same origin) to avoid browser->Supabase Edge CORS issues
+      const response = await fetch('/api/admin/invite-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
           email: email.toLowerCase().trim(),
           first_name: trimmedFirstName,
           last_name: trimmedLastName,
-          redirectTo: redirectUrl,
-          invitedByAdminId: userId,
-        }
+        }),
       });
 
-      if (functionError) {
-        throw new Error(functionError.message || 'Failed to send invitation');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to invite user (${response.status})`);
       }
 
-      if (data?.error) {
+      const data = await response.json();
+      if (data.error) {
         throw new Error(data.error);
       }
 
