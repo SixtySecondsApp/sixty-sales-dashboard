@@ -44,6 +44,8 @@ export default function AuthCallback() {
         const waitlistEntryId = searchParams.get('waitlist_entry') || localStorage.getItem('waitlist_entry_id');
         const next = searchParams.get('next') || '/dashboard';
         // Get invited user's name if provided in URL (from admin invite)
+        // NOTE: Names should NOT be in query params - they break Supabase auth verification
+        // Instead, they should be in user_metadata after invitation
         const invitedFirstName = searchParams.get('first_name');
         const invitedLastName = searchParams.get('last_name');
 
@@ -196,15 +198,23 @@ export default function AuthCallback() {
         }
 
         if (session?.user) {
-          // If invited user has names in URL, save them to their profile
-          if ((invitedFirstName || invitedLastName) && session.user.id) {
+          // Get names from URL params OR user_metadata (set during invitation)
+          const firstNameToSave = invitedFirstName || session.user.user_metadata?.first_name;
+          const lastNameToSave = invitedLastName || session.user.user_metadata?.last_name;
+
+          // Save invited user names to profile if available
+          if ((firstNameToSave || lastNameToSave) && session.user.id) {
             try {
-              console.log('[AuthCallback] Saving invited user names to profile:', { invitedFirstName, invitedLastName });
+              console.log('[AuthCallback] Saving invited user names to profile:', { 
+                firstNameToSave, 
+                lastNameToSave,
+                source: invitedFirstName ? 'URL' : 'user_metadata'
+              });
               const { error: profileError } = await supabase
                 .from('profiles')
                 .update({
-                  first_name: invitedFirstName || null,
-                  last_name: invitedLastName || null,
+                  first_name: firstNameToSave || null,
+                  last_name: lastNameToSave || null,
                   updated_at: new Date().toISOString(),
                 })
                 .eq('id', session.user.id);
