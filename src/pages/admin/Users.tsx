@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useUsers } from '@/lib/hooks/useUsers';
 import { cn } from '@/lib/utils';
+import { getAuthRedirectUrl } from '@/lib/utils/siteUrl';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -164,14 +165,50 @@ export default function Users() {
 
   const handleSendPasswordReset = async (email: string) => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+      // Use custom edge function with branded email template
+      // Edge function is configured with CORS to allow localhost, staging, and production
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        toast.error('Not authenticated. Please log in again.');
+        return;
+      }
+
+      // For password reset, use the base domain URL only
+      // Supabase will add the recovery token to the URL, which the reset-password page will parse
+      const baseUrl = import.meta.env.VITE_PUBLIC_URL || 'https://app.use60.com';
+      const redirectUrl = baseUrl;
+      logger.log('Password reset redirect URL:', redirectUrl, 'VITE_PUBLIC_URL:', import.meta.env.VITE_PUBLIC_URL);
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-password-reset-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          email: email.toLowerCase().trim(),
+          redirectTo: redirectUrl,
+        }),
       });
-      if (error) throw error;
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to send password reset email`);
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to send password reset email');
+      }
+
       toast.success(`Password reset email sent to ${email}`);
     } catch (error) {
       logger.error('Error sending password reset:', error);
-      toast.error('Failed to send password reset email');
+      toast.error(error instanceof Error ? error.message : 'Failed to send password reset email');
     }
   };
 
