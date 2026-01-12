@@ -24,7 +24,16 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const supabaseUrl = process.env.SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!supabaseUrl || !serviceKey) {
-      return res.status(500).json({ error: 'Server not configured' });
+      console.error('[invite-user] Missing environment config:', {
+        hasUrl: !!supabaseUrl,
+        hasServiceKey: !!serviceKey,
+        url: supabaseUrl,
+        // Don't log the actual key, just presence
+      });
+      return res.status(500).json({ 
+        error: 'Server not configured', 
+        details: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' 
+      });
     }
 
     const authHeader = getHeader(req, 'authorization');
@@ -127,6 +136,15 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     }).catch(() => undefined);
 
     // 4) Generate password-setup link (recovery) and send email via encharge-send-email
+    // Build the correct redirect URL for staging/production
+    // On staging, use the staging domain; on production, use the production domain
+    const protocol = req.headers['x-forwarded-proto'] || 'https';
+    const host = req.headers.host || 'app.use60.com';
+    const isStaging = host.includes('staging');
+    const correctRedirectTo = isStaging 
+      ? `https://staging.use60.com/auth/callback`
+      : `https://app.use60.com/auth/callback`;
+
     const linkResp = await fetch(`${supabaseUrl}/auth/v1/admin/generate_link`, {
       method: 'POST',
       headers: {
@@ -137,7 +155,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         type: 'recovery',
         email: normalizedEmail,
-        options: { redirectTo },
+        options: { redirectTo: correctRedirectTo },
       }),
     });
 
