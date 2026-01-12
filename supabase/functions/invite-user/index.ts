@@ -2,83 +2,52 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 import { captureException } from '../_shared/sentryEdge.ts'
 
-// Simple CORS headers for this function
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+const getCorsHeaders = (req: Request) => {
+  const origin = req.headers.get('origin') || '*'
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  }
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
+  const corsHeaders = getCorsHeaders(req)
+  
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { 
+      status: 200,
+      headers: corsHeaders 
+    })
   }
 
   try {
-    console.log('[invite-user] Request received:', {
-      method: req.method,
-      headers: Object.fromEntries(req.headers.entries())
-    })
+    console.log('[invite-user] Starting invitation process')
 
-    // Get the authorization header
     const authHeader = req.headers.get('Authorization')
-    console.log('[invite-user] Auth header present:', !!authHeader)
-    
     if (!authHeader) {
-      console.error('[invite-user] No authorization header provided')
-      return new Response(
-        JSON.stringify({ error: 'No authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      throw new Error('No authorization header')
     }
 
-    // Parse request body
-    let body
-    try {
-      body = await req.json()
-    } catch (parseError) {
-      console.error('[invite-user] Failed to parse request body:', parseError)
-      return new Response(
-        JSON.stringify({ error: 'Invalid JSON in request body' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-    
+    const body = await req.json()
     const { email, first_name, last_name, redirectTo, invitedByAdminId } = body
-    console.log('[invite-user] Request body:', { email, first_name, last_name, redirectTo, invitedByAdminId })
 
-    if (!email) {
-      return new Response(
-        JSON.stringify({ error: 'Email is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    if (!email || !redirectTo) {
+      throw new Error('Email and redirectTo are required')
     }
 
-    if (!redirectTo) {
-      return new Response(
-        JSON.stringify({ error: 'redirectTo is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Create Supabase admin client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Get the admin user from the JWT token to verify they're an admin
+    // Verify admin
     const token = authHeader.replace('Bearer ', '')
     const { data: { user: adminUser }, error: userError } = await supabaseAdmin.auth.getUser(token)
 
     if (userError || !adminUser) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid or expired token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      throw new Error('Invalid token')
     }
 
-    // Verify admin user is an admin
     const { data: adminProfile } = await supabaseAdmin
       .from('profiles')
       .select('is_admin')
@@ -86,82 +55,132 @@ serve(async (req) => {
       .single()
 
     if (!adminProfile?.is_admin) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized: Admin access required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      throw new Error('Admin access required')
     }
 
-    // Check if user already exists
-    const { data: existingUser } = await supabaseAdmin
-      .from('profiles')
-      .select('id, email')
-      .eq('email', email.toLowerCase().trim())
-      .maybeSingle()
+    // Check if user exists
+    const { data: existingAuth } = await supabaseAdmin.auth.admin.listUsers()
+    const userExists = existingAuth?.users?.some(u => u.email?.toLowerCase() === email.toLowerCase())
 
-    if (existingUser) {
-      return new Response(
-        JSON.stringify({ error: `User with email ${email} already exists` }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    if (userExists) {
+      throw new Error(`User ${email} already exists`)
     }
 
-    // Generate invitation link using Supabase admin API
-    // Note: We use inviteUserByEmail which sends an invitation email
-    // IMPORTANT: redirectTo must be a simple URL without query parameters
-    // Query parameters will cause Supabase auth verification to fail
-    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      email.toLowerCase().trim(),
-      {
-        data: {
-          first_name: first_name || undefined,
-          last_name: last_name || undefined,
-          full_name: first_name && last_name ? `${first_name} ${last_name}` : undefined,
-          invited_by_admin_id: invitedByAdminId,
-        },
-        // Use base redirect URL without query params - data is stored in user_metadata instead
-        redirectTo: redirectTo,
-      }
-    )
-
-    if (inviteError) {
-      console.error('Error generating invitation:', inviteError)
-      throw new Error(`Failed to generate invitation: ${inviteError.message}`)
-    }
-
-    if (!inviteData?.user?.id) {
-      throw new Error('No user ID returned from invitation')
-    }
-
-    // Extract the confirmation token from the response if available
-    // The actual email will be sent by Supabase, but we can send a custom one if needed
-    console.log('Invitation sent successfully:', {
-      userId: inviteData.user.id,
-      email: inviteData.user.email,
-      first_name,
-      last_name,
+    // Create auth user (passwordless initially)
+    console.log('[invite-user] Creating auth user for:', email)
+    const { data: createData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      email: email.toLowerCase().trim(),
+      user_metadata: {
+        first_name: first_name || null,
+        last_name: last_name || null,
+        full_name: first_name && last_name ? `${first_name} ${last_name}` : null,
+        invited_by_admin_id: invitedByAdminId,
+        invited_at: new Date().toISOString(),
+      },
+      // Don't set password - user will set it via the link
     })
+
+    if (createError) {
+      throw new Error(`Failed to create user: ${createError.message}`)
+    }
+
+    if (!createData?.user?.id) {
+      throw new Error('No user ID returned')
+    }
+
+    const userId = createData.user.id
+    console.log('[invite-user] User created:', userId)
+
+    // Create profile
+    console.log('[invite-user] Creating profile for user:', userId)
+    const { error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .insert({
+        id: userId,
+        email: email.toLowerCase().trim(),
+        first_name: first_name || null,
+        last_name: last_name || null,
+      })
+
+    if (profileError) {
+      console.warn('[invite-user] Profile creation warning:', profileError)
+      // Don't throw - profile might have been created by trigger
+    }
+
+    // Generate magic link for password setup
+    console.log('[invite-user] Generating magic link')
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'magiclink',
+      email: email.toLowerCase().trim(),
+      options: {
+        redirectTo: redirectTo,
+      },
+    })
+
+    if (linkError) {
+      throw new Error(`Failed to generate link: ${linkError.message}`)
+    }
+
+    const magicLink = linkData?.properties?.action_link
+    if (!magicLink) {
+      throw new Error('No magic link generated')
+    }
+
+    console.log('[invite-user] Magic link generated, sending email')
+
+    // Send welcome email with the magic link
+    const emailResponse = await fetch(`${supabaseUrl}/functions/v1/encharge-send-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+        'apikey': supabaseServiceKey,
+      },
+      body: JSON.stringify({
+        template_type: 'welcome',
+        to_email: email,
+        to_name: first_name || 'Team Member',
+        user_id: userId,
+        variables: {
+          first_name: first_name || 'Team Member',
+          invitation_link: magicLink,
+          action_url: magicLink,
+        },
+      }),
+    })
+
+    if (!emailResponse.ok) {
+      const emailError = await emailResponse.text()
+      console.warn('[invite-user] Email sending warning:', emailError)
+      // Don't throw - user is created, just email failed
+    } else {
+      console.log('[invite-user] Welcome email sent')
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Invitation sent to ${email}`,
-        userId: inviteData.user.id,
-        email: inviteData.user.email,
+        message: `User invited successfully`,
+        userId,
+        email,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+
   } catch (error: any) {
-    console.error('Error in invite-user:', error)
+    console.error('[invite-user] Error:', error.message)
+    
     await captureException(error, {
-      tags: {
-        function: 'invite-user',
-        integration: 'supabase-auth',
-      },
+      tags: { function: 'invite-user' },
     })
+
+    const statusCode = error.message?.includes('already exists') ? 400 :
+                      error.message?.includes('Admin access') ? 403 :
+                      error.message?.includes('Invalid token') ? 401 : 500
+
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: statusCode, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
