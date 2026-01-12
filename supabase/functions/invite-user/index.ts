@@ -1,8 +1,13 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
-import { corsHeaders } from '../_shared/cors.ts'
-import { sendEmail } from '../_shared/ses.ts'
 import { captureException } from '../_shared/sentryEdge.ts'
+
+// Simple CORS headers for this function
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -11,9 +16,17 @@ serve(async (req) => {
   }
 
   try {
+    console.log('[invite-user] Request received:', {
+      method: req.method,
+      headers: Object.fromEntries(req.headers.entries())
+    })
+
     // Get the authorization header
     const authHeader = req.headers.get('Authorization')
+    console.log('[invite-user] Auth header present:', !!authHeader)
+    
     if (!authHeader) {
+      console.error('[invite-user] No authorization header provided')
       return new Response(
         JSON.stringify({ error: 'No authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -21,7 +34,19 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { email, first_name, last_name, redirectTo, invitedByAdminId } = await req.json()
+    let body
+    try {
+      body = await req.json()
+    } catch (parseError) {
+      console.error('[invite-user] Failed to parse request body:', parseError)
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    const { email, first_name, last_name, redirectTo, invitedByAdminId } = body
+    console.log('[invite-user] Request body:', { email, first_name, last_name, redirectTo, invitedByAdminId })
 
     if (!email) {
       return new Response(

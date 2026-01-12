@@ -1,2 +1,11 @@
 [function]
 verify_jwt = false
+
+# Allow CORS for staging and production domains
+cors = [
+  "https://staging.use60.com",
+  "https://app.use60.com",
+  "https://www.use60.com",
+  "http://localhost:5175",
+  "http://localhost:5173"
+]
