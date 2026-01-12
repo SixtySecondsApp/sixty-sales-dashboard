@@ -18,6 +18,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { InternalRouteGuard, OrgAdminRouteGuard, PlatformAdminRouteGuard } from '@/components/RouteGuard';
 import { RouteDebug } from '@/components/RouteDebug';
 import { DefaultRoute } from '@/components/DefaultRoute';
+import { RecoveryTokenDetector } from '@/components/RecoveryTokenDetector';
 import { RouteLoader, ExternalRedirect } from '@/components/routing';
 import { usePerformanceOptimization } from '@/lib/hooks/usePerformanceOptimization';
 import { IntelligentPreloader } from '@/components/LazyComponents';
@@ -208,6 +209,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
   return (
     <>
       <IntelligentPreloader />
+      <RecoveryTokenDetector />
       <Routes>
         {/* ========== PUBLIC ROUTES (No Auth Required) ========== */}
         {/* Public pages for screenshot automation - MUST be outside ProtectedRoute */}
