@@ -3,22 +3,29 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 import { captureException } from '../_shared/sentryEdge.ts'
 
 const getCorsHeaders = (req: Request) => {
-  const origin = req.headers.get('origin') || '*'
+  const origin = req.headers.get('origin') || 'https://staging.use60.com'
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Max-Age': '86400',
   }
 }
 
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req)
   
+  console.log('[invite-user] Request method:', req.method)
+  console.log('[invite-user] Origin:', req.headers.get('origin'))
+  
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { 
-      status: 200,
+    console.log('[invite-user] Handling OPTIONS preflight')
+    const response = new Response(null, { 
+      status: 204,
       headers: corsHeaders 
     })
+    console.log('[invite-user] OPTIONS response headers:', Object.fromEntries(response.headers.entries()))
+    return response
   }
 
   try {
