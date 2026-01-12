@@ -83,6 +83,8 @@ serve(async (req) => {
 
     // Generate invitation link using Supabase admin API
     // Note: We use inviteUserByEmail which sends an invitation email
+    // IMPORTANT: redirectTo must be a simple URL without query parameters
+    // Query parameters will cause Supabase auth verification to fail
     const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       email.toLowerCase().trim(),
       {
@@ -92,6 +94,7 @@ serve(async (req) => {
           full_name: first_name && last_name ? `${first_name} ${last_name}` : undefined,
           invited_by_admin_id: invitedByAdminId,
         },
+        // Use base redirect URL without query params - data is stored in user_metadata instead
         redirectTo: redirectTo,
       }
     )
