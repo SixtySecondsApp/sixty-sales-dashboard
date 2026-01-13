@@ -194,6 +194,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         user_id: newUserId,
         variables: {
           first_name: firstName || normalizedEmail.split('@')[0],
+          last_name: lastName || '',
           action_url: actionLink,
           invitation_link: actionLink,
         },
