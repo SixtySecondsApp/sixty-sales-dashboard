@@ -1,94 +1,15 @@
 export type VercelApiHandler = (req: any, res: any) => Promise<any> | any;
 
-function safePath(url: string | undefined): string {
-  if (!url) return '';
-  const idx = url.indexOf('?');
-  return idx === -1 ? url : url.slice(0, idx);
-}
-
+/**
+ * OpenTelemetry wrapper - temporarily disabled due to Vercel compatibility issues
+ *
+ * The @opentelemetry/sdk-trace-node package causes FUNCTION_INVOCATION_FAILED errors
+ * in Vercel's serverless environment. Disabling for now until we can investigate a
+ * proper fix (e.g., using web-compatible OpenTelemetry packages).
+ *
+ * TODO: Re-enable with proper Vercel serverless compatibility
+ */
 export function withOtel(routeName: string, handler: VercelApiHandler): VercelApiHandler {
-  return async function otelWrappedHandler(req: any, res: any) {
-    // Skip OpenTelemetry entirely if not configured
-    const hasOtelEndpoint = Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
-    if (!hasOtelEndpoint) {
-      return await handler(req, res);
-    }
-
-    // Dynamically import OpenTelemetry only when needed
-    let trace: any;
-    let getOtel: any;
-    let getSpanStatusCode: any;
-
-    try {
-      const otelApi = await import('@opentelemetry/api');
-      trace = otelApi.trace;
-      const otelModule = await import('./otel');
-      getOtel = otelModule.getOtel;
-      getSpanStatusCode = otelModule.getSpanStatusCode;
-    } catch (error) {
-      // OpenTelemetry modules failed to load, continue without telemetry
-      console.warn('[withOtel] Failed to load OpenTelemetry:', error);
-      return await handler(req, res);
-    }
-
-    const otel = getOtel();
-    const start = Date.now();
-    const method = String(req?.method || 'UNKNOWN').toUpperCase();
-    const path = safePath(String(req?.url || ''));
-
-    if (!otel) {
-      return await handler(req, res);
-    }
-
-    const tracer = trace.getTracer('use60-vercel-api');
-    const span = tracer.startSpan(`api ${method} ${path || routeName}`, {
-      attributes: {
-        'service.namespace': 'use60',
-        'http.method': method,
-        'http.target': String(req?.url || ''),
-        'http.route': path || routeName,
-        'use60.route_name': routeName,
-      },
-    });
-
-    let unhandledError: unknown = null;
-    try {
-      return await handler(req, res);
-    } catch (err) {
-      unhandledError = err;
-      span.recordException(err as any);
-      throw err;
-    } finally {
-      const durationMs = Date.now() - start;
-      const statusCode = unhandledError ? 500 : Number(res?.statusCode || 200);
-
-      const attrs: Record<string, string | number> = {
-        method,
-        route: path || routeName,
-        route_name: routeName,
-        status_code: statusCode,
-        vercel_env: process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown',
-      };
-      if (process.env.VERCEL_REGION) attrs.vercel_region = process.env.VERCEL_REGION;
-
-      otel.instruments.requestCount.add(1, attrs);
-      otel.instruments.requestDurationMs.record(durationMs, attrs);
-
-      span.setAttribute('http.status_code', statusCode);
-      span.setStatus({ code: getSpanStatusCode(statusCode) });
-      span.end();
-
-      // Ensure we ship telemetry even in short-lived serverless invocations.
-      // Keep this lightweight: flush with best-effort and short timeout.
-      try {
-        await Promise.race([
-          Promise.all([otel.tracerProvider.forceFlush(), otel.meterProvider.forceFlush()]),
-          new Promise((resolve) => setTimeout(resolve, 800)),
-        ]);
-      } catch {
-        // ignore
-      }
-    }
-  };
+  // Bypass OpenTelemetry entirely - just return the handler unwrapped
+  return handler;
 }
-
