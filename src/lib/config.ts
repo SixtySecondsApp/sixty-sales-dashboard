@@ -13,8 +13,11 @@ const isProduction = isBrowser
   : process.env.NODE_ENV === 'production';
 
 // Get Supabase URL from environment variables
+// Support both VITE_ prefixed (development) and non-prefixed (Vercel) variable names
 const getSupabaseUrl = () => {
-  return import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_PUBLIC_SUPABASE_URL;
+  return import.meta.env.VITE_SUPABASE_URL
+    || import.meta.env.SUPABASE_URL
+    || import.meta.env.VITE_PUBLIC_SUPABASE_URL;
 };
 
 // API configuration - Always use Supabase Edge Functions
@@ -31,7 +34,7 @@ const getApiBaseUrl = () => {
   }
   
   // Fallback - should not happen if environment is properly configured
-  logger.error('⚠️ VITE_SUPABASE_URL not found. Please check your environment variables.');
+  logger.error('⚠️ SUPABASE_URL (or VITE_SUPABASE_URL) not found. Please check your environment variables.');
   return '/api'; // Fallback to relative path
 };
 
@@ -39,11 +42,12 @@ const getApiBaseUrl = () => {
 // Setting to false to use Edge Functions for stages
 export const DISABLE_EDGE_FUNCTIONS = false;
 
-export const API_BASE_URL = DISABLE_EDGE_FUNCTIONS 
+export const API_BASE_URL = DISABLE_EDGE_FUNCTIONS
   ? '/api'
-  : (import.meta.env.VITE_SUPABASE_URL 
-    ? `${import.meta.env.VITE_SUPABASE_URL.replace('/rest/v1', '')}/functions/v1`
-    : '');
+  : (() => {
+      const url = getSupabaseUrl();
+      return url ? `${url.replace('/rest/v1', '')}/functions/v1` : '';
+    })();
 
 // Database configuration (using Supabase only)
 export const config = {

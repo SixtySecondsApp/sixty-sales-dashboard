@@ -9,17 +9,19 @@
  */
 
 // External project credentials
+// Support both VITE_ prefixed (development) and non-prefixed (Vercel) variable names
 export const EXTERNAL_PROJECT_CONFIG = {
   projectRef: 'cregubixyglvfzvtlgit',
-  url: import.meta.env.VITE_EXTERNAL_SUPABASE_URL || 'https://cregubixyglvfzvtlgit.supabase.co',
-  anonKey: import.meta.env.VITE_EXTERNAL_SUPABASE_ANON_KEY || '',
+  url: import.meta.env.VITE_EXTERNAL_SUPABASE_URL || import.meta.env.EXTERNAL_SUPABASE_URL || 'https://cregubixyglvfzvtlgit.supabase.co',
+  anonKey: import.meta.env.VITE_EXTERNAL_SUPABASE_ANON_KEY || import.meta.env.EXTERNAL_SUPABASE_ANON_KEY || '',
 } as const;
 
 // Internal project credentials (STAGING BRANCH)
+// Support both VITE_ prefixed (development) and non-prefixed (Vercel) variable names
 export const INTERNAL_PROJECT_CONFIG = {
-  projectRef: 'dzypskjhoupsdwfsrkeo',
-  url: import.meta.env.VITE_SUPABASE_URL || 'https://dzypskjhoupsdwfsrkeo.supabase.co',
-  anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+  projectRef: 'caerqjzvuerejfrdtygb',
+  url: import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL || 'https://caerqjzvuerejfrdtygb.supabase.co',
+  anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY || '',
 } as const;
 
 /**

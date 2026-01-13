@@ -10,9 +10,9 @@ PROD_REF="ygdpgliavpxeugaajgrb"
 PROD_PASSWORD="${SUPABASE_DATABASE_PASSWORD:-Gi7JO1tz2NupAzHt}"
 
 # Staging branch details
-STAGING_REF="dzypskjhoupsdwfsrkeo"
-STAGING_PASSWORD="afPwkmKLLzfMaJVVKfRDOmhysExLeKEe"
-STAGING_BRANCH_ID="dzypskjhoupsdwfsrkeo"
+STAGING_REF="caerqjzvuerejfrdtygb"
+STAGING_PASSWORD="${STAGING_DATABASE_PASSWORD:?STAGING_DATABASE_PASSWORD not set. Get from Supabase dashboard: Project Settings > Database > Connection string}"
+STAGING_BRANCH_ID="ef9986e5-e287-445b-b298-637b3da077c9"
 
 # Production connection URL
 PROD_URL="postgresql://postgres.${PROD_REF}:${PROD_PASSWORD}@aws-1-eu-west-1.pooler.supabase.com:6543/postgres"

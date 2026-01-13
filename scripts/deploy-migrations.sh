@@ -41,7 +41,7 @@ NC='\033[0m' # No Color
 # Configuration
 # =============================================================================
 PRODUCTION_PROJECT_REF="ygdpgliavpxeugaajgrb"
-STAGING_PROJECT_REF="idurpiwkzxkzccifnrsu"
+STAGING_PROJECT_REF="caerqjzvuerejfrdtygb"
 
 # =============================================================================
 # Parse Arguments

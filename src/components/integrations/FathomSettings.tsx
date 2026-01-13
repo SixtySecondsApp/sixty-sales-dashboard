@@ -117,7 +117,7 @@ export function FathomSettings() {
       if (mode === 'diagnose') {
         // Diagnose mode - single request
         const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reprocess-pending-meetings`,
+          `${(import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL)}/functions/v1/reprocess-pending-meetings`,
           {
             method: 'POST',
             headers: {
@@ -284,7 +284,7 @@ export function FathomSettings() {
     }
 
     const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reprocess-pending-meetings`,
+      `${(import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL)}/functions/v1/reprocess-pending-meetings`,
       {
         method: 'POST',
         headers: {

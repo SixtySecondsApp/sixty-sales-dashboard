@@ -236,7 +236,7 @@ export const DealDetailsView: React.FC<DealDetailsViewProps> = ({
       setGeneratingEmail(true);
       
       // Get Supabase URL and headers
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {

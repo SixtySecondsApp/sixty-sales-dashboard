@@ -27,7 +27,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, on
     const override = import.meta.env.VITE_COPILOT_BOT_ICON_URL as string | undefined;
     if (override) return override;
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL) as string | undefined;
     if (!supabaseUrl) return undefined;
 
     // Keep the same storage path; only derive the host from the configured project.

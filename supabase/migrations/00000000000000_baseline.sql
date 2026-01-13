@@ -81,7 +81,7 @@ COMMENT ON SCHEMA "public" IS 'Function volatility fixed: 20250128200000';
 -- Name: citext; Type: EXTENSION; Schema: -; Owner: -
 --
 
-CREATE EXTENSION IF NOT EXISTS "citext" WITH SCHEMA "extensions";
+CREATE EXTENSION IF NOT EXISTS "citext" WITH SCHEMA "public";
 
 
 --
@@ -55441,7 +55441,7 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 --
--- Name: FUNCTION "citext"(boolean); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "public"."citext"(boolean); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
 -- GRANT ALL ON FUNCTION "citext"(boolean) TO "postgres";
@@ -55451,7 +55451,7 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 --
--- Name: FUNCTION "citext"(character); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "public"."citext"(character); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
 -- GRANT ALL ON FUNCTION "citext"(character) TO "postgres";
@@ -55461,7 +55461,7 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 --
--- Name: FUNCTION "citext"("inet"); Type: ACL; Schema: extensions; Owner: supabase_admin
+-- Name: FUNCTION "public"."citext"("inet"); Type: ACL; Schema: extensions; Owner: supabase_admin
 --
 
 -- GRANT ALL ON FUNCTION "citext"("inet") TO "postgres";

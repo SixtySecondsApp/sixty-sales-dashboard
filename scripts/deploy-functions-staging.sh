@@ -27,7 +27,7 @@ NC='\033[0m' # No Color
 # =============================================================================
 # Configuration - STAGING
 # =============================================================================
-STAGING_PROJECT_REF="idurpiwkzxkzccifnrsu"
+STAGING_PROJECT_REF="caerqjzvuerejfrdtygb"
 STAGING_URL="https://${STAGING_PROJECT_REF}.supabase.co"
 
 # =============================================================================
