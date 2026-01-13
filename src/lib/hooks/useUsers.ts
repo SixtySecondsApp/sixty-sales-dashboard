@@ -486,6 +486,25 @@ export function useUsers() {
         throw new Error(data.error);
       }
 
+      // Send welcome email via edge function (frontend can authenticate successfully)
+      if (data.emailParams) {
+        try {
+          const emailResult = await supabase.functions.invoke('encharge-send-email', {
+            body: data.emailParams,
+          });
+
+          if (emailResult.error) {
+            logger.error('Failed to send welcome email:', emailResult.error);
+            toast.warning(`User created, but failed to send welcome email to ${email}`);
+            return;
+          }
+        } catch (emailError) {
+          logger.error('Failed to send welcome email:', emailError);
+          toast.warning(`User created, but failed to send welcome email to ${email}`);
+          return;
+        }
+      }
+
       toast.success(`Invitation sent to ${email}`);
     } catch (error: any) {
       logger.error('Invite error:', error);

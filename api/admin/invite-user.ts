@@ -178,16 +178,16 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    console.log('[invite-user] Calling edge function with service key prefix:', serviceKey?.substring(0, 20));
-
-    const emailResp = await fetch(`${supabaseUrl}/functions/v1/encharge-send-email`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${serviceKey}`,
-        apikey: serviceKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    // Return user info and action link - let frontend send the email
+    // (Frontend can successfully call the edge function with user JWT)
+    return res.status(200).json({
+      success: true,
+      userId: newUserId,
+      email: normalizedEmail,
+      firstName: firstName || normalizedEmail.split('@')[0],
+      actionLink: actionLink,
+      // Include email params so frontend can send it
+      emailParams: {
         template_type: 'welcome',
         to_email: normalizedEmail,
         to_name: firstName || normalizedEmail.split('@')[0],
@@ -197,15 +197,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
           action_url: actionLink,
           invitation_link: actionLink,
         },
-      }),
+      },
     });
-
-    if (!emailResp.ok) {
-      const txt = await emailResp.text().catch(() => '');
-      return res.status(500).json({ error: 'User created but failed to send email', details: txt });
-    }
-
-    return res.status(200).json({ success: true, userId: newUserId, email: normalizedEmail });
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || 'Internal server error' });
   }
