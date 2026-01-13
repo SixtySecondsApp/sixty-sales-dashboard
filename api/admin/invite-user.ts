@@ -160,7 +160,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const linkJson = await linkResp.json().catch(() => null);
-    const actionLink = linkJson?.properties?.action_link as string | undefined;
+    // Supabase returns action_link at the top level, not under properties
+    const actionLink = linkJson?.action_link as string | undefined;
     if (!linkResp.ok || !actionLink) {
       console.error('[invite-user] Failed to generate link:', {
         status: linkResp.status,
