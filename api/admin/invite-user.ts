@@ -162,7 +162,18 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const linkJson = await linkResp.json().catch(() => null);
     const actionLink = linkJson?.properties?.action_link as string | undefined;
     if (!linkResp.ok || !actionLink) {
-      return res.status(500).json({ error: 'Failed to generate password setup link', details: linkJson });
+      console.error('[invite-user] Failed to generate link:', {
+        status: linkResp.status,
+        statusText: linkResp.statusText,
+        response: linkJson,
+        redirectTo: correctRedirectTo,
+      });
+      return res.status(500).json({
+        error: 'Failed to generate password setup link',
+        details: linkJson,
+        status: linkResp.status,
+        redirectTo: correctRedirectTo,
+      });
     }
 
     const emailResp = await fetch(`${supabaseUrl}/functions/v1/encharge-send-email`, {
