@@ -12,21 +12,21 @@ echo ""
 PROD_REF="ygdpgliavpxeugaajgrb"
 PROD_PASSWORD="${SUPABASE_DATABASE_PASSWORD:-Gi7JO1tz2NupAzHt}"
 
-# Staging branch details
+# Staging branch details (updated 2026-01-09)
 STAGING_REF="caerqjzvuerejfrdtygb"
-STAGING_PASSWORD="${STAGING_DATABASE_PASSWORD:?STAGING_DATABASE_PASSWORD not set. Get from Supabase dashboard: Project Settings > Database > Connection string}"
+STAGING_PASSWORD="${STAGING_DATABASE_PASSWORD:-Gi7JO1tz2NupAzHt}"
 
-# Production connection URL (using Supavisor Session Mode port 5432 for IPv4 compatibility)
-PROD_URL="postgresql://postgres.${PROD_REF}:${PROD_PASSWORD}@aws-1-eu-west-1.pooler.supabase.com:5432/postgres"
-
-# Staging connection URL (using Supavisor Session Mode port 5432)
-STAGING_URL="postgresql://postgres.${STAGING_REF}:${STAGING_PASSWORD}@aws-1-eu-west-1.pooler.supabase.com:5432/postgres"
+# Direct connection URLs (IPv4 addon enabled)
+PROD_URL="postgresql://postgres:${PROD_PASSWORD}@db.${PROD_REF}.supabase.co:5432/postgres"
+STAGING_URL="postgresql://postgres:${STAGING_PASSWORD}@db.${STAGING_REF}.supabase.co:5432/postgres"
 
 echo "📊 Source: Production (main branch)"
 echo "   Project: $PROD_REF"
+echo "   Host: db.${PROD_REF}.supabase.co:5432 (IPv4)"
 echo ""
 echo "📊 Target: Staging branch"
 echo "   Project: $STAGING_REF"
+echo "   Host: db.${STAGING_REF}.supabase.co:5432 (IPv4)"
 echo ""
 
 echo "⚠️  This will overwrite existing data in staging!"
@@ -41,23 +41,26 @@ echo ""
 echo "📦 Step 1: Dumping production data..."
 echo "   This may take several minutes..."
 
-# Use pg_dump with PGPASSWORD environment variable (better compatibility)
-# Export data only (not schema) for public and auth schemas
+# Use pg_dump with direct connection (IPv4 addon enabled)
+# Export data only (not schema) for public schema
+# Use --disable-triggers to handle foreign key constraints
+# Use custom format for better restore control
 PGPASSWORD="${PROD_PASSWORD}" pg_dump \
-  -h aws-1-eu-west-1.pooler.supabase.com \
+  -h "db.${PROD_REF}.supabase.co" \
   -p 5432 \
-  -U "postgres.${PROD_REF}" \
+  -U postgres \
   -d postgres \
   --data-only \
   --schema=public \
-  --schema=auth \
   --no-owner \
   --no-privileges \
-  --file=production-to-staging.sql \
-  2>&1 | grep -E "(dumping|completed|error|COPY)" || true
+  --disable-triggers \
+  --format=custom \
+  --file=production-to-staging.dump \
+  2>&1
 
-if [ -f production-to-staging.sql ]; then
-  SIZE=$(du -h production-to-staging.sql | cut -f1)
+if [ -f production-to-staging.dump ]; then
+  SIZE=$(du -h production-to-staging.dump | cut -f1)
   echo "✅ Dump completed: $SIZE"
 else
   echo "❌ Dump file not created"
@@ -65,26 +68,59 @@ else
 fi
 
 echo ""
-echo "📥 Step 2: Restoring to staging..."
-echo "   Target: $STAGING_URL"
+echo "🗑️  Step 2: Clearing staging data..."
+echo "   Truncating all public tables with CASCADE..."
 
-# Restore using psql
-PGPASSWORD="${STAGING_PASSWORD}" psql "$STAGING_URL" \
-  -f production-to-staging.sql \
-  2>&1 | grep -v "^$" | head -100 || {
-  echo "⚠️  Some errors occurred during restore"
-  echo "   This may be normal - check output above"
-}
+# Truncate all tables in staging to avoid conflicts
+PGPASSWORD="${STAGING_PASSWORD}" psql \
+  -h "db.${STAGING_REF}.supabase.co" \
+  -p 5432 \
+  -U postgres \
+  -d postgres \
+  -c "DO \$\$
+DECLARE
+  r RECORD;
+BEGIN
+  -- Disable triggers
+  SET session_replication_role = 'replica';
+
+  -- Truncate all tables in public schema
+  FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+    EXECUTE 'TRUNCATE TABLE public.' || quote_ident(r.tablename) || ' CASCADE';
+  END LOOP;
+
+  -- Re-enable triggers
+  SET session_replication_role = 'origin';
+END \$\$;"
+
+echo "✅ Staging tables cleared"
+
+echo ""
+echo "📥 Step 3: Restoring to staging..."
+echo "   This may take several minutes..."
+
+# Restore using pg_restore with --disable-triggers
+PGPASSWORD="${STAGING_PASSWORD}" pg_restore \
+  -h "db.${STAGING_REF}.supabase.co" \
+  -p 5432 \
+  -U postgres \
+  -d postgres \
+  --data-only \
+  --no-owner \
+  --no-privileges \
+  --disable-triggers \
+  --verbose \
+  production-to-staging.dump 2>&1 | tail -50
 
 echo ""
 echo "✅ Data restore completed!"
-echo ""
 
+echo ""
 echo "🧹 Cleanup..."
-rm -f production-to-staging.sql
+rm -f production-to-staging.dump
 
 echo ""
-echo "🚀 Step 3: Deploying Edge Functions to Staging Branch..."
+echo "🚀 Step 4: Deploying Edge Functions to Staging Branch..."
 echo "   Staging branch has its own project reference and needs separate deployment"
 echo ""
 

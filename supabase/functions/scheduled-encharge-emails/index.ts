@@ -324,6 +324,17 @@ async function sendEmailViaFunction(
 }
 
 serve(async (req) => {
+  // Verify cron secret (required for scheduled/automated calls)
+  const cronSecret = Deno.env.get('CRON_SECRET');
+  const providedSecret = req.headers.get('x-cron-secret');
+
+  if (cronSecret && providedSecret !== cronSecret) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized: valid CRON_SECRET required' }),
+      { status: 401, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
   if (!ENCHARGE_API_KEY) {
     return new Response(
       JSON.stringify({ error: 'Missing ENCHARGE_API_KEY' }),

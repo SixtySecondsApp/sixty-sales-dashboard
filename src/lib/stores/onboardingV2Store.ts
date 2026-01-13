@@ -10,6 +10,7 @@
 
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase/clientV2';
+import { Target, Database, MessageSquare, GitBranch, UserCheck, LucideIcon } from 'lucide-react';
 
 // ============================================================================
 // Constants
@@ -127,14 +128,15 @@ export interface SkillMeta {
   id: SkillId;
   name: string;
   description: string;
+  icon: LucideIcon;
 }
 
 export const SKILLS: SkillMeta[] = [
-  { id: 'lead_qualification', name: 'Qualification', description: 'Define how leads are scored and qualified' },
-  { id: 'lead_enrichment', name: 'Enrichment', description: 'Customize discovery questions' },
-  { id: 'brand_voice', name: 'Brand Voice', description: 'Set your communication style' },
-  { id: 'objection_handling', name: 'Objections', description: 'Define response playbooks' },
-  { id: 'icp', name: 'ICP', description: 'Describe your perfect customers' },
+  { id: 'lead_qualification', name: 'Qualification', icon: Target, description: 'Define how leads are scored and qualified' },
+  { id: 'lead_enrichment', name: 'Enrichment', icon: Database, description: 'Customize discovery questions' },
+  { id: 'brand_voice', name: 'Brand Voice', icon: MessageSquare, description: 'Set your communication style' },
+  { id: 'objection_handling', name: 'Objections', icon: GitBranch, description: 'Define response playbooks' },
+  { id: 'icp', name: 'ICP', icon: UserCheck, description: 'Describe your perfect customers' },
 ];
 
 /**
@@ -563,6 +565,20 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       if (response.error) throw response.error;
       if (!response.data?.success) throw new Error(response.data?.error || 'Failed to save skills');
 
+      // Also mark V1 onboarding as complete so ProtectedRoute allows dashboard access
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await supabase
+          .from('user_onboarding_progress')
+          .upsert({
+            user_id: session.user.id,
+            onboarding_step: 'complete',
+            onboarding_completed_at: new Date().toISOString(),
+          }, {
+            onConflict: 'user_id',
+          });
+      }
+
       set({ isSaving: false, currentStep: 'complete' });
       return true;
 
@@ -597,18 +613,21 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       if (!response.data?.success) throw new Error(response.data?.error || 'Failed to compile skills');
 
       // Fetch the organization_skills to get the compiled skills with enabled status
+      // Use left join (no !inner) since platform_skill_id may be null for AI-generated skills
       const { data: orgSkills, error: orgSkillsError } = await supabase
         .from('organization_skills')
         .select(`
           id,
           skill_id,
+          skill_name,
+          config,
           is_enabled,
           is_active,
           platform_skill_id,
           platform_skill_version,
           compiled_frontmatter,
           compiled_content,
-          platform_skills!inner (
+          platform_skills (
             skill_key,
             category,
             frontmatter,
@@ -622,18 +641,41 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       if (orgSkillsError) throw orgSkillsError;
 
       // Transform to CompiledSkill format
-      const compiledSkills: CompiledSkill[] = (orgSkills || []).map((skill) => ({
-        id: skill.id,
-        skill_key: skill.skill_id,
-        category: skill.platform_skills?.category || 'sales-ai',
-        frontmatter: skill.compiled_frontmatter || skill.platform_skills?.frontmatter || {
-          name: skill.skill_id,
-          description: '',
-        },
-        compiled_content: skill.compiled_content || skill.platform_skills?.content_template || '',
-        is_enabled: skill.is_enabled ?? true,
-        platform_skill_version: skill.platform_skill_version || 1,
-      }));
+      // Handle both platform-linked skills and AI-generated skills (where platform_skills is null)
+      const compiledSkills: CompiledSkill[] = (orgSkills || []).map((skill) => {
+        // Determine category based on skill_id for AI-generated skills
+        const inferCategory = (skillId: string): CompiledSkill['category'] => {
+          if (skillId.includes('writing') || skillId.includes('brand_voice')) return 'writing';
+          if (skillId.includes('enrichment') || skillId.includes('lead_enrichment')) return 'enrichment';
+          if (skillId.includes('workflow')) return 'workflows';
+          if (skillId.includes('data')) return 'data-access';
+          if (skillId.includes('format') || skillId.includes('output')) return 'output-format';
+          return 'sales-ai';
+        };
+
+        // Generate description from config if available
+        const generateDescription = (config: Record<string, unknown>): string => {
+          if (!config) return '';
+          if (typeof config === 'string') return config;
+          if (Array.isArray(config)) return `${config.length} items configured`;
+          const keys = Object.keys(config);
+          if (keys.length === 0) return '';
+          return `Configured with ${keys.join(', ')}`;
+        };
+
+        return {
+          id: skill.id,
+          skill_key: skill.skill_id,
+          category: skill.platform_skills?.category || inferCategory(skill.skill_id),
+          frontmatter: skill.compiled_frontmatter || skill.platform_skills?.frontmatter || {
+            name: skill.skill_name || skill.skill_id,
+            description: generateDescription(skill.config as Record<string, unknown>),
+          },
+          compiled_content: skill.compiled_content || skill.platform_skills?.content_template || JSON.stringify(skill.config, null, 2),
+          is_enabled: skill.is_enabled ?? true,
+          platform_skill_version: skill.platform_skill_version || 1,
+        };
+      });
 
       set({
         compiledSkills,
@@ -671,6 +713,20 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
           .eq('skill_id', skill.skill_key);
 
         if (error) throw error;
+      }
+
+      // Also mark V1 onboarding as complete so ProtectedRoute allows dashboard access
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await supabase
+          .from('user_onboarding_progress')
+          .upsert({
+            user_id: session.user.id,
+            onboarding_step: 'complete',
+            onboarding_completed_at: new Date().toISOString(),
+          }, {
+            onConflict: 'user_id',
+          });
       }
 
       set({ isSaving: false, currentStep: 'complete' });

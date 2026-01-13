@@ -3,6 +3,7 @@
  *
  * Main container component for the V2 onboarding flow.
  * Manages step transitions and provides the layout wrapper.
+ * Uses URL query params (?step=xxx) for reliable step tracking.
  *
  * Flow paths:
  * 1. Corporate email: enrichment_loading → enrichment_result → skills_config → complete
@@ -13,8 +14,9 @@
  */
 
 import { useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
-import { useOnboardingV2Store } from '@/lib/stores/onboardingV2Store';
+import { useOnboardingV2Store, type OnboardingV2Step } from '@/lib/stores/onboardingV2Store';
 import { WebsiteInputStep } from './WebsiteInputStep';
 import { ManualEnrichmentStep } from './ManualEnrichmentStep';
 import { EnrichmentLoadingStep } from './EnrichmentLoadingStep';
@@ -24,7 +26,18 @@ import { PlatformSkillConfigStep } from './PlatformSkillConfigStep';
 import { CompletionStep } from './CompletionStep';
 
 // Feature flag for platform skills (Phase 7)
-const USE_PLATFORM_SKILLS = true;
+// Set to false to use the original tabbed SkillsConfigStep
+const USE_PLATFORM_SKILLS = false;
+
+// Valid steps for URL param validation
+const VALID_STEPS: OnboardingV2Step[] = [
+  'website_input',
+  'manual_enrichment',
+  'enrichment_loading',
+  'enrichment_result',
+  'skills_config',
+  'complete',
+];
 
 interface OnboardingV2Props {
   organizationId: string;
@@ -33,14 +46,32 @@ interface OnboardingV2Props {
 }
 
 export function OnboardingV2({ organizationId, domain, userEmail }: OnboardingV2Props) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     currentStep,
     domain: storeDomain,
     setOrganizationId,
     setDomain,
     setUserEmail,
+    setStep,
     startEnrichment,
   } = useOnboardingV2Store();
+
+  // Read step from URL on mount
+  useEffect(() => {
+    const urlStep = searchParams.get('step') as OnboardingV2Step | null;
+    if (urlStep && VALID_STEPS.includes(urlStep)) {
+      setStep(urlStep);
+    }
+  }, []); // Only run on mount
+
+  // Sync store step changes to URL
+  useEffect(() => {
+    const urlStep = searchParams.get('step');
+    if (currentStep && currentStep !== urlStep) {
+      setSearchParams({ step: currentStep }, { replace: true });
+    }
+  }, [currentStep, searchParams, setSearchParams]);
 
   // Initialize store with organization data and detect email type
   useEffect(() => {

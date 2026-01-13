@@ -391,6 +391,17 @@ serve(async (req) => {
   }
 
   try {
+    // Verify cron secret (required for scheduled/automated calls)
+    const cronSecret = Deno.env.get('CRON_SECRET');
+    const providedSecret = req.headers.get('x-cron-secret');
+
+    if (cronSecret && providedSecret !== cronSecret) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: valid CRON_SECRET required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error("Supabase credentials not configured");
     }

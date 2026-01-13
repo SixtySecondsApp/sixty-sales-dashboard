@@ -9,7 +9,8 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { hmacSha256Hex } from '../_shared/signing';
+import { hmacSha256Hex } from '../lib/signing';
+import { withOtel } from '../lib/withOtel';
 
 function getHeader(req: VercelRequest, name: string): string | null {
   const v = (req.headers as any)[name.toLowerCase()];
@@ -38,7 +39,7 @@ async function readRawBody(req: VercelRequest): Promise<string> {
   return JSON.stringify((req as any).body ?? {});
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -164,3 +165,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
+
+export default withOtel('api.webhooks.fathom', handler);

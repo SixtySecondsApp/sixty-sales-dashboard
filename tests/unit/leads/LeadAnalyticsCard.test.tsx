@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
+import { BrowserRouter } from 'react-router-dom';
 import { LeadAnalyticsCard } from '@/components/leads/LeadAnalyticsCard';
 
 vi.mock('@/lib/hooks/useLeadAnalytics', () => ({
@@ -28,7 +29,11 @@ vi.mock('@/lib/hooks/useLeadAnalytics', () => ({
 
 describe('LeadAnalyticsCard', () => {
   it('renders lead analytics rows with conversion percentage', () => {
-    render(<LeadAnalyticsCard />);
+    render(
+      <BrowserRouter>
+        <LeadAnalyticsCard />
+      </BrowserRouter>
+    );
 
     expect(screen.getByText('Marketing Website')).toBeInTheDocument();
     expect(screen.getByText('website')).toBeInTheDocument();

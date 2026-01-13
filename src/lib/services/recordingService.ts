@@ -102,7 +102,7 @@ class RecordingService {
         return { success: false, error: 'Not authenticated' };
       }
 
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
       const response = await fetch(`${supabaseUrl}/functions/v1/deploy-recording-bot`, {
         method: 'POST',
         headers: {
@@ -312,7 +312,7 @@ class RecordingService {
         return { success: false, error: 'Not authenticated' };
       }
 
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
       const response = await fetch(
         `${supabaseUrl}/functions/v1/get-recording-url?recording_id=${recordingId}`,
         {

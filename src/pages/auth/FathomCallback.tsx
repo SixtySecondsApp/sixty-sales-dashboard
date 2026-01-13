@@ -51,11 +51,30 @@ export default function FathomCallback() {
           }
         );
         
+        // Log full response for debugging
+        console.log('Fathom OAuth response:', { data, functionError });
+
         if (functionError) {
           console.error('Fathom OAuth edge function error:', functionError);
-          throw new Error(functionError.message || `Failed to complete OAuth flow: ${JSON.stringify(functionError)}`);
+          console.error('Fathom OAuth error data:', data);
+          // Extract detailed error info if available
+          const errorDetail = (data as any)?.error || functionError.message;
+          const debugInfo = (data as any)?.debug ? JSON.stringify((data as any).debug, null, 2) : '';
+          console.error('Fathom OAuth debug info:', debugInfo);
+          throw new Error(errorDetail || `Failed to complete OAuth flow: ${JSON.stringify(functionError)}`);
         }
-        
+
+        // Also check for error in data (in case non-2xx response)
+        if ((data as any)?.success === false || (data as any)?.error) {
+          console.error('Fathom OAuth returned error in data:', data);
+          const errorDetail = (data as any)?.error || 'Unknown error from edge function';
+          const debugStep = (data as any)?.debugStep || 'unknown';
+          const debugInfo = (data as any)?.debug ? JSON.stringify((data as any).debug, null, 2) : '';
+          console.error('Fathom OAuth FAILED at step:', debugStep);
+          console.error('Fathom OAuth debug info:', debugInfo);
+          throw new Error(`[${debugStep}] ${errorDetail}`);
+        }
+
         setStatus('success');
 
         // Check if we're in a popup window (multiple detection methods)

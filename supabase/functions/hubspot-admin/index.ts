@@ -211,10 +211,10 @@ serve(async (req) => {
     const { data: syncState } = await svc.from('hubspot_org_sync_state').select('*').eq('org_id', orgId).maybeSingle()
     const { data: settingsRow } = await svc.from('hubspot_settings').select('settings').eq('org_id', orgId).maybeSingle()
 
-    const publicUrl = Deno.env.get('PUBLIC_URL') || Deno.env.get('FRONTEND_URL') || ''
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
     const webhookToken = integration?.webhook_token ? String(integration.webhook_token) : null
-    const webhookUrl = webhookToken && publicUrl
-      ? `${publicUrl.replace(/\/$/, '')}/api/webhooks/hubspot?token=${encodeURIComponent(webhookToken)}`
+    const webhookUrl = webhookToken && supabaseUrl
+      ? `${supabaseUrl.replace(/\/$/, '')}/functions/v1/hubspot-webhook?token=${encodeURIComponent(webhookToken)}`
       : null
 
     return new Response(

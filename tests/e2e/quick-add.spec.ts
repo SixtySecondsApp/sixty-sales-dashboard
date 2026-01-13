@@ -1,30 +1,46 @@
-import { test, expect, Page } from '@playwright/test';
+import { describe, test, expect as vitestExpect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { expect as playwrightExpect } from '../fixtures/playwright-assertions';
+import { setupPlaywriter, teardownPlaywriter } from '../fixtures/playwriter-setup';
+import type { Page } from 'playwright-core';
+
+const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || process.env.VITE_BASE_URL || 'http://localhost:5175';
 
 // Test utilities
 async function openQuickAdd(page: Page) {
   // Look for the Quick Add button/trigger (assumes there's a + button or similar)
   await page.click('[data-testid="quick-add-trigger"], .quick-add-trigger, button:has-text("Quick Add")');
-  await expect(page.locator('text=Quick Add')).toBeVisible();
+  await playwrightExpect(page.locator('text=Quick Add')).toBeVisible();
 }
 
 async function waitForToast(page: Page, message?: string) {
   if (message) {
-    await expect(page.locator('.sonner-toast, [data-sonner-toast]').filter({ hasText: message })).toBeVisible();
+    await playwrightExpect(page.locator('.sonner-toast, [data-sonner-toast]').filter({ hasText: message })).toBeVisible();
   } else {
-    await expect(page.locator('.sonner-toast, [data-sonner-toast]')).toBeVisible();
+    await playwrightExpect(page.locator('.sonner-toast, [data-sonner-toast]')).toBeVisible();
   }
 }
 
 async function navigateToDashboard(page: Page) {
   // Navigate to dashboard - adjust selector based on actual implementation
-  await page.goto('/dashboard');
+  await page.goto(`${BASE_URL}/dashboard`);
   await page.waitForLoadState('networkidle');
 }
 
-test.describe('Quick Add E2E Tests', () => {
-  test.beforeEach(async ({ page }) => {
+describe('Quick Add E2E Tests', () => {
+  let page: Page;
+
+  beforeAll(async () => {
+    const setup = await setupPlaywriter();
+    page = setup.page;
+  });
+
+  afterAll(async () => {
+    await teardownPlaywriter();
+  });
+
+  beforeEach(async () => {
     // Navigate to the application
-    await page.goto('/');
+    await page.goto(`${BASE_URL}/`);
     
     // Wait for app to load
     await page.waitForLoadState('networkidle');
@@ -33,8 +49,8 @@ test.describe('Quick Add E2E Tests', () => {
     // You may need to add authentication steps
   });
 
-  test.describe('Task Creation Workflow', () => {
-    test('should create a task and verify it appears on dashboard', async ({ page }) => {
+  describe('Task Creation Workflow', () => {
+    test('should create a task and verify it appears on dashboard', async () => {
       // Open Quick Add modal
       await openQuickAdd(page);
       
@@ -70,12 +86,12 @@ test.describe('Quick Add E2E Tests', () => {
       await navigateToDashboard(page);
       
       // Verify task appears in the list
-      await expect(page.locator('text=Follow up with new prospect')).toBeVisible();
-      await expect(page.locator('text=Alice Johnson')).toBeVisible();
-      await expect(page.locator('text=Johnson Enterprises')).toBeVisible();
+      await playwrightExpect(page.locator('text=Follow up with new prospect')).toBeVisible();
+      await playwrightExpect(page.locator('text=Alice Johnson')).toBeVisible();
+      await playwrightExpect(page.locator('text=Johnson Enterprises')).toBeVisible();
     });
 
-    test('should create urgent task with custom due date', async ({ page }) => {
+    test('should create urgent task with custom due date', async () => {
       await openQuickAdd(page);
       await page.click('text=Add Task');
       
@@ -102,12 +118,12 @@ test.describe('Quick Add E2E Tests', () => {
       
       // Verify on dashboard
       await navigateToDashboard(page);
-      await expect(page.locator('text=Urgent: Contract review needed')).toBeVisible();
+      await playwrightExpect(page.locator('text=Urgent: Contract review needed')).toBeVisible();
     });
   });
 
-  test.describe('Meeting Creation Workflow', () => {
-    test('should create a discovery meeting and verify activity', async ({ page }) => {
+  describe('Meeting Creation Workflow', () => {
+    test('should create a discovery meeting and verify activity', async () => {
       await openQuickAdd(page);
       await page.click('text=Add Meeting');
       
@@ -133,11 +149,11 @@ test.describe('Quick Add E2E Tests', () => {
       
       // Verify on dashboard - should appear in activities feed
       await navigateToDashboard(page);
-      await expect(page.locator('text=Sarah Wilson')).toBeVisible();
-      await expect(page.locator('text=Discovery')).toBeVisible();
+      await playwrightExpect(page.locator('text=Sarah Wilson')).toBeVisible();
+      await playwrightExpect(page.locator('text=Discovery')).toBeVisible();
     });
 
-    test('should create scheduled demo meeting', async ({ page }) => {
+    test('should create scheduled demo meeting', async () => {
       await openQuickAdd(page);
       await page.click('text=Add Meeting');
       
@@ -153,24 +169,24 @@ test.describe('Quick Add E2E Tests', () => {
       await waitForToast(page, 'Activity added successfully');
       
       await navigateToDashboard(page);
-      await expect(page.locator('text=Tech Startup Inc')).toBeVisible();
-      await expect(page.locator('text=Demo')).toBeVisible();
+      await playwrightExpect(page.locator('text=Tech Startup Inc')).toBeVisible();
+      await playwrightExpect(page.locator('text=Demo')).toBeVisible();
     });
   });
 
-  test.describe('Proposal Creation Workflow', () => {
-    test('should create proposal with deal and verify LTV calculation', async ({ page }) => {
+  describe('Proposal Creation Workflow', () => {
+    test('should create proposal with deal and verify LTV calculation', async () => {
       await openQuickAdd(page);
       await page.click('text=Add Proposal');
       
       // Deal Wizard should open
-      await expect(page.locator('[data-testid="deal-wizard"], text=DealWizard')).toBeVisible();
+      await playwrightExpect(page.locator('[data-testid="deal-wizard"], text=DealWizard')).toBeVisible();
       
       // Create deal through wizard (simplified - may need more steps)
       await page.click('button:has-text("Create Deal")');
       
       // Should return to proposal form with deal selected
-      await expect(page.locator('input:near(label:text("Prospect Name"))')).toBeVisible();
+      await playwrightExpect(page.locator('input:near(label:text("Prospect Name"))')).toBeVisible();
       
       await page.fill('input:near(label:text("Prospect Name"))', 'Big Enterprise Corp');
       await page.fill('[data-testid="identifier-field"]', 'procurement@bigenterprise.com');
@@ -180,7 +196,7 @@ test.describe('Quick Add E2E Tests', () => {
       await page.fill('input:near(label:text("Monthly Recurring Revenue"))', '2000');
       
       // Verify LTV calculation display (2000 * 3 + 10000 = 16000)
-      await expect(page.locator('text=£16,000')).toBeVisible();
+      await playwrightExpect(page.locator('text=£16,000')).toBeVisible();
       
       // Submit proposal
       await page.click('button:has-text("Add Proposal")');
@@ -188,28 +204,28 @@ test.describe('Quick Add E2E Tests', () => {
       
       // Verify on dashboard
       await navigateToDashboard(page);
-      await expect(page.locator('text=Big Enterprise Corp')).toBeVisible();
-      await expect(page.locator('text=£16,000')).toBeVisible();
+      await playwrightExpect(page.locator('text=Big Enterprise Corp')).toBeVisible();
+      await playwrightExpect(page.locator('text=£16,000')).toBeVisible();
     });
 
-    test('should require deal for proposal creation', async ({ page }) => {
+    test('should require deal for proposal creation', async () => {
       await openQuickAdd(page);
       await page.click('text=Add Proposal');
       
       // Deal Wizard opens
-      await expect(page.locator('[data-testid="deal-wizard"]')).toBeVisible();
+      await playwrightExpect(page.locator('[data-testid="deal-wizard"]')).toBeVisible();
       
       // Cancel deal creation
       await page.click('button:has-text("Cancel")');
       
       // Should return to main action selection
-      await expect(page.locator('text=Create Deal')).toBeVisible();
-      await expect(page.locator('text=Add Task')).toBeVisible();
+      await playwrightExpect(page.locator('text=Create Deal')).toBeVisible();
+      await playwrightExpect(page.locator('text=Add Task')).toBeVisible();
     });
   });
 
-  test.describe('Sales Creation Workflow', () => {
-    test('should create subscription sale and auto-create deal', async ({ page }) => {
+  describe('Sales Creation Workflow', () => {
+    test('should create subscription sale and auto-create deal', async () => {
       await openQuickAdd(page);
       await page.click('text=Add Sale');
       
@@ -225,7 +241,7 @@ test.describe('Quick Add E2E Tests', () => {
       await page.fill('input:near(label:text("Monthly Recurring Revenue"))', '1500');
       
       // Verify calculation (1500 * 3 = 4500)
-      await expect(page.locator('text=£4,500')).toBeVisible();
+      await playwrightExpect(page.locator('text=£4,500')).toBeVisible();
       
       // Submit sale
       await page.click('button:has-text("Add Sale")');
@@ -233,19 +249,19 @@ test.describe('Quick Add E2E Tests', () => {
       
       // Verify on dashboard
       await navigateToDashboard(page);
-      await expect(page.locator('text=Happy Customer Ltd')).toBeVisible();
-      await expect(page.locator('text=£4,500')).toBeVisible();
+      await playwrightExpect(page.locator('text=Happy Customer Ltd')).toBeVisible();
+      await playwrightExpect(page.locator('text=£4,500')).toBeVisible();
       
       // Should also create pipeline deal
       // Navigate to pipeline view if available
       const pipelineLink = page.locator('a:has-text("Pipeline"), button:has-text("Pipeline")');
       if (await pipelineLink.isVisible()) {
         await pipelineLink.click();
-        await expect(page.locator('text=Happy Customer Ltd')).toBeVisible();
+        await playwrightExpect(page.locator('text=Happy Customer Ltd')).toBeVisible();
       }
     });
 
-    test('should create one-off sale with proper calculation', async ({ page }) => {
+    test('should create one-off sale with proper calculation', async () => {
       await openQuickAdd(page);
       await page.click('text=Add Sale');
       
@@ -259,18 +275,18 @@ test.describe('Quick Add E2E Tests', () => {
       await page.fill('input:near(label:text("One-off Revenue"))', '8500');
       
       // Total should just be the one-off amount
-      await expect(page.locator('text=£8,500')).toBeVisible();
+      await playwrightExpect(page.locator('text=£8,500')).toBeVisible();
       
       await page.click('button:has-text("Add Sale")');
       await waitForToast(page, 'Sale added successfully! 🎉');
       
       await navigateToDashboard(page);
-      await expect(page.locator('text=One Time Project')).toBeVisible();
+      await playwrightExpect(page.locator('text=One Time Project')).toBeVisible();
     });
   });
 
-  test.describe('Outbound Activities Workflow', () => {
-    test('should create LinkedIn outbound with quantity', async ({ page }) => {
+  describe('Outbound Activities Workflow', () => {
+    test('should create LinkedIn outbound with quantity', async () => {
       await openQuickAdd(page);
       await page.click('text=Add Outbound');
       
@@ -287,11 +303,11 @@ test.describe('Quick Add E2E Tests', () => {
       await waitForToast(page, 'Activity added successfully');
       
       await navigateToDashboard(page);
-      await expect(page.locator('text=Multiple LinkedIn Prospects')).toBeVisible();
-      await expect(page.locator('text=LinkedIn')).toBeVisible();
+      await playwrightExpect(page.locator('text=Multiple LinkedIn Prospects')).toBeVisible();
+      await playwrightExpect(page.locator('text=LinkedIn')).toBeVisible();
     });
 
-    test('should create email outbound without identifier', async ({ page }) => {
+    test('should create email outbound without identifier', async () => {
       await openQuickAdd(page);
       await page.click('text=Add Outbound');
       
@@ -304,17 +320,17 @@ test.describe('Quick Add E2E Tests', () => {
       await waitForToast(page, 'Activity added successfully');
       
       await navigateToDashboard(page);
-      await expect(page.locator('text=Cold Email Prospect')).toBeVisible();
+      await playwrightExpect(page.locator('text=Cold Email Prospect')).toBeVisible();
     });
   });
 
-  test.describe('Deal Creation Through Wizard', () => {
-    test('should create deal directly via wizard', async ({ page }) => {
+  describe('Deal Creation Through Wizard', () => {
+    test('should create deal directly via wizard', async () => {
       await openQuickAdd(page);
       await page.click('text=Create Deal');
       
       // Deal Wizard opens
-      await expect(page.locator('[data-testid="deal-wizard"]')).toBeVisible();
+      await playwrightExpect(page.locator('[data-testid="deal-wizard"]')).toBeVisible();
       
       // Create deal
       await page.click('button:has-text("Create Deal")');
@@ -322,19 +338,19 @@ test.describe('Quick Add E2E Tests', () => {
       await waitForToast(page, 'Deal created successfully!');
       
       // Should close modal and return to main view
-      await expect(page.locator('text=Quick Add')).not.toBeVisible();
+      await playwrightExpect(page.locator('text=Quick Add')).toBeHidden();
       
       // Navigate to pipeline to verify deal creation
       const pipelineLink = page.locator('a:has-text("Pipeline"), button:has-text("Pipeline")');
       if (await pipelineLink.isVisible()) {
         await pipelineLink.click();
-        await expect(page.locator('text=Test Company')).toBeVisible(); // From mocked deal
+        await playwrightExpect(page.locator('text=Test Company')).toBeVisible(); // From mocked deal
       }
     });
   });
 
-  test.describe('Validation and Error Handling', () => {
-    test('should show validation error for empty task title', async ({ page }) => {
+  describe('Validation and Error Handling', () => {
+    test('should show validation error for empty task title', async () => {
       await openQuickAdd(page);
       await page.click('text=Add Task');
       
@@ -343,10 +359,10 @@ test.describe('Quick Add E2E Tests', () => {
       
       // Should show validation message or stay on form
       // Task should not be created
-      await expect(page.locator('text=Please enter a task title')).toBeVisible();
+      await playwrightExpect(page.locator('text=Please enter a task title')).toBeVisible();
     });
 
-    test('should show validation error for meeting without type', async ({ page }) => {
+    test('should show validation error for meeting without type', async () => {
       await openQuickAdd(page);
       await page.click('text=Add Meeting');
       
@@ -357,10 +373,10 @@ test.describe('Quick Add E2E Tests', () => {
       await page.click('button:has-text("Add Meeting")');
       
       // Should show validation error
-      await expect(page.locator('text=Please select a meeting type')).toBeVisible();
+      await playwrightExpect(page.locator('text=Please select a meeting type')).toBeVisible();
     });
 
-    test('should require contact identifier for non-outbound activities', async ({ page }) => {
+    test('should require contact identifier for non-outbound activities', async () => {
       await openQuickAdd(page);
       await page.click('text=Add Meeting');
       
@@ -371,12 +387,12 @@ test.describe('Quick Add E2E Tests', () => {
       await page.click('button:has-text("Add Meeting")');
       
       // Should show validation error
-      await expect(page.locator('text=Please provide a contact identifier')).toBeVisible();
+      await playwrightExpect(page.locator('text=Please provide a contact identifier')).toBeVisible();
     });
   });
 
-  test.describe('Integration Between Activities and Pipeline', () => {
-    test('should link meeting to existing deal', async ({ page }) => {
+  describe('Integration Between Activities and Pipeline', () => {
+    test('should link meeting to existing deal', async () => {
       // First create a deal
       await openQuickAdd(page);
       await page.click('text=Create Deal');
@@ -402,13 +418,13 @@ test.describe('Quick Add E2E Tests', () => {
       
       // Verify both activity and deal linkage exist
       await navigateToDashboard(page);
-      await expect(page.locator('text=Linked Meeting Client')).toBeVisible();
-      await expect(page.locator('text=Follow-up')).toBeVisible();
+      await playwrightExpect(page.locator('text=Linked Meeting Client')).toBeVisible();
+      await playwrightExpect(page.locator('text=Follow-up')).toBeVisible();
     });
   });
 
-  test.describe('Modal State Management', () => {
-    test('should reset form when modal is closed and reopened', async ({ page }) => {
+  describe('Modal State Management', () => {
+    test('should reset form when modal is closed and reopened', async () => {
       await openQuickAdd(page);
       await page.click('text=Add Task');
       
@@ -424,22 +440,22 @@ test.describe('Quick Add E2E Tests', () => {
       
       // Form should be reset
       const titleInput = page.locator('input[placeholder*="Call John"]');
-      await expect(titleInput).toHaveValue('');
+      await playwrightExpect(titleInput).toHaveValue('');
     });
 
-    test('should navigate back to action selection from task form', async ({ page }) => {
+    test('should navigate back to action selection from task form', async () => {
       await openQuickAdd(page);
       await page.click('text=Add Task');
       
       // Should see task form
-      await expect(page.locator('text=Create New Task')).toBeVisible();
+      await playwrightExpect(page.locator('text=Create New Task')).toBeVisible();
       
       // Click back/cancel
       await page.click('button:has-text("Cancel")');
       
       // Should see action selection again
-      await expect(page.locator('text=Create Deal')).toBeVisible();
-      await expect(page.locator('text=Add Task')).toBeVisible();
+      await playwrightExpect(page.locator('text=Create Deal')).toBeVisible();
+      await playwrightExpect(page.locator('text=Add Task')).toBeVisible();
     });
   });
 });

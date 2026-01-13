@@ -1,9 +1,25 @@
-import { test, expect } from '@playwright/test';
+import { describe, test, expect as vitestExpect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { expect as playwrightExpect } from '../fixtures/playwright-assertions';
+import { setupPlaywriter, teardownPlaywriter } from '../fixtures/playwriter-setup';
+import type { Page } from 'playwright-core';
 
-test.describe('Quick Add Basic Functionality', () => {
-  test.beforeEach(async ({ page }) => {
+const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || process.env.VITE_BASE_URL || 'http://localhost:5175';
+
+describe('Quick Add Basic Functionality', () => {
+  let page: Page;
+
+  beforeAll(async () => {
+    const setup = await setupPlaywriter();
+    page = setup.page;
+  });
+
+  afterAll(async () => {
+    await teardownPlaywriter();
+  });
+
+  beforeEach(async () => {
     // Navigate to the app
-    await page.goto('http://localhost:5173');
+    await page.goto(BASE_URL);
     
     // Check if we need to login
     const isLoginPage = await page.locator('text=/Sign in|Login/i').isVisible().catch(() => false);
@@ -19,7 +35,7 @@ test.describe('Quick Add Basic Functionality', () => {
     }
   });
 
-  test('should open Quick Add modal and display all action buttons', async ({ page }) => {
+  test('should open Quick Add modal and display all action buttons', async () => {
     // Look for Quick Add button (Plus icon button)
     const quickAddButton = page.locator('button').filter({ has: page.locator('svg.lucide-plus') }).first();
     
@@ -30,15 +46,15 @@ test.describe('Quick Add Basic Functionality', () => {
     await page.waitForSelector('[role="dialog"], .fixed.inset-0', { timeout: 5000 });
     
     // Verify all quick action buttons are visible
-    await expect(page.locator('text=Create Deal')).toBeVisible();
-    await expect(page.locator('text=Add Task')).toBeVisible();
-    await expect(page.locator('text=Add Sale')).toBeVisible();
-    await expect(page.locator('text=Add Outbound')).toBeVisible();
-    await expect(page.locator('text=Add Meeting')).toBeVisible();
-    await expect(page.locator('text=Add Proposal')).toBeVisible();
+    await playwrightExpect(page.locator('text=Create Deal')).toBeVisible();
+    await playwrightExpect(page.locator('text=Add Task')).toBeVisible();
+    await playwrightExpect(page.locator('text=Add Sale')).toBeVisible();
+    await playwrightExpect(page.locator('text=Add Outbound')).toBeVisible();
+    await playwrightExpect(page.locator('text=Add Meeting')).toBeVisible();
+    await playwrightExpect(page.locator('text=Add Proposal')).toBeVisible();
   });
 
-  test('should create a task successfully', async ({ page }) => {
+  test('should create a task successfully', async () => {
     // Open Quick Add modal
     const quickAddButton = page.locator('button').filter({ has: page.locator('svg.lucide-plus') }).first();
     await quickAddButton.click();
@@ -70,7 +86,7 @@ test.describe('Quick Add Basic Functionality', () => {
     ]);
   });
 
-  test('should open DealWizard and show contact search automatically', async ({ page }) => {
+  test('should open DealWizard and show contact search automatically', async () => {
     // Open Quick Add modal
     const quickAddButton = page.locator('button').filter({ has: page.locator('svg.lucide-plus') }).first();
     await quickAddButton.click();
@@ -100,10 +116,10 @@ test.describe('Quick Add Basic Functionality', () => {
       }
     }
     
-    expect(foundContactSearch).toBeTruthy();
+    vitestExpect(foundContactSearch).toBeTruthy();
   });
 
-  test('should create an outbound activity', async ({ page }) => {
+  test('should create an outbound activity', async () => {
     // Open Quick Add modal
     const quickAddButton = page.locator('button').filter({ has: page.locator('svg.lucide-plus') }).first();
     await quickAddButton.click();
@@ -120,7 +136,7 @@ test.describe('Quick Add Basic Functionality', () => {
     // Select outbound type if dropdown exists
     const typeSelector = page.locator('select, button:has-text("Call")').first();
     if (await typeSelector.isVisible()) {
-      if (typeSelector.tagName === 'SELECT') {
+      if (await typeSelector.evaluate(el => el.tagName === 'SELECT')) {
         await typeSelector.selectOption('LinkedIn');
       } else {
         await typeSelector.click();

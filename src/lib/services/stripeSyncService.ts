@@ -12,7 +12,7 @@ import type {
 } from '@/lib/types/subscription';
 import logger from '@/lib/utils/logger';
 
-const EDGE_FUNCTION_BASE = import.meta.env.VITE_SUPABASE_URL + '/functions/v1';
+const EDGE_FUNCTION_BASE = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL) + '/functions/v1';
 
 // ============================================================================
 // Stripe Product/Price Management

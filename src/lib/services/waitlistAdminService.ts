@@ -262,7 +262,7 @@ export async function bulkGrantAccess(
             
             return supabase.functions.invoke('encharge-send-email', {
               body: {
-                template_type: 'magic_link_waitlist',
+                template_type: 'waitlist_welcome',
                 to_email: entry.email,
                 to_name: firstName,
                 variables: {
@@ -384,7 +384,7 @@ export async function resendMagicLink(
     try {
       const emailResponse = await supabase.functions.invoke('encharge-send-email', {
         body: {
-          template_type: 'magic_link_waitlist',
+          template_type: 'waitlist_welcome',
           to_email: entry.email,
           to_name: firstName,
           variables: {

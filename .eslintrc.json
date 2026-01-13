@@ -11,7 +11,11 @@
     "sourceType": "module",
     "ecmaFeatures": {
       "jsx": true
-    }
+    },
+    "project": [
+      "./tsconfig.json",
+      "./api/tsconfig.json"
+    ]
   },
   "plugins": [
     "react",

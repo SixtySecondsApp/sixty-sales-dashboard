@@ -1,20 +1,25 @@
-import { defineConfig, devices } from '@playwright/test';
+// NOTE: This config file is deprecated - we now use playwriter MCP with vitest
+// Kept for reference only. Tests are now run via vitest with playwriter setup.
+// See tests/fixtures/playwriter-setup.ts for the new setup
+
 import dotenv from 'dotenv';
 
 // Load staging test environment variables
 dotenv.config({ path: '.env.test.staging' });
 
 /**
- * Playwright configuration for STAGING environment
+ * @deprecated - Use vitest with playwriter instead
+ * @see tests/fixtures/playwriter-setup.ts for new setup
+ * 
+ * Playwriter configuration for STAGING environment
  *
  * Strategy: Run local Vite dev server connected to STAGING Supabase backend
  * This bypasses Vercel's SSO protection on preview deployments while still
  * testing against the staging database and edge functions.
  *
- * Run with: npx playwright test --config=playwright.staging.config.ts
- * Or: npm run test:e2e:staging
+ * Run with: npm run test:e2e:staging
  */
-export default defineConfig({
+export default {
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

@@ -154,8 +154,12 @@ export const errorScenarios = {
 };
 
 export const testEnvironment = {
-  baseUrl: 'http://127.0.0.1:5173',
-  apiUrl: 'http://127.0.0.1:5173/api',
+  baseUrl: process.env.NODE_ENV === 'staging'
+    ? 'https://staging.use60.com'
+    : 'http://127.0.0.1:5175',
+  apiUrl: process.env.NODE_ENV === 'staging'
+    ? 'https://staging.use60.com/api'
+    : 'http://127.0.0.1:5175/api',
   timeout: {
     short: 5000,
     medium: 15000,

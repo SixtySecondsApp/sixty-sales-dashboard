@@ -1,6 +1,11 @@
-import { test, expect, Page } from '@playwright/test';
+import { describe, test, expect as vitestExpect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { expect as playwrightExpect } from '../fixtures/playwright-assertions';
+import { setupPlaywriter, teardownPlaywriter } from '../fixtures/playwriter-setup';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import type { Page } from 'playwright-core';
+
+const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || process.env.VITE_BASE_URL || 'http://localhost:5175';
 
 /**
  * E2E Tests for Version Update Workflow
@@ -13,7 +18,8 @@ import { join } from 'path';
  * 5. Update process completes successfully
  */
 
-test.describe('Version Update Workflow - E2E Tests', () => {
+describe('Version Update Workflow - E2E Tests', () => {
+  let page: Page;
   // Mock data for testing
   const currentVersion = {
     buildId: 'build-2025-08-28T19-32-36-v1.0.2',
@@ -43,8 +49,17 @@ test.describe('Version Update Workflow - E2E Tests', () => {
     }
   ];
 
+  beforeAll(async () => {
+    const setup = await setupPlaywriter();
+    page = setup.page;
+  });
+
+  afterAll(async () => {
+    await teardownPlaywriter();
+  });
+
   // Helper function to setup version endpoint mocking
-  const setupVersionMocking = async (page: Page, hasUpdate = false) => {
+  const setupVersionMocking = async (hasUpdate = false) => {
     const versionToReturn = hasUpdate ? newVersion : currentVersion;
     
     await page.route('/version.json', async (route) => {
@@ -74,74 +89,74 @@ test.describe('Version Update Workflow - E2E Tests', () => {
     });
   };
 
-  test.beforeEach(async ({ page }) => {
+  beforeEach(async () => {
     // Set longer timeout for version checks
     page.setDefaultTimeout(10000);
   });
 
-  test.describe('Happy Path Scenarios', () => {
-    test('User visits Roadmap page and sees current version', async ({ page }) => {
+  describe('Happy Path Scenarios', () => {
+    test('User visits Roadmap page and sees current version', async () => {
       // Setup: Mock version endpoint to return current version (no update)
-      await setupVersionMocking(page, false);
+      await setupVersionMocking(false);
 
       // Navigate to Roadmap page
-      await page.goto('/roadmap');
+      await page.goto(`${BASE_URL}/roadmap`);
       await page.waitForLoadState('networkidle');
 
       // Verify current version is displayed
-      await expect(page.getByText('Current Version')).toBeVisible();
-      await expect(page.getByText('v1.0.2')).toBeVisible();
-      await expect(page.getByText('Current', { exact: true })).toBeVisible();
+      await playwrightExpect(page.getByText('Current Version')).toBeVisible();
+      await playwrightExpect(page.getByText('v1.0.2')).toBeVisible();
+      await playwrightExpect(page.getByText('Current', { exact: true })).toBeVisible();
 
       // Verify current release notes are shown
-      await expect(page.getByText('🎉 Previous release with enhanced user experience')).toBeVisible();
+      await playwrightExpect(page.getByText('🎉 Previous release with enhanced user experience')).toBeVisible();
 
       // Verify no update banner is shown
-      await expect(page.getByText('New Version Available')).not.toBeVisible();
-      await expect(page.getByText('Update Now')).not.toBeVisible();
+      await playwrightExpect(page.getByText('New Version Available')).toBeHidden();
+      await playwrightExpect(page.getByText('Update Now')).toBeHidden();
 
       // Verify loading state eventually disappears
-      await expect(page.getByText('Checking for updates...')).not.toBeVisible({ timeout: 5000 });
+      await playwrightExpect(page.getByText('Checking for updates...')).toBeHidden({ timeout: 5000 });
     });
 
-    test('New version becomes available and update banner appears', async ({ page }) => {
+    test('New version becomes available and update banner appears', async () => {
       // Setup: Mock version endpoint to return newer version
-      await setupVersionMocking(page, true);
+      await setupVersionMocking(true);
 
       // Navigate to Roadmap page
-      await page.goto('/roadmap');
+      await page.goto(`${BASE_URL}/roadmap`);
       await page.waitForLoadState('networkidle');
 
       // Wait for version check to complete
       await page.waitForTimeout(2000);
 
       // Verify update banner appears
-      await expect(page.getByText('New Version Available')).toBeVisible();
-      await expect(page.getByText('v1.0.3')).toBeVisible();
-      await expect(page.getByText('Update Now')).toBeVisible();
+      await playwrightExpect(page.getByText('New Version Available')).toBeVisible();
+      await playwrightExpect(page.getByText('v1.0.3')).toBeVisible();
+      await playwrightExpect(page.getByText('Update Now')).toBeVisible();
 
       // Verify new release notes in banner
-      await expect(page.getByText('🚀 New version with updated features and performance improvements')).toBeVisible();
-      await expect(page.getByText('Released Aug 28, 2025, 08:00 PM')).toBeVisible();
+      await playwrightExpect(page.getByText('🚀 New version with updated features and performance improvements')).toBeVisible();
+      await playwrightExpect(page.getByText('Released Aug 28, 2025, 08:00 PM')).toBeVisible();
 
       // Verify current version section shows update available
-      await expect(page.getByText('Current Version')).toBeVisible();
-      await expect(page.getByText('Update Available')).toBeVisible();
+      await playwrightExpect(page.getByText('Current Version')).toBeVisible();
+      await playwrightExpect(page.getByText('Update Available')).toBeVisible();
 
       // Verify sparkles icon in update banner
-      await expect(page.locator('[data-lucide="sparkles"]')).toBeVisible();
+      await playwrightExpect(page.locator('[data-lucide="sparkles"]')).toBeVisible();
     });
 
-    test('User clicks Update now and update process completes', async ({ page }) => {
+    test('User clicks Update now and update process completes', async () => {
       // Setup: Mock version endpoint to return newer version
-      await setupVersionMocking(page, true);
+      await setupVersionMocking(true);
 
       // Navigate to Roadmap page
-      await page.goto('/roadmap');
+      await page.goto(`${BASE_URL}/roadmap`);
       await page.waitForLoadState('networkidle');
 
       // Wait for update banner to appear
-      await expect(page.getByText('New Version Available')).toBeVisible();
+      await playwrightExpect(page.getByText('New Version Available')).toBeVisible();
 
       // Mock window.location.reload to prevent actual reload in tests
       await page.addInitScript(() => {
@@ -167,82 +182,82 @@ test.describe('Version Update Workflow - E2E Tests', () => {
       await updateButton.click();
 
       // Verify loading state appears
-      await expect(page.getByText('Updating...')).toBeVisible();
-      await expect(page.locator('[data-lucide="refresh-cw"].animate-spin')).toBeVisible();
+      await playwrightExpect(page.getByText('Updating...')).toBeVisible();
+      await playwrightExpect(page.locator('[data-lucide="refresh-cw"].animate-spin')).toBeVisible();
 
       // Wait for update process to complete
       await page.waitForTimeout(2000);
 
       // Verify that reload was called
       const reloadCalled = await page.evaluate(() => (window as any).__reloadCalled);
-      expect(reloadCalled).toBe(true);
+      vitestExpect(reloadCalled).toBe(true);
     });
 
-    test('User can dismiss update banner', async ({ page }) => {
+    test('User can dismiss update banner', async () => {
       // Setup: Mock version endpoint to return newer version
-      await setupVersionMocking(page, true);
+      await setupVersionMocking(true);
 
       // Navigate to Roadmap page
-      await page.goto('/roadmap');
+      await page.goto(`${BASE_URL}/roadmap`);
       await page.waitForLoadState('networkidle');
 
       // Wait for update banner to appear
-      await expect(page.getByText('New Version Available')).toBeVisible();
+      await playwrightExpect(page.getByText('New Version Available')).toBeVisible();
 
       // Click dismiss button (X button)
       const dismissButton = page.locator('button').filter({ has: page.locator('[data-lucide="x"]') });
       await dismissButton.click();
 
       // Verify update banner disappears
-      await expect(page.getByText('New Version Available')).not.toBeVisible({ timeout: 2000 });
+      await playwrightExpect(page.getByText('New Version Available')).toBeHidden({ timeout: 2000 });
 
       // Verify current version section still shows "Update Available" badge
-      await expect(page.getByText('Update Available')).toBeVisible();
+      await playwrightExpect(page.getByText('Update Available')).toBeVisible();
     });
 
-    test('User can expand and view release history', async ({ page }) => {
+    test('User can expand and view release history', async () => {
       // Setup: Mock version endpoint
-      await setupVersionMocking(page, true);
+      await setupVersionMocking(true);
 
       // Navigate to Roadmap page
-      await page.goto('/roadmap');
+      await page.goto(`${BASE_URL}/roadmap`);
       await page.waitForLoadState('networkidle');
 
       // Verify release history is not visible initially
-      await expect(page.getByText('Release History')).not.toBeVisible();
+      await playwrightExpect(page.getByText('Release History')).toBeHidden();
 
       // Click expand button (chevron down)
       const expandButton = page.locator('button').filter({ has: page.locator('[data-lucide="chevron-down"]') });
       await expandButton.click();
 
       // Verify release history appears
-      await expect(page.getByText('Release History')).toBeVisible();
+      await playwrightExpect(page.getByText('Release History')).toBeVisible();
 
       // Verify all releases are shown
-      await expect(page.getByText('v1.0.3')).toBeVisible();
-      await expect(page.getByText('Available')).toBeVisible(); // New version badge
+      await playwrightExpect(page.getByText('v1.0.3')).toBeVisible();
+      await playwrightExpect(page.getByText('Available')).toBeVisible(); // New version badge
       
-      await expect(page.getByText('v1.0.2')).toBeVisible();
-      await expect(page.getByText('Current')).toBeVisible(); // Current version badge
+      await playwrightExpect(page.getByText('v1.0.2')).toBeVisible();
+      await playwrightExpect(page.getByText('Current')).toBeVisible(); // Current version badge
       
-      await expect(page.getByText('v1.0.1')).toBeVisible();
+      await playwrightExpect(page.getByText('v1.0.1')).toBeVisible();
 
       // Verify release notes in history
-      await expect(page.getByText('🚀 New version with updated features and performance improvements')).toBeVisible();
-      await expect(page.getByText('🎉 Previous release with enhanced user experience')).toBeVisible();
-      await expect(page.getByText('🐛 Bug fixes and stability improvements')).toBeVisible();
+      await playwrightExpect(page.getByText('🚀 New version with updated features and performance improvements')).toBeVisible();
+      await playwrightExpect(page.getByText('🎉 Previous release with enhanced user experience')).toBeVisible();
+      await playwrightExpect(page.getByText('🐛 Bug fixes and stability improvements')).toBeVisible();
 
       // Click collapse button (chevron up)
       const collapseButton = page.locator('button').filter({ has: page.locator('[data-lucide="chevron-up"]') });
       await collapseButton.click();
 
       // Verify release history is hidden again
-      await expect(page.getByText('Release History')).not.toBeVisible();
+      await playwrightExpect(page.getByText('Release History')).toBeHidden();
     });
   });
 
-  test.describe('Error Scenarios', () => {
-    test('Should handle version fetch errors gracefully', async ({ page }) => {
+  describe('Error Scenarios', () => {
+    test('Should handle version fetch errors gracefully', async () => {
       // Mock version endpoint to return error
       await page.route('/version.json', async (route) => {
         await route.fulfill({
@@ -262,25 +277,25 @@ test.describe('Version Update Workflow - E2E Tests', () => {
       });
 
       // Navigate to Roadmap page
-      await page.goto('/roadmap');
+      await page.goto(`${BASE_URL}/roadmap`);
       await page.waitForLoadState('networkidle');
 
       // Component should not render when there's an error
       await page.waitForTimeout(3000);
-      await expect(page.getByText('Current Version')).not.toBeVisible();
-      await expect(page.getByText('New Version Available')).not.toBeVisible();
+      await playwrightExpect(page.getByText('Current Version')).toBeHidden();
+      await playwrightExpect(page.getByText('New Version Available')).toBeHidden();
     });
 
-    test('Should handle update process failures', async ({ page }) => {
+    test('Should handle update process failures', async () => {
       // Setup: Mock version endpoint to return newer version
-      await setupVersionMocking(page, true);
+      await setupVersionMocking(true);
 
       // Navigate to Roadmap page
-      await page.goto('/roadmap');
+      await page.goto(`${BASE_URL}/roadmap`);
       await page.waitForLoadState('networkidle');
 
       // Wait for update banner to appear
-      await expect(page.getByText('New Version Available')).toBeVisible();
+      await playwrightExpect(page.getByText('New Version Available')).toBeVisible();
 
       // Mock cache clearing to fail
       await page.addInitScript(() => {
@@ -318,14 +333,14 @@ test.describe('Version Update Workflow - E2E Tests', () => {
 
       // Verify error toast was called
       const toastCalls = await page.evaluate(() => (window as any).mockToastCalls);
-      expect(toastCalls.some((call: any) => call.type === 'error')).toBe(true);
+      vitestExpect(toastCalls.some((call: any) => call.type === 'error')).toBe(true);
 
       // Verify button returns to normal state
-      await expect(page.getByText('Update Now')).toBeVisible();
-      await expect(page.getByText('Updating...')).not.toBeVisible();
+      await playwrightExpect(page.getByText('Update Now')).toBeVisible();
+      await playwrightExpect(page.getByText('Updating...')).toBeHidden();
     });
 
-    test('Should handle network timeouts gracefully', async ({ page }) => {
+    test('Should handle network timeouts gracefully', async () => {
       // Mock version endpoint with delayed response
       await page.route('/version.json', async (route) => {
         // Delay response by 10 seconds (longer than timeout)
@@ -338,52 +353,52 @@ test.describe('Version Update Workflow - E2E Tests', () => {
       });
 
       // Navigate to Roadmap page
-      await page.goto('/roadmap');
+      await page.goto(`${BASE_URL}/roadmap`);
       await page.waitForLoadState('networkidle');
 
       // Wait for timeout to occur
       await page.waitForTimeout(6000);
 
       // Component should handle timeout gracefully (not render)
-      await expect(page.getByText('Current Version')).not.toBeVisible();
+      await playwrightExpect(page.getByText('Current Version')).toBeHidden();
     });
   });
 
-  test.describe('Performance and Accessibility', () => {
-    test('Should meet performance requirements', async ({ page }) => {
+  describe('Performance and Accessibility', () => {
+    test('Should meet performance requirements', async () => {
       // Setup: Mock version endpoint
-      await setupVersionMocking(page, true);
+      await setupVersionMocking(true);
 
       // Navigate to Roadmap page and measure performance
       const startTime = Date.now();
-      await page.goto('/roadmap');
+      await page.goto(`${BASE_URL}/roadmap`);
       await page.waitForLoadState('networkidle');
 
       // Wait for version component to load
-      await expect(page.getByText('New Version Available')).toBeVisible();
+      await playwrightExpect(page.getByText('New Version Available')).toBeVisible();
       const loadTime = Date.now() - startTime;
 
       // Verify load time is reasonable (< 5 seconds)
-      expect(loadTime).toBeLessThan(5000);
+      vitestExpect(loadTime).toBeLessThan(5000);
 
       // Test animation performance
       const expandButton = page.locator('button').filter({ has: page.locator('[data-lucide="chevron-down"]') });
       await expandButton.click();
 
       // Verify smooth animation (release history should appear within 1 second)
-      await expect(page.getByText('Release History')).toBeVisible({ timeout: 1000 });
+      await playwrightExpect(page.getByText('Release History')).toBeVisible({ timeout: 1000 });
     });
 
-    test('Should be accessible via keyboard navigation', async ({ page }) => {
+    test('Should be accessible via keyboard navigation', async () => {
       // Setup: Mock version endpoint to return newer version
-      await setupVersionMocking(page, true);
+      await setupVersionMocking(true);
 
       // Navigate to Roadmap page
-      await page.goto('/roadmap');
+      await page.goto(`${BASE_URL}/roadmap`);
       await page.waitForLoadState('networkidle');
 
       // Wait for update banner to appear
-      await expect(page.getByText('New Version Available')).toBeVisible();
+      await playwrightExpect(page.getByText('New Version Available')).toBeVisible();
 
       // Use keyboard navigation to focus on Update Now button
       await page.keyboard.press('Tab');
@@ -394,48 +409,49 @@ test.describe('Version Update Workflow - E2E Tests', () => {
       await updateButton.focus();
       
       // Verify button is focused
-      await expect(updateButton).toBeFocused();
+      const isFocused = await updateButton.evaluate(el => el === document.activeElement);
+      vitestExpect(isFocused).toBe(true);
 
       // Press Enter to activate button
       await page.keyboard.press('Enter');
 
       // Verify loading state appears
-      await expect(page.getByText('Updating...')).toBeVisible();
+      await playwrightExpect(page.getByText('Updating...')).toBeVisible();
     });
 
-    test('Should have proper ARIA labels and roles', async ({ page }) => {
+    test('Should have proper ARIA labels and roles', async () => {
       // Setup: Mock version endpoint
-      await setupVersionMocking(page, true);
+      await setupVersionMocking(true);
 
       // Navigate to Roadmap page
-      await page.goto('/roadmap');
+      await page.goto(`${BASE_URL}/roadmap`);
       await page.waitForLoadState('networkidle');
 
       // Verify buttons have proper roles
-      await expect(page.getByRole('button', { name: 'Update Now' })).toBeVisible();
+      await playwrightExpect(page.getByRole('button', { name: 'Update Now' })).toBeVisible();
       
       // Verify expandable content is properly labeled
       const expandButton = page.locator('button').filter({ has: page.locator('[data-lucide="chevron-down"]') });
-      await expect(expandButton).toBeVisible();
+      await playwrightExpect(expandButton).toBeVisible();
 
       // Check that interactive elements are focusable
-      await expect(page.getByText('Update Now')).toBeVisible();
-      await expect(expandButton).toBeVisible();
+      await playwrightExpect(page.getByText('Update Now')).toBeVisible();
+      await playwrightExpect(expandButton).toBeVisible();
     });
   });
 
-  test.describe('Cross-Browser Compatibility', () => {
-    test('Should work consistently across different browsers', async ({ page, browserName }) => {
+  describe('Cross-Browser Compatibility', () => {
+    test('Should work consistently across different browsers', async () => {
       // Setup: Mock version endpoint
-      await setupVersionMocking(page, true);
+      await setupVersionMocking(true);
 
       // Navigate to Roadmap page
-      await page.goto('/roadmap');
+      await page.goto(`${BASE_URL}/roadmap`);
       await page.waitForLoadState('networkidle');
 
       // Verify core functionality works regardless of browser
-      await expect(page.getByText('New Version Available')).toBeVisible();
-      await expect(page.getByText('Update Now')).toBeVisible();
+      await playwrightExpect(page.getByText('New Version Available')).toBeVisible();
+      await playwrightExpect(page.getByText('Update Now')).toBeVisible();
 
       // Test update flow
       const updateButton = page.getByText('Update Now');
@@ -449,14 +465,14 @@ test.describe('Version Update Workflow - E2E Tests', () => {
       });
 
       await updateButton.click();
-      await expect(page.getByText('Updating...')).toBeVisible();
+      await playwrightExpect(page.getByText('Updating...')).toBeVisible();
 
       // Verify functionality works in all browsers
     });
   });
 
-  test.describe('Real-time Updates', () => {
-    test('Should detect version changes during polling', async ({ page }) => {
+  describe('Real-time Updates', () => {
+    test('Should detect version changes during polling', async () => {
       let useNewVersion = false;
 
       // Setup dynamic mocking that changes response
@@ -478,12 +494,12 @@ test.describe('Version Update Workflow - E2E Tests', () => {
       });
 
       // Navigate to Roadmap page
-      await page.goto('/roadmap');
+      await page.goto(`${BASE_URL}/roadmap`);
       await page.waitForLoadState('networkidle');
 
       // Verify no update initially
-      await expect(page.getByText('Current Version')).toBeVisible();
-      await expect(page.getByText('New Version Available')).not.toBeVisible();
+      await playwrightExpect(page.getByText('Current Version')).toBeVisible();
+      await playwrightExpect(page.getByText('New Version Available')).toBeHidden();
 
       // Simulate new version becoming available
       useNewVersion = true;
@@ -492,7 +508,7 @@ test.describe('Version Update Workflow - E2E Tests', () => {
       await page.waitForTimeout(35000); // Wait longer than polling interval
 
       // Verify update banner appears
-      await expect(page.getByText('New Version Available')).toBeVisible({ timeout: 10000 });
+      await playwrightExpect(page.getByText('New Version Available')).toBeVisible({ timeout: 10000 });
     });
   });
 });

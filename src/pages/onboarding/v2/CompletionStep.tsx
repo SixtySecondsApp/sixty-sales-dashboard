@@ -5,6 +5,7 @@
  * Provides navigation to dashboard and suggested next steps.
  */
 
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Check,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useOnboardingV2Store, SKILLS, SkillId } from '@/lib/stores/onboardingV2Store';
+import { supabase } from '@/lib/supabase/clientV2';
 
 interface NextStepItem {
   icon: typeof FileText;
@@ -34,6 +36,30 @@ const nextSteps: NextStepItem[] = [
 export function CompletionStep() {
   const navigate = useNavigate();
   const { enrichment, skillConfigs, setStep } = useOnboardingV2Store();
+
+  // Mark V1 onboarding as complete when this step is reached
+  // This ensures ProtectedRoute allows navigation to dashboard
+  useEffect(() => {
+    const markV1Complete = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await supabase
+            .from('user_onboarding_progress')
+            .upsert({
+              user_id: session.user.id,
+              onboarding_step: 'complete',
+              onboarding_completed_at: new Date().toISOString(),
+            }, {
+              onConflict: 'user_id',
+            });
+        }
+      } catch (error) {
+        console.error('Failed to mark V1 onboarding complete:', error);
+      }
+    };
+    markV1Complete();
+  }, []);
 
   // Determine which skills have been configured (have non-empty data)
   const configuredSkillIds = SKILLS.filter((skill) => {

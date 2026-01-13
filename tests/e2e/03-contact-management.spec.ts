@@ -1,13 +1,29 @@
-import { test, expect } from '@playwright/test';
+import { describe, test, expect as vitestExpect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { expect as playwrightExpect } from '../fixtures/playwright-assertions';
+import { setupPlaywriter, teardownPlaywriter } from '../fixtures/playwriter-setup';
 import { testContacts } from '../fixtures/test-data';
+import type { Page } from 'playwright-core';
 
-test.describe('Contact Management', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/dashboard');
+const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || process.env.VITE_BASE_URL || 'http://localhost:5175';
+
+describe('Contact Management', () => {
+  let page: Page;
+
+  beforeAll(async () => {
+    const setup = await setupPlaywriter();
+    page = setup.page;
+  });
+
+  afterAll(async () => {
+    await teardownPlaywriter();
+  });
+
+  beforeEach(async () => {
+    await page.goto(`${BASE_URL}/dashboard`);
     await page.waitForLoadState('networkidle');
   });
 
-  test('Can create contact without 403 Forbidden errors', async ({ page }) => {
+  test('Can create contact without 403 Forbidden errors', async () => {
     const forbiddenRequests: any[] = [];
     
     // Monitor for 403 errors
@@ -84,10 +100,10 @@ test.describe('Contact Management', () => {
     // Check that no 403 errors occurred
     if (forbiddenRequests.length > 0) {
     }
-    expect(forbiddenRequests).toHaveLength(0);
+    vitestExpect(forbiddenRequests).toHaveLength(0);
   });
 
-  test('Contact search and selection works in QuickAdd', async ({ page }) => {
+  test('Contact search and selection works in QuickAdd', async () => {
     const quickAddTrigger = page.locator('[data-testid="quick-add-button"], button:has-text("Quick Add")');
     if (await quickAddTrigger.count() > 0) {
       await quickAddTrigger.click();
@@ -99,7 +115,7 @@ test.describe('Contact Management', () => {
 
         // Should show contact search interface
         const contactSearch = page.locator('input[placeholder*="search"], input[placeholder*="contact"], button:has-text("Search Contacts")');
-        await expect(contactSearch).toBeVisible({ timeout: 5000 });
+        await playwrightExpect(contactSearch).toBeVisible({ timeout: 5000 });
 
         // Test search functionality
         if (await page.locator('input[placeholder*="search"], input[placeholder*="contact"]').count() > 0) {
@@ -108,13 +124,13 @@ test.describe('Contact Management', () => {
           
           // Should show search results or "no results" message
           const searchResults = page.locator('[class*="search-result"], [data-testid="contact-result"], text=/No results|Found/i');
-          await expect(searchResults).toBeVisible({ timeout: 5000 });
+          await playwrightExpect(searchResults).toBeVisible({ timeout: 5000 });
         }
       }
     }
   });
 
-  test('Contact validation works correctly', async ({ page }) => {
+  test('Contact validation works correctly', async () => {
     // Try to create contact with invalid data through QuickAdd
     const quickAddTrigger = page.locator('[data-testid="quick-add-button"], button:has-text("Quick Add")');
     if (await quickAddTrigger.count() > 0) {
@@ -135,13 +151,13 @@ test.describe('Contact Management', () => {
           await submitBtn.click();
 
           // Should show validation error about missing contact
-          await expect(page.locator('text=/contact.*required|Please.*contact|Select.*contact/i')).toBeVisible();
+          await playwrightExpect(page.locator('text=/contact.*required|Please.*contact|Select.*contact/i')).toBeVisible();
         }
       }
     }
   });
 
-  test('Contact information displays correctly', async ({ page }) => {
+  test('Contact information displays correctly', async () => {
     // Navigate to contacts page if exists
     const contactsLink = page.locator('a[href*="contact"], text=/Contacts/i, nav a:has-text("Contacts")');
     if (await contactsLink.count() > 0) {
@@ -150,18 +166,18 @@ test.describe('Contact Management', () => {
 
       // Check that contact list loads without errors
       const errorMessage = page.locator('text=/Error|Failed|Something went wrong/i');
-      expect(await errorMessage.count()).toBe(0);
+      vitestExpect(await errorMessage.count()).toBe(0);
 
       // Check for contact display elements
       const contactElements = page.locator('[class*="contact"], [data-testid*="contact"], tr, .card');
       if (await contactElements.count() > 0) {
         // Should show contact information
-        await expect(contactElements.first()).toBeVisible();
+        await playwrightExpect(contactElements.first()).toBeVisible();
       }
     }
   });
 
-  test('Contact linking works in activities', async ({ page }) => {
+  test('Contact linking works in activities', async () => {
     const quickAddTrigger = page.locator('[data-testid="quick-add-button"], button:has-text("Quick Add")');
     if (await quickAddTrigger.count() > 0) {
       await quickAddTrigger.click();
@@ -189,13 +205,13 @@ test.describe('Contact Management', () => {
           // Should either succeed or show specific validation errors (not generic errors)
           await page.waitForTimeout(3000);
           const genericError = page.locator('text=/unexpected error|unknown error|500/i');
-          expect(await genericError.count()).toBe(0);
+          vitestExpect(await genericError.count()).toBe(0);
         }
       }
     }
   });
 
-  test('Contact modal closes properly', async ({ page }) => {
+  test('Contact modal closes properly', async () => {
     const quickAddTrigger = page.locator('[data-testid="quick-add-button"], button:has-text("Quick Add")');
     if (await quickAddTrigger.count() > 0) {
       await quickAddTrigger.click();
@@ -207,14 +223,14 @@ test.describe('Contact Management', () => {
         // Should open contact search modal
         const contactModal = page.locator('[role="dialog"], .modal, [class*="contact-search"]');
         if (await contactModal.count() > 0) {
-          await expect(contactModal).toBeVisible();
+          await playwrightExpect(contactModal).toBeVisible();
 
           // Close contact modal
           const closeBtn = page.locator('[aria-label="close"], button:has-text("×"), .close-btn').last();
           await closeBtn.click();
 
           // Should close and return to previous state
-          await expect(contactModal).toBeHidden();
+          await playwrightExpect(contactModal).toBeHidden();
         }
       }
     }

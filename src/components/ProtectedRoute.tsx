@@ -80,13 +80,21 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
   const searchParams = new URLSearchParams(location.search);
   const hashParams = new URLSearchParams(location.hash.slice(1));
   const isResetPasswordPath = location.pathname === '/auth/reset-password' || location.pathname.startsWith('/auth/reset-password/');
-  const isPasswordRecovery = isResetPasswordPath && (
+  
+  // Detect if this is a password recovery flow (with or without being on reset-password route yet)
+  // This allows recovery token detection even before RecoveryTokenDetector redirects
+  // Supports both modern (token_hash in search) and legacy (access_token in hash) flows
+  const hasRecoveryTokens = (
     location.hash.includes('type=recovery') ||
+    location.hash.includes('access_token') || // Legacy recovery with access token in hash
     searchParams.get('type') === 'recovery' ||
     searchParams.has('token_hash') ||
     searchParams.has('code') ||
-    hashParams.get('type') === 'recovery'
+    hashParams.get('type') === 'recovery' ||
+    hashParams.has('access_token') // Legacy recovery
   );
+  
+  const isPasswordRecovery = isResetPasswordPath && hasRecoveryTokens;
   const isOAuthCallback = location.pathname.includes('/oauth/') || location.pathname.includes('/callback');
   const isAuthRequiredRoute = authRequiredRoutes.some(route =>
     location.pathname === route || location.pathname.startsWith(route + '/')
@@ -169,7 +177,8 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
 
     // If user is not authenticated and trying to access protected route, redirect to login
     // TEMPORARY DEV: Skip redirect for roadmap in development
-    if (!isAuthenticated && !isPublicRoute && !isPasswordRecovery && !isDevModeBypass) {
+    // ALSO: Allow password recovery flows even if not authenticated
+    if (!isAuthenticated && !isPublicRoute && !isPasswordRecovery && !hasRecoveryTokens && !isDevModeBypass) {
       // For auth-required routes, add a small delay to allow for race conditions
       // This helps when navigating from onboarding where auth state might momentarily be stale
       if (isAuthRequiredRoute && !isRedirecting) {
@@ -196,7 +205,7 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
       });
       return;
     }
-  }, [isAuthenticated, loading, onboardingLoading, isCheckingEmail, emailVerified, needsOnboarding, isPublicRoute, isVerifyEmailRoute, isPasswordRecovery, isDevModeBypass, isAuthRequiredRoute, isOnboardingExempt, navigate, redirectTo, location, isRedirecting, user?.email]);
+  }, [isAuthenticated, loading, onboardingLoading, isCheckingEmail, emailVerified, needsOnboarding, isPublicRoute, isVerifyEmailRoute, isPasswordRecovery, hasRecoveryTokens, isDevModeBypass, isAuthRequiredRoute, isOnboardingExempt, navigate, redirectTo, location, isRedirecting, user?.email]);
 
   // Show loading spinner while checking authentication, onboarding status, email verification, or during redirect delay
   if (loading || onboardingLoading || isCheckingEmail || isRedirecting) {
@@ -209,7 +218,8 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
   }
 
   // For password recovery, always show the content regardless of auth state
-  if (isPasswordRecovery) {
+  // This includes both /auth/reset-password paths AND recovery tokens on other paths
+  if (isPasswordRecovery || hasRecoveryTokens) {
     return <>{children}</>;
   }
 

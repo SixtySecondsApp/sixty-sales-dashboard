@@ -66,7 +66,9 @@ ehthumbs_vista.db
 coverage/
 junit.xml
 test-results/
+test-results-*/
 playwright-report/
+playwright-report-*/
 playwright/.cache/
 
 # IDE and editor specific
@@ -146,3 +148,19 @@ test-*.ts
 verify-*.ts
 watch-*.ts
 .cursor/plans/*.plan.md
+
+# MCP local secrets (auth tokens)
+.mcp.local.json
+
+# Zip archives (typically temporary)
+*.zip
+
+# Env backups
+envs/
+restore-*.mjs
+
+# Data migration scripts
+production-data.sql
+*.sql.dump
+check-staging-*.mjs
+setup-staging-*.mjs

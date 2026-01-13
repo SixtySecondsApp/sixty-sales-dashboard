@@ -452,38 +452,60 @@ export function useUsers() {
 
   const inviteUser = async (email: string, firstName?: string, lastName?: string) => {
     try {
-      // Trim and normalize names (convert empty strings to undefined/null)
+      // Trim and normalize names
       const trimmedFirstName = firstName?.trim() || undefined;
       const trimmedLastName = lastName?.trim() || undefined;
 
-      // Encode names in the redirect URL so they persist through the OTP flow
-      // This ensures the names are available in AuthCallback when the user verifies
-      let redirectUrl = `${window.location.origin}/auth/callback`;
-      const params = new URLSearchParams();
-      if (trimmedFirstName) params.append('first_name', trimmedFirstName);
-      if (trimmedLastName) params.append('last_name', trimmedLastName);
-      if (params.toString()) {
-        redirectUrl += `?${params.toString()}`;
+      // Get current session for auth token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
       }
 
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: redirectUrl,
-          data: {
-            first_name: trimmedFirstName,
-            last_name: trimmedLastName,
-            full_name: trimmedFirstName && trimmedLastName ? `${trimmedFirstName} ${trimmedLastName}` : undefined,
-            // Pass admin ID so invited user is automatically added to admin's organization
-            invited_by_admin_id: userId,
-          }
-        }
+      // Call app API (same origin) to avoid browser->Supabase Edge CORS issues
+      const response = await fetch('/api/admin/invite-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          email: email.toLowerCase().trim(),
+          first_name: trimmedFirstName,
+          last_name: trimmedLastName,
+        }),
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to invite user (${response.status})`);
+      }
+
+      const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // Send welcome email via edge function (frontend can authenticate successfully)
+      if (data.emailParams) {
+        try {
+          const emailResult = await supabase.functions.invoke('encharge-send-email', {
+            body: data.emailParams,
+          });
+
+          if (emailResult.error) {
+            logger.error('Failed to send welcome email:', emailResult.error);
+            toast.warning(`User created, but failed to send welcome email to ${email}`);
+            return;
+          }
+        } catch (emailError) {
+          logger.error('Failed to send welcome email:', emailError);
+          toast.warning(`User created, but failed to send welcome email to ${email}`);
+          return;
+        }
+      }
 
       toast.success(`Invitation sent to ${email}`);
-      // Refresh logic if needed, but the user won't appear until they sign in.
     } catch (error: any) {
       logger.error('Invite error:', error);
       toast.error('Failed to invite user: ' + error.message);

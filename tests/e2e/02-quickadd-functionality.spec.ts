@@ -1,13 +1,29 @@
-import { test, expect } from '@playwright/test';
+import { describe, test, expect as vitestExpect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { expect as playwrightExpect } from '../fixtures/playwright-assertions';
+import { setupPlaywriter, teardownPlaywriter } from '../fixtures/playwriter-setup';
 import { testContacts, testActivities, testDeals, testTasks } from '../fixtures/test-data';
+import type { Page } from 'playwright-core';
 
-test.describe('QuickAdd Functionality', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/dashboard');
+const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || process.env.VITE_BASE_URL || 'http://localhost:5175';
+
+describe('QuickAdd Functionality', () => {
+  let page: Page;
+
+  beforeAll(async () => {
+    const setup = await setupPlaywriter();
+    page = setup.page;
+  });
+
+  afterAll(async () => {
+    await teardownPlaywriter();
+  });
+
+  beforeEach(async () => {
+    await page.goto(`${BASE_URL}/dashboard`);
     await page.waitForLoadState('networkidle');
   });
 
-  test('QuickAdd modal displays all action options', async ({ page }) => {
+  test('QuickAdd modal displays all action options', async () => {
     // Open QuickAdd modal
     const quickAddTrigger = page.locator('[data-testid="quick-add-button"], button:has-text("Quick Add"), .quick-add-btn, [class*="quick-add"]');
     await quickAddTrigger.click();
@@ -16,11 +32,11 @@ test.describe('QuickAdd Functionality', () => {
     const expectedActions = ['Task', 'Deal', 'Sale', 'Outbound', 'Meeting', 'Proposal'];
     
     for (const action of expectedActions) {
-      await expect(page.locator(`text=${action}, [aria-label*="${action}"], [data-action="${action.toLowerCase()}"]`)).toBeVisible();
+      await playwrightExpect(page.locator(`text=${action}, [aria-label*="${action}"], [data-action="${action.toLowerCase()}"]`)).toBeVisible();
     }
   });
 
-  test('Task creation validates required fields', async ({ page }) => {
+  test('Task creation validates required fields', async () => {
     // Open QuickAdd and select Task
     const quickAddTrigger = page.locator('[data-testid="quick-add-button"], button:has-text("Quick Add"), .quick-add-btn, [class*="quick-add"]');
     await quickAddTrigger.click();
@@ -32,7 +48,7 @@ test.describe('QuickAdd Functionality', () => {
     await submitBtn.click();
 
     // Should show validation error for title
-    await expect(page.locator('text=/title.*required|Title.*required|Please.*title/i')).toBeVisible();
+    await playwrightExpect(page.locator('text=/title.*required|Title.*required|Please.*title/i')).toBeVisible();
 
     // Fill in title
     const titleInput = page.locator('input[name="title"], input[placeholder*="title"]');
@@ -43,10 +59,10 @@ test.describe('QuickAdd Functionality', () => {
     
     // Should show success or close modal
     const successMessage = page.locator('text=/created|success|added/i');
-    await expect(successMessage.or(page.locator('[role="dialog"]').nth(0))).toBeVisible({ timeout: 10000 });
+    await playwrightExpect(successMessage.or(page.locator('[role="dialog"]').nth(0))).toBeVisible({ timeout: 10000 });
   });
 
-  test('Meeting creation requires contact selection', async ({ page }) => {
+  test('Meeting creation requires contact selection', async () => {
     const quickAddTrigger = page.locator('[data-testid="quick-add-button"], button:has-text("Quick Add"), .quick-add-btn, [class*="quick-add"]');
     await quickAddTrigger.click();
     
@@ -54,7 +70,7 @@ test.describe('QuickAdd Functionality', () => {
 
     // Should show contact search or selection
     const contactSearch = page.locator('input[placeholder*="contact"], input[placeholder*="search"], text=/select.*contact/i');
-    await expect(contactSearch.or(page.locator('text=/Please.*contact|Select.*contact/i'))).toBeVisible();
+    await playwrightExpect(contactSearch.or(page.locator('text=/Please.*contact|Select.*contact/i'))).toBeVisible();
 
     // Try to submit without contact
     const submitBtn = page.locator('button[type="submit"], button:has-text("Create")');
@@ -62,11 +78,11 @@ test.describe('QuickAdd Functionality', () => {
       await submitBtn.click();
       
       // Should show error about missing contact
-      await expect(page.locator('text=/contact.*required|Please.*select.*contact|Select.*contact/i')).toBeVisible();
+      await playwrightExpect(page.locator('text=/contact.*required|Please.*select.*contact|Select.*contact/i')).toBeVisible();
     }
   });
 
-  test('Sale creation shows revenue split fields for admin', async ({ page }) => {
+  test('Sale creation shows revenue split fields for admin', async () => {
     const quickAddTrigger = page.locator('[data-testid="quick-add-button"], button:has-text("Quick Add"), .quick-add-btn, [class*="quick-add"]');
     await quickAddTrigger.click();
     
@@ -78,14 +94,14 @@ test.describe('QuickAdd Functionality', () => {
     
     // These fields should be present for admins
     if (await monthlyMrrField.count() > 0) {
-      await expect(monthlyMrrField).toBeVisible();
+      await playwrightExpect(monthlyMrrField).toBeVisible();
     }
     if (await oneOffField.count() > 0) {
-      await expect(oneOffField).toBeVisible();
+      await playwrightExpect(oneOffField).toBeVisible();
     }
   });
 
-  test('Proposal creation requires company name', async ({ page }) => {
+  test('Proposal creation requires company name', async () => {
     const quickAddTrigger = page.locator('[data-testid="quick-add-button"], button:has-text("Quick Add"), .quick-add-btn, [class*="quick-add"]');
     await quickAddTrigger.click();
     
@@ -103,11 +119,11 @@ test.describe('QuickAdd Functionality', () => {
       await submitBtn.click();
       
       // Should show error about missing company
-      await expect(page.locator('text=/company.*required|Please.*company|Enter.*company/i')).toBeVisible();
+      await playwrightExpect(page.locator('text=/company.*required|Please.*company|Enter.*company/i')).toBeVisible();
     }
   });
 
-  test('Outbound activity creation works with optional fields', async ({ page }) => {
+  test('Outbound activity creation works with optional fields', async () => {
     const quickAddTrigger = page.locator('[data-testid="quick-add-button"], button:has-text("Quick Add"), .quick-add-btn, [class*="quick-add"]');
     await quickAddTrigger.click();
     
@@ -130,10 +146,10 @@ test.describe('QuickAdd Functionality', () => {
     await submitBtn.click();
     
     // Should show success
-    await expect(page.locator('text=/outbound.*added|success|created/i')).toBeVisible({ timeout: 10000 });
+    await playwrightExpect(page.locator('text=/outbound.*added|success|created/i')).toBeVisible({ timeout: 10000 });
   });
 
-  test('Form shows proper loading states', async ({ page }) => {
+  test('Form shows proper loading states', async () => {
     const quickAddTrigger = page.locator('[data-testid="quick-add-button"], button:has-text("Quick Add"), .quick-add-btn, [class*="quick-add"]');
     await quickAddTrigger.click();
     
@@ -152,10 +168,10 @@ test.describe('QuickAdd Functionality', () => {
     
     // Loading state might be brief, so use or() with success state
     const loadingOrSuccess = loadingIndicator.or(page.locator('text=/created|success/i'));
-    await expect(loadingOrSuccess).toBeVisible({ timeout: 10000 });
+    await playwrightExpect(loadingOrSuccess).toBeVisible({ timeout: 10000 });
   });
 
-  test('Error handling shows user-friendly messages', async ({ page }) => {
+  test('Error handling shows user-friendly messages', async () => {
     // Listen for network errors
     let networkErrorOccurred = false;
     page.route('**/api/**', route => {
@@ -181,36 +197,36 @@ test.describe('QuickAdd Functionality', () => {
 
     if (networkErrorOccurred) {
       // Should show user-friendly error message
-      await expect(page.locator('text=/error|failed|try again|something went wrong/i')).toBeVisible({ timeout: 10000 });
+      await playwrightExpect(page.locator('text=/error|failed|try again|something went wrong/i')).toBeVisible({ timeout: 10000 });
     }
   });
 
-  test('Modal can be closed and reopened without issues', async ({ page }) => {
+  test('Modal can be closed and reopened without issues', async () => {
     const quickAddTrigger = page.locator('[data-testid="quick-add-button"], button:has-text("Quick Add"), .quick-add-btn, [class*="quick-add"]');
     
     // Open modal
     await quickAddTrigger.click();
     let modal = page.locator('[role="dialog"], .modal, [class*="quick-add-modal"]');
-    await expect(modal).toBeVisible();
+    await playwrightExpect(modal).toBeVisible();
 
     // Close modal
     const closeBtn = page.locator('[aria-label="close"], button:has-text("×"), .close-btn');
     await closeBtn.click();
-    await expect(modal).toBeHidden();
+    await playwrightExpect(modal).toBeHidden();
 
     // Reopen modal
     await quickAddTrigger.click();
     modal = page.locator('[role="dialog"], .modal, [class*="quick-add-modal"]');
-    await expect(modal).toBeVisible();
+    await playwrightExpect(modal).toBeVisible();
 
     // Should still show all options
     const expectedActions = ['Task', 'Deal', 'Sale', 'Outbound', 'Meeting', 'Proposal'];
     for (const action of expectedActions) {
-      await expect(page.locator(`text=${action}, [data-action="${action.toLowerCase()}"]`)).toBeVisible();
+      await playwrightExpect(page.locator(`text=${action}, [data-action="${action.toLowerCase()}"]`)).toBeVisible();
     }
   });
 
-  test('Form fields reset correctly between actions', async ({ page }) => {
+  test('Form fields reset correctly between actions', async () => {
     const quickAddTrigger = page.locator('[data-testid="quick-add-button"], button:has-text("Quick Add"), .quick-add-btn, [class*="quick-add"]');
     await quickAddTrigger.click();
     
@@ -237,7 +253,7 @@ test.describe('QuickAdd Functionality', () => {
     const saleAmountInput = page.locator('input[name="amount"], input[placeholder*="amount"]');
     if (await saleAmountInput.count() > 0) {
       const value = await saleAmountInput.inputValue();
-      expect(value).toBe(''); // Should be empty
+      vitestExpect(value).toBe(''); // Should be empty
     }
   });
 });

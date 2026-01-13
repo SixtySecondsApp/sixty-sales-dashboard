@@ -1,13 +1,17 @@
-import { defineConfig, devices } from '@playwright/test';
+// NOTE: This config file is deprecated - we now use playwriter MCP with vitest
+// Kept for reference only. Tests are now run via vitest with playwriter setup.
+// See tests/fixtures/playwriter-setup.ts for the new setup
+
 import dotenv from 'dotenv';
 
 // Load test environment variables
 dotenv.config({ path: '.env.test' });
 
 /**
- * @see https://playwright.dev/docs/test-configuration
+ * @deprecated - Use vitest with playwriter instead
+ * @see tests/fixtures/playwriter-setup.ts for new setup
  */
-export default defineConfig({
+export default {
   testDir: './tests/e2e',
   /* Run tests in files in parallel */
   fullyParallel: true,

@@ -2,17 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { authUtils } from '../../src/lib/supabase/clientV2';
 
 // Mock Supabase client
-const mockSupabaseAuth = {
-  getSession: vi.fn(),
-  refreshSession: vi.fn()
-};
-
 vi.mock('../../src/lib/supabase/clientV2', async () => {
   const actual = await vi.importActual('../../src/lib/supabase/clientV2');
   return {
     ...actual,
     supabase: {
-      auth: mockSupabaseAuth
+      auth: {
+        getSession: vi.fn(),
+        refreshSession: vi.fn()
+      }
     }
   };
 });

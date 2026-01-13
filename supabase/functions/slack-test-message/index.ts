@@ -481,14 +481,36 @@ serve(async (req) => {
       });
     }
 
+    console.log('[slack-test-message] Environment check:', {
+      supabaseUrl: supabaseUrl ? 'SET' : 'MISSING',
+      serviceKey: supabaseServiceKey ? `SET (${supabaseServiceKey.slice(0, 20)}...)` : 'MISSING'
+    });
+
+    if (!supabaseServiceKey) {
+      return new Response(JSON.stringify({
+        error: 'Internal configuration error: service role key not available'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const auth = await getAuthContext(req, supabase, supabaseServiceKey);
+
+    console.log('[slack-test-message] Auth context:', {
+      mode: auth.mode,
+      userId: auth.userId,
+      isPlatformAdmin: auth.isPlatformAdmin
+    });
 
     const body = await req.json().catch(() => ({}));
     const orgId = body.orgId as string | undefined;
     const requestedChannelId = body.channelId as string | undefined;
     const action = (body.action as string | undefined) || 'simple';
     const mode = (body.mode as string | undefined) || 'live';
+    const dmAudience = body.dmAudience as 'owner' | 'stakeholders' | 'both' | undefined;
+    const stakeholderSlackIds = (body.stakeholderSlackIds as string[] | undefined) || [];
 
     if (!orgId) {
       return new Response(JSON.stringify({ error: 'orgId required' }), {
@@ -498,9 +520,25 @@ serve(async (req) => {
     }
 
     if (auth.mode === 'user' && auth.userId && !auth.isPlatformAdmin) {
-      // Allow members to preview/send DMs to themselves; keep admin-only for channel posting.
-      const allowed = action === 'simple' ? (['owner', 'admin'] as const) : (['owner', 'admin', 'member', 'readonly'] as const);
+      // Allow members to send DMs to themselves; keep admin-only for channel posting.
+      // If sending DM only (dmAudience set, no channelId), allow all members
+      // If posting to channel (channelId set) or simple action, require owner/admin
+      const isDmOnly = dmAudience && !requestedChannelId;
+      const allowed = isDmOnly
+        ? (['owner', 'admin', 'member', 'readonly'] as const)
+        : (['owner', 'admin'] as const);
+
+      console.log('[slack-test-message] Checking permissions:', {
+        orgId,
+        userId: auth.userId,
+        isDmOnly,
+        allowedRoles: allowed,
+        dmAudience,
+        requestedChannelId
+      });
+
       await requireOrgRole(supabase, orgId, auth.userId, [...allowed]);
+      console.log('[slack-test-message] Permission check passed');
     }
 
     const botToken = await getBotToken(supabase, orgId);
@@ -664,8 +702,89 @@ serve(async (req) => {
 
     let channelId = requestedChannelId;
     let channelName: string | undefined;
+    const dmRecipients: string[] = [];
+    const dmResults: any[] = [];
 
-    if (!channelId) {
+    // Handle DM audience if specified
+    if (dmAudience) {
+      const sendToOwner = dmAudience === 'owner' || dmAudience === 'both';
+      const sendToStakeholders = dmAudience === 'stakeholders' || dmAudience === 'both';
+
+      // Add owner's Slack ID
+      if (sendToOwner && auth.mode === 'user' && auth.userId) {
+        console.log('[slack-test-message] Looking up Slack mapping:', { orgId, userId: auth.userId, authMode: auth.mode });
+
+        const { data: mapping, error: mappingError } = await supabase
+          .from('slack_user_mappings')
+          .select('slack_user_id')
+          .eq('org_id', orgId)
+          .eq('sixty_user_id', auth.userId)
+          .maybeSingle();
+
+        console.log('[slack-test-message] Mapping query result:', { mapping, error: mappingError });
+
+        if (mapping?.slack_user_id) {
+          dmRecipients.push(mapping.slack_user_id);
+        } else {
+          return new Response(JSON.stringify({
+            error: 'No Slack user mapping found. Please link your Slack account in Personal Slack settings.',
+            debug: { orgId, userId: auth.userId, authMode: auth.mode, mappingError: mappingError?.message }
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      // Add stakeholder Slack IDs
+      if (sendToStakeholders && stakeholderSlackIds.length > 0) {
+        dmRecipients.push(...stakeholderSlackIds.filter(Boolean));
+      }
+
+      // Send DMs to all recipients
+      const dmText = '✅ Sixty Slack test DM: you are configured to receive notifications.';
+      for (const slackUserId of dmRecipients) {
+        try {
+          const dmChannelId = await openDm(botToken, slackUserId);
+          const dmResult = await postMessage(botToken, dmChannelId, dmText);
+          dmResults.push({
+            slackUserId,
+            success: dmResult.ok,
+            error: dmResult.error,
+          });
+        } catch (error) {
+          dmResults.push({
+            slackUserId,
+            success: false,
+            error: error.message || 'Failed to send DM',
+          });
+        }
+      }
+    }
+
+    // Handle channel posting if channelId provided
+    let channelResult: any = null;
+    if (channelId) {
+      const text = '✅ Sixty Slack test message: your workspace is connected and the bot can post messages.';
+      let result = await postMessage(botToken, channelId, text);
+
+      if (!result.ok && result.error === 'not_in_channel') {
+        const joined = await joinChannel(botToken, channelId);
+        if (joined.ok) {
+          result = await postMessage(botToken, channelId, text);
+        }
+      }
+
+      if (!result.ok) {
+        return new Response(JSON.stringify({ success: false, error: result.error || 'Slack API error' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      channelResult = result;
+    } else if (dmRecipients.length === 0) {
+      // If no channel and no DMs, fall back to general channel
       const channels = await listChannels(botToken);
       const preferred =
         channels.find((c) => c.name === 'general') ||
@@ -682,31 +801,26 @@ serve(async (req) => {
 
       channelId = preferred.id;
       channelName = preferred.name;
-    }
 
-    const text = '✅ Sixty Slack test message: your workspace is connected and the bot can post messages.';
-    let result = await postMessage(botToken, channelId, text);
+      const text = '✅ Sixty Slack test message: your workspace is connected and the bot can post messages.';
+      channelResult = await postMessage(botToken, channelId, text);
 
-    if (!result.ok && result.error === 'not_in_channel') {
-      const joined = await joinChannel(botToken, channelId);
-      if (joined.ok) {
-        result = await postMessage(botToken, channelId, text);
+      if (!channelResult.ok) {
+        return new Response(JSON.stringify({ success: false, error: channelResult.error || 'Slack API error' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
-    }
-
-    if (!result.ok) {
-      return new Response(JSON.stringify({ success: false, error: result.error || 'Slack API error' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        channelId: result.channel,
+        channelId: channelResult?.channel,
         channelName,
-        ts: result.ts,
+        dmCount: dmRecipients.length,
+        dmResults,
+        ts: channelResult?.ts,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

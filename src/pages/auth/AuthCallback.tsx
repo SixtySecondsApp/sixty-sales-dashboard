@@ -44,6 +44,8 @@ export default function AuthCallback() {
         const waitlistEntryId = searchParams.get('waitlist_entry') || localStorage.getItem('waitlist_entry_id');
         const next = searchParams.get('next') || '/dashboard';
         // Get invited user's name if provided in URL (from admin invite)
+        // NOTE: Names should NOT be in query params - they break Supabase auth verification
+        // Instead, they should be in user_metadata after invitation
         const invitedFirstName = searchParams.get('first_name');
         const invitedLastName = searchParams.get('last_name');
 
@@ -196,31 +198,43 @@ export default function AuthCallback() {
         }
 
         if (session?.user) {
-          // If invited user has names in URL, save them to their profile
-          if ((invitedFirstName || invitedLastName) && session.user.id) {
+          // Get names from URL params OR user_metadata (set during invitation)
+          const firstNameToSave = invitedFirstName || session.user.user_metadata?.first_name;
+          const lastNameToSave = invitedLastName || session.user.user_metadata?.last_name;
+
+          // Ensure profile exists and save names (upsert to handle new invited users)
+          if (session.user.id) {
             try {
-              console.log('[AuthCallback] Saving invited user names to profile:', { invitedFirstName, invitedLastName });
+              console.log('[AuthCallback] Ensuring profile exists for user:', session.user.id);
               const { error: profileError } = await supabase
                 .from('profiles')
-                .update({
-                  first_name: invitedFirstName || null,
-                  last_name: invitedLastName || null,
+                .upsert({
+                  id: session.user.id,
+                  email: session.user.email,
+                  first_name: firstNameToSave || null,
+                  last_name: lastNameToSave || null,
                   updated_at: new Date().toISOString(),
-                })
-                .eq('id', session.user.id);
+                }, {
+                  onConflict: 'id'
+                });
 
               if (profileError) {
-                console.warn('[AuthCallback] Failed to update profile with names:', profileError);
+                console.warn('[AuthCallback] Failed to upsert profile:', profileError);
               } else {
-                console.log('[AuthCallback] Successfully saved names to profile');
+                console.log('[AuthCallback] Successfully ensured profile exists');
               }
             } catch (err) {
-              console.error('[AuthCallback] Error updating profile names:', err);
+              console.error('[AuthCallback] Error upserting profile:', err);
             }
           }
 
-          // Check if this is an invitation flow (type=invite or user has invited_at timestamp)
-          const isInvitation = type === 'invite' || session.user.invited_at;
+          // Check if this is an invitation flow
+          // - type=invite (from Supabase invite flow)
+          // - user.invited_at timestamp (from Supabase)
+          // - invited_by_admin_id in metadata (from our admin invite flow)
+          const isInvitation = type === 'invite' ||
+                              type === 'recovery' && session.user.user_metadata?.invited_by_admin_id ||
+                              session.user.invited_at;
 
           // For invitations, we should redirect to SetPassword even if email not confirmed
           // For regular signups, we need email_confirmed_at to proceed

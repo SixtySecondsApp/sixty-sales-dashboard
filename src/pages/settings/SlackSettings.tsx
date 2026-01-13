@@ -147,6 +147,7 @@ function FeatureSettingsCard({
   const sendDmToStakeholders = dmAudience === 'stakeholders' || dmAudience === 'both';
   const currentStakeholders = (settings?.stakeholder_slack_ids || []).filter(Boolean);
   const [stakeholdersCsv, setStakeholdersCsv] = useState(currentStakeholders.join(', '));
+  const [localThreshold, setLocalThreshold] = useState<string>(String(settings?.deal_value_threshold || 25000));
   const dealRoomArchiveMode = settings?.deal_room_archive_mode || 'delayed';
   const dealRoomArchiveDelayHours = settings?.deal_room_archive_delay_hours ?? 24;
 
@@ -154,6 +155,10 @@ function FeatureSettingsCard({
     setStakeholdersCsv(currentStakeholders.join(', '));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStakeholders.join(',')]);
+
+  useEffect(() => {
+    setLocalThreshold(String(settings?.deal_value_threshold || 25000));
+  }, [settings?.deal_value_threshold]);
 
   return (
     <Card>
@@ -426,10 +431,12 @@ function FeatureSettingsCard({
                     </span>
                     <Input
                       type="number"
-                      value={settings?.deal_value_threshold || 25000}
-                      onChange={(e) =>
-                        onUpdate({ deal_value_threshold: parseInt(e.target.value) || 25000 })
-                      }
+                      value={localThreshold}
+                      onChange={(e) => setLocalThreshold(e.target.value)}
+                      onBlur={() => {
+                        const parsed = parseInt(localThreshold) || 25000;
+                        onUpdate({ deal_value_threshold: parsed });
+                      }}
                       className="pl-7"
                     />
                   </div>
@@ -678,10 +685,49 @@ export default function SlackSettings() {
 
     setTestingFeature(feature);
     try {
-      await sendTest.mutateAsync({ feature, orgId: activeOrgId });
-      toast.success('Test notification sent!');
-    } catch (error) {
-      toast.error('Failed to send test notification');
+      const settings = getSettingsForFeature(feature);
+      const deliveryMethod = settings?.delivery_method || 'channel';
+      const sendToChannel = deliveryMethod === 'channel' || deliveryMethod === 'both';
+      const sendToDm = deliveryMethod === 'dm' || deliveryMethod === 'both';
+      const dmAudience = settings?.dm_audience || 'owner';
+      const stakeholderSlackIds = settings?.stakeholder_slack_ids || [];
+
+      await sendTest.mutateAsync({
+        feature,
+        orgId: activeOrgId,
+        channelId: sendToChannel ? settings?.channel_id : undefined,
+        dmAudience: sendToDm ? dmAudience : undefined,
+        stakeholderSlackIds: sendToDm ? stakeholderSlackIds : undefined,
+      });
+
+      // Build success message based on delivery method and audience
+      let successMessage = 'Test notification sent!';
+      if (sendToDm && sendToChannel && settings?.channel_name) {
+        // Both channel and DM
+        if (dmAudience === 'both') {
+          successMessage = `Test notification sent to #${settings.channel_name}, your DM, and stakeholder DMs!`;
+        } else if (dmAudience === 'stakeholders') {
+          successMessage = `Test notification sent to #${settings.channel_name} and stakeholder DMs!`;
+        } else {
+          successMessage = `Test notification sent to #${settings.channel_name} and your DM!`;
+        }
+      } else if (sendToDm) {
+        // DM only
+        if (dmAudience === 'both') {
+          successMessage = 'Test notification sent to your DM and stakeholder DMs!';
+        } else if (dmAudience === 'stakeholders') {
+          successMessage = 'Test notification sent to stakeholder DMs!';
+        } else {
+          successMessage = 'Test notification sent to your DM!';
+        }
+      } else if (settings?.channel_name) {
+        // Channel only
+        successMessage = `Test notification sent to #${settings.channel_name}!`;
+      }
+
+      toast.success(successMessage);
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to send test notification');
     } finally {
       setTestingFeature(null);
     }
