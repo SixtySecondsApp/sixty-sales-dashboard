@@ -1,6 +1,3 @@
-import { trace } from '@opentelemetry/api';
-import { getOtel, getSpanStatusCode } from './otel';
-
 export type VercelApiHandler = (req: any, res: any) => Promise<any> | any;
 
 function safePath(url: string | undefined): string {
@@ -11,6 +8,29 @@ function safePath(url: string | undefined): string {
 
 export function withOtel(routeName: string, handler: VercelApiHandler): VercelApiHandler {
   return async function otelWrappedHandler(req: any, res: any) {
+    // Skip OpenTelemetry entirely if not configured
+    const hasOtelEndpoint = Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
+    if (!hasOtelEndpoint) {
+      return await handler(req, res);
+    }
+
+    // Dynamically import OpenTelemetry only when needed
+    let trace: any;
+    let getOtel: any;
+    let getSpanStatusCode: any;
+
+    try {
+      const otelApi = await import('@opentelemetry/api');
+      trace = otelApi.trace;
+      const otelModule = await import('./otel');
+      getOtel = otelModule.getOtel;
+      getSpanStatusCode = otelModule.getSpanStatusCode;
+    } catch (error) {
+      // OpenTelemetry modules failed to load, continue without telemetry
+      console.warn('[withOtel] Failed to load OpenTelemetry:', error);
+      return await handler(req, res);
+    }
+
     const otel = getOtel();
     const start = Date.now();
     const method = String(req?.method || 'UNKNOWN').toUpperCase();

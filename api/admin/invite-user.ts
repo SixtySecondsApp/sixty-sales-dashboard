@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-// import { withOtel } from '../lib/withOtel';
+import { withOtel } from '../lib/withOtel';
 
 function getHeader(req: VercelRequest, name: string): string | null {
   const v = (req.headers as any)[name.toLowerCase()];
@@ -196,6 +196,4 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-// Temporarily bypass OpenTelemetry to debug FUNCTION_INVOCATION_FAILED
-export default handler;
-// export default withOtel('api.admin.invite-user', handler);
+export default withOtel('api.admin.invite-user', handler);
