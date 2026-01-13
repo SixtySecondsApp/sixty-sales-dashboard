@@ -11,7 +11,8 @@ export type SkillCategory =
   | 'enrichment'
   | 'workflows'
   | 'data-access'
-  | 'output-format';
+  | 'output-format'
+  | 'agent-sequence';
 
 export interface SkillDoc {
   skill_key: string;
@@ -43,9 +44,19 @@ export type ExecuteActionName =
   | 'enrich_company'
   | 'invoke_skill'
   | 'run_skill'
+  | 'run_sequence'
   | 'create_task'
   | 'list_tasks'
   | 'create_activity';
+
+/**
+ * Parameters for run_sequence action - executes a multi-step agent sequence
+ */
+export interface RunSequenceParams {
+  sequence_key: string;
+  sequence_context?: Record<string, unknown>;
+  is_simulation?: boolean;
+}
 
 /**
  * Parameters for invoke_skill action - enables skill composition

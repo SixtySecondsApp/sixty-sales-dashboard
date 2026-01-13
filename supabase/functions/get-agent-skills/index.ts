@@ -27,7 +27,8 @@ import {
 interface AgentSkillsRequest {
   action: 'list' | 'get' | 'search';
   organization_id: string;
-  category?: 'sales-ai' | 'writing' | 'enrichment' | 'workflows' | 'data-access' | 'output-format';
+  category?: 'sales-ai' | 'writing' | 'enrichment' | 'workflows' | 'data-access' | 'output-format' | 'agent-sequence';
+  kind?: 'skill' | 'sequence' | 'all';
   enabled_only?: boolean;
   skill_key?: string;
   query?: string;
@@ -35,9 +36,11 @@ interface AgentSkillsRequest {
 
 interface AgentSkill {
   skill_key: string;
+  kind: 'skill' | 'sequence';
   category: string;
   frontmatter: Record<string, unknown>;
   content: string;
+  step_count?: number;
   is_enabled: boolean;
   version: number;
 }
@@ -93,6 +96,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
@@ -113,6 +117,7 @@ serve(async (req) => {
       action = 'list',
       organization_id,
       category,
+      kind = 'all',
       enabled_only = true,
       skill_key,
       query,
@@ -127,7 +132,7 @@ serve(async (req) => {
     const { data: membership, error: membershipError } = await supabase
       .from('organization_memberships')
       .select('id')
-      .eq('organization_id', organization_id)
+      .eq('org_id', organization_id)
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -140,7 +145,7 @@ serve(async (req) => {
 
     switch (action) {
       case 'list':
-        response = await listSkills(supabase, organization_id, category, enabled_only);
+        response = await listSkills(supabase, organization_id, category, enabled_only, kind);
         break;
 
       case 'get':
@@ -154,7 +159,7 @@ serve(async (req) => {
         if (!query) {
           return errorResponse('query is required for search action', req, 400);
         }
-        response = await searchSkills(supabase, organization_id, query, category, enabled_only);
+        response = await searchSkills(supabase, organization_id, query, category, enabled_only, kind);
         break;
 
       default:
@@ -177,7 +182,8 @@ async function listSkills(
   supabase: ReturnType<typeof createClient>,
   organizationId: string,
   category?: string,
-  enabledOnly = true
+  enabledOnly = true,
+  kind: 'skill' | 'sequence' | 'all' = 'all'
 ): Promise<AgentSkillsResponse> {
   try {
     // Use the RPC function to get compiled skills
@@ -191,18 +197,36 @@ async function listSkills(
       throw error;
     }
 
-    let filteredSkills: AgentSkill[] = (skills || []).map((s: any) => ({
-      skill_key: s.skill_key,
-      category: s.category || 'uncategorized',
-      frontmatter: s.frontmatter || {},
-      content: s.content || '',
-      is_enabled: s.is_enabled ?? true,
-      version: s.version ?? 1,
-    }));
+    let filteredSkills: AgentSkill[] = (skills || []).map((s: any) => {
+      const category = s.category || 'uncategorized';
+      const frontmatter = s.frontmatter || {};
+      const isSequence = category === 'agent-sequence';
+      const stepCount = Array.isArray(frontmatter?.sequence_steps)
+        ? frontmatter.sequence_steps.length
+        : undefined;
+
+      return {
+        skill_key: s.skill_key,
+        kind: isSequence ? 'sequence' : 'skill',
+        category,
+        frontmatter,
+        content: s.content || '',
+        step_count: stepCount,
+        is_enabled: s.is_enabled ?? true,
+        version: s.version ?? 1,
+      };
+    });
 
     // Apply category filter
     if (category) {
       filteredSkills = filteredSkills.filter((s) => s.category === category);
+    }
+
+    // Apply kind filter
+    if (kind === 'sequence') {
+      filteredSkills = filteredSkills.filter((s) => s.category === 'agent-sequence');
+    } else if (kind === 'skill') {
+      filteredSkills = filteredSkills.filter((s) => s.category !== 'agent-sequence');
     }
 
     // Apply enabled filter
@@ -252,13 +276,22 @@ async function getSkill(
       };
     }
 
+    const category = skill.category || 'uncategorized';
+    const frontmatter = skill.frontmatter || {};
+    const isSequence = category === 'agent-sequence';
+    const stepCount = Array.isArray(frontmatter?.sequence_steps)
+      ? frontmatter.sequence_steps.length
+      : undefined;
+
     return {
       success: true,
       skill: {
         skill_key: skill.skill_key,
-        category: skill.category || 'uncategorized',
-        frontmatter: skill.frontmatter || {},
+        kind: isSequence ? 'sequence' : 'skill',
+        category,
+        frontmatter,
         content: skill.content || '',
+        step_count: stepCount,
         is_enabled: skill.is_enabled ?? true,
         version: skill.version ?? 1,
       },
@@ -279,7 +312,8 @@ async function searchSkills(
   organizationId: string,
   query: string,
   category?: string,
-  enabledOnly = true
+  enabledOnly = true,
+  kind: 'skill' | 'sequence' | 'all' = 'all'
 ): Promise<AgentSkillsResponse> {
   try {
     // Get all skills first
@@ -319,18 +353,36 @@ async function searchSkills(
 
         return false;
       })
-      .map((s: any) => ({
-        skill_key: s.skill_key,
-        category: s.category || 'uncategorized',
-        frontmatter: s.frontmatter || {},
-        content: s.content || '',
-        is_enabled: s.is_enabled ?? true,
-        version: s.version ?? 1,
-      }));
+      .map((s: any) => {
+        const category = s.category || 'uncategorized';
+        const frontmatter = s.frontmatter || {};
+        const isSequence = category === 'agent-sequence';
+        const stepCount = Array.isArray(frontmatter?.sequence_steps)
+          ? frontmatter.sequence_steps.length
+          : undefined;
+
+        return {
+          skill_key: s.skill_key,
+          kind: isSequence ? 'sequence' : 'skill',
+          category,
+          frontmatter,
+          content: s.content || '',
+          step_count: stepCount,
+          is_enabled: s.is_enabled ?? true,
+          version: s.version ?? 1,
+        };
+      });
 
     // Apply category filter
     if (category) {
       filteredSkills = filteredSkills.filter((s) => s.category === category);
+    }
+
+    // Apply kind filter
+    if (kind === 'sequence') {
+      filteredSkills = filteredSkills.filter((s) => s.category === 'agent-sequence');
+    } else if (kind === 'skill') {
+      filteredSkills = filteredSkills.filter((s) => s.category !== 'agent-sequence');
     }
 
     // Apply enabled filter

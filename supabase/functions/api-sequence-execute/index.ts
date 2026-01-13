@@ -1,12 +1,16 @@
 /// <reference path="../deno.d.ts" />
 
 /**
- * api-skill-execute
+ * api-sequence-execute
  *
- * Executes a single org-enabled skill (organization_skills) and returns the SkillResult contract.
- * Intended to be used by:
- * - Sequence execution (api-sequence-execute)
- * - Future MCP/Copilot execution paths that need deterministic contract output
+ * Executes a multi-step agent sequence (category=agent-sequence) for an organization.
+ * Persists progress/results into sequence_executions.
+ *
+ * NOTE: This is a pragmatic first implementation:
+ * - Resolves input_mapping expressions like ${trigger.params.foo} and ${outputs.some_key}
+ * - Executes each step via the unified org skill executor (api-skill-execute contract)
+ * - Supports on_failure: stop|continue|fallback (fallback_skill_key)
+ * - HITL is intentionally not implemented yet (will be a Phase C+ enhancement)
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -16,14 +20,13 @@ import {
   jsonResponse,
   errorResponse,
 } from '../_shared/corsHelper.ts';
-import { executeAgentSkillWithContract } from '../_shared/agentSkillExecutor.ts';
+import { executeSequence } from '../_shared/sequenceExecutor.ts';
 
-interface SkillExecuteRequest {
+interface SequenceExecuteRequest {
   organization_id: string;
-  skill_key: string;
-  context?: Record<string, unknown>;
-  dry_run?: boolean;
-  store_full_output?: boolean;
+  sequence_key: string;
+  sequence_context?: Record<string, unknown>;
+  is_simulation?: boolean;
 }
 
 serve(async (req) => {
@@ -58,40 +61,27 @@ serve(async (req) => {
       return errorResponse('Invalid authentication token', req, 401);
     }
 
-    const body: SkillExecuteRequest = await req.json();
+    const body: SequenceExecuteRequest = await req.json();
     const organizationId = String(body.organization_id || '').trim();
-    const skillKey = String(body.skill_key || '').trim();
-    const context = (body.context || {}) as Record<string, unknown>;
+    const sequenceKey = String(body.sequence_key || '').trim();
+    const sequenceContext = (body.sequence_context || {}) as Record<string, unknown>;
+    const isSimulation = body.is_simulation === true;
 
     if (!organizationId) return errorResponse('organization_id is required', req, 400);
-    if (!skillKey) return errorResponse('skill_key is required', req, 400);
+    if (!sequenceKey) return errorResponse('sequence_key is required', req, 400);
 
-    // AUTHORIZATION: user must be a member of the organization
-    const { data: membership, error: membershipError } = await supabase
-      .from('organization_memberships')
-      .select('role')
-      .eq('org_id', organizationId)
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (membershipError || !membership) {
-      return errorResponse('Access denied to this organization', req, 403);
-    }
-
-    const result = await executeAgentSkillWithContract(supabase, {
+    const result = await executeSequence(supabase, {
       organizationId,
       userId: user.id,
-      skillKey,
-      context,
-      dryRun: body.dry_run === true,
-      storeFullOutput: body.store_full_output === true,
+      sequenceKey,
+      sequenceContext,
+      isSimulation,
     });
 
-    // IMPORTANT: Return the SkillResult contract directly (not wrapped)
     return jsonResponse(result, req);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('[api-skill-execute] Error:', message);
+    console.error('[api-sequence-execute] Error:', message);
     return errorResponse(message, req, 500);
   }
 });

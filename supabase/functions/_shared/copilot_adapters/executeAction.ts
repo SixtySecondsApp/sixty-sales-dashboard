@@ -353,20 +353,57 @@ export async function executeAction(
         return { success: false, data: null, error: 'Organization context required to run skills' };
       }
 
-      // Import runSkill from skillsRuntime
-      const { runSkill } = await import('../skillsRuntime.ts');
-
       // Build context from params (support both skill_context and context for backwards compatibility)
       const skillContext = (params.skill_context || params.context || {}) as Record<string, unknown>;
+      const dryRun = params.dry_run === true || params.is_simulation === true;
 
-      // Execute the skill with AI
-      const result = await runSkill(client, skillKey, skillContext, orgId, userId);
+      // Prefer org-enabled compiled skill docs; fallback to prompt runtime if not enabled (handled internally)
+      const { executeAgentSkillWithContract } = await import('../agentSkillExecutor.ts');
+      const result = await executeAgentSkillWithContract(client as any, {
+        organizationId: orgId,
+        userId,
+        skillKey,
+        context: skillContext,
+        dryRun,
+      });
 
       return {
-        success: result.success,
-        data: result.output,
+        success: result.status !== 'failed',
+        data: result,
         error: result.error,
         source: 'run_skill',
+      };
+    }
+
+    case 'run_sequence': {
+      // Execute a multi-step agent sequence (category=agent-sequence) and return execution results
+      const sequenceKey = params.sequence_key ? String(params.sequence_key) : '';
+      if (!sequenceKey) {
+        return { success: false, data: null, error: 'sequence_key is required for run_sequence' };
+      }
+
+      if (!orgId) {
+        return { success: false, data: null, error: 'Organization context required to run sequences' };
+      }
+
+      const sequenceContext = (params.sequence_context || params.context || {}) as Record<string, unknown>;
+      const isSimulation = params.is_simulation === true;
+
+      // Execute directly (no nested edge-function invocation) so Copilot can run sequences using service-role DB access,
+      // while still enforcing org membership checks internally.
+      const { executeSequence } = await import('../sequenceExecutor.ts');
+      const data = await executeSequence(client as any, {
+        organizationId: orgId,
+        userId,
+        sequenceKey,
+        sequenceContext,
+        isSimulation,
+      });
+
+      return {
+        success: true,
+        data,
+        source: 'run_sequence',
       };
     }
 

@@ -181,7 +181,13 @@ serve(async (req) => {
     // Create service role client for database operations (bypasses RLS)
     const client = createClient(
       supabaseUrl,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
+      {
+        // Include the user JWT so DB access remains correct even if service role is misconfigured in secrets.
+        // This also ensures membership-gated queries in shared executors work reliably.
+        global: { headers: { Authorization: authHeader } },
+        auth: { persistSession: false },
+      }
     )
 
     const user_id = user.id
@@ -2126,8 +2132,8 @@ const AVAILABLE_TOOLS = [
  * Skills Router Tools (3-tool surface)
  *
  * Copilot is intentionally limited to:
- * - list_skills: discover skills
- * - get_skill: load a skill document (compiled per org)
+ * - list_skills: discover skills and sequences
+ * - get_skill: load a skill/sequence document (compiled per org)
  * - execute_action: fetch data / perform actions through adapters
  */
 const SKILLS_ROUTER_TOOLS = [
@@ -2137,9 +2143,15 @@ const SKILLS_ROUTER_TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
+        kind: {
+          type: 'string',
+          enum: ['skill', 'sequence', 'all'],
+          default: 'all',
+          description: 'Filter to skills (single-step) vs sequences (category=agent-sequence).',
+        },
         category: {
           type: 'string',
-          enum: ['sales-ai', 'writing', 'enrichment', 'workflows', 'data-access', 'output-format'],
+          enum: ['sales-ai', 'writing', 'enrichment', 'workflows', 'data-access', 'output-format', 'agent-sequence'],
           description: 'Optional skill category filter.',
         },
         enabled_only: {
@@ -2152,7 +2164,7 @@ const SKILLS_ROUTER_TOOLS = [
   },
   {
     name: 'get_skill',
-    description: 'Retrieve a compiled skill document by skill_key for the user’s organization.',
+    description: 'Retrieve a compiled skill or sequence document by skill_key for the user’s organization.',
     input_schema: {
       type: 'object',
       properties: {
@@ -2232,7 +2244,14 @@ Write actions require params.confirm=true.`,
             'draft_email',
             'update_crm',
             'send_notification',
+            'enrich_contact',
+            'enrich_company',
+            'invoke_skill',
             'run_skill',
+            'run_sequence',
+            'create_task',
+            'list_tasks',
+            'create_activity',
           ],
           description: 'The action to execute',
         },
@@ -2291,6 +2310,10 @@ Write actions require params.confirm=true.`,
             // Skill execution params
             skill_key: { type: 'string', description: 'Skill to execute (for run_skill): lead-research, company-analysis, competitor-intel, market-research, industry-trends, meeting-prep, etc.' },
             skill_context: { type: 'object', description: 'Context variables for the skill (for run_skill): domain, company_name, competitor_name, industry, etc.' },
+            // Sequence execution params
+            sequence_key: { type: 'string', description: 'Sequence to execute (for run_sequence): must be an enabled agent-sequence skill_key' },
+            sequence_context: { type: 'object', description: 'Input context for the sequence trigger (for run_sequence)' },
+            is_simulation: { type: 'boolean', description: 'If true, run in simulation/dry-run mode (for run_sequence)' },
           },
         },
       },
@@ -2328,7 +2351,8 @@ async function callClaudeAPI(
   // Build messages array for Claude
   // Resolve company name and available skills for system prompt
   let companyName = 'your company'
-  let availableSkills: { skill_id: string; name: string; category: string }[] = []
+  // NOTE: get_organization_skills_for_agent returns { skill_key, category, frontmatter, content, is_enabled }
+  let availableSkills: { skill_key: string; name: string; category: string }[] = []
   try {
     // Use the orgId parameter if provided, otherwise look it up
     let resolvedOrgId = orgId
@@ -2371,44 +2395,68 @@ async function callClaudeAPI(
         p_category: null
       })
       if (orgSkills && Array.isArray(orgSkills)) {
-        availableSkills = orgSkills.map((s: any) => ({
-          skill_id: s.skill_id,
-          name: s.skill_name,
-          category: s.category
-        }))
+        availableSkills = orgSkills
+          .map((s: any) => {
+            const skillKey = String(s.skill_key || s.skill_id || '').trim()
+            const fm = (s.frontmatter || {}) as Record<string, unknown>
+            const nameCandidate =
+              (typeof fm.name === 'string' && fm.name.trim())
+                ? fm.name
+                : (typeof (fm as any).title === 'string' && String((fm as any).title).trim())
+                  ? String((fm as any).title)
+                  : skillKey
+            return {
+              skill_key: skillKey,
+              name: String(nameCandidate),
+              category: String(s.category || 'other')
+            }
+          })
+          .filter((s: any) => Boolean(s.skill_key))
       }
     }
   } catch {
     // fail open: keep default companyName
   }
 
-  // Format available skills for the system prompt
+  // Format available skills/sequences for the system prompt
+  const sequences = availableSkills.filter((s) => s.category === 'agent-sequence')
+  const skillsOnly = availableSkills.filter((s) => s.category !== 'agent-sequence')
+
   const skillsByCategory: Record<string, string[]> = {}
-  for (const skill of availableSkills) {
+  for (const skill of skillsOnly) {
     const cat = skill.category || 'other'
     if (!skillsByCategory[cat]) skillsByCategory[cat] = []
-    skillsByCategory[cat].push(`${skill.skill_id} (${skill.name})`)
+    skillsByCategory[cat].push(`${skill.skill_key} (${skill.name})`)
   }
   const skillsListText = Object.entries(skillsByCategory)
     .map(([cat, skills]) => `  ${cat}: ${skills.join(', ')}`)
     .join('\n')
 
+  const sequencesListText = sequences
+    .map((s) => `  - ${s.skill_key} (${s.name})`)
+    .join('\n')
+
   const systemPrompt = `You are a sales assistant for ${companyName}. You help sales reps prepare for calls, follow up after meetings, and manage their pipeline.
 
 ## How You Work
-You have access to skills - documents that contain instructions, context, and best practices specific to ${companyName}. Always retrieve the relevant skill before taking action.
+You have access to **skills** (single-step) and **sequences** (multi-step processes that use many skills) specific to ${companyName}.
 
-### Available Skills
+Always retrieve the relevant skill/sequence before taking action.
+
+### Available Sequences (multi-step)
+${sequencesListText || '  No sequences configured yet'}
+
+### Available Skills (single-step)
 ${skillsListText || '  No skills configured yet'}
 
 ### Your Tools
-1. list_skills - See available skills by category
-2. get_skill - Retrieve a skill document for guidance (use exact skill_id from list above)
+1. list_skills - See available skills and sequences by category
+2. get_skill - Retrieve a skill/sequence document for guidance (use exact skill_key from lists above)
 3. execute_action - Perform actions (query CRM, fetch meetings, search emails, etc.)
 
 ### Workflow Pattern
 1. Understand what the user needs
-2. Retrieve the relevant skill(s) with get_skill using the exact skill_id
+2. Retrieve the relevant skill(s) or sequence(s) with get_skill using the exact skill_key
 3. Follow the skill's instructions
 4. Use execute_action to gather data or perform tasks
 5. Deliver results in the user's preferred channel
@@ -2765,6 +2813,7 @@ async function executeToolCall(
     if (toolName === 'list_skills') {
       const category = args?.category ? String(args.category) : null
       const enabledOnly = args?.enabled_only !== false
+      const kind = args?.kind ? String(args.kind) : 'all' // 'skill' | 'sequence' | 'all'
 
       if (enabledOnly) {
         const { data: skills, error } = await client.rpc('get_organization_skills_for_agent', {
@@ -2772,16 +2821,24 @@ async function executeToolCall(
         })
         if (error) throw new Error(`Failed to list skills: ${error.message}`)
 
-        const filtered = (skills || []).filter((s: any) => (!category ? true : s.category === category))
+        const filtered = (skills || [])
+          .filter((s: any) => (!category ? true : s.category === category))
+          .filter((s: any) => {
+            if (kind === 'sequence') return s.category === 'agent-sequence'
+            if (kind === 'skill') return s.category !== 'agent-sequence'
+            return true
+          })
         return {
           success: true,
           count: filtered.length,
           skills: filtered.map((s: any) => ({
             skill_key: s.skill_key,
+            kind: s.category === 'agent-sequence' ? 'sequence' : 'skill',
             category: s.category,
             name: s.frontmatter?.name,
             description: s.frontmatter?.description,
             triggers: s.frontmatter?.triggers || [],
+            step_count: Array.isArray(s.frontmatter?.sequence_steps) ? s.frontmatter.sequence_steps.length : undefined,
             is_enabled: s.is_enabled ?? true,
           })),
         }
@@ -2816,16 +2873,23 @@ async function executeToolCall(
           version: r.platform_skill_version ?? 1,
         }))
         .filter((s: any) => (!category ? true : s.category === category))
+        .filter((s: any) => {
+          if (kind === 'sequence') return s.category === 'agent-sequence'
+          if (kind === 'skill') return s.category !== 'agent-sequence'
+          return true
+        })
 
       return {
         success: true,
         count: all.length,
         skills: all.map((s: any) => ({
           skill_key: s.skill_key,
+          kind: s.category === 'agent-sequence' ? 'sequence' : 'skill',
           category: s.category,
           name: s.frontmatter?.name,
           description: s.frontmatter?.description,
           triggers: s.frontmatter?.triggers || [],
+          step_count: Array.isArray(s.frontmatter?.sequence_steps) ? s.frontmatter.sequence_steps.length : undefined,
           is_enabled: s.is_enabled ?? true,
         })),
       }
@@ -2847,9 +2911,13 @@ async function executeToolCall(
           success: true,
           skill: {
             skill_key: found.skill_key,
+            kind: found.category === 'agent-sequence' ? 'sequence' : 'skill',
             category: found.category,
             frontmatter: found.frontmatter || {},
             content: found.content || '',
+            step_count: Array.isArray(found.frontmatter?.sequence_steps)
+              ? found.frontmatter.sequence_steps.length
+              : undefined,
             is_enabled: found.is_enabled ?? true,
           },
         }
@@ -2882,9 +2950,13 @@ async function executeToolCall(
         success: true,
         skill: {
           skill_key: row.skill_id,
+          kind: row.platform_skills?.category === 'agent-sequence' ? 'sequence' : 'skill',
           category: row.platform_skills?.category || 'uncategorized',
           frontmatter: row.compiled_frontmatter || row.platform_skills?.frontmatter || {},
           content: row.compiled_content || row.platform_skills?.content_template || '',
+          step_count: Array.isArray((row.compiled_frontmatter || row.platform_skills?.frontmatter)?.sequence_steps)
+            ? (row.compiled_frontmatter || row.platform_skills?.frontmatter).sequence_steps.length
+            : undefined,
           is_enabled: row.is_enabled ?? true,
         },
       }
