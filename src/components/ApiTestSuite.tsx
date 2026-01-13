@@ -40,7 +40,7 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
   const [createdIds, setCreatedIds] = useState<Record<string, string>>({});
   const cleanupDataRef = useRef<Record<string, string>>({});
 
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
 
   // Cleanup on component unmount
   useEffect(() => {
@@ -55,7 +55,7 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
               await fetch(`${SUPABASE_URL}/functions/v1/api-v1-${entity}/${id}`, {
                 method: 'DELETE',
                 headers: {
-                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                  'Authorization': `Bearer ${(import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY)}`,
                   'X-API-Key': apiKey,
                 },
               });
@@ -155,7 +155,7 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
         method,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${(import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY)}`,
           'X-API-Key': apiKey || '',
         },
         body: (method === 'POST' || method === 'PUT') ? JSON.stringify(data) : undefined,
@@ -198,7 +198,7 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
           const response = await fetch(endpoint, {
             method: 'DELETE',
             headers: {
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Authorization': `Bearer ${(import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY)}`,
               'X-API-Key': apiKey || '',
             },
           });

@@ -107,7 +107,7 @@ export function useMeetingBaaSCalendar() {
       }
 
       // Get the Supabase project URL for the edge function
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
       const functionUrl = `${supabaseUrl}/functions/v1/meetingbaas-connect-calendar`;
 
       console.log('[useMeetingBaaSCalendar] Connecting calendar:', {

@@ -359,8 +359,8 @@ Return coaching analysis JSON:
   variables: {
     openaiApiKey: '',
     googleServiceAccount: '',
-    supabaseUrl: typeof window !== 'undefined' && import.meta?.env?.VITE_SUPABASE_URL || '',
-    supabaseKey: typeof window !== 'undefined' && import.meta?.env?.VITE_SUPABASE_ANON_KEY || ''
+    supabaseUrl: typeof window !== 'undefined' && (import.meta?.env?.VITE_SUPABASE_URL || import.meta?.env?.SUPABASE_URL) || '',
+    supabaseKey: typeof window !== 'undefined' && (import.meta?.env?.VITE_SUPABASE_ANON_KEY || import.meta?.env?.SUPABASE_ANON_KEY) || ''
   },
   
   requiredIntegrations: ['fathom', 'openai', 'google-docs', 'supabase'],

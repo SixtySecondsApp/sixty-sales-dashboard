@@ -8,8 +8,9 @@ import logger from '../utils/logger';
 // Otherwise, use landing package's own env vars
 
 // Get environment variables
-let supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-let supabasePublishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Support both VITE_ prefixed (development) and non-prefixed (Vercel) variable names
+let supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL;
+let supabasePublishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY;
 
 // SECURITY: Never use Secret keys (formerly service role keys) in frontend code!
 // Secret keys bypass RLS and should NEVER be exposed to the browser.

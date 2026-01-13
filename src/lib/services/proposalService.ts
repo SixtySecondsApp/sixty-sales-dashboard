@@ -172,7 +172,7 @@ export async function generateGoals(
     }
 
     // Get Supabase URL with validation
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
     if (!supabaseUrl) {
       throw new Error('VITE_SUPABASE_URL is not configured. Please check your environment variables.');
     }
@@ -339,7 +339,7 @@ export async function generateSOW(
     }
 
     // Get Supabase URL with validation
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
     if (!supabaseUrl) {
       throw new Error('VITE_SUPABASE_URL is not configured. Please check your environment variables.');
     }
@@ -497,7 +497,7 @@ export async function generateEmailProposal(
       throw new Error('Not authenticated');
     }
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
     if (!supabaseUrl) {
       throw new Error('VITE_SUPABASE_URL is not configured. Please check your environment variables.');
     }
@@ -627,7 +627,7 @@ export async function generateMarkdownProposal(
       throw new Error('Not authenticated');
     }
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
     if (!supabaseUrl) {
       throw new Error('VITE_SUPABASE_URL is not configured. Please check your environment variables.');
     }
@@ -758,7 +758,7 @@ export async function generateProposal(
     }
 
     // Get Supabase URL with validation
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
     if (!supabaseUrl) {
       throw new Error('VITE_SUPABASE_URL is not configured. Please check your environment variables.');
     }
@@ -1237,7 +1237,7 @@ export async function extractGoalsFromMeeting(meetingId: string): Promise<{
     }
 
     // Get Supabase URL
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
     if (!supabaseUrl) {
       throw new Error('VITE_SUPABASE_URL is not configured');
     }

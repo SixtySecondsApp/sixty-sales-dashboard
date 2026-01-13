@@ -5,8 +5,9 @@ import { apiMonitorService } from '@/lib/services/apiMonitorService';
 
 // Environment variables with validation
 // Supabase uses "Publishable key" (frontend-safe) and "Secret keys" (server-side only)
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabasePublishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY; // Publishable key (safe for frontend)
+// Support both VITE_ prefixed (development) and non-prefixed (Vercel) variable names
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL;
+const supabasePublishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY; // Publishable key (safe for frontend)
 // SECURITY: Never use Secret keys (formerly service role keys) in frontend code!
 // Secret keys bypass RLS and should NEVER be exposed to the browser.
 // The supabaseAdmin client should only be used server-side (edge functions, API routes).
@@ -60,8 +61,8 @@ if (!supabaseUrl || !supabasePublishableKey) {
      window.location.hostname.includes('sixtyseconds.video'));
   
   const errorMessage = isProduction
-    ? 'Missing required Supabase environment variables. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel Dashboard → Settings → Environment Variables, then redeploy.'
-    : 'Missing required Supabase environment variables. Please check your .env.local file and ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.';
+    ? 'Missing required Supabase environment variables. Please configure SUPABASE_URL and SUPABASE_ANON_KEY (or VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY) in Vercel Dashboard → Settings → Environment Variables, then redeploy.'
+    : 'Missing required Supabase environment variables. Please check your .env.local file and ensure SUPABASE_URL and SUPABASE_ANON_KEY (or VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY) are set.';
   
   throw new Error(errorMessage);
 }

@@ -33,7 +33,7 @@ class SlackOAuthService {
     if (!clientId) {
       throw new Error('Slack OAuth is not configured (missing VITE_SLACK_CLIENT_ID)');
     }
-    const redirectUri = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/slack-oauth-callback`;
+    const redirectUri = `${(import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL)}/functions/v1/slack-oauth-callback`;
 
     // Encode state with user and org information
     const state = btoa(JSON.stringify({
@@ -171,7 +171,7 @@ class SlackOAuthService {
 
     // Call edge function to refresh channels (handles Slack API call server-side)
     const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/slack-refresh-user-channels`,
+      `${(import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL)}/functions/v1/slack-refresh-user-channels`,
       {
         method: 'POST',
         headers: {
@@ -240,7 +240,7 @@ class SlackOAuthService {
       
       // Call our Edge Function to send the message
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-slack-message`,
+        `${(import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL)}/functions/v1/send-slack-message`,
         {
           method: 'POST',
           headers: {
