@@ -52,7 +52,7 @@ class GoogleCalendarWebhookService {
       const channelId = `calendar-${userData.user.id}-${Date.now()}`;
 
       // Get webhook URL
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
       const webhookUrl = `${supabaseUrl}/functions/v1/google-calendar-webhook`;
 
       // Call edge function to create the channel with Google

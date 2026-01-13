@@ -186,12 +186,12 @@ export const ClerkAuthProvider: React.FC<ClerkAuthProviderProps> = ({ children }
           try {
             // Call the clerk-user-sync Edge Function to provision the user
             const response = await fetch(
-              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/clerk-user-sync`,
+              `${(import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL)}/functions/v1/clerk-user-sync`,
               {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                  'Authorization': `Bearer ${(import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY)}`,
                 },
                 body: JSON.stringify({
                   action: 'provision',

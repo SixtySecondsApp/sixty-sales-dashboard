@@ -132,7 +132,7 @@ export class ContentService {
   private readonly generateContentTimeout: number = 60000; // 60 seconds
 
   constructor() {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
     if (!supabaseUrl) {
       throw new Error('VITE_SUPABASE_URL is not configured');
     }
