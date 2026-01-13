@@ -21,8 +21,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    // Trim env vars to remove any whitespace/newlines
+    const supabaseUrl = process.env.SUPABASE_URL?.trim();
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
     if (!supabaseUrl || !serviceKey) {
       console.error('[invite-user] Missing environment config:', {
         hasUrl: !!supabaseUrl,
@@ -176,6 +177,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         redirectTo: correctRedirectTo,
       });
     }
+
+    console.log('[invite-user] Calling edge function with service key prefix:', serviceKey?.substring(0, 20));
 
     const emailResp = await fetch(`${supabaseUrl}/functions/v1/encharge-send-email`, {
       method: 'POST',
