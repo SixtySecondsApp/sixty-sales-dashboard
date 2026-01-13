@@ -228,8 +228,13 @@ export default function AuthCallback() {
             }
           }
 
-          // Check if this is an invitation flow (type=invite or user has invited_at timestamp)
-          const isInvitation = type === 'invite' || session.user.invited_at;
+          // Check if this is an invitation flow
+          // - type=invite (from Supabase invite flow)
+          // - user.invited_at timestamp (from Supabase)
+          // - invited_by_admin_id in metadata (from our admin invite flow)
+          const isInvitation = type === 'invite' ||
+                              type === 'recovery' && session.user.user_metadata?.invited_by_admin_id ||
+                              session.user.invited_at;
 
           // For invitations, we should redirect to SetPassword even if email not confirmed
           // For regular signups, we need email_confirmed_at to proceed
