@@ -108,34 +108,6 @@ export function WaitlistHeroV2() {
     }));
   }, []);
 
-  const sendWelcomeEmail = async (email: string, fullName: string, companyName: string) => {
-    try {
-      const firstName = fullName.split(' ')[0];
-      const { data, error } = await supabase.functions.invoke('encharge-send-email', {
-        body: {
-          template_type: 'waitlist_welcome',
-          to_email: email.trim().toLowerCase(),
-          to_name: firstName,
-          variables: {
-            user_name: firstName,
-            full_name: fullName,
-            company_name: companyName || '',
-            first_name: firstName,
-            email: email.trim().toLowerCase(),
-          },
-        },
-      });
-
-      if (error) {
-        console.error('[Waitlist] Welcome email failed:', error);
-      } else {
-        console.log('[Waitlist] Welcome email sent successfully:', data);
-      }
-    } catch (err) {
-      console.warn('[Waitlist] Welcome email exception:', err);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -163,14 +135,12 @@ export function WaitlistHeroV2() {
       // Save to database
       await waitlistService.signupForWaitlist(finalFormData);
 
-      // Send welcome email (fire and forget)
-      sendWelcomeEmail(formData.email, formData.full_name, formData.company_name);
-
       // Navigate to thank you page (using state to avoid URL exposure)
       const email = formData.email.trim().toLowerCase();
       const fullName = formData.full_name.trim();
+      const companyName = formData.company_name.trim();
       navigate('/waitlist/thank-you', {
-        state: { email, fullName }
+        state: { email, fullName, companyName }
       });
 
       toast.success('Successfully joined the waitlist!');

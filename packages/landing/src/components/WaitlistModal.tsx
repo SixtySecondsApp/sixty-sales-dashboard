@@ -37,8 +37,9 @@ export function WaitlistModal({ isOpen, onClose, initialEmail = '', signupSource
     if (simpleSuccess) {
       const email = simpleSuccess.email.trim().toLowerCase();
       const fullName = simpleSuccess.full_name.trim();
+      const companyName = simpleSuccess.company_name.trim();
       navigate('/waitlist/thank-you', {
-        state: { email, fullName }
+        state: { email, fullName, companyName }
       });
       // Close the modal after navigation
       onClose();

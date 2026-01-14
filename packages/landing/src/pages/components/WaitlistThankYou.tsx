@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 interface WaitlistThankYouProps {
   email: string;
   fullName: string;
+  companyName?: string;
   onClose?: () => void;
 }
 
-export function WaitlistThankYou({ email, fullName, onClose }: WaitlistThankYouProps) {
+export function WaitlistThankYou({ email, fullName, companyName, onClose }: WaitlistThankYouProps) {
   const firstName = fullName.split(' ')[0];
 
   return (

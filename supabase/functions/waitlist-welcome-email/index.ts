@@ -67,7 +67,7 @@ serve(async (req) => {
         'apikey': SUPABASE_SERVICE_ROLE_KEY,
       },
       body: JSON.stringify({
-        template_type: 'welcome',
+        template_type: 'waitlist_welcome',
         to_email: email,
         to_name: firstName,
         variables: {
