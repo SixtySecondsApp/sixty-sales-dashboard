@@ -402,8 +402,18 @@ async function testSESConnection(): Promise<{ success: boolean; message: string;
  */
 function isServiceRoleAuth(authHeader: string | null, serviceRoleKey: string): boolean {
   if (!authHeader) return false;
+  if (!serviceRoleKey) {
+    console.warn('[encharge-send-email] Service role key not configured');
+    return false;
+  }
   const token = authHeader.replace(/^Bearer\s+/i, '');
-  return token === serviceRoleKey;
+  const match = token === serviceRoleKey;
+  console.log('[encharge-send-email] Service role comparison:', {
+    tokenLength: token.length,
+    keyLength: serviceRoleKey.length,
+    match,
+  });
+  return match;
 }
 
 serve(async (req) => {
@@ -414,35 +424,68 @@ serve(async (req) => {
   // Check authentication - allow service role key or user JWT
   const authHeader = req.headers.get('Authorization');
   const apikeyHeader = req.headers.get('apikey');
-  
+
+  console.log('[encharge-send-email] Auth check:', {
+    hasAuthHeader: !!authHeader,
+    hasApiKeyHeader: !!apikeyHeader,
+    authHeaderPreview: authHeader ? authHeader.substring(0, 20) + '...' : null,
+    serviceRoleKeySet: !!SUPABASE_SERVICE_ROLE_KEY,
+    serviceRoleKeyLength: SUPABASE_SERVICE_ROLE_KEY?.length,
+  });
+
   // Allow service role authentication (for service-to-service calls)
-  const isServiceRole = isServiceRoleAuth(authHeader, SUPABASE_SERVICE_ROLE_KEY) || 
+  const isServiceRole = isServiceRoleAuth(authHeader, SUPABASE_SERVICE_ROLE_KEY) ||
                         (apikeyHeader === SUPABASE_SERVICE_ROLE_KEY);
-  
-  // If not service role, try to validate as user JWT (optional - for direct calls)
-  if (!isServiceRole && authHeader) {
+
+  console.log('[encharge-send-email] Service role check result:', { isServiceRole });
+
+  // If we have a service role key match, skip further auth checks
+  if (isServiceRole) {
+    console.log('[encharge-send-email] Authenticated as service role - proceeding');
+  } else if (authHeader) {
+    // If not service role, try to validate as user JWT (optional - for direct calls)
     try {
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       const token = authHeader.replace(/^Bearer\s+/i, '');
       const { data: { user }, error } = await supabase.auth.getUser(token);
+      console.log('[encharge-send-email] JWT validation result:', {
+        error: error?.message,
+        hasUser: !!user,
+      });
       if (error || !user) {
-        // Not a valid user JWT, but we'll allow it if it's a service role call via apikey
-        if (!apikeyHeader || apikeyHeader !== SUPABASE_SERVICE_ROLE_KEY) {
-          return new Response(
-            JSON.stringify({ success: false, error: 'Unauthorized: invalid authentication' }),
-            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-    } catch (authError) {
-      // If auth check fails and no service role key, reject
-      if (!isServiceRole) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Unauthorized: authentication failed' }),
+          JSON.stringify({
+            success: false,
+            error: 'Unauthorized: invalid authentication',
+            details: {
+              message: error?.message || 'User not found',
+            }
+          }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+    } catch (authError) {
+      console.log('[encharge-send-email] Auth exception:', authError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Unauthorized: authentication failed',
+          details: {
+            message: authError instanceof Error ? authError.message : 'Unknown error'
+          }
+        }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+  } else {
+    // No auth headers provided
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Unauthorized: no authentication provided'
+      }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 
   // Handle test endpoint
