@@ -34,36 +34,6 @@ export function useWaitlistSignup(): UseWaitlistSignupReturn {
   const [simpleSuccess, setSimpleSuccess] = useState<SignupSuccessData | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
-  const sendWelcomeEmail = async (email: string, fullName: string, companyName: string) => {
-    try {
-      const firstName = fullName.split(' ')[0];
-      const { data, error } = await supabase.functions.invoke('encharge-send-email', {
-        body: {
-          template_type: 'waitlist_welcome',
-          to_email: email.trim().toLowerCase(),
-          to_name: firstName,
-          variables: {
-            user_name: firstName,
-            full_name: fullName,
-            company_name: companyName || '',
-            first_name: firstName,
-            email: email.trim().toLowerCase(),
-          },
-        },
-      });
-
-      if (error) {
-        console.error('[Waitlist] Welcome email failed:', error);
-        // Don't throw - email failure shouldn't block signup success
-      } else {
-        console.log('[Waitlist] Welcome email sent successfully:', data);
-      }
-    } catch (err) {
-      console.error('[Waitlist] Welcome email exception:', err);
-      // Don't throw - email failure shouldn't block signup success
-    }
-  };
-
   const signup = async (data: WaitlistSignupData) => {
     setIsSubmitting(true);
     setError(null);
@@ -92,9 +62,6 @@ export function useWaitlistSignup(): UseWaitlistSignupReturn {
 
       // Call signup service with retry logic
       const entry = await waitlistService.signupForWaitlist(data);
-
-      // Send welcome email (fire and forget - don't block on this)
-      sendWelcomeEmail(data.email, data.full_name, data.company_name);
 
       if (ENABLE_GAMIFICATION) {
         // Full gamification flow
