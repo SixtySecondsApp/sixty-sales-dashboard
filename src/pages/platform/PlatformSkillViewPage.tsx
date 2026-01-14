@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
@@ -20,6 +20,7 @@ import {
   Server,
   LayoutTemplate,
   Workflow,
+  GitBranch,
   ToggleLeft,
   ToggleRight,
   RefreshCw,
@@ -44,6 +45,7 @@ const CATEGORY_ICONS: Record<SkillCategory, React.ElementType> = {
   workflows: Workflow,
   'data-access': Server,
   'output-format': LayoutTemplate,
+  'agent-sequence': GitBranch,
 };
 
 const CATEGORY_COLORS: Record<SkillCategory, string> = {
@@ -53,6 +55,7 @@ const CATEGORY_COLORS: Record<SkillCategory, string> = {
   workflows: 'from-orange-500 to-amber-600',
   'data-access': 'from-slate-500 to-gray-600',
   'output-format': 'from-pink-500 to-rose-600',
+  'agent-sequence': 'from-violet-500 to-indigo-600',
 };
 
 async function fetchSkillByKey(skillKey: string): Promise<PlatformSkill | null> {
@@ -72,9 +75,13 @@ async function fetchSkillByKey(skillKey: string): Promise<PlatformSkill | null> 
 
 export default function PlatformSkillViewPage() {
   const { category, skillKey } = useParams<{ category: string; skillKey: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'preview' | 'test'>('preview');
+
+  // Check for query param to auto-switch to test tab with pre-filled input
+  const tryQuery = searchParams.get('try');
+  const [activeTab, setActiveTab] = useState<'preview' | 'test'>(tryQuery ? 'test' : 'preview');
 
   const operations = usePlatformSkillOperations(user?.id || '');
 
@@ -264,7 +271,7 @@ export default function PlatformSkillViewPage() {
           {activeTab === 'preview' ? (
             <SkillPreview skill={skill} />
           ) : (
-            <SkillTestConsole skillKey={skill.skill_key} />
+            <SkillTestConsole skillKey={skill.skill_key} initialInput={tryQuery || undefined} />
           )}
         </motion.div>
       </div>

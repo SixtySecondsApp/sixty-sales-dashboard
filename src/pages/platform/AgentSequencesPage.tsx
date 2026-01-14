@@ -68,7 +68,8 @@ function SequenceCard({
   onToggleActive,
 }: SequenceCardProps) {
   const { frontmatter, is_active, skill_key } = sequence;
-  const steps = frontmatter.sequence_steps || [];
+  const steps = Array.isArray(frontmatter.sequence_steps) ? frontmatter.sequence_steps : [];
+  const safeSteps = steps.filter(Boolean);
   const { data: executions } = useSequenceExecutions(skill_key, { limit: 5 });
 
   // Calculate test status
@@ -91,7 +92,7 @@ function SequenceCard({
             <GitBranch className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h3 className="font-semibold text-sm line-clamp-1">{frontmatter.name}</h3>
+            <h3 className="font-semibold text-sm line-clamp-1">{frontmatter.name || 'Untitled sequence'}</h3>
             <code className="text-xs text-muted-foreground">{skill_key}</code>
           </div>
         </div>
@@ -115,18 +116,27 @@ function SequenceCard({
 
       {/* Steps Preview */}
       <div className="flex items-center gap-1 mb-3 overflow-hidden">
-        {steps.slice(0, 4).map((step, idx) => (
+        {safeSteps.slice(0, 4).map((step: any, idx) => {
+          const stepKey =
+            typeof step?.skill_key === 'string'
+              ? step.skill_key
+              : typeof step?.action === 'string'
+                ? step.action
+                : 'step';
+          const shortLabel = (stepKey.split('-')[0] || 'step').trim() || 'step';
+          return (
           <div key={idx} className="flex items-center">
             <Badge variant="outline" className="text-xs shrink-0">
-              {step.skill_key.split('-')[0]}
+              {shortLabel}
             </Badge>
-            {idx < Math.min(steps.length - 1, 3) && (
+            {idx < Math.min(safeSteps.length - 1, 3) && (
               <ArrowRight className="h-3 w-3 text-muted-foreground mx-0.5 shrink-0" />
             )}
           </div>
-        ))}
-        {steps.length > 4 && (
-          <span className="text-xs text-muted-foreground ml-1">+{steps.length - 4} more</span>
+          );
+        })}
+        {safeSteps.length > 4 && (
+          <span className="text-xs text-muted-foreground ml-1">+{safeSteps.length - 4} more</span>
         )}
       </div>
 
@@ -134,7 +144,7 @@ function SequenceCard({
       <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
         <span className="flex items-center gap-1">
           <GitBranch className="h-3 w-3" />
-          {steps.length} steps
+          {safeSteps.length} steps
         </span>
         {testStatus && (
           <span

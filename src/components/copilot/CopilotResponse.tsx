@@ -37,6 +37,14 @@ import { ActivityCreationResponse } from './responses/ActivityCreationResponse';
 import { TaskCreationResponse } from './responses/TaskCreationResponse';
 import { ProposalSelectionResponse } from './responses/ProposalSelectionResponse';
 import { ActionSummaryResponse } from './responses/ActionSummaryResponse';
+import { PipelineFocusTasksResponse } from './responses/PipelineFocusTasksResponse';
+import { DealRescuePackResponse } from './responses/DealRescuePackResponse';
+import { NextMeetingCommandCenterResponse } from './responses/NextMeetingCommandCenterResponse';
+import { PostMeetingFollowUpPackResponse } from './responses/PostMeetingFollowUpPackResponse';
+import { DealMapBuilderResponse } from './responses/DealMapBuilderResponse';
+import { DailyFocusPlanResponse } from './responses/DailyFocusPlanResponse';
+import { FollowupZeroInboxResponse } from './responses/FollowupZeroInboxResponse';
+import { DealSlippageGuardrailsResponse } from './responses/DealSlippageGuardrailsResponse';
 import { MeetingCountResponse } from './responses/MeetingCountResponse';
 import { MeetingBriefingResponse } from './responses/MeetingBriefingResponse';
 import { MeetingListResponse } from './responses/MeetingListResponse';
@@ -75,6 +83,14 @@ import type {
   TaskCreationResponse as TaskCreationResponseType,
   ProposalSelectionResponse as ProposalSelectionResponseType,
   ActionSummaryResponse as ActionSummaryResponseType,
+  PipelineFocusTasksResponse as PipelineFocusTasksResponseType,
+  DealRescuePackResponse as DealRescuePackResponseType,
+  NextMeetingCommandCenterResponse as NextMeetingCommandCenterResponseType,
+  PostMeetingFollowUpPackResponse as PostMeetingFollowUpPackResponseType,
+  DealMapBuilderResponse as DealMapBuilderResponseType,
+  DailyFocusPlanResponse as DailyFocusPlanResponseType,
+  FollowupZeroInboxResponse as FollowupZeroInboxResponseType,
+  DealSlippageGuardrailsResponse as DealSlippageGuardrailsResponseType,
   MeetingCountResponseData,
   MeetingBriefingResponseData,
   MeetingListResponseData,
@@ -188,6 +204,30 @@ export const CopilotResponse: React.FC<CopilotResponseProps> = ({ response, onAc
     
     case 'action_summary':
       return <ActionSummaryResponse data={response as ActionSummaryResponseType} onActionClick={onActionClick} />;
+
+    case 'pipeline_focus_tasks':
+      return <PipelineFocusTasksResponse data={response as PipelineFocusTasksResponseType} />;
+
+    case 'deal_rescue_pack':
+      return <DealRescuePackResponse data={response as DealRescuePackResponseType} />;
+
+    case 'next_meeting_command_center':
+      return <NextMeetingCommandCenterResponse data={response as NextMeetingCommandCenterResponseType} />;
+
+    case 'post_meeting_followup_pack':
+      return <PostMeetingFollowUpPackResponse data={response as PostMeetingFollowUpPackResponseType} />;
+
+    case 'deal_map_builder':
+      return <DealMapBuilderResponse data={response as DealMapBuilderResponseType} />;
+
+    case 'daily_focus_plan':
+      return <DailyFocusPlanResponse data={response as DailyFocusPlanResponseType} />;
+
+    case 'followup_zero_inbox':
+      return <FollowupZeroInboxResponse data={response as FollowupZeroInboxResponseType} />;
+
+    case 'deal_slippage_guardrails':
+      return <DealSlippageGuardrailsResponse data={response as DealSlippageGuardrailsResponseType} />;
 
     case 'meeting_count':
       return <MeetingCountResponse data={(response as any).data as MeetingCountResponseData} onActionClick={onActionClick} />;

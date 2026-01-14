@@ -44,6 +44,7 @@ import {
   Eye,
   GitBranch,
   Bot,
+  FlaskConical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -206,6 +207,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: GitBranch,
       href: '/platform/agent-sequences',
       color: 'text-violet-600 bg-violet-100 dark:bg-violet-900/30',
+      badge: 'New',
+    },
+    {
+      id: 'copilot-lab',
+      title: 'Copilot Lab',
+      description: 'Test, discover, and improve AI copilot capabilities',
+      icon: FlaskConical,
+      href: '/platform/copilot-lab',
+      color: 'text-cyan-600 bg-cyan-100 dark:bg-cyan-900/30',
       badge: 'New',
     },
     {

@@ -146,6 +146,7 @@ export interface AdapterContext {
 export interface MeetingAdapter {
   source: string;
   listMeetings(params: {
+    meeting_id?: string;
     contactEmail?: string;
     contactId?: string;
     limit?: number;

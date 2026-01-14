@@ -81,6 +81,8 @@ interface ToolExecutionDetail {
   latencyMs: number
   success: boolean
   error?: string
+  capability?: string
+  provider?: string
 }
 
 interface StructuredResponse {
@@ -484,6 +486,87 @@ async function handleChat(
     // This allows us to skip AI and go straight to structured response
     const messageLower = body.message.toLowerCase()
     const originalMessage = body.message
+
+    // -------------------------------------------------------------------------
+    // Deterministic confirmation handling (avoids UI "Select Contact" modal)
+    // If the previous assistant message set a pending_action (e.g., run_sequence preview),
+    // then a user reply like "yes" should execute the pending action directly.
+    // -------------------------------------------------------------------------
+    const isAffirmative = /^(yes|yep|yeah|y|ok|okay|sure|do it|go ahead|confirm|create it|create the task|yes create a task)/i.test(
+      body.message.trim()
+    )
+
+    if (isAffirmative) {
+      try {
+        const { data: lastAssistant } = await client
+          .from('copilot_messages')
+          .select('content, metadata')
+          .eq('conversation_id', conversationId)
+          .eq('role', 'assistant')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        const pending = (lastAssistant?.metadata as any)?.pending_action
+        const content = String(lastAssistant?.content || '')
+        const inferredPipelineFocus =
+          content.includes('Pipeline Focus Tasks') || content.includes('seq-pipeline-focus-tasks')
+
+        const pendingSequenceKey =
+          pending?.type === 'run_sequence' && typeof pending.sequence_key === 'string'
+            ? String(pending.sequence_key)
+            : (inferredPipelineFocus ? 'seq-pipeline-focus-tasks' : null)
+
+        // Safety: only allow confirmation execution for known demo sequences.
+        const CONFIRMABLE_SEQUENCES = new Set([
+          'seq-pipeline-focus-tasks',
+          'seq-next-meeting-command-center',
+          'seq-deal-rescue-pack',
+          'seq-post-meeting-followup-pack',
+          'seq-deal-map-builder',
+          'seq-daily-focus-plan',
+          'seq-followup-zero-inbox',
+          'seq-deal-slippage-guardrails',
+        ])
+
+        if (pendingSequenceKey && CONFIRMABLE_SEQUENCES.has(pendingSequenceKey)) {
+          const resolvedOrgId = body.context?.orgId ? String(body.context.orgId) : null
+          const sequenceContext =
+            pending?.sequence_context && typeof pending.sequence_context === 'object'
+              ? pending.sequence_context
+              : {}
+
+          const result = await executeAction(
+            client,
+            userId,
+            resolvedOrgId,
+            'run_sequence',
+            { sequence_key: pendingSequenceKey, is_simulation: false, sequence_context: sequenceContext }
+          )
+
+          const text = `Done — I ran ${pendingSequenceKey}.`
+
+          return new Response(
+            JSON.stringify({
+              response: { type: 'text', content: text, recommendations: [] },
+              conversationId,
+              timestamp: new Date().toISOString(),
+              tool_executions: [
+                {
+                  toolName: 'execute_action',
+                  args: { action: 'run_sequence', params: { sequence_key: pendingSequenceKey, is_simulation: false, sequence_context: sequenceContext } },
+                  result,
+                  success: (result as any)?.success === true,
+                },
+              ],
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+          )
+        }
+      } catch (err) {
+        // Fail open - fall back to normal handling
+      }
+    }
     
     // ULTRA SIMPLE detection: If message contains "performance" anywhere, it's a performance query
     // This catches ALL variations: "Phil's performance", "show performance", "performance this week", etc.
@@ -627,6 +710,29 @@ async function handleChat(
 
     // Save assistant message (skip if we're using structured response)
     if (!shouldSkipClaude) {
+      // Store lightweight execution metadata for follow-up confirmations (e.g., "Yes, create it")
+      let pendingAction: any = null
+      try {
+        // IMPORTANT: tool executions are tracked in `toolExecutions` (computed server-side),
+        // not on the Claude response object.
+        const execs = Array.isArray(toolExecutions) ? toolExecutions : []
+        const lastRunSequence = execs
+          .filter((t: any) => t?.toolName === 'execute_action' && t?.args?.action === 'run_sequence')
+          .slice(-1)[0]
+
+        if (lastRunSequence?.args?.params?.sequence_key && lastRunSequence?.args?.params?.is_simulation === true) {
+          pendingAction = {
+            type: 'run_sequence',
+            sequence_key: String(lastRunSequence.args.params.sequence_key),
+            sequence_context: lastRunSequence.args.params.sequence_context || {},
+            is_simulation: false,
+            created_at: new Date().toISOString(),
+          }
+        }
+      } catch {
+        pendingAction = null
+      }
+
       const { error: assistantMsgError } = await client
         .from('copilot_messages')
         .insert({
@@ -634,7 +740,8 @@ async function handleChat(
           role: 'assistant',
           content: aiResponse.content,
           metadata: {
-            recommendations: aiResponse.recommendations || []
+            recommendations: aiResponse.recommendations || [],
+            pending_action: pendingAction || undefined
           }
         })
 
@@ -760,7 +867,8 @@ async function handleChat(
         structuredResponse: structuredResponse || undefined
       },
       conversationId,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      tool_executions: aiResponse?.tool_executions || []
     }
     
     // Debug logging
@@ -2529,6 +2637,48 @@ These skills use real-time web search and return structured JSON with sources.
 **"What's the status with [company]?"**
 - Use execute_action with get_company_status { company_name: "X" } for holistic view
 
+### Pipeline Focus Task Scheduling (when user says "Help me schedule tasks to engage deals I should focus on" or similar)
+Prefer running the **seq-pipeline-focus-tasks** sequence:
+1. Run execute_action with run_sequence { sequence_key: "seq-pipeline-focus-tasks", is_simulation: true, sequence_context: { period: "this_week" } }
+2. Show the user the task preview (title, checklist, due_date) and the selected top deals
+3. Ask for confirmation before creating tasks
+4. If user confirms, re-run execute_action with run_sequence { sequence_key: "seq-pipeline-focus-tasks", is_simulation: false, sequence_context: { period: "this_week" } }
+
+### Post-Meeting Follow-Up Pack (when user says "generate my follow-up pack" / "send recap" / "Slack update + tasks")
+Prefer running the **seq-post-meeting-followup-pack** sequence:
+1. Run execute_action with run_sequence { sequence_key: "seq-post-meeting-followup-pack", is_simulation: true, sequence_context: {} }
+2. Show the user the email + Slack + task previews
+3. Ask for confirmation before sending/posting/creating
+4. If user confirms, re-run execute_action with run_sequence { sequence_key: "seq-post-meeting-followup-pack", is_simulation: false, sequence_context: {} }
+
+### Deal Mutual Action Plan (MAP) Builder (when user says "build a mutual action plan / MAP for deal X")
+Prefer running the **seq-deal-map-builder** sequence:
+1. Run execute_action with run_sequence { sequence_key: "seq-deal-map-builder", is_simulation: true, sequence_context: { deal_id: "..." } }
+2. Show the milestones + task preview
+3. Ask for confirmation before creating the task
+4. If user confirms, re-run execute_action with run_sequence { sequence_key: "seq-deal-map-builder", is_simulation: false, sequence_context: { deal_id: "..." } }
+
+### Daily Focus Plan (when user says "what should I do today?" / "show me my priorities" / "daily plan")
+Prefer running the **seq-daily-focus-plan** sequence:
+1. Run execute_action with run_sequence { sequence_key: "seq-daily-focus-plan", is_simulation: true, sequence_context: {} }
+2. Show priorities, next best actions, and top task preview
+3. Ask for confirmation before creating the task
+4. If user confirms, re-run execute_action with run_sequence { sequence_key: "seq-daily-focus-plan", is_simulation: false, sequence_context: {} }
+
+### Follow-Up Zero Inbox (when user says "what follow-ups am I missing?" / "check my emails" / "unanswered emails")
+Prefer running the **seq-followup-zero-inbox** sequence:
+1. Run execute_action with run_sequence { sequence_key: "seq-followup-zero-inbox", is_simulation: true, sequence_context: {} }
+2. Show threads needing response, reply drafts, and follow-up task preview
+3. Ask for confirmation before creating the task
+4. If user confirms, re-run execute_action with run_sequence { sequence_key: "seq-followup-zero-inbox", is_simulation: false, sequence_context: {} }
+
+### Deal Slippage Guardrails (when user says "what deals are at risk?" / "show me at-risk deals" / "deal slippage")
+Prefer running the **seq-deal-slippage-guardrails** sequence:
+1. Run execute_action with run_sequence { sequence_key: "seq-deal-slippage-guardrails", is_simulation: true, sequence_context: {} }
+2. Show risk radar, rescue actions, rescue task preview, and Slack update preview
+3. Ask for confirmation before creating the task and posting Slack update
+4. If user confirms, re-run execute_action with run_sequence { sequence_key: "seq-deal-slippage-guardrails", is_simulation: false, sequence_context: {} }
+
 ## Core Rules
 - Confirm before any CRM updates, notifications, or sends (execute_action write actions require params.confirm=true)
 - Do not make up information; prefer tool results
@@ -2608,7 +2758,9 @@ These skills use real-time web search and return structured JSON with sources.
   let maxToolIterations = 5 // Prevent infinite loops
   let iteration = 0
   const startTime = Date.now()
-  const MAX_EXECUTION_TIME = 30000 // 30 seconds max execution time
+  // NOTE: Sequences can legitimately take longer than single-step tools.
+  // Keep a hard cap to avoid runaway loops, but allow demo-grade sequences to complete.
+  const MAX_EXECUTION_TIME = 120000 // 120 seconds max execution time
 
   while (data.stop_reason === 'tool_use' && data.content && iteration < maxToolIterations) {
     // Check timeout
@@ -2652,15 +2804,24 @@ These skills use real-time web search and return structured JSON with sources.
             toolsUsed.push(toolCall.name)
           }
           
-          // Add timeout wrapper for tool execution
+          // Add timeout wrapper for tool execution.
+          // Some tools (notably run_sequence) may take longer than simple reads.
           const toolPromise = executeToolCall(toolCall.name, toolCall.input, client, userId, orgId)
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Tool execution timeout')), 10000)
+          const timeoutMs =
+            toolCall?.name === 'execute_action' && toolCall?.input?.action === 'run_sequence'
+              ? 45000
+              : 10000
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Tool execution timeout')), timeoutMs)
           )
           
           const toolResult = await Promise.race([toolPromise, timeoutPromise])
           const toolLatencyMs = Date.now() - toolStartTime
           toolsSuccessCount++
+          
+          // Extract capability/provider from result if available
+          const capability = (toolResult as any)?.capability;
+          const provider = (toolResult as any)?.provider;
           
           // Track detailed execution metadata
           toolExecutions.push({
@@ -2668,7 +2829,9 @@ These skills use real-time web search and return structured JSON with sources.
             args: toolCall.input,
             result: toolResult,
             latencyMs: toolLatencyMs,
-            success: true
+            success: true,
+            capability,
+            provider
           })
           
           toolResults.push({
@@ -5361,6 +5524,244 @@ async function detectAndStructureResponse(
   
   // Store original message for limit extraction
   const originalMessage = userMessage
+
+  // ---------------------------------------------------------------------------
+  // Sequence-aware structured responses (demo-grade panels)
+  // If Copilot ran a sequence, convert it into a rich structured panel with
+  // links + confirm buttons (instead of relying on plain text).
+  // ---------------------------------------------------------------------------
+  if (toolExecutions && toolExecutions.length > 0) {
+    const runSeqExec = toolExecutions
+      .filter((e) => e.toolName === 'execute_action' && e.success && (e as any).args?.action === 'run_sequence')
+      .slice(-1)[0] as any
+
+    const seqKey = runSeqExec?.args?.params?.sequence_key
+      ? String(runSeqExec.args.params.sequence_key)
+      : null
+
+    const seqResult = runSeqExec?.result?.data || null
+    const finalOutputs = seqResult?.final_output?.outputs || null
+
+    if (seqKey && finalOutputs) {
+      // Pipeline Focus Tasks
+      if (seqKey === 'seq-pipeline-focus-tasks') {
+        const deals = finalOutputs?.pipeline_deals?.deals || []
+        const topDeal = Array.isArray(deals) ? deals[0] : null
+        const taskPreview = finalOutputs?.task_preview || null
+
+        return {
+          type: 'pipeline_focus_tasks',
+          summary: 'Here are the deals to focus on and the task I can create for you.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            deal: topDeal || null,
+            taskPreview,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'crm'],
+          },
+        }
+      }
+
+      // Deal Rescue Pack
+      if (seqKey === 'seq-deal-rescue-pack') {
+        const deal = Array.isArray(finalOutputs?.deal?.deals) ? finalOutputs.deal.deals[0] : null
+        const plan = finalOutputs?.plan || null
+        const taskPreview = finalOutputs?.task_previews || null
+
+        return {
+          type: 'deal_rescue_pack',
+          summary: 'Here’s the deal diagnosis + rescue plan, and the task I can create.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            deal,
+            plan,
+            taskPreview,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'crm'],
+          },
+        }
+      }
+
+      // Next Meeting Command Center
+      if (seqKey === 'seq-next-meeting-command-center') {
+        const nextMeeting = finalOutputs?.next_meeting?.meeting || null
+        const prepTaskPreview = finalOutputs?.prep_task_preview || null
+
+        return {
+          type: 'next_meeting_command_center',
+          summary: 'Here’s your next meeting brief and a prep checklist task ready to create.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            meeting: nextMeeting,
+            brief: finalOutputs?.brief || null,
+            prepTaskPreview,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'calendar', 'crm'],
+          },
+        }
+      }
+
+      // Post-Meeting Follow-Up Pack
+      if (seqKey === 'seq-post-meeting-followup-pack') {
+        const meeting = Array.isArray(finalOutputs?.meeting_data?.meetings)
+          ? finalOutputs.meeting_data.meetings[0]
+          : null
+
+        const contact = Array.isArray(finalOutputs?.contact_data?.contacts)
+          ? finalOutputs.contact_data.contacts[0]
+          : null
+
+        return {
+          type: 'post_meeting_followup_pack',
+          summary: 'Here’s your follow-up pack (email, Slack update, and tasks) ready to send/create.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            meeting,
+            contact,
+            digest: finalOutputs?.digest || null,
+            pack: finalOutputs?.pack || null,
+            emailPreview: finalOutputs?.email_preview || null,
+            slackPreview: finalOutputs?.slack_preview || null,
+            taskPreview: finalOutputs?.task_preview || null,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'meetings', 'crm', 'email', 'messaging'],
+          },
+        }
+      }
+
+      // Deal MAP Builder
+      if (seqKey === 'seq-deal-map-builder') {
+        const deal = Array.isArray(finalOutputs?.deal?.deals) ? finalOutputs.deal.deals[0] : null
+        const openTasks = finalOutputs?.open_tasks || null
+        const plan = finalOutputs?.plan || null
+        const taskPreview = finalOutputs?.task_previews || null
+
+        return {
+          type: 'deal_map_builder',
+          summary: 'Here\'s a Mutual Action Plan (MAP) for this deal, with milestones and the top task ready to create.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            deal,
+            openTasks,
+            plan,
+            taskPreview,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'crm', 'tasks'],
+          },
+        }
+      }
+
+      // Daily Focus Plan
+      if (seqKey === 'seq-daily-focus-plan') {
+        const pipelineDeals = finalOutputs?.pipeline_deals || null
+        const contactsNeedingAttention = finalOutputs?.contacts_needing_attention || null
+        const openTasks = finalOutputs?.open_tasks || null
+        const plan = finalOutputs?.plan || null
+        const taskPreview = finalOutputs?.task_previews || null
+
+        return {
+          type: 'daily_focus_plan',
+          summary: 'Here\'s your daily focus plan: priorities, next best actions, and the top task ready to create.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            pipelineDeals,
+            contactsNeedingAttention,
+            openTasks,
+            plan,
+            taskPreview,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'crm', 'tasks'],
+          },
+        }
+      }
+
+      // Follow-Up Zero Inbox
+      if (seqKey === 'seq-followup-zero-inbox') {
+        const emailThreads = finalOutputs?.email_threads || null
+        const triage = finalOutputs?.triage || null
+        const replyDrafts = finalOutputs?.reply_drafts || null
+        const emailPreview = finalOutputs?.email_preview || null
+        const taskPreview = finalOutputs?.task_preview || null
+
+        return {
+          type: 'followup_zero_inbox',
+          summary: 'Here are the email threads needing response, reply drafts, and a follow-up task ready to create.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            emailThreads,
+            triage,
+            replyDrafts,
+            emailPreview,
+            taskPreview,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'email', 'crm', 'tasks'],
+          },
+        }
+      }
+
+      // Deal Slippage Guardrails
+      if (seqKey === 'seq-deal-slippage-guardrails') {
+        const atRiskDeals = finalOutputs?.at_risk_deals || null
+        const diagnosis = finalOutputs?.diagnosis || null
+        const taskPreview = finalOutputs?.task_preview || null
+        const slackPreview = finalOutputs?.slack_preview || null
+
+        return {
+          type: 'deal_slippage_guardrails',
+          summary: 'Here are the at-risk deals, rescue actions, and a rescue task + Slack update ready to create/post.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            atRiskDeals,
+            diagnosis,
+            taskPreview,
+            slackPreview,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'crm', 'tasks', 'messaging'],
+          },
+        }
+      }
+    }
+  }
   
   if (isAvailabilityQuestion(messageLower)) {
     const availabilityStructured = await structureCalendarAvailabilityResponse(
@@ -5443,11 +5844,27 @@ async function detectAndStructureResponse(
     'follow up', 'follow-up', 'followup'
   ]
 
+  // Pipeline-focus task requests should NOT go through the contact-based task creation flow.
+  // These should be handled by Copilot tools/sequences (e.g. seq-pipeline-focus-tasks).
+  const isPipelineFocusTaskRequest =
+    (messageLower.includes('deal') || messageLower.includes('deals') || messageLower.includes('pipeline')) &&
+    (messageLower.includes('focus') || messageLower.includes('priorit')) &&
+    (messageLower.includes('schedule') || messageLower.includes('task') || messageLower.includes('tasks')) &&
+    (messageLower.includes('engage') || messageLower.includes('outreach') || messageLower.includes('follow up') || messageLower.includes('follow-up'))
+
+  // If user is responding with an affirmative confirmation ("yes", "ok", "confirm", etc),
+  // do not route into the generic contact-based task creation flow. This avoids the
+  // "Select Contact" modal when the intent is to confirm a previously previewed workflow.
+  const isAffirmativeConfirmation =
+    /^(yes|yep|yeah|y|ok|okay|sure|do it|go ahead|confirm|approved|create it|create the task|yes create|yes create a task)\b/i.test(
+      userMessage.trim()
+    )
+
   // Exclude if the message is about email (e.g., "follow-up email")
   const isAboutEmail = messageLower.includes('email')
 
   const isTaskCreationRequest =
-    !isAboutEmail && (
+    !isAboutEmail && !isPipelineFocusTaskRequest && !isAffirmativeConfirmation && (
       taskCreationKeywords.some(keyword => messageLower.includes(keyword)) ||
       (messageLower.includes('task') && (messageLower.includes('create') || messageLower.includes('add') || messageLower.includes('for') || messageLower.includes('to'))) ||
       (messageLower.includes('remind') && (messageLower.includes('to') || messageLower.includes('me') || messageLower.includes('about'))) ||
@@ -5509,7 +5926,7 @@ async function detectAndStructureResponse(
     messageLower.includes('pipeline health') ||
     (messageLower.includes('show me my') && (messageLower.includes('deal') || messageLower.includes('pipeline')))
   
-  if (isPipelineQuery) {
+  if (isPipelineQuery && !isPipelineFocusTaskRequest) {
     const structured = await structurePipelineResponse(client, userId, aiContent, userMessage)
     return structured
   }

@@ -13,20 +13,57 @@ export async function executeAction(
   orgId: string | null,
   action: ExecuteActionName,
   params: Record<string, unknown>
-): Promise<ActionResult> {
+): Promise<ActionResult & { capability?: string; provider?: string }> {
   const confirm = params.confirm === true;
   const ctx: AdapterContext = { userId, orgId, confirm };
 
   const registry = new AdapterRegistry(client, userId);
   const adapters = await registry.forOrg(orgId);
+  
+  // Map action to capability and provider
+  const getCapabilityForAction = (action: ExecuteActionName): { capability: string; provider?: string } => {
+    // CRM actions
+    if (['get_contact', 'get_deal', 'get_company_status', 'get_pipeline_summary', 'get_pipeline_deals', 'get_pipeline_forecast', 'get_contacts_needing_attention', 'update_crm'].includes(action)) {
+      const crmCap = adapters.capabilities.find(c => c.capability === 'crm');
+      return { capability: 'crm', provider: crmCap?.provider };
+    }
+    // Calendar/Meeting actions
+    if (['get_meetings', 'create_meeting', 'update_meeting'].includes(action)) {
+      const calendarCap = adapters.capabilities.find(c => c.capability === 'calendar');
+      return { capability: 'calendar', provider: calendarCap?.provider };
+    }
+    // Email actions
+    if (['search_emails', 'draft_email', 'send_email'].includes(action)) {
+      const emailCap = adapters.capabilities.find(c => c.capability === 'email');
+      return { capability: 'email', provider: emailCap?.provider };
+    }
+    // Transcript actions
+    if (['get_transcript', 'search_transcripts'].includes(action)) {
+      const transcriptCap = adapters.capabilities.find(c => c.capability === 'transcript');
+      return { capability: 'transcript', provider: transcriptCap?.provider };
+    }
+    // Messaging actions
+    if (['send_notification', 'send_slack_message'].includes(action)) {
+      const messagingCap = adapters.capabilities.find(c => c.capability === 'messaging');
+      return { capability: 'messaging', provider: messagingCap?.provider };
+    }
+    return { capability: 'unknown' };
+  };
+  
+  const { capability, provider } = getCapabilityForAction(action);
+  
+  // Helper to add capability metadata to results
+  const addCapabilityMeta = (result: ActionResult): ActionResult & { capability?: string; provider?: string } => {
+    return { ...result, capability, provider };
+  };
 
   switch (action) {
     case 'get_contact':
-      return adapters.crm.getContact({
+      return addCapabilityMeta(await adapters.crm.getContact({
         id: params.id ? String(params.id) : undefined,
         email: params.email ? String(params.email) : undefined,
         name: params.name ? String(params.name) : undefined,
-      });
+      }));
 
     case 'get_lead': {
       // Get lead with enrichment data from leads table (SavvyCal bookings, prep data, etc.)
@@ -224,7 +261,7 @@ export async function executeAction(
     }
 
     case 'get_deal':
-      return adapters.crm.getDeal({
+      return addCapabilityMeta(await adapters.crm.getDeal({
         id: params.id ? String(params.id) : undefined,
         name: params.name ? String(params.name) : undefined,
         close_date_from: params.close_date_from ? String(params.close_date_from) : undefined,
@@ -233,72 +270,73 @@ export async function executeAction(
         stage_id: params.stage_id ? String(params.stage_id) : undefined,
         include_health: params.include_health === true,
         limit: params.limit ? Number(params.limit) : undefined,
-      });
+      }));
 
     case 'get_pipeline_summary':
-      return adapters.crm.getPipelineSummary({});
+      return addCapabilityMeta(await adapters.crm.getPipelineSummary({}));
 
     case 'get_pipeline_deals':
-      return adapters.crm.getPipelineDeals({
+      return addCapabilityMeta(await adapters.crm.getPipelineDeals({
         filter: params.filter ? String(params.filter) as 'closing_soon' | 'at_risk' | 'stale' | 'needs_attention' : undefined,
         days: params.days ? Number(params.days) : undefined,
         period: params.period ? String(params.period) : undefined,
         include_health: params.include_health === true,
         limit: params.limit ? Number(params.limit) : undefined,
-      });
+      }));
 
     case 'get_pipeline_forecast':
-      return adapters.crm.getPipelineForecast({
+      return addCapabilityMeta(await adapters.crm.getPipelineForecast({
         period: params.period ? String(params.period) : undefined,
-      });
+      }));
 
     case 'get_contacts_needing_attention':
-      return adapters.crm.getContactsNeedingAttention({
+      return addCapabilityMeta(await adapters.crm.getContactsNeedingAttention({
         days_since_contact: params.days_since_contact ? Number(params.days_since_contact) : undefined,
         filter: params.filter ? String(params.filter) as 'at_risk' | 'ghost' | 'all' : undefined,
         limit: params.limit ? Number(params.limit) : undefined,
-      });
+      }));
 
     case 'get_company_status':
-      return adapters.crm.getCompanyStatus({
+      return addCapabilityMeta(await adapters.crm.getCompanyStatus({
         company_id: params.company_id ? String(params.company_id) : undefined,
         company_name: params.company_name ? String(params.company_name) : undefined,
         domain: params.domain ? String(params.domain) : undefined,
-      });
+      }));
 
     case 'get_meetings':
-      return adapters.meetings.listMeetings({
+      return addCapabilityMeta(await adapters.meetings.listMeetings({
+        meeting_id: (params.meeting_id ?? params.meetingId) ? String(params.meeting_id ?? params.meetingId) : undefined,
         contactEmail: params.contactEmail ? String(params.contactEmail) : undefined,
         contactId: params.contactId ? String(params.contactId) : undefined,
         limit: params.limit ? Number(params.limit) : undefined,
-      });
+      }));
 
     case 'search_emails':
-      return adapters.email.searchEmails({
+      return addCapabilityMeta(await adapters.email.searchEmails({
         contact_email: params.contact_email ? String(params.contact_email) : undefined,
         contact_id: params.contact_id ? String(params.contact_id) : undefined,
         contact_name: params.contact_name ? String(params.contact_name) : undefined,
         query: params.query ? String(params.query) : undefined,
         limit: params.limit ? Number(params.limit) : undefined,
-      });
+      }));
 
     case 'draft_email':
-      return adapters.email.draftEmail({
+      return addCapabilityMeta(await adapters.email.draftEmail({
         to: params.to ? String(params.to) : undefined,
         subject: params.subject ? String(params.subject) : undefined,
         context: params.context ? String(params.context) : undefined,
         tone: params.tone ? String(params.tone) : undefined,
-      });
+      }));
 
     case 'update_crm': {
       const entity = params.entity as 'deal' | 'contact' | 'task' | 'activity';
       const id = params.id ? String(params.id) : '';
       const updates = (params.updates || {}) as Record<string, unknown>;
-      return adapters.crm.updateCRM({ entity, id, updates }, ctx);
+      return addCapabilityMeta(await adapters.crm.updateCRM({ entity, id, updates }, ctx));
     }
 
     case 'send_notification':
-      return adapters.notifications.sendNotification(
+      return addCapabilityMeta(await adapters.notifications.sendNotification(
         {
           channel: params.channel ? (String(params.channel) as 'slack') : 'slack',
           message: params.message ? String(params.message) : '',
@@ -306,7 +344,7 @@ export async function executeAction(
           meta: (params.meta as Record<string, unknown>) ?? undefined,
         },
         ctx
-      );
+      ));
 
     case 'enrich_contact': {
       // Input validation - email is required for enrichment

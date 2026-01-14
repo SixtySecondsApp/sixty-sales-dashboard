@@ -5,7 +5,7 @@
  * tool executions + output.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Play, Loader2, TerminalSquare, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +39,10 @@ import { useTestEmails, type TestEmail } from '@/lib/hooks/useTestEmails';
 import { TestActivityList } from './TestActivityList';
 import { TestActivitySearch } from './TestActivitySearch';
 import { useTestActivities, type TestActivity } from '@/lib/hooks/useTestActivities';
+// Meeting imports
+import { TestMeetingList } from './TestMeetingList';
+import { TestMeetingSearch } from './TestMeetingSearch';
+import { useTestMeetings, type TestMeeting } from '@/lib/hooks/useTestMeetings';
 
 type TestMode = 'readonly' | 'mock';
 
@@ -67,17 +71,31 @@ interface TestSkillResponse {
 }
 
 // Union type for selected entities
-type SelectedEntity = TestContact | TestDeal | TestEmail | TestActivity | null;
+type SelectedEntity = TestContact | TestDeal | TestEmail | TestActivity | TestMeeting | null;
 
-export function SkillTestConsole({ skillKey }: { skillKey: string }) {
+interface SkillTestConsoleProps {
+  skillKey: string;
+  initialInput?: string;
+}
+
+export function SkillTestConsole({ skillKey, initialInput }: SkillTestConsoleProps) {
   const { activeOrgId, loadOrganizations, isLoading } = useOrgStore();
   const { user } = useAuth();
 
-  const [testInput, setTestInput] = useState('Run this skill for a call prep briefing.');
+  const [testInput, setTestInput] = useState(initialInput || 'Run this skill for a call prep briefing.');
   const [mode, setMode] = useState<TestMode>('readonly');
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState<TestSkillResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Track if initialInput changes and update testInput accordingly
+  const prevInitialInputRef = useRef(initialInput);
+  useEffect(() => {
+    if (initialInput && initialInput !== prevInitialInputRef.current) {
+      setTestInput(initialInput);
+      prevInitialInputRef.current = initialInput;
+    }
+  }, [initialInput]);
 
   // Entity testing states
   const [entityType, setEntityType] = useState<EntityType>('contact');
@@ -114,6 +132,13 @@ export function SkillTestConsole({ skillKey }: { skillKey: string }) {
   const { activities, isLoading: isLoadingActivities } = useTestActivities({
     mode: tierMode || 'good',
     enabled: !!tierMode && entityType === 'activity' && !!user?.id,
+    limit: 10,
+  });
+
+  // Fetch meetings when entity type is 'meeting'
+  const { meetings, isLoading: isLoadingMeetings } = useTestMeetings({
+    mode: tierMode || 'good',
+    enabled: !!tierMode && entityType === 'meeting' && !!user?.id,
     limit: 10,
   });
 
@@ -216,6 +241,24 @@ export function SkillTestConsole({ skillKey }: { skillKey: string }) {
           quality_score: activity.qualityScore.score,
         };
       }
+      case 'meeting': {
+        const meeting = selectedEntity as TestMeeting;
+        return {
+          id: meeting.id,
+          title: meeting.title,
+          meeting_start: meeting.meeting_start,
+          duration_minutes: meeting.duration_minutes,
+          summary: meeting.summary,
+          transcript_text: meeting.transcript_text,
+          transcript_excerpt: meeting.transcript_excerpt,
+          company_id: meeting.company_id,
+          company_name: meeting.company_name,
+          primary_contact_id: meeting.primary_contact_id,
+          contact_name: meeting.contact_name,
+          quality_tier: meeting.qualityScore.tier,
+          quality_score: meeting.qualityScore.score,
+        };
+      }
       default:
         return null;
     }
@@ -243,6 +286,10 @@ export function SkillTestConsole({ skillKey }: { skillKey: string }) {
       case 'activity': {
         const activity = selectedEntity as TestActivity;
         return activity.client_name;
+      }
+      case 'meeting': {
+        const meeting = selectedEntity as TestMeeting;
+        return meeting.title || 'Untitled Meeting';
       }
       default:
         return '';
@@ -455,6 +502,23 @@ export function SkillTestConsole({ skillKey }: { skillKey: string }) {
                 <TestActivitySearch
                   selectedActivity={selectedEntity as TestActivity | null}
                   onSelect={(activity) => setSelectedEntity(activity)}
+                />
+              )}
+
+              {/* Meeting List/Search */}
+              {entityType === 'meeting' && tierMode && (
+                <TestMeetingList
+                  meetings={meetings}
+                  isLoading={isLoadingMeetings}
+                  selectedMeetingId={(selectedEntity as TestMeeting | null)?.id || null}
+                  onSelect={(meeting) => setSelectedEntity(meeting)}
+                  tier={tierMode}
+                />
+              )}
+              {entityType === 'meeting' && entityMode === 'custom' && (
+                <TestMeetingSearch
+                  selectedMeeting={selectedEntity as TestMeeting | null}
+                  onSelect={(meeting) => setSelectedEntity(meeting)}
                 />
               )}
             </div>

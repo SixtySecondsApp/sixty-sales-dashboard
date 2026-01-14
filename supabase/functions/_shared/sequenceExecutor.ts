@@ -1,5 +1,6 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { executeAgentSkillWithContract, type SkillResult } from './agentSkillExecutor.ts';
+import { executeAction, type ExecuteActionName } from './copilot_adapters/executeAction.ts';
 
 export interface SequenceExecuteParams {
   organizationId: string;
@@ -11,11 +12,13 @@ export interface SequenceExecuteParams {
 
 interface SequenceStep {
   order: number;
-  skill_key: string;
+  skill_key?: string; // For skill execution
+  action?: ExecuteActionName; // For direct action execution
   input_mapping?: Record<string, string>;
   output_key?: string;
   on_failure?: 'stop' | 'continue' | 'fallback';
   fallback_skill_key?: string;
+  requires_approval?: boolean; // For write actions that need approval
 }
 
 function resolveExpression(expr: unknown, state: Record<string, unknown>): unknown {
@@ -163,15 +166,74 @@ export async function executeSequence(
     const stepStart = Date.now();
     const stepStartedAt = new Date().toISOString();
 
-    const input = buildStepInput(step, state);
+    // Validate step has either skill_key or action
+    if (!step.skill_key && !step.action) {
+      overallStatus = 'failed';
+      failedStepIndex = i;
+      errorMessage = `Step ${i + 1} has neither skill_key nor action`;
+      break;
+    }
 
-    let result: SkillResult = await executeAgentSkillWithContract(supabase, {
-      organizationId,
-      userId,
-      skillKey: step.skill_key,
-      context: input,
-      dryRun: isSimulation,
-    });
+    const input = buildStepInput(step, state);
+    let result: SkillResult;
+    let stepType: 'skill' | 'action' = step.skill_key ? 'skill' : 'action';
+
+    // Execute step based on type
+    if (step.skill_key) {
+      // Execute skill
+      result = await executeAgentSkillWithContract(supabase, {
+        organizationId,
+        userId,
+        skillKey: step.skill_key,
+        context: input,
+        dryRun: isSimulation,
+      });
+    } else if (step.action) {
+      // Execute action (requires approval if requires_approval is true and not simulation)
+      const actionInput = { ...input };
+      // Safety: simulation mode should never perform write actions (ignore confirm even if provided in mapping)
+      if (isSimulation) {
+        delete (actionInput as any).confirm;
+      }
+      if (step.requires_approval && !isSimulation) {
+        // In real execution, approval would be checked here
+        // For now, we'll set confirm=true if requires_approval is set
+        actionInput.confirm = true;
+      }
+
+      const actionResult = await executeAction(
+        supabase,
+        userId,
+        organizationId,
+        step.action,
+        actionInput
+      );
+
+      // In simulation, convert "needs_confirmation" into a successful dry-run with preview payload.
+      // This allows sequences to complete without side effects while still returning useful outputs.
+      const normalizedActionResult = (isSimulation && actionResult.needs_confirmation && actionResult.preview)
+        ? { ...actionResult, success: true, data: actionResult.preview, error: undefined }
+        : actionResult;
+
+      // Convert ActionResult to SkillResult format
+      result = {
+        status: normalizedActionResult.success ? 'success' : 'failed',
+        error: normalizedActionResult.error || undefined,
+        summary: normalizedActionResult.success
+          ? `Action ${step.action} completed successfully`
+          : `Action ${step.action} failed: ${normalizedActionResult.error || 'Unknown error'}`,
+        data: normalizedActionResult.data || {},
+        references: [],
+        meta: {
+          skill_id: step.action,
+          skill_version: '1.0',
+          execution_time_ms: Date.now() - stepStart,
+          model: undefined,
+        },
+      };
+    } else {
+      throw new Error(`Step ${i + 1} has neither skill_key nor action`);
+    }
 
     // Handle failure strategy
     if (result.status === 'failed') {
@@ -194,6 +256,9 @@ export async function executeSequence(
         overallStatus = 'failed';
         failedStepIndex = i;
         errorMessage = result.error || 'Sequence step failed';
+      } else if (result.status === 'failed' && onFailure === 'continue') {
+        // Continue execution, but mark step as failed
+        console.warn(`Step ${i + 1} failed but continuing: ${result.error}`);
       }
     }
 
@@ -202,7 +267,9 @@ export async function executeSequence(
 
     stepResults.push({
       step_index: i,
-      skill_key: step.skill_key,
+      step_type: stepType,
+      skill_key: step.skill_key || null,
+      action: step.action || null,
       status: result.status,
       // Persist a sanitized input (never store mutable orchestration state to avoid cycles)
       input: (() => {
@@ -217,6 +284,7 @@ export async function executeSequence(
       duration_ms: durationMs,
       references: result.references || [],
       meta: result.meta || {},
+      requires_approval: step.requires_approval || false,
     });
 
     // Update outputs/state

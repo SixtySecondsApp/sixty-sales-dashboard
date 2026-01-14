@@ -212,19 +212,32 @@ export function useSequenceExecution() {
       try {
         // Build input by resolving variable mappings
         const input: Record<string, unknown> = {};
-        for (const [targetKey, sourceExpr] of Object.entries(step.input_mapping)) {
+        for (const [targetKey, sourceExpr] of Object.entries(step.input_mapping || {})) {
           input[targetKey] = resolveVariable(sourceExpr, context, mockData);
         }
 
         let output: Record<string, unknown>;
+        const stepKey =
+          (typeof step.skill_key === 'string' && step.skill_key.trim())
+            ? step.skill_key.trim()
+            : (typeof step.action === 'string' && step.action.trim())
+              ? step.action.trim()
+              : `step_${step.order}`;
 
         if (isSimulation) {
           // Simulation mode: generate mock output based on skill type
-          output = generateMockOutput(step.skill_key, input, mockData);
+          output = step.action
+            ? generateMockActionOutput(step.action, input, mockData)
+            : generateMockOutput(stepKey, input, mockData);
           // Simulate network delay
           await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 500));
         } else {
-          // Live mode: call the actual skill via edge function
+          // Live mode is currently only supported for skill_key steps in this UI simulator.
+          // (Action steps are executed by the backend sequence runner.)
+          if (!step.skill_key) {
+            throw new Error(`Live execution not supported for action step: ${String(step.action || 'unknown')}`);
+          }
+
           const { data, error } = await supabase.functions.invoke('execute-skill', {
             body: {
               skill_key: step.skill_key,
@@ -242,7 +255,7 @@ export function useSequenceExecution() {
         const completedAt = new Date().toISOString();
         return {
           step_index: stepIndex,
-          skill_key: step.skill_key,
+          skill_key: stepKey,
           status: 'completed',
           input,
           output,
@@ -253,9 +266,15 @@ export function useSequenceExecution() {
         };
       } catch (err) {
         const completedAt = new Date().toISOString();
+        const stepKey =
+          (typeof step.skill_key === 'string' && step.skill_key.trim())
+            ? step.skill_key.trim()
+            : (typeof step.action === 'string' && step.action.trim())
+              ? step.action.trim()
+              : `step_${step.order}`;
         return {
           step_index: stepIndex,
-          skill_key: step.skill_key,
+          skill_key: stepKey,
           status: 'failed',
           input: {},
           output: null,
@@ -408,7 +427,7 @@ export function useSequenceExecution() {
         status: 'running',
         stepResults: steps.map((step, idx) => ({
           step_index: idx,
-          skill_key: step.skill_key,
+          skill_key: step.skill_key || step.action || `step_${idx + 1}`,
           status: 'pending' as const,
           input: {},
           output: null,
@@ -418,7 +437,7 @@ export function useSequenceExecution() {
           duration_ms: null,
         })),
         currentStepIndex: 0,
-        context: { ...options.inputContext },
+        context: { trigger: { params: options.inputContext }, outputs: {} },
         error: null,
         isExecuting: true,
         isWaitingHITL: false,
@@ -461,7 +480,7 @@ export function useSequenceExecution() {
 
       setState((prev) => ({ ...prev, executionId }));
 
-      let context = { ...options.inputContext };
+      let context: Record<string, unknown> = { trigger: { params: options.inputContext }, outputs: {} };
       const results: StepResult[] = [];
 
       // Helper to check if HITL should be triggered
@@ -535,8 +554,12 @@ export function useSequenceExecution() {
         results.push(result);
 
         if (result.status === 'completed' && result.output) {
-          // Add output to context under the output_key
-          context = { ...context, [step.output_key]: result.output };
+          const outputKey = step.output_key || step.skill_key || step.action || `step_${i + 1}`;
+          const outputs =
+            context.outputs && typeof context.outputs === 'object'
+              ? (context.outputs as Record<string, unknown>)
+              : {};
+          context = { ...context, outputs: { ...outputs, [outputKey]: result.output } };
         }
 
         // Update state with result
@@ -694,8 +717,9 @@ function resolveVariable(
   const match = expression.match(/^\$\{(.+)\}$/);
   if (!match) return expression;
 
-  const path = match[1];
-  const parts = path.split('.');
+  // Normalize array indices: foo[0].bar -> foo.0.bar
+  const path = match[1].replace(/\[(\d+)\]/g, '.$1');
+  const parts = path.split('.').filter(Boolean);
 
   // Try to resolve from context first
   let value: unknown = context;
@@ -717,6 +741,116 @@ function resolveVariable(
   }
 
   return value;
+}
+
+/**
+ * Generate mock output for execute_action steps (capability-driven actions).
+ * Shapes are aligned with the DB adapters used by the backend execute_action tool.
+ */
+function generateMockActionOutput(
+  action: string,
+  input: Record<string, unknown>,
+  mockData: Record<string, unknown>
+): Record<string, unknown> {
+  const contact = (mockData.contact || {}) as Record<string, unknown>;
+  const deal = (mockData.deal || {}) as Record<string, unknown>;
+  const meeting = (mockData.meeting || {}) as Record<string, unknown>;
+  const company = (mockData.company || {}) as Record<string, unknown>;
+
+  switch (action) {
+    case 'get_meetings': {
+      const meetingId = (input.meeting_id || meeting.id || 'mock-meeting-1') as string;
+      const attendeeEmail = (contact.email || 'jane.smith@acme.com') as string;
+      const attendeeName = (contact.name || 'Jane Smith') as string;
+      return {
+        meetings: [
+          {
+            id: meetingId,
+            title: meeting.title || 'Mock Meeting',
+            meeting_start: meeting.date || new Date().toISOString(),
+            meeting_end: meeting.date || new Date().toISOString(),
+            duration_minutes: meeting.duration_minutes || 60,
+            summary: meeting.notes || null,
+            transcript_text: null,
+            share_url: null,
+            company_id: company.id || null,
+            primary_contact_id: contact.id || null,
+            attendees: [{ name: attendeeName, email: attendeeEmail }],
+          },
+        ],
+        matchedOn: 'meeting_id',
+      };
+    }
+    case 'get_contact': {
+      return {
+        contacts: [
+          {
+            id: input.id || contact.id || 'mock-contact-1',
+            email: contact.email || 'jane.smith@acme.com',
+            full_name: contact.name || 'Jane Smith',
+            company: contact.company || company.name || 'Acme Corporation',
+          },
+        ],
+      };
+    }
+    case 'get_deal': {
+      return {
+        deals: [
+          {
+            id: input.id || deal.id || 'mock-deal-1',
+            name: deal.name || 'Mock Deal',
+            company: deal.company || company.name || 'Acme Corporation',
+            value: deal.value || 0,
+            status: deal.status || 'open',
+            stage_id: deal.stage_id || null,
+            expected_close_date: deal.expected_close_date || null,
+            probability: deal.probability || null,
+          },
+        ],
+      };
+    }
+    case 'get_company_status': {
+      return {
+        found: true,
+        company,
+        contacts: [{ id: contact.id, email: contact.email, full_name: contact.name }],
+        deals: [{ id: deal.id, name: deal.name, value: deal.value }],
+        overall_health: 'healthy',
+      };
+    }
+    case 'create_task': {
+      return {
+        task_id: (mockData.task as any)?.id || 'mock-task-1',
+        title: input.title || 'Mock Task',
+        status: 'pending',
+        priority: input.priority || 'medium',
+        due_date: input.due_date || null,
+        message: 'Task created (mock)',
+      };
+    }
+    case 'draft_email': {
+      return {
+        draft: {
+          to: input.to || contact.email || null,
+          subject: input.subject || null,
+          body: null,
+          context: input.context || null,
+          tone: input.tone || null,
+        },
+      };
+    }
+    case 'send_notification': {
+      return {
+        queued: true,
+        channel: input.channel || 'slack',
+        message: input.message || '',
+      };
+    }
+    default: {
+      // Fall back to generic skill mock output patterns
+      return generateMockOutput(action, input, mockData);
+    }
+  }
 }
 
 /**
