@@ -5,7 +5,7 @@
  * Provides navigation to dashboard and suggested next steps.
  */
 
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Check,
@@ -15,6 +15,7 @@ import {
   FileText,
   Calendar,
   Video,
+  Loader2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useOnboardingV2Store, SKILLS, SkillId } from '@/lib/stores/onboardingV2Store';
@@ -36,30 +37,7 @@ const nextSteps: NextStepItem[] = [
 export function CompletionStep() {
   const navigate = useNavigate();
   const { enrichment, skillConfigs, setStep } = useOnboardingV2Store();
-
-  // Mark V1 onboarding as complete when this step is reached
-  // This ensures ProtectedRoute allows navigation to dashboard
-  useEffect(() => {
-    const markV1Complete = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          await supabase
-            .from('user_onboarding_progress')
-            .upsert({
-              user_id: session.user.id,
-              onboarding_step: 'complete',
-              onboarding_completed_at: new Date().toISOString(),
-            }, {
-              onConflict: 'user_id',
-            });
-        }
-      } catch (error) {
-        console.error('Failed to mark V1 onboarding complete:', error);
-      }
-    };
-    markV1Complete();
-  }, []);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // Determine which skills have been configured (have non-empty data)
   const configuredSkillIds = SKILLS.filter((skill) => {
@@ -77,8 +55,37 @@ export function CompletionStep() {
     setStep('skills_config');
   };
 
-  const handleGoToDashboard = () => {
-    navigate('/dashboard');
+  const handleGoToDashboard = async () => {
+    if (isNavigating) return;
+    setIsNavigating(true);
+
+    try {
+      // Mark V1 onboarding as complete in the database
+      // This ensures ProtectedRoute allows navigation to dashboard
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await supabase
+          .from('user_onboarding_progress')
+          .upsert({
+            user_id: session.user.id,
+            onboarding_step: 'complete',
+            onboarding_completed_at: new Date().toISOString(),
+          }, {
+            onConflict: 'user_id',
+          });
+
+        // Wait for the real-time subscription to propagate the change
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+
+      navigate('/dashboard', { replace: true });
+    } catch (error) {
+      console.error('Error completing onboarding:', error);
+      // Fall back to direct navigation even if completion save fails
+      window.location.href = '/dashboard';
+    } finally {
+      setIsNavigating(false);
+    }
   };
 
   return (
@@ -138,17 +145,28 @@ export function CompletionStep() {
         <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={handleEditSettings}
-            className="flex-1 rounded-xl px-4 py-3.5 font-semibold transition-all flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 text-white"
+            disabled={isNavigating}
+            className="flex-1 rounded-xl px-4 py-3.5 font-semibold transition-all flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Settings className="w-4 h-4" />
             Edit Settings
           </button>
           <button
             onClick={handleGoToDashboard}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-4 py-3.5 font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25"
+            disabled={isNavigating}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-4 py-3.5 font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            <LayoutDashboard className="w-4 h-4" />
-            Go to Dashboard
+            {isNavigating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Completing...
+              </>
+            ) : (
+              <>
+                <LayoutDashboard className="w-4 h-4" />
+                Go to Dashboard
+              </>
+            )}
           </button>
         </div>
       </div>
