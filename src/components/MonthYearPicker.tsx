@@ -87,7 +87,11 @@ export function MonthYearPicker({ value, onChange, maxDate, minDate }: MonthYear
                 </SelectTrigger>
                 <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
                   {MONTHS.map((month, index) => (
-                    <SelectItem key={month} value={index.toString()}>
+                    <SelectItem
+                      key={month}
+                      value={index.toString()}
+                      className="cursor-pointer hover:bg-emerald-50 dark:hover:bg-emerald-500/20 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors focus:bg-emerald-50 dark:focus:bg-emerald-500/20 focus:text-emerald-700 dark:focus:text-emerald-300"
+                    >
                       {month}
                     </SelectItem>
                   ))}
@@ -106,7 +110,11 @@ export function MonthYearPicker({ value, onChange, maxDate, minDate }: MonthYear
                 </SelectTrigger>
                 <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
                   {years.map((year) => (
-                    <SelectItem key={year} value={year.toString()}>
+                    <SelectItem
+                      key={year}
+                      value={year.toString()}
+                      className="cursor-pointer hover:bg-emerald-50 dark:hover:bg-emerald-500/20 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors focus:bg-emerald-50 dark:focus:bg-emerald-500/20 focus:text-emerald-700 dark:focus:text-emerald-300"
+                    >
                       {year}
                     </SelectItem>
                   ))}
