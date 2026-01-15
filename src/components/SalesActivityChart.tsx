@@ -206,9 +206,9 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
             Sales Activities Overview
           </h3>
           <p className={`text-sm mt-1 ${colors.text.secondary}`}>
-            {timeframe === 'daily' ? 'Last 14 days' :
-             timeframe === 'weekly' ? 'Last 12 weeks' :
-             'Year to date'} breakdown of all sales activities
+            {timeframe === 'daily' ? `Daily breakdown for ${format(selectedMonth, 'MMMM yyyy')}` :
+             timeframe === 'weekly' ? `Weekly breakdown for ${format(selectedMonth, 'MMMM yyyy')}` :
+             'Last 12 months breakdown'} of all sales activities
           </p>
         </div>
         <div className="relative">
