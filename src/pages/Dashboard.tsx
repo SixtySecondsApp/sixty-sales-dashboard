@@ -22,6 +22,7 @@ import {
 import { LazySalesActivityChart } from '@/components/LazySalesActivityChart';
 import ReactDOM from 'react-dom';
 import { LazySubscriptionStats } from '@/components/LazySubscriptionStats';
+import { MonthYearPicker } from '@/components/MonthYearPicker';
 import logger from '@/lib/utils/logger';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
@@ -617,27 +618,24 @@ export default function Dashboard() {
         <h1 className="text-3xl font-bold text-[#1E293B] dark:text-white">Welcome back{userData?.first_name ? `, ${userData.first_name}` : ''}</h1>
         <div className="flex items-center justify-between mt-2">
           <p className="text-[#64748B] dark:text-gray-400">Here's how your sales performance is tracking</p>
-          <div className="flex items-center gap-3 bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-2 border border-transparent dark:border-gray-800/50 shadow-sm dark:shadow-none">
+          <div className="flex items-center gap-2 bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-2 border border-transparent dark:border-gray-800/50 shadow-sm dark:shadow-none">
             <button
               onClick={handlePreviousMonth}
               className="p-1.5 hover:bg-slate-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
+              title="Previous month"
             >
               <ChevronLeft className="w-4 h-4 text-[#64748B] dark:text-gray-400" />
             </button>
-            <span className="text-sm font-medium text-[#1E293B] dark:text-white min-w-[100px] text-center">
-              {(() => {
-                try {
-                  return format(selectedMonth, 'MMMM yyyy');
-                } catch (error) {
-                  logger.error('Error formatting selected month:', error);
-                  return 'Invalid Date';
-                }
-              })()}
-            </span>
+            <MonthYearPicker
+              value={selectedMonth}
+              onChange={setSelectedMonth}
+              maxDate={new Date()}
+            />
             <button
               onClick={handleNextMonth}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={selectedMonth >= new Date()}
+              title="Next month"
             >
               <ChevronRight className="w-4 h-4 text-[#64748B] dark:text-gray-400" />
             </button>
