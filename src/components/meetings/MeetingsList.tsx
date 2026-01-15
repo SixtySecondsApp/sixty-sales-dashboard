@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase/clientV2'
@@ -10,6 +10,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { MeetingsEmptyState } from './MeetingsEmptyState'
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration'
+import { useDebouncedSearch, filterItems } from '@/lib/hooks/useDebounce'
+import { MeetingsFilterBar } from './MeetingsFilterBar'
+import { DateRangePreset, DateRange, getDateRangeFromPreset } from '@/components/ui/date-filter'
 import { toast } from 'sonner'
 import {
   Table,
@@ -43,7 +46,8 @@ import {
   Mic,
   AudioLines,
   Bot,
-  Radio
+  Radio,
+  Filter
 } from 'lucide-react'
 import { MeetingUsageBar } from '@/components/MeetingUsageIndicator'
 
@@ -303,6 +307,31 @@ const MeetingsList: React.FC = () => {
   const [thumbnailsEnsured, setThumbnailsEnsured] = useState(false)
   const autoSyncAttemptedRef = useRef(false)
 
+  // Sorting state
+  const [sortField, setSortField] = useState<'title' | 'owner_email' | 'meeting_start' | 'duration_minutes' | 'sentiment_score' | 'coach_rating'>('meeting_start')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+
+  // Filtering state
+  const { searchQuery, debouncedSearchQuery, isSearching, setSearchQuery } = useDebouncedSearch('', 400)
+  const [datePreset, setDatePreset] = useState<DateRangePreset>('all')
+  const [customDateRange, setCustomDateRange] = useState<DateRange | null>(null)
+  const [selectedRepId, setSelectedRepId] = useState<string | null | undefined>(undefined)
+  const [durationBucket, setDurationBucket] = useState<'all' | 'short' | 'medium' | 'long'>('all')
+  const [sentimentCategory, setSentimentCategory] = useState<'all' | 'positive' | 'neutral' | 'challenging'>('all')
+  const [coachingCategory, setCoachingCategory] = useState<'all' | 'excellent' | 'good' | 'needs-work'>('all')
+
+  // Calculate active filter count
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (datePreset !== 'all') count++
+    if (selectedRepId) count++
+    if (durationBucket !== 'all') count++
+    if (sentimentCategory !== 'all') count++
+    if (coachingCategory !== 'all') count++
+    if (searchQuery.trim()) count++
+    return count
+  }, [datePreset, selectedRepId, durationBucket, sentimentCategory, coachingCategory, searchQuery])
+
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
 
   // Reset to page 1 when scope or org changes
@@ -310,9 +339,14 @@ const MeetingsList: React.FC = () => {
     setCurrentPage(1)
   }, [scope, activeOrgId])
 
+  // Reset to page 1 when any filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [sortField, sortDirection, datePreset, customDateRange, selectedRepId, durationBucket, sentimentCategory, coachingCategory, debouncedSearchQuery])
+
   useEffect(() => {
     fetchMeetings()
-  }, [scope, user, activeOrgId, currentPage])
+  }, [scope, user, activeOrgId, currentPage, sortField, sortDirection, datePreset, customDateRange, selectedRepId])
 
   // Auto-sync when user arrives with Fathom connected but no meetings
   // This handles users coming from onboarding who skipped the sync step
@@ -466,6 +500,11 @@ const MeetingsList: React.FC = () => {
     }
   }, [activeOrgId])
 
+  // Update stats based on filtered meetings
+  useEffect(() => {
+    calculateStats(filteredMeetings)
+  }, [filteredMeetings])
+
   const fetchMeetings = async () => {
     if (!user) return
 
@@ -505,7 +544,7 @@ const MeetingsList: React.FC = () => {
           action_items:meeting_action_items(completed),
           tasks!tasks_meeting_id_fkey(status)
         `)
-        .order('meeting_start', { ascending: false })
+        .order(sortField, { ascending: sortDirection === 'asc' })
         .range(from, to) as any
 
       // Apply org scoping if we have an active org
@@ -522,6 +561,19 @@ const MeetingsList: React.FC = () => {
         query = query.or(`owner_user_id.eq.${user.id},owner_email.eq.${user.email}`)
       }
 
+      // Server-side date filtering
+      const dateRange = customDateRange || getDateRangeFromPreset(datePreset)
+      if (dateRange) {
+        query = query
+          .gte('meeting_start', dateRange.start.toISOString())
+          .lte('meeting_start', dateRange.end.toISOString())
+      }
+
+      // Server-side rep filtering (when scope is 'team')
+      if (selectedRepId && scope === 'team') {
+        query = query.eq('owner_user_id', selectedRepId)
+      }
+
       const { data, error } = await query
 
       if (error) throw error
@@ -536,10 +588,6 @@ const MeetingsList: React.FC = () => {
       setMeetings(meetingsData)
       // Reset to allow ensureThumbnails to run for the new list
       setThumbnailsEnsured(false)
-      // Only calculate stats on first page to avoid recalculating on every page
-      if (currentPage === 1) {
-        calculateStats(meetingsData)
-      }
     } catch (error: any) {
       console.error('Error fetching meetings:', error)
       // Set user-friendly error message
@@ -603,6 +651,52 @@ const MeetingsList: React.FC = () => {
   const openMeeting = (meetingId: string) => {
     navigate(`/meetings/${meetingId}`)
   }
+
+  // Client-side filtering pipeline
+  const filteredMeetings = useMemo(() => {
+    let filtered = meetings
+
+    // Search filter (title, company name)
+    if (debouncedSearchQuery.trim()) {
+      filtered = filterItems(filtered, debouncedSearchQuery, ['title', 'company.name'] as (keyof Meeting)[])
+    }
+
+    // Duration bucket filter
+    if (durationBucket !== 'all') {
+      filtered = filtered.filter(m => {
+        const duration = m.duration_minutes || 0
+        switch (durationBucket) {
+          case 'short': return duration < 30
+          case 'medium': return duration >= 30 && duration <= 60
+          case 'long': return duration > 60
+          default: return true
+        }
+      })
+    }
+
+    // Sentiment category filter
+    if (sentimentCategory !== 'all') {
+      filtered = filtered.filter(m => {
+        const label = sentimentLabel(m.sentiment_score).toLowerCase()
+        return label === sentimentCategory
+      })
+    }
+
+    // Coaching category filter
+    if (coachingCategory !== 'all') {
+      filtered = filtered.filter(m => {
+        if (m.coach_rating === null) return false
+        switch (coachingCategory) {
+          case 'excellent': return m.coach_rating >= 8
+          case 'good': return m.coach_rating >= 6 && m.coach_rating < 8
+          case 'needs-work': return m.coach_rating < 6
+          default: return true
+        }
+      })
+    }
+
+    return filtered
+  }, [meetings, debouncedSearchQuery, durationBucket, sentimentCategory, coachingCategory])
 
   if (loading) {
     return <MeetingsListSkeleton view={view} />
@@ -769,25 +863,25 @@ const MeetingsList: React.FC = () => {
 
       {/* Stats */}
       <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3 w-full overflow-hidden">
-        <StatCard 
-          title="This Month" 
+        <StatCard
+          title="This Month"
           value={stats.meetingsThisMonth.toString()}
           icon={<Calendar className="h-5 w-5" />}
           trend={stats.meetingsThisMonth > 0 ? 'up' : 'neutral'}
         />
-        <StatCard 
-          title="Avg Duration" 
+        <StatCard
+          title="Avg Duration"
           value={`${stats.avgDuration}m`}
           icon={<Clock className="h-5 w-5" />}
         />
-        <StatCard 
-          title="Open Tasks" 
+        <StatCard
+          title="Open Tasks"
           value={stats.actionItemsOpen.toString()}
           icon={<MessageSquare className="h-5 w-5" />}
           trend={stats.actionItemsOpen > 0 ? 'down' : 'neutral'}
         />
-        <StatCard 
-          title="Sentiment" 
+        <StatCard
+          title="Sentiment"
           value={sentimentLabel(stats.avgSentiment)}
           sub={stats.avgSentiment !== 0 ? `${stats.avgSentiment > 0 ? '+' : ''}${stats.avgSentiment.toFixed(2)}` : undefined}
           icon={<TrendingUp className="h-5 w-5" />}
@@ -800,6 +894,44 @@ const MeetingsList: React.FC = () => {
           trend={stats.avgCoachRating > 7 ? 'up' : stats.avgCoachRating < 5 ? 'down' : 'neutral'}
         />
       </div>
+
+      {/* Filter Bar */}
+      <MeetingsFilterBar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        isSearching={isSearching}
+        sortField={sortField}
+        sortDirection={sortDirection}
+        onSortFieldChange={setSortField}
+        onSortDirectionToggle={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+        datePreset={datePreset}
+        customDateRange={customDateRange}
+        onDateChange={(preset, range) => {
+          setDatePreset(preset)
+          setCustomDateRange(range)
+        }}
+        selectedRepId={selectedRepId}
+        onRepChange={setSelectedRepId}
+        scope={scope}
+        durationBucket={durationBucket}
+        onDurationChange={setDurationBucket}
+        sentimentCategory={sentimentCategory}
+        onSentimentChange={setSentimentCategory}
+        coachingCategory={coachingCategory}
+        onCoachingChange={setCoachingCategory}
+        activeFilterCount={activeFilterCount}
+        onClearAll={() => {
+          setSearchQuery('')
+          setSortField('meeting_start')
+          setSortDirection('desc')
+          setDatePreset('all')
+          setCustomDateRange(null)
+          setSelectedRepId(undefined)
+          setDurationBucket('all')
+          setSentimentCategory('all')
+          setCoachingCategory('all')
+        }}
+      />
 
       {/* Meetings Display */}
       <AnimatePresence mode="wait">
@@ -850,7 +982,7 @@ const MeetingsList: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {meetings.map((meeting, index) => {
+                  {filteredMeetings.map((meeting, index) => {
                     // Unified task count from tasks table
                     const openTasks = meeting.tasks?.filter(t => t.status !== 'completed').length || 0
 
@@ -946,7 +1078,7 @@ const MeetingsList: React.FC = () => {
             transition={{ duration: 0.2 }}
             className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 w-full"
           >
-            {meetings.map((meeting, index) => {
+            {filteredMeetings.map((meeting, index) => {
               // Unified task count from tasks table
               const openTasks = meeting.tasks?.filter(t => t.status !== 'completed').length || 0
 
@@ -1237,6 +1369,38 @@ const MeetingsList: React.FC = () => {
           >
             <RefreshCw className="mr-2 w-4 h-4" />
             Try Again
+          </Button>
+        </motion.div>
+      )}
+
+      {/* No filters results state */}
+      {filteredMeetings.length === 0 && meetings.length > 0 && !loading && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center justify-center py-16 px-4"
+        >
+          <div className="w-24 h-24 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-6">
+            <Filter className="w-12 h-12 text-gray-400 dark:text-gray-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 text-center">
+            No meetings match your filters
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6 text-center max-w-md">
+            Try adjusting your search terms, date range, or filter selection
+          </p>
+          <Button
+            onClick={() => {
+              setSearchQuery('')
+              setDurationBucket('all')
+              setSentimentCategory('all')
+              setCoachingCategory('all')
+              setDatePreset('all')
+              setCustomDateRange(null)
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            Clear All Filters
           </Button>
         </motion.div>
       )}
