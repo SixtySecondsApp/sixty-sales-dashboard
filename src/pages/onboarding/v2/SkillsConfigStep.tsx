@@ -186,7 +186,7 @@ export function SkillsConfigStep() {
                 Questions to ask during lead enrichment:
               </p>
               <span className="text-xs px-2 py-0.5 rounded-full bg-violet-900/50 text-violet-300">
-                Editable
+                Editable Suggestions
               </span>
             </div>
             {activeConfig.questions?.map((q: string, i: number) => (
@@ -236,7 +236,7 @@ export function SkillsConfigStep() {
               <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-medium text-gray-300">Tone Description</label>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-violet-900/50 text-violet-300">
-                  Suggested
+                  Editable Suggestions
                 </span>
               </div>
               <textarea
@@ -271,9 +271,10 @@ export function SkillsConfigStep() {
                 <button
                   onClick={() => {
                     const word = prompt('Add word to avoid:');
-                    if (word) {
+                    if (word?.trim()) {
                       updateSkillConfig('brand_voice', {
-                        avoid: [...(activeConfig.avoid || []), word],
+                        tone: activeConfig.tone,
+                        avoid: [...(activeConfig.avoid || []), word.trim()],
                       });
                     }
                   }}
@@ -325,7 +326,7 @@ export function SkillsConfigStep() {
                       newObjections[i] = { ...obj, response: e.target.value };
                       updateSkillConfig('objection_handling', { objections: newObjections });
                     }}
-                    className="w-full p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none h-14 text-sm bg-gray-900 border-gray-700 text-white border"
+                    className="w-full p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none h-24 text-sm bg-gray-900 border-gray-700 text-white border"
                   />
                 </div>
               )
