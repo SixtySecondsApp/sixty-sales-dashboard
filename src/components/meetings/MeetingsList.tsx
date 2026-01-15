@@ -500,11 +500,6 @@ const MeetingsList: React.FC = () => {
     }
   }, [activeOrgId])
 
-  // Update stats based on filtered meetings
-  useEffect(() => {
-    calculateStats(filteredMeetings)
-  }, [filteredMeetings])
-
   const fetchMeetings = async () => {
     if (!user) return
 
@@ -697,6 +692,11 @@ const MeetingsList: React.FC = () => {
 
     return filtered
   }, [meetings, debouncedSearchQuery, durationBucket, sentimentCategory, coachingCategory])
+
+  // Update stats based on filtered meetings
+  useEffect(() => {
+    calculateStats(filteredMeetings)
+  }, [filteredMeetings])
 
   if (loading) {
     return <MeetingsListSkeleton view={view} />
