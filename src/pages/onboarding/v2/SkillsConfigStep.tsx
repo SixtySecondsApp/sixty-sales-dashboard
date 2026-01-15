@@ -198,7 +198,7 @@ export function SkillsConfigStep() {
                     newQuestions[i] = e.target.value;
                     updateSkillConfig('lead_enrichment', { questions: newQuestions });
                   }}
-                  className="w-full p-3 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none h-16 text-sm bg-gray-800 border-gray-700 text-white border"
+                  className="w-full p-3 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none h-24 text-sm bg-gray-800 border-gray-700 text-white border"
                 />
                 <button
                   onClick={() =>
@@ -242,7 +242,7 @@ export function SkillsConfigStep() {
               <textarea
                 value={activeConfig.tone || ''}
                 onChange={(e) => updateSkillConfig('brand_voice', { tone: e.target.value })}
-                className="w-full p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none h-20 text-sm bg-gray-800 border-gray-700 text-white border"
+                className="w-full p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none h-32 text-sm bg-gray-800 border-gray-700 text-white border"
               />
             </div>
 
@@ -326,7 +326,7 @@ export function SkillsConfigStep() {
                       newObjections[i] = { ...obj, response: e.target.value };
                       updateSkillConfig('objection_handling', { objections: newObjections });
                     }}
-                    className="w-full p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none h-24 text-sm bg-gray-900 border-gray-700 text-white border"
+                    className="w-full p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none h-40 text-sm bg-gray-900 border-gray-700 text-white border"
                   />
                 </div>
               )
@@ -364,7 +364,7 @@ export function SkillsConfigStep() {
               <textarea
                 value={activeConfig.companyProfile || ''}
                 onChange={(e) => updateSkillConfig('icp', { companyProfile: e.target.value })}
-                className="w-full p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none h-20 text-sm bg-gray-800 border-gray-700 text-white border"
+                className="w-full p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none h-32 text-sm bg-gray-800 border-gray-700 text-white border"
               />
             </div>
 
@@ -376,7 +376,7 @@ export function SkillsConfigStep() {
               <textarea
                 value={activeConfig.buyerPersona || ''}
                 onChange={(e) => updateSkillConfig('icp', { buyerPersona: e.target.value })}
-                className="w-full p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none h-20 text-sm bg-gray-800 border-gray-700 text-white border"
+                className="w-full p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none h-32 text-sm bg-gray-800 border-gray-700 text-white border"
               />
             </div>
 
@@ -560,7 +560,7 @@ export function SkillsConfigStep() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
-              className="max-h-80 overflow-y-auto pr-1"
+              className="max-h-[calc(100vh-300px)] overflow-y-auto pr-1"
             >
               {renderSkillConfig()}
             </motion.div>
