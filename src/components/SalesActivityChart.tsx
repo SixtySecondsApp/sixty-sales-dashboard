@@ -61,17 +61,22 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
   // Charts now using direct imports for stability
 
   const chartData = useMemo(() => {
+    // Deduplicate activities by ID to prevent counting duplicates
+    const uniqueActivities = Array.from(
+      new Map(activities.map(a => [a.id, a])).values()
+    );
+
     if (timeframe === 'daily') {
       // Get all days in the selected month
       const monthStart = startOfMonth(selectedMonth);
       const monthEnd = endOfMonth(selectedMonth);
       const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
-      
+
       return daysInMonth.map(date => {
         const dateStr = format(date, 'yyyy-MM-dd');
-        
+
         // Filter activities for this date
-        const dayActivities = activities.filter(a => 
+        const dayActivities = uniqueActivities.filter(a =>
           format(new Date(a.date), 'yyyy-MM-dd') === dateStr
         );
         
@@ -104,12 +109,12 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
         start: firstWeekStart,
         end: lastWeekEnd
       });
-      
+
       return weeks.map(weekStart => {
         const weekEnd = endOfWeek(weekStart);
-        
+
         // Filter activities for this week
-        const weekActivities = activities.filter(a => {
+        const weekActivities = uniqueActivities.filter(a => {
           const activityDate = new Date(a.date);
           return activityDate >= weekStart && activityDate <= weekEnd;
         });
@@ -135,14 +140,14 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
     // Monthly view - show last 12 months up to selected month
     const monthsData = [];
     const endDate = endOfMonth(selectedMonth);
-    
+
     for (let i = 11; i >= 0; i--) {
       const date = subMonths(endDate, i);
       const monthStart = startOfMonth(date);
       const monthEnd = endOfMonth(date);
-      
+
       // Filter activities for this month
-      const monthActivities = activities.filter(a => {
+      const monthActivities = uniqueActivities.filter(a => {
         const activityDate = new Date(a.date);
         return activityDate >= monthStart && activityDate <= monthEnd;
       });
