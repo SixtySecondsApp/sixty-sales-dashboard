@@ -5,7 +5,7 @@
  * Users can edit AI-generated skill configurations or skip for later.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Check,
@@ -16,6 +16,8 @@ import {
   Target,
   Plus,
   Trash2,
+  Loader,
+  Sparkles,
 } from 'lucide-react';
 import { useOnboardingV2Store, SKILLS, SkillId } from '@/lib/stores/onboardingV2Store';
 import { EditableItem, EditableTag, AddItemButton } from '@/components/onboarding';
@@ -23,16 +25,28 @@ import { EditableItem, EditableTag, AddItemButton } from '@/components/onboardin
 type SkillStatus = 'pending' | 'configured' | 'skipped';
 
 export function SkillsConfigStep() {
-  const { skillConfigs, updateSkillConfig, setStep, saveAllSkills, organizationId } =
+  const { skillConfigs, updateSkillConfig, setStep, saveAllSkills, organizationId, enrichment } =
     useOnboardingV2Store();
 
   const [currentSkillIndex, setCurrentSkillIndex] = useState(0);
   const [skillStatuses, setSkillStatuses] = useState<Record<SkillId, SkillStatus>>(() =>
     Object.fromEntries(SKILLS.map((s) => [s.id, 'pending'])) as Record<SkillId, SkillStatus>
   );
+  const [loadingDuration, setLoadingDuration] = useState(0);
 
   const activeSkill = SKILLS[currentSkillIndex];
   const activeConfig = skillConfigs[activeSkill.id];
+
+  // Track how long we've been waiting for skills to load
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLoadingDuration((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Check if skills are still loading (enrichment complete but no configs yet)
+  const isLoadingSkills = enrichment?.status === 'completed' && !skillConfigs[SKILLS[0].id];
 
   const getSkillStatus = (skillId: SkillId): SkillStatus => {
     return skillStatuses[skillId] || 'pending';
@@ -408,6 +422,77 @@ export function SkillsConfigStep() {
         return null;
     }
   };
+
+  // Show loading screen while AI is building skills
+  if (isLoadingSkills) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="w-full max-w-md mx-auto px-4"
+      >
+        <div className="rounded-2xl shadow-xl border border-gray-800 bg-gray-900 p-8 sm:p-12 text-center">
+          <div className="flex justify-center mb-6">
+            <div className="relative w-16 h-16">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                className="absolute inset-0"
+              >
+                <Sparkles className="w-full h-full text-violet-400" />
+              </motion.div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                  className="w-2 h-2 bg-violet-400 rounded-full"
+                />
+              </div>
+            </div>
+          </div>
+
+          <h2 className="text-xl font-bold text-white mb-2">Building with AI Results</h2>
+          <p className="text-gray-400 mb-6">
+            Generating personalized skill suggestions based on your company...
+          </p>
+
+          {/* Loading steps */}
+          <div className="space-y-2.5 text-left mb-6">
+            {[
+              'Analyzing enrichment data',
+              'Generating skill suggestions',
+              'Building configuration',
+            ].map((step, i) => (
+              <motion.div
+                key={i}
+                animate={{
+                  backgroundColor: ['rgba(88, 28, 135, 0)', 'rgba(88, 28, 135, 0.2)'],
+                }}
+                transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.3 }}
+                className="flex items-center gap-3 py-2 px-3 rounded-lg"
+              >
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                  className="flex-shrink-0"
+                >
+                  <Loader className="w-4 h-4 text-violet-400" />
+                </motion.div>
+                <span className="text-sm text-gray-300">{step}</span>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Time elapsed indicator */}
+          <div className="flex items-center justify-center gap-1 text-xs text-gray-500">
+            <Clock className="w-3 h-3" />
+            <span>Building for {loadingDuration}s...</span>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div

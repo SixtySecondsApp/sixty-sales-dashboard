@@ -222,6 +222,74 @@ export default function AuthCallback() {
                 console.warn('[AuthCallback] Failed to upsert profile:', profileError);
               } else {
                 console.log('[AuthCallback] Successfully ensured profile exists');
+
+                // Check if an organization already exists for this email domain
+                // This handles when multiple people from the same company sign up
+                if (session.user.email) {
+                  try {
+                    const emailDomain = session.user.email.split('@')[1]?.toLowerCase();
+                    const isPersonalEmail = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com', 'protonmail.com'].includes(emailDomain);
+
+                    if (emailDomain && !isPersonalEmail) {
+                      console.log('[AuthCallback] Checking for existing organizations with domain:', emailDomain);
+
+                      // Call RPC to find organizations by email domain
+                      const { data: existingOrgs, error: queryError } = await supabase
+                        .rpc('find_orgs_by_email_domain', {
+                          p_domain: emailDomain,
+                          p_user_id: session.user.id,
+                        });
+
+                      if (queryError) {
+                        console.warn('[AuthCallback] Error querying organizations by domain:', queryError);
+                      } else if (existingOrgs && existingOrgs.length > 0) {
+                        console.log('[AuthCallback] Found existing organizations:', existingOrgs);
+
+                        // User will join the existing org (the largest/most active one)
+                        const targetOrg = existingOrgs[0];
+
+                        // Get the auto-created organization for this user (there should be one from the trigger)
+                        const { data: userOrgs } = await supabase
+                          .from('organization_memberships')
+                          .select('org_id')
+                          .eq('user_id', session.user.id)
+                          .eq('role', 'owner');
+
+                        if (userOrgs && userOrgs.length > 0) {
+                          const autoCreatedOrgId = userOrgs[0].org_id;
+
+                          // Check if this is not the target org (avoid deleting the correct one)
+                          if (autoCreatedOrgId !== targetOrg.id) {
+                            console.log('[AuthCallback] Transferring user to existing organization');
+
+                            // Add user to existing organization as a regular member
+                            const { error: memberError } = await supabase
+                              .from('organization_memberships')
+                              .insert({
+                                org_id: targetOrg.id,
+                                user_id: session.user.id,
+                                role: 'member',
+                              });
+
+                            if (!memberError) {
+                              // Delete the auto-created organization since user is joining existing one
+                              await supabase
+                                .from('organizations')
+                                .delete()
+                                .eq('id', autoCreatedOrgId);
+
+                              console.log('[AuthCallback] User joined existing organization and auto-created org was removed');
+                            } else {
+                              console.warn('[AuthCallback] Error adding user to existing organization:', memberError);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  } catch (orgError) {
+                    console.error('[AuthCallback] Error handling organization detection:', orgError);
+                  }
+                }
               }
             } catch (err) {
               console.error('[AuthCallback] Error upserting profile:', err);
@@ -413,6 +481,48 @@ export default function AuthCallback() {
 
           navigate(next, { replace: true });
           return;
+        }
+
+        // Check if user just joined an existing organization (organization detection happened above)
+        // If they have more than one organization membership and are not the owner of all, they joined an existing org
+        try {
+          const { data: memberships } = await supabase
+            .from('organization_memberships')
+            .select('org_id, role')
+            .eq('user_id', session.user.id);
+
+          const isJoinedExistingOrg = memberships && memberships.length > 0 &&
+                                     memberships.some(m => m.role === 'member');
+
+          if (isJoinedExistingOrg) {
+            console.log('[AuthCallback] User joined existing organization, skipping onboarding');
+
+            // Mark onboarding as completed and set flag to show success message
+            try {
+              await supabase
+                .from('user_onboarding_progress')
+                .upsert({
+                  user_id: session.user.id,
+                  skipped_onboarding: true,
+                  onboarding_completed_at: new Date().toISOString(),
+                  onboarding_step: 'complete',
+                }, {
+                  onConflict: 'user_id',
+                });
+
+              // Set metadata flag so dashboard can show a success message
+              await supabase.auth.updateUser({
+                data: { joined_existing_org: true }
+              });
+            } catch (skipError) {
+              console.warn('[AuthCallback] Could not mark onboarding as completed:', skipError);
+            }
+
+            navigate(next, { replace: true });
+            return;
+          }
+        } catch (membershipError) {
+          console.warn('[AuthCallback] Error checking organization memberships:', membershipError);
         }
 
         const { data: progress } = await supabase

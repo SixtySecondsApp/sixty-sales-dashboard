@@ -23,6 +23,8 @@ import { LazySalesActivityChart } from '@/components/LazySalesActivityChart';
 import ReactDOM from 'react-dom';
 import { LazySubscriptionStats } from '@/components/LazySubscriptionStats';
 import logger from '@/lib/utils/logger';
+import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase/clientV2';
 
 interface MetricCardProps {
   title: string;
@@ -489,6 +491,29 @@ export default function Dashboard() {
       isLoadingUser
     });
   }, [session, userData, isLoadingUser]);
+
+  // Check if user just joined an existing organization and show success message
+  useEffect(() => {
+    const checkJoinedExistingOrg = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.user_metadata?.joined_existing_org) {
+          toast.success('Organization found! You\'ve joined your team.', {
+            description: 'Welcome to the team! You can now see all your organization\'s data.',
+          });
+
+          // Clear the flag so we don't show it again
+          await supabase.auth.updateUser({
+            data: { joined_existing_org: false }
+          });
+        }
+      } catch (err) {
+        logger.error('Error checking joined_existing_org flag:', err);
+      }
+    };
+
+    checkJoinedExistingOrg();
+  }, []);
   
   // Get targets first - use session.user.id if userData is not yet loaded
   const userId = userData?.id || session?.user?.id;

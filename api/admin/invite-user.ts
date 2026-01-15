@@ -154,7 +154,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        type: 'recovery',
+        type: 'invite',
         email: normalizedEmail,
         options: { redirectTo: correctRedirectTo },
       }),

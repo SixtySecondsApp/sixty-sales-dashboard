@@ -7,7 +7,6 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const AWS_REGION = Deno.env.get('AWS_REGION') || 'eu-west-2';
 const AWS_ACCESS_KEY_ID = Deno.env.get('AWS_ACCESS_KEY_ID');
 const AWS_SECRET_ACCESS_KEY = Deno.env.get('AWS_SECRET_ACCESS_KEY');
-const ENCHARGE_WRITE_KEY = Deno.env.get('ENCHARGE_WRITE_KEY');
 
 interface WelcomeEmailRequest {
   email: string;
@@ -64,7 +63,7 @@ function toHex(bytes: Uint8Array): string {
 }
 
 /**
- * AWS Signature V4 signing (simplified for SES)
+ * AWS Signature V4 signing for SES
  */
 async function signAWSRequest(
   method: string,
@@ -82,17 +81,13 @@ async function signAWSRequest(
   const canonicalQuerystring = '';
   const payloadHash = await sha256(body);
 
-  const canonicalHeaders =
-    `host:${host}\nx-amz-date:${amzdate}\n`;
-
+  const canonicalHeaders = `host:${host}\nx-amz-date:${amzdate}\n`;
   const signedHeaders = 'host;x-amz-date';
 
-  const canonicalRequest =
-    `${method}\n${canonicalUri}\n${canonicalQuerystring}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
+  const canonicalRequest = `${method}\n${canonicalUri}\n${canonicalQuerystring}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
 
   const scope = `${datestamp}/${AWS_REGION}/ses/aws4_request`;
-  const stringToSign =
-    `AWS4-HMAC-SHA256\n${amzdate}\n${scope}\n${await sha256(canonicalRequest)}`;
+  const stringToSign = `AWS4-HMAC-SHA256\n${amzdate}\n${scope}\n${await sha256(canonicalRequest)}`;
 
   const kDate = await hmacSha256(
     new TextEncoder().encode(`AWS4${AWS_SECRET_ACCESS_KEY}`),
@@ -103,8 +98,7 @@ async function signAWSRequest(
   const kSigning = await hmacSha256(kService, 'aws4_request');
   const signature = toHex(await hmacSha256(kSigning, stringToSign));
 
-  const authorizationHeader =
-    `AWS4-HMAC-SHA256 Credential=${AWS_ACCESS_KEY_ID}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+  const authorizationHeader = `AWS4-HMAC-SHA256 Credential=${AWS_ACCESS_KEY_ID}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
   const headers = new Headers({
     'Host': host,
@@ -120,7 +114,6 @@ async function signAWSRequest(
  */
 async function sendEmailViaSES(
   toEmail: string,
-  toName: string,
   subject: string,
   htmlBody: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
@@ -129,9 +122,9 @@ async function sendEmailViaSES(
   }
 
   const url = new URL(`https://email.${AWS_REGION}.amazonaws.com/`);
-
-  // Build email message
   const fromEmail = 'noreply@use60.com';
+
+  // Build raw MIME message
   const message = `From: ${fromEmail}\r\nTo: ${toEmail}\r\nSubject: ${subject}\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n${htmlBody}`;
   const encodedMessage = base64Encode(message);
 
@@ -169,7 +162,7 @@ async function sendEmailViaSES(
 }
 
 serve(async (req) => {
-  // Handle CORS preflight - must return 200 OK, not 204, to avoid browser CORS errors
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', {
       status: 200,
@@ -211,12 +204,15 @@ serve(async (req) => {
       throw new Error('Missing required parameters: email and full_name');
     }
 
-    // Send email via AWS SES directly (no inter-function calls)
+    // Send email via AWS SES
     const firstName = full_name.split(' ')[0];
 
     console.log('[waitlist-welcome-email] Sending email via AWS SES:', {
       toEmail: email,
       hasAWSCredentials: !!(AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY),
+      hasSupabaseUrl: !!SUPABASE_URL,
+      hasServiceRoleKey: !!SUPABASE_SERVICE_ROLE_KEY,
+      awsRegion: AWS_REGION,
     });
 
     // Get template from database
@@ -249,7 +245,6 @@ serve(async (req) => {
 
     // Replace template variables
     let htmlBody = template.html_template || '';
-    let textBody = template.text_template || '';
 
     const variables = {
       user_name: firstName,
@@ -262,14 +257,12 @@ serve(async (req) => {
     for (const [key, value] of Object.entries(variables)) {
       const regex = new RegExp(`{{${key}}}`, 'g');
       htmlBody = htmlBody.replace(regex, String(value || ''));
-      textBody = textBody.replace(regex, String(value || ''));
     }
 
     // Send via SES
     const emailResult = await sendEmailViaSES(
       email,
-      firstName,
-      template.subject || 'Welcome to use60!',
+      template.subject_line || 'Welcome to use60!',
       htmlBody
     );
 
@@ -280,7 +273,6 @@ serve(async (req) => {
           success: false,
           error: emailResult.error || 'Failed to send email',
           email_sent: false,
-          details: emailResult,
         }),
         {
           status: 400,
@@ -297,7 +289,7 @@ serve(async (req) => {
         success: true,
         message: 'Welcome email sent successfully',
         email_sent: true,
-        message_id: emailResult.message_id,
+        message_id: emailResult.messageId,
       }),
       {
         headers: {
@@ -308,17 +300,15 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Edge function error:', {
+    console.error('[waitlist-welcome-email] Error:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      name: error instanceof Error ? error.name : undefined
     });
     return new Response(
       JSON.stringify({
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
         email_sent: false,
-        details: error instanceof Error ? error.stack : undefined
       }),
       {
         status: 400,
@@ -330,6 +320,3 @@ serve(async (req) => {
     );
   }
 });
-
-// Template generation removed - now using encharge-send-email function
-// which uses templates from the encharge_email_templates table
