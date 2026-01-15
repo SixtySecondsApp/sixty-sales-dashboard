@@ -502,7 +502,10 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
     set((state) => ({
       skillConfigs: {
         ...state.skillConfigs,
-        [skillId]: config,
+        [skillId]: {
+          ...state.skillConfigs[skillId],
+          ...config,
+        },
       },
     }));
   },

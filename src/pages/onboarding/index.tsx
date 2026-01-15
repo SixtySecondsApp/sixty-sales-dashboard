@@ -139,6 +139,7 @@ export default function OnboardingPage() {
       <OnboardingV2
         organizationId={organizationId}
         domain={domain}
+        userEmail={user?.email}
       />
     );
   }

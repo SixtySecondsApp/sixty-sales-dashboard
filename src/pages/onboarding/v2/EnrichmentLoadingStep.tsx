@@ -185,12 +185,13 @@ export function EnrichmentLoadingStep({ domain, organizationId }: EnrichmentLoad
             animate={{ opacity: 1, y: 0 }}
             className="mt-6 pt-4 border-t border-gray-800/50"
           >
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-3">
               <motion.div
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-                className="w-2 h-2 bg-violet-400 rounded-full"
-              />
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+              >
+                <Loader className="w-4 h-4 text-violet-400" />
+              </motion.div>
               <p className="text-xs text-gray-400">
                 Finalizing analysis<motion.span
                   animate={{ opacity: [0.5, 1, 0.5] }}
@@ -199,11 +200,6 @@ export function EnrichmentLoadingStep({ domain, organizationId }: EnrichmentLoad
                   ...
                 </motion.span>
               </p>
-              <motion.div
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
-                className="w-2 h-2 bg-violet-400 rounded-full"
-              />
             </div>
           </motion.div>
         )}
