@@ -100,15 +100,10 @@ export default function FathomCallback() {
             window.close();
           }, 1000);
         } else {
-          // If not in popup, check session and redirect
-          setTimeout(async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-              navigate('/auth/login?message=fathom-connected&redirect=/integrations');
-            } else {
-              navigate('/integrations?fathom=connected');
-            }
-          }, 2000);
+          // If not in popup, redirect to dashboard with success notification
+          setTimeout(() => {
+            navigate('/dashboard?fathom=connected', { replace: true });
+          }, 1500);
         }
 
       } catch (err) {

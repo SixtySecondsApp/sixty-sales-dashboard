@@ -623,6 +623,7 @@ export default function Integrations() {
     const emailParam = searchParams.get('email');
     const hubspotStatus = searchParams.get('hubspot_status');
     const hubspotError = searchParams.get('hubspot_error');
+    const fathomStatus = searchParams.get('fathom');
 
     if (statusParam === 'connected' && emailParam) {
       toast.success(`Successfully connected Google account: ${emailParam}`);
@@ -638,6 +639,11 @@ export default function Integrations() {
     } else if (hubspotError) {
       const desc = searchParams.get('hubspot_error_description');
       toast.error(`Failed to connect HubSpot: ${desc || hubspotError}`);
+      window.history.replaceState({}, '', '/integrations');
+    } else if (fathomStatus === 'connected') {
+      toast.success('Fathom connected successfully!', {
+        description: 'Your Fathom account has been connected. Starting initial sync...',
+      });
       window.history.replaceState({}, '', '/integrations');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

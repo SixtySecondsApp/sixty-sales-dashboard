@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/lib/hooks/useUser';
 import { useTargets } from '@/lib/hooks/useTargets';
 import { useActivityFilters } from '@/lib/hooks/useActivityFilters';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useRecentDeals } from '@/lib/hooks/useLazyActivities';
 import { useDashboardMetrics } from '@/lib/hooks/useDashboardMetrics';
 import { format, startOfMonth, endOfMonth, subMonths, addMonths, isAfter, isBefore, getDate } from 'date-fns';
@@ -481,8 +481,21 @@ export default function Dashboard() {
   };
   const { userData, isLoading: isLoadingUser, session } = useUser();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { setFilters } = useActivityFilters();
-  
+
+  // Check for Fathom connection success notification
+  useEffect(() => {
+    const fathomStatus = searchParams.get('fathom');
+    if (fathomStatus === 'connected') {
+      toast.success('Fathom connected successfully!', {
+        description: 'Your Fathom account has been connected. Starting initial sync...',
+      });
+      // Clean up the query parameter from the URL
+      window.history.replaceState({}, '', '/dashboard');
+    }
+  }, [searchParams]);
+
   // Log current auth state for debugging
   useEffect(() => {
     logger.log('📊 Dashboard auth state:', {
