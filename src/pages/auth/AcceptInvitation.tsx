@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useOrg } from '@/lib/contexts/OrgContext';
 import { getInvitationByToken, acceptInvitation, type Invitation } from '@/lib/services/invitationService';
+import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 
 type InviteStatus = 'loading' | 'valid' | 'invalid' | 'accepting' | 'accepted' | 'error';
@@ -58,9 +59,8 @@ export default function AcceptInvitation() {
 
     // Must be logged in with matching email
     if (!isAuthenticated) {
-      // Store token and redirect to login
-      sessionStorage.setItem('pending_invitation_token', token);
-      navigate('/auth/login?redirect=/invite/' + token);
+      // Redirect to invite-specific signup page (not regular signup)
+      navigate(`/auth/invite-signup/${token}`);
       return;
     }
 
@@ -84,19 +84,41 @@ export default function AcceptInvitation() {
       return;
     }
 
-    // Refresh organizations and switch to the new org
-    await refreshOrgs();
-    if (result.org_id) {
-      switchOrg(result.org_id);
+    try {
+      // Refresh organizations to get the newly added membership
+      await refreshOrgs();
+
+      if (result.org_id) {
+        // Switch to the invited organization
+        switchOrg(result.org_id);
+
+        // Mark onboarding as complete for invited users (they don't need to go through onboarding)
+        // This prevents ProtectedRoute from redirecting them to /onboarding
+        await supabase
+          .from('user_onboarding_progress')
+          .upsert({
+            user_id: user?.id,
+            onboarding_step: 'complete',
+            onboarding_completed_at: new Date().toISOString(),
+            skipped_onboarding: false,
+          }, {
+            onConflict: 'user_id',
+          });
+      }
+
+      setStatus('accepted');
+      toast.success(`Welcome to ${result.org_name}!`);
+
+      // Redirect to dashboard after a short delay
+      setTimeout(() => {
+        navigate('/dashboard', { replace: true });
+      }, 2000);
+    } catch (err) {
+      console.error('Error completing invitation acceptance:', err);
+      setStatus('error');
+      setError('An error occurred while setting up your organization');
+      toast.error('Failed to set up organization');
     }
-
-    setStatus('accepted');
-    toast.success(`Welcome to ${result.org_name}!`);
-
-    // Redirect to dashboard after a short delay
-    setTimeout(() => {
-      navigate('/dashboard', { replace: true });
-    }, 2000);
   };
 
   // Render loading state
@@ -195,7 +217,12 @@ export default function AcceptInvitation() {
             <div className="w-16 h-16 rounded-full bg-[#37bd7e]/20 flex items-center justify-center mx-auto mb-6">
               <Building2 className="w-8 h-8 text-[#37bd7e]" />
             </div>
-            <h1 className="text-2xl font-bold text-white mb-2">You're Invited!</h1>
+            <h1 className="text-2xl font-bold text-white mb-2">
+              Join{' '}
+              <span className="text-[#37bd7e]">
+                {invitation?.organization?.name || 'Organization'}
+              </span>
+            </h1>
             <p className="text-gray-400">
               You've been invited to join{' '}
               <span className="text-white font-medium">
@@ -244,7 +271,7 @@ export default function AcceptInvitation() {
                     {invitation?.email}
                   </p>
                   <Button
-                    onClick={() => navigate('/auth/login?redirect=/invite/' + token)}
+                    onClick={() => navigate(`/auth/invite-signup/${token}`)}
                     variant="outline"
                     className="w-full border-gray-600"
                   >
@@ -257,19 +284,19 @@ export default function AcceptInvitation() {
           ) : (
             <div className="space-y-3">
               <Button
-                onClick={() => navigate('/auth/login?redirect=/invite/' + token)}
+                onClick={() => navigate(`/auth/invite-signup/${token}`)}
                 className="w-full bg-[#37bd7e] hover:bg-[#2da76c] text-white py-3"
               >
-                <LogIn className="w-4 h-4 mr-2" />
-                Sign In to Accept
+                <UserPlus className="w-4 h-4 mr-2" />
+                Create Account & Join
               </Button>
               <Button
-                onClick={() => navigate('/auth/signup?redirect=/invite/' + token)}
+                onClick={() => navigate('/auth/login?redirect=/invite/' + token)}
                 variant="outline"
                 className="w-full border-gray-600"
               >
-                <UserPlus className="w-4 h-4 mr-2" />
-                Create Account
+                <LogIn className="w-4 h-4 mr-2" />
+                Already have an account?
               </Button>
             </div>
           )}

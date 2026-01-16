@@ -16,6 +16,7 @@ export default function VerifyEmail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const email = searchParams.get('email') || '';
+  const redirectPath = searchParams.get('redirect') || null;
 
   const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -34,8 +35,9 @@ export default function VerifyEmail() {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.email_confirmed_at) {
-        // User is verified, redirect to onboarding
-        navigate('/onboarding', { replace: true });
+        // User is verified, redirect to the intended destination or onboarding
+        const destination = redirectPath || '/onboarding';
+        navigate(destination, { replace: true });
       }
     };
 
@@ -43,7 +45,7 @@ export default function VerifyEmail() {
     checkSession();
     const interval = setInterval(checkSession, 5000);
     return () => clearInterval(interval);
-  }, [navigate]);
+  }, [navigate, redirectPath]);
 
   const handleResendEmail = async () => {
     if (!email || resendCooldown > 0) return;

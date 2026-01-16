@@ -137,28 +137,28 @@ const StatCard: React.FC<{
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.3 }}
     whileHover={{ y: -2 }}
-    className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl p-3 sm:p-5 border border-gray-200/50 dark:border-gray-700/30 shadow-sm dark:shadow-lg dark:shadow-black/10 hover:border-gray-300/50 dark:hover:border-gray-600/40 transition-all duration-300 group w-full"
+    className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border border-gray-200/50 dark:border-gray-700/30 shadow-sm dark:shadow-lg dark:shadow-black/10 hover:border-gray-300/50 dark:hover:border-gray-600/40 transition-all duration-300 group w-full flex flex-col"
   >
-    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-      <div className="flex flex-col gap-1.5 min-w-0 flex-1 order-2 sm:order-1">
-        <div className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs font-medium uppercase tracking-wider break-words leading-tight">{title}</div>
-        <div className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-gray-50 break-words">{value}</div>
-        {sub && (
-          <div className={cn(
-            "text-xs font-medium break-words",
-            trend === 'up' ? 'text-emerald-600 dark:text-emerald-400' :
-            trend === 'down' ? 'text-red-600 dark:text-red-400' :
-            'text-gray-500 dark:text-gray-400'
-          )}>
-            {sub}
-          </div>
-        )}
-      </div>
+    <div className="flex items-start justify-between gap-3 mb-3">
       {icon && (
-        <div className="p-1.5 sm:p-2.5 rounded-xl bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30 text-gray-500 dark:text-gray-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 group-hover:border-emerald-200 dark:group-hover:border-emerald-500/30 transition-all duration-300 flex-shrink-0 order-1 sm:order-2 mb-2 sm:mb-0">
-          <div className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center">
+        <div className="p-2 sm:p-2.5 rounded-xl bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30 text-gray-500 dark:text-gray-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 group-hover:border-emerald-200 dark:group-hover:border-emerald-500/30 transition-all duration-300 flex-shrink-0">
+          <div className="w-5 h-5 sm:w-5 sm:h-5 flex items-center justify-center">
             {icon}
           </div>
+        </div>
+      )}
+    </div>
+    <div className="flex flex-col gap-2 flex-1">
+      <div className="text-gray-500 dark:text-gray-400 text-xs font-medium uppercase tracking-wider leading-snug">{title}</div>
+      <div className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-50 leading-tight">{value}</div>
+      {sub && (
+        <div className={cn(
+          "text-xs font-medium",
+          trend === 'up' ? 'text-emerald-600 dark:text-emerald-400' :
+          trend === 'down' ? 'text-red-600 dark:text-red-400' :
+          'text-gray-500 dark:text-gray-400'
+        )}>
+          {sub}
         </div>
       )}
     </div>
@@ -862,7 +862,7 @@ const MeetingsList: React.FC = () => {
       </motion.div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3 w-full overflow-hidden">
+      <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 w-full overflow-hidden">
         <StatCard
           title="This Month"
           value={stats.meetingsThisMonth.toString()}

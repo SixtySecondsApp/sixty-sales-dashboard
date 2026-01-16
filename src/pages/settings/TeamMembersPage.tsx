@@ -1,9 +1,10 @@
 import SettingsPageWrapper from '@/components/SettingsPageWrapper';
 import { useState, useEffect } from 'react';
-import { Users, Trash2, Loader2, AlertCircle, UserPlus, Mail, RefreshCw, X } from 'lucide-react';
+import { Users, Trash2, Loader2, AlertCircle, UserPlus, Mail, RefreshCw, X, Check, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useOrg } from '@/lib/contexts/OrgContext';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/clientV2';
 import {
   createInvitation,
@@ -12,6 +13,7 @@ import {
   resendInvitation,
   type Invitation,
 } from '@/lib/services/invitationService';
+import { joinRequestService, type JoinRequest } from '@/lib/services/joinRequestService';
 import { toast } from 'sonner';
 
 interface TeamMember {
@@ -42,6 +44,7 @@ const roleColors: Record<string, string> = {
 export default function TeamMembersPage() {
   const { activeOrgId, permissions } = useOrg();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -52,6 +55,50 @@ export default function TeamMembersPage() {
   const [newInviteEmail, setNewInviteEmail] = useState('');
   const [newInviteRole, setNewInviteRole] = useState<'admin' | 'member'>('member');
   const [isSendingInvite, setIsSendingInvite] = useState(false);
+
+  // Fetch join requests
+  const { data: joinRequests = [], isLoading: isLoadingJoinRequests } = useQuery({
+    queryKey: ['join-requests', activeOrgId],
+    queryFn: () => {
+      if (!activeOrgId) return [];
+      return joinRequestService.getPendingJoinRequests(activeOrgId);
+    },
+    enabled: !!activeOrgId,
+  });
+
+  // Approve mutation
+  const approveMutation = useMutation({
+    mutationFn: (requestId: string) => joinRequestService.approveJoinRequest(requestId),
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success('Join request approved');
+        queryClient.invalidateQueries({ queryKey: ['join-requests'] });
+        queryClient.invalidateQueries({ queryKey: ['organization-members'] });
+      } else {
+        toast.error(result.message);
+      }
+    },
+    onError: () => {
+      toast.error('Failed to approve request');
+    },
+  });
+
+  // Reject mutation
+  const rejectMutation = useMutation({
+    mutationFn: ({ requestId, reason }: { requestId: string; reason?: string }) =>
+      joinRequestService.rejectJoinRequest(requestId, reason),
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success('Join request rejected');
+        queryClient.invalidateQueries({ queryKey: ['join-requests'] });
+      } else {
+        toast.error(result.message);
+      }
+    },
+    onError: () => {
+      toast.error('Failed to reject request');
+    },
+  });
 
   // Load team members
   useEffect(() => {
@@ -323,6 +370,72 @@ export default function TeamMembersPage() {
           )}
         </div>
 
+        {/* Join Requests */}
+        {joinRequests.length > 0 && (
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-yellow-500" />
+              Join Requests <span className="text-sm font-normal text-yellow-600 dark:text-yellow-400">({joinRequests.length})</span>
+            </h2>
+            <div className="border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
+              <div className="divide-y divide-gray-200 dark:divide-gray-800">
+                {isLoadingJoinRequests ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 text-[#37bd7e] animate-spin" />
+                  </div>
+                ) : (
+                  joinRequests.map((request: JoinRequest) => (
+                    <div
+                      key={request.id}
+                      className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-yellow-200 dark:bg-yellow-500/20 flex items-center justify-center">
+                          <span className="text-yellow-900 dark:text-yellow-400 font-medium">
+                            {request.user_profile?.first_name?.[0] ||
+                              request.email[0].toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-gray-900 dark:text-white font-medium">
+                            {request.user_profile?.first_name &&
+                            request.user_profile?.last_name
+                              ? `${request.user_profile.first_name} ${request.user_profile.last_name}`
+                              : request.email}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">{request.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs">
+                          <Clock className="w-3 h-3" />
+                          Pending
+                        </span>
+                        <button
+                          onClick={() => approveMutation.mutate(request.id)}
+                          disabled={approveMutation.isPending}
+                          className="p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors disabled:opacity-50"
+                          title="Approve request"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => rejectMutation.mutate({ requestId: request.id })}
+                          disabled={rejectMutation.isPending}
+                          className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors disabled:opacity-50"
+                          title="Reject request"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Invite New Members */}
         {permissions.canManageTeam && (
           <div>
@@ -355,7 +468,7 @@ export default function TeamMembersPage() {
               <Button
                 type="submit"
                 disabled={isSendingInvite || !newInviteEmail.trim()}
-                className="bg-[#37bd7e] hover:bg-[#2da76c]"
+                className="bg-[#37bd7e] hover:bg-[#2da76c] px-6 py-2.5 h-auto"
               >
                 {isSendingInvite ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

@@ -133,6 +133,9 @@ export default function OnboardingPage() {
   if (onboardingVersion === 'v2') {
     const activeOrg = getActiveOrg();
     const domain = activeOrg?.company_domain || user?.email?.split('@')[1] || '';
+
+    // organizationId may be empty for personal email users
+    // OnboardingV2 will create an organization after collecting company info via website URL or Q&A
     const organizationId = activeOrgId || '';
 
     return (

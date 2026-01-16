@@ -16,16 +16,21 @@ interface WebsiteInputStepProps {
   organizationId: string;
 }
 
-export function WebsiteInputStep({ organizationId }: WebsiteInputStepProps) {
+export function WebsiteInputStep({ organizationId: propOrgId }: WebsiteInputStepProps) {
   const [websiteInput, setWebsiteInput] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const {
+    organizationId: storeOrgId,
     setWebsiteUrl,
     setHasNoWebsite,
     submitWebsite,
     setStep,
   } = useOnboardingV2Store();
+
+  // Use organizationId from store (which gets updated when new org is created)
+  // Fall back to prop if store is empty
+  const organizationId = storeOrgId || propOrgId;
 
   const handleSubmitWebsite = async () => {
     const trimmed = websiteInput.trim();

@@ -23,12 +23,20 @@ const tasks = [
   { label: 'Building profile', threshold: 100 },
 ];
 
-export function EnrichmentLoadingStep({ domain, organizationId }: EnrichmentLoadingStepProps) {
+export function EnrichmentLoadingStep({ domain, organizationId: propOrgId }: EnrichmentLoadingStepProps) {
   const [progress, setProgress] = useState(0);
-  const { startEnrichment, enrichment, isEnrichmentLoading, enrichmentError, setStep } = useOnboardingV2Store();
+  const { organizationId: storeOrgId, startEnrichment, enrichment, isEnrichmentLoading, enrichmentError, setStep } = useOnboardingV2Store();
+
+  // Use organizationId from store (which gets updated when new org is created)
+  // Fall back to prop if store is empty
+  const organizationId = storeOrgId || propOrgId;
 
   // Start enrichment on mount
   useEffect(() => {
+    if (!organizationId || organizationId === '') {
+      console.warn('EnrichmentLoadingStep: organizationId is empty, skipping enrichment start');
+      return;
+    }
     startEnrichment(organizationId, domain);
   }, [organizationId, domain, startEnrichment]);
 
@@ -81,8 +89,9 @@ export function EnrichmentLoadingStep({ domain, organizationId }: EnrichmentLoad
           <h2 className="text-xl font-bold text-white mb-2">Something went wrong</h2>
           <p className="text-gray-400 mb-6">{enrichmentError}</p>
           <button
-            onClick={() => startEnrichment(organizationId, domain)}
-            className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium transition-colors"
+            onClick={() => organizationId && startEnrichment(organizationId, domain)}
+            disabled={!organizationId}
+            className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Try Again
           </button>

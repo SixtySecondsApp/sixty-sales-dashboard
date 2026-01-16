@@ -23,6 +23,7 @@ import { LazySalesActivityChart } from '@/components/LazySalesActivityChart';
 import ReactDOM from 'react-dom';
 import { LazySubscriptionStats } from '@/components/LazySubscriptionStats';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
+import { PendingJoinRequestBanner } from '@/components/PendingJoinRequestBanner';
 import logger from '@/lib/utils/logger';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
@@ -188,7 +189,7 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
   return (
     <div
       onClick={handleClick}
-      className="relative overflow-visible rounded-3xl p-6 border cursor-pointer shadow-sm dark:shadow-none bg-white dark:bg-transparent dark:bg-gradient-to-br dark:from-gray-900/80 dark:to-gray-900/40 dark:backdrop-blur-xl border-transparent dark:border-gray-800/50"
+      className="relative overflow-visible rounded-3xl p-6 sm:p-7 border cursor-pointer shadow-sm dark:shadow-none bg-white dark:bg-transparent dark:bg-gradient-to-br dark:from-gray-900/80 dark:to-gray-900/40 dark:backdrop-blur-xl border-transparent dark:border-gray-800/50 flex flex-col"
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -298,29 +299,29 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
         </div>
       </div>
       
-      <div className="space-y-2">
-        <div className="flex items-baseline gap-2">
+      <div className="space-y-3 flex-1">
+        <div className="flex items-baseline gap-2 flex-wrap">
           {isInitialLoad ? (
             <div className="flex items-baseline gap-2">
               <div className="w-24 h-9 bg-slate-200 dark:bg-gray-800/50 rounded animate-pulse" />
-              <span className="text-sm text-[#64748B] dark:text-gray-500 font-medium">
+              <span className="text-xs sm:text-sm text-[#64748B] dark:text-gray-500 font-medium">
                 / {title === 'New Business' ? `£${target.toLocaleString()}` : target}
               </span>
             </div>
           ) : (
             <>
-              <span className="text-3xl font-bold text-[#1E293B] dark:text-white transition-none" suppressHydrationWarning>
+              <span className="text-2xl sm:text-3xl font-bold text-[#1E293B] dark:text-white transition-none" suppressHydrationWarning>
                 {title === 'New Business' ? `£${value.toLocaleString()}` : value}
               </span>
-              <span className="text-sm text-[#64748B] dark:text-gray-500 font-medium">
+              <span className="text-xs sm:text-sm text-[#64748B] dark:text-gray-500 font-medium">
                 / {title === 'New Business' ? `£${target.toLocaleString()}` : target}
               </span>
             </>
           )}
         </div>
         
-        <div className="space-y-1">
-          <div className="h-2.5 bg-slate-200 dark:bg-gray-900/80 rounded-full overflow-hidden">
+        <div className="space-y-2 pt-1">
+          <div className="h-2 sm:h-2.5 bg-slate-200 dark:bg-gray-900/80 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-none ${
                 title === 'New Business'
@@ -334,9 +335,9 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
               style={{ width: `${Math.min(100, (value / target) * 100)}%` }}
             ></div>
           </div>
-          <div className="text-xs text-[#64748B] dark:text-gray-400 flex justify-between">
+          <div className="text-xs text-[#64748B] dark:text-gray-400 flex justify-between items-center gap-2">
             <span>Progress</span>
-            <span>{Math.round((value / target) * 100)}%</span>
+            <span className="font-medium">{Math.round((value / target) * 100)}%</span>
           </div>
         </div>
       </div>
@@ -654,6 +655,11 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Pending Join Request Banner */}
+      <div className="mb-6">
+        <PendingJoinRequestBanner />
       </div>
 
       {/* Metrics Grid */}

@@ -81,7 +81,7 @@ const QUESTIONS: Question[] = [
   },
 ];
 
-export function ManualEnrichmentStep({ organizationId }: ManualEnrichmentStepProps) {
+export function ManualEnrichmentStep({ organizationId: propOrgId }: ManualEnrichmentStepProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Partial<ManualEnrichmentData>>({
     company_name: '',
@@ -93,7 +93,11 @@ export function ManualEnrichmentStep({ organizationId }: ManualEnrichmentStepPro
   });
   const [error, setError] = useState<string | null>(null);
 
-  const { setManualData, submitManualEnrichment, setStep } = useOnboardingV2Store();
+  const { organizationId: storeOrgId, setManualData, submitManualEnrichment, setStep } = useOnboardingV2Store();
+
+  // Use organizationId from store (which gets updated when new org is created)
+  // Fall back to prop if store is empty
+  const organizationId = storeOrgId || propOrgId;
 
   const currentQuestion = QUESTIONS[currentIndex];
   const isLastQuestion = currentIndex === QUESTIONS.length - 1;
