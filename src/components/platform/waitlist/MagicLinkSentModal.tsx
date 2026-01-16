@@ -48,21 +48,19 @@ if (typeof document !== 'undefined' && !document.head.querySelector('style[data-
         transform: scale(1);
       }
     }
-        .magic-link-modal-backdrop {
-          opacity: 0;
-          animation: backdropFadeIn 0.2s ease-out forwards;
-        }
-        .magic-link-modal-content {
-          opacity: 0;
-          transform: scale(0.9) translateY(-10px);
-          animation: modalPopIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-          will-change: opacity, transform;
-        }
-        .magic-link-checkmark-circle {
-          opacity: 0;
-          transform: scale(0);
-          animation: checkmarkPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s both forwards;
-        }
+    .magic-link-modal-backdrop {
+      opacity: 0;
+      animation: backdropFadeIn 0.2s ease-out forwards;
+    }
+    .magic-link-modal-content {
+      opacity: 0;
+      transform: scale(0.9) translateY(-10px);
+      animation: modalPopIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      will-change: opacity, transform;
+    }
+    .magic-link-checkmark-circle {
+      animation: checkmarkPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -96,8 +94,8 @@ export function MagicLinkSentModal({ isOpen, onClose, recipientEmail }: MagicLin
           {/* Content */}
           <div className="text-center">
             {/* Checkmark circle */}
-            <div className="mx-auto mb-6 w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center magic-link-checkmark-circle">
-              <CheckCircle className="w-12 h-12 text-green-600 dark:text-green-400" />
+            <div className="mx-auto mb-6 w-24 h-24 rounded-full bg-green-500 dark:bg-green-600 flex items-center justify-center magic-link-checkmark-circle shadow-lg">
+              <CheckCircle className="w-16 h-16 text-white" />
             </div>
 
             {/* Title */}

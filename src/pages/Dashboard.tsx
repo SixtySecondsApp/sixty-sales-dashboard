@@ -529,6 +529,73 @@ export default function Dashboard() {
 
     checkJoinedExistingOrg();
   }, []);
+
+  // Mark waitlist entry as converted after user completes onboarding
+  useEffect(() => {
+    const markWaitlistConverted = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) return;
+
+        // Check if user has waitlist_entry_id in metadata
+        const waitlistEntryId = session.user.user_metadata?.waitlist_entry_id;
+        if (!waitlistEntryId) return;
+
+        // Check if user has completed onboarding
+        const { data: progress, error: progressError } = await supabase
+          .from('user_onboarding_progress')
+          .select('onboarding_completed_at, skipped_onboarding')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (progressError) {
+          logger.warn('Error checking onboarding progress:', progressError);
+          return;
+        }
+
+        const hasCompletedOnboarding = progress?.onboarding_completed_at || progress?.skipped_onboarding;
+
+        if (hasCompletedOnboarding) {
+          // Check current status of waitlist entry
+          const { data: waitlistEntry, error: entryError } = await supabase
+            .from('meetings_waitlist')
+            .select('status, converted_at')
+            .eq('id', waitlistEntryId)
+            .maybeSingle();
+
+          if (entryError) {
+            logger.warn('Error checking waitlist entry:', entryError);
+            return;
+          }
+
+          // Only update if not already converted
+          if (waitlistEntry && waitlistEntry.status !== 'converted') {
+            const { error: updateError } = await supabase
+              .from('meetings_waitlist')
+              .update({
+                status: 'converted',
+                converted_at: new Date().toISOString()
+              })
+              .eq('id', waitlistEntryId);
+
+            if (updateError) {
+              logger.error('Error marking waitlist as converted:', updateError);
+            } else {
+              logger.log('✅ Waitlist entry marked as converted:', waitlistEntryId);
+              // Clear the flag from user metadata
+              await supabase.auth.updateUser({
+                data: { waitlist_entry_id: null }
+              });
+            }
+          }
+        }
+      } catch (err) {
+        logger.error('Error in markWaitlistConverted:', err);
+      }
+    };
+
+    markWaitlistConverted();
+  }, []);
   
   // Get targets first - use session.user.id if userData is not yet loaded
   const userId = userData?.id || session?.user?.id;

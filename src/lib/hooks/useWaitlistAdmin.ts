@@ -6,6 +6,8 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import * as waitlistService from '../services/waitlistService';
+import { grantAccess } from '../services/waitlistAdminService';
+import { useAuth } from '../contexts/AuthContext';
 import type {
   WaitlistEntry,
   WaitlistStats,
@@ -28,6 +30,7 @@ interface UseWaitlistAdminReturn {
 }
 
 export function useWaitlistAdmin(filters?: WaitlistFilters): UseWaitlistAdminReturn {
+  const { user } = useAuth();
   const [entries, setEntries] = useState<WaitlistEntry[]>([]);
   const [stats, setStats] = useState<WaitlistStats | null>(null);
   const [analytics, setAnalytics] = useState<ToolAnalytics | null>(null);
@@ -63,13 +66,23 @@ export function useWaitlistAdmin(filters?: WaitlistFilters): UseWaitlistAdminRet
   }, [JSON.stringify(filters)]);
 
   const releaseUser = async (id: string, notes?: string) => {
+    if (!user?.id) {
+      toast.error('Unable to determine current user');
+      return;
+    }
+
     try {
-      await waitlistService.releaseWaitlistUser(id, notes);
-      toast.success('User released from waitlist');
-      await fetchData(); // Refresh data
+      const result = await grantAccess(id, user.id, notes);
+      if (result.success) {
+        toast.success('Invitation sent to user');
+        await fetchData(); // Refresh data
+      } else {
+        toast.error(result.error || 'Failed to send invitation');
+        throw new Error(result.error || 'Failed to send invitation');
+      }
     } catch (err) {
       const error = err as Error;
-      toast.error(error.message || 'Failed to release user');
+      toast.error(error.message || 'Failed to send invitation');
       throw error;
     }
   };

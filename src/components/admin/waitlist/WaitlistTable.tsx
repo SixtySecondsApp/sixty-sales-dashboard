@@ -2,8 +2,11 @@ import { useState } from 'react';
 import { Check, Trash2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
 import type { WaitlistEntry } from '@/lib/types/waitlist';
 import { useWaitlistAdmin } from '@/lib/hooks/useWaitlistAdmin';
+import { grantAccess } from '@/lib/services/waitlistAdminService';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 interface WaitlistTableProps {
   entries: WaitlistEntry[];
@@ -14,7 +17,10 @@ interface WaitlistTableProps {
 
 export function WaitlistTable({ entries, isLoading, onRefresh, adminUserId }: WaitlistTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  // Admin hook takes optional filters (not admin user id)
+  const [releasingId, setReleasingId] = useState<string | null>(null);
+  const { user } = useAuth();
+
+  // Admin hook is still used for deletion and other operations
   const adminHook = useWaitlistAdmin();
 
   // Filter entries based on search
@@ -24,12 +30,34 @@ export function WaitlistTable({ entries, isLoading, onRefresh, adminUserId }: Wa
     (entry.company_name && entry.company_name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const handleRelease = async (id: string) => {
+  const handleRelease = async (entry: WaitlistEntry) => {
+    console.log('[WaitlistTable] Checkmark clicked for:', entry.email);
+
+    if (!user) {
+      console.error('[WaitlistTable] No user found');
+      toast.error('Unable to determine current user');
+      return;
+    }
+
+    console.log('[WaitlistTable] Current user:', user.id);
+    setReleasingId(entry.id);
+
     try {
-      await adminHook.releaseUser(id);
-      onRefresh();
-    } catch {
-      // toast handled in hook
+      console.log('[WaitlistTable] Calling grantAccess for entryId:', entry.id);
+      const result = await grantAccess(entry.id, user.id);
+      console.log('[WaitlistTable] grantAccess result:', result);
+
+      if (result.success) {
+        toast.success(`Invitation sent to ${entry.email}`);
+        onRefresh();
+      } else {
+        toast.error(result.error || 'Failed to send invitation');
+      }
+    } catch (error) {
+      toast.error('Failed to send invitation');
+      console.error('[WaitlistTable] Grant access error:', error);
+    } finally {
+      setReleasingId(null);
     }
   };
 
@@ -145,10 +173,11 @@ export function WaitlistTable({ entries, isLoading, onRefresh, adminUserId }: Wa
                     <div className="flex items-center gap-2">
                       {entry.status === 'pending' && (
                         <Button
-                          onClick={() => handleRelease(entry.id)}
+                          onClick={() => handleRelease(entry)}
                           size="sm"
                           variant="ghost"
-                          className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 flex-shrink-0"
+                          disabled={releasingId === entry.id}
+                          className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Check className="w-4 h-4" />
                         </Button>

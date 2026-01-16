@@ -28,12 +28,12 @@ export default function OnboardingPage() {
   // Removed 'sync' step - meetings will sync in the background after reaching dashboard
   const steps: OnboardingStep[] = ['welcome', 'org_setup', 'team_invite', 'fathom_connect', 'complete'];
 
-  // Check email verification status first - users must verify email before onboarding
+  // Check email verification status and waitlist status first
   useEffect(() => {
-    const checkEmailVerification = async () => {
+    const checkAccess = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         // If no session, redirect to login
         if (!session?.user) {
           navigate('/auth/login', { replace: true });
@@ -46,16 +46,34 @@ export default function OnboardingPage() {
           return;
         }
 
-        // Email is verified, proceed with onboarding
+        // Check if user is on the waitlist with 'released' or 'converted' status (invitation access only)
+        const { data: waitlistEntry, error: waitlistError } = await supabase
+          .from('meetings_waitlist')
+          .select('id, status')
+          .eq('email', session.user.email)
+          .maybeSingle();
+
+        // User must have been invited (released or converted status)
+        // Pending = still waiting, null = never invited
+        const isInvited = waitlistEntry && (waitlistEntry.status === 'released' || waitlistEntry.status === 'converted');
+
+        if (!isInvited) {
+          // User either has no waitlist entry or is still pending - no access to onboarding
+          console.log('[Onboarding] User not invited (no waitlist entry or pending), denying access');
+          navigate('/auth/login', { replace: true });
+          return;
+        }
+
+        // Email is verified and user is invited, proceed with onboarding
         setIsCheckingEmailVerification(false);
       } catch (err) {
-        console.error('Error checking email verification:', err);
+        console.error('Error checking access:', err);
         // On error, try to proceed anyway
         setIsCheckingEmailVerification(false);
       }
     };
 
-    checkEmailVerification();
+    checkAccess();
   }, [navigate]);
 
   useEffect(() => {

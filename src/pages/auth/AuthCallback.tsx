@@ -228,9 +228,25 @@ export default function AuthCallback() {
                 if (session.user.email) {
                   try {
                     const emailDomain = session.user.email.split('@')[1]?.toLowerCase();
-                    const isPersonalEmail = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com', 'protonmail.com'].includes(emailDomain);
+                    // Complete list of personal email domains
+                    const personalEmailDomains = [
+                      'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com',
+                      'aol.com', 'protonmail.com', 'proton.me', 'mail.com', 'ymail.com',
+                      'live.com', 'msn.com', 'me.com', 'mac.com'
+                    ];
+                    const isPersonalEmail = personalEmailDomains.includes(emailDomain);
 
-                    if (emailDomain && !isPersonalEmail) {
+                    if (isPersonalEmail) {
+                      console.log('[AuthCallback] Personal email detected:', emailDomain, 'will request website input during onboarding');
+                      // Set flag for onboarding V2 to show website input step
+                      try {
+                        await supabase.auth.updateUser({
+                          data: { ...session.user.user_metadata, needs_website_input: true }
+                        });
+                      } catch (flagError) {
+                        console.warn('[AuthCallback] Could not set needs_website_input flag:', flagError);
+                      }
+                    } else if (emailDomain) {
                       console.log('[AuthCallback] Checking for existing organizations with domain:', emailDomain);
 
                       // Call RPC to find organizations by email domain
@@ -294,6 +310,24 @@ export default function AuthCallback() {
             } catch (err) {
               console.error('[AuthCallback] Error upserting profile:', err);
             }
+
+            // Link waitlist entry to user if this is a waitlist invitation
+            // Do this early so the entry is linked before onboarding checks
+            let linkedWaitlistEntryId: string | null = null;
+            if (waitlistEntryId && session.user.id) {
+              try {
+                await supabase
+                  .from('meetings_waitlist')
+                  .update({
+                    user_id: session.user.id,
+                  })
+                  .eq('id', waitlistEntryId);
+                linkedWaitlistEntryId = waitlistEntryId;
+                console.log('[AuthCallback] Successfully linked waitlist entry to user:', waitlistEntryId);
+              } catch (linkErr) {
+                console.error('[AuthCallback] Error linking waitlist entry early:', linkErr);
+              }
+            }
           }
 
           // Check if this is an invitation flow
@@ -342,39 +376,28 @@ export default function AuthCallback() {
               }
             }
 
-            // If this is a waitlist/invitation callback, redirect to dashboard with password setup flag
+            // If this is a waitlist/invitation callback, redirect to set password page
             if (storedWaitlistEntryId || isInvitation) {
               const finalWaitlistId = storedWaitlistEntryId || 'pending';
-              console.log('[AuthCallback] Setting up invited user for password setup on dashboard:', finalWaitlistId);
+              console.log('[AuthCallback] Routing invited user to set password page:', finalWaitlistId);
 
-              // Mark user as needing password setup - this triggers the modal on dashboard
-              try {
-                await supabase.auth.updateUser({
-                  data: { needs_password_setup: true, waitlist_entry_id: finalWaitlistId }
-                });
-              } catch (err) {
-                console.error('[AuthCallback] Error setting needs_password_setup flag:', err);
+              // Store waitlist entry ID in localStorage for SetPassword page
+              if (finalWaitlistId && finalWaitlistId !== 'pending') {
+                localStorage.setItem('waitlist_entry_id', finalWaitlistId);
               }
 
-              // Link waitlist entry to user
-              if (finalWaitlistId && finalWaitlistId !== 'pending' && session?.user) {
-                try {
-                  await supabase.from('meetings_waitlist').update({
-                    user_id: session.user.id,
-                    status: 'converted',
-                    converted_at: new Date().toISOString(),
-                    invitation_accepted_at: new Date().toISOString()
-                  }).eq('id', finalWaitlistId);
-                } catch (err) {
-                  console.error('[AuthCallback] Error linking waitlist entry:', err);
-                }
+              // Wait a moment to ensure session is properly established before navigating
+              await new Promise(resolve => setTimeout(resolve, 500));
+
+              // Note: Waitlist entry user_id linking happens earlier in this callback (Phase 2.2)
+              // Status will be updated to 'converted' after user completes password setup
+
+              // Redirect to password setup page
+              if (finalWaitlistId && finalWaitlistId !== 'pending') {
+                navigate(`/auth/set-password?waitlist_entry=${finalWaitlistId}`, { replace: true });
+              } else {
+                navigate('/auth/set-password', { replace: true });
               }
-
-              // Clear localStorage
-              localStorage.removeItem('waitlist_entry_id');
-
-              // Redirect to dashboard - password modal will appear there
-              navigate('/dashboard', { replace: true });
               return;
             }
 

@@ -42,6 +42,18 @@ export default function ResetPassword() {
         const hashParams = new URLSearchParams(hash.substring(1));
         const searchParams = new URLSearchParams(search);
 
+        // Check if this is an invitation (type=invite in hash)
+        const inviteType = hashParams.get('type');
+        const waitlistEntry = searchParams.get('waitlist_entry');
+
+        // If this is an invitation, redirect to set-password instead
+        if (inviteType === 'invite' && waitlistEntry) {
+          logger.log('Detected invitation, redirecting to set-password');
+          // Use window.location to preserve the hash with auth tokens
+          window.location.href = `/auth/set-password?waitlist_entry=${waitlistEntry}${hash}`;
+          return;
+        }
+
         const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token');
         const type = hashParams.get('type') || searchParams.get('type');

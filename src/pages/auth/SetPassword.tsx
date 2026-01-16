@@ -35,6 +35,43 @@ export default function SetPassword() {
 
       console.log('[SetPassword] Checking session for waitlist entry:', entryId);
 
+      // Check for invite token in hash (from magic link)
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const tokenHash = new URLSearchParams(window.location.search).get('token_hash');
+      const type = hashParams.get('type') || new URLSearchParams(window.location.search).get('type');
+
+      // If we have an invite token, verify it first to establish the session
+      if ((tokenHash || hashParams.get('access_token')) && type === 'invite') {
+        console.log('[SetPassword] Found invite token in URL, verifying OTP...');
+
+        // Try to verify the token if token_hash exists
+        if (tokenHash) {
+          const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: 'invite',
+          });
+
+          if (verifyError) {
+            console.error('[SetPassword] OTP verification failed:', verifyError);
+            toast.error('Your invitation link has expired or is invalid. Please request a new one.');
+            navigate('/auth/login');
+            return;
+          }
+
+          if (verifyData?.session?.user) {
+            console.log('[SetPassword] OTP verified, session established');
+            setUserEmail(verifyData.session.user.email || null);
+            setIsCheckingSession(false);
+            return;
+          }
+        }
+
+        // If no token_hash but we have access_token in hash, Supabase client should have processed it
+        // Wait a moment for it to establish the session
+        console.log('[SetPassword] Waiting for Supabase to process auth tokens...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
       // Check if user is authenticated - retry a few times as session might be establishing
       let session = null;
       let attempts = 0;
@@ -125,41 +162,54 @@ export default function SetPassword() {
         password: password
       });
 
-      console.log('[SetPassword] Password update response:', { 
-        hasError: !!updateError, 
+      console.log('[SetPassword] Password update response:', {
+        hasError: !!updateError,
         errorMessage: updateError?.message,
         errorStatus: (updateError as any)?.status
       });
 
       if (updateError) {
         console.error('Password update error:', updateError);
-        // Check if it's a token issue - if so, try to refresh session first
-        if (updateError.message?.includes('session') || updateError.status === 401) {
-          try {
-            const { error: refreshError } = await supabase.auth.refreshSession();
-            if (!refreshError) {
-              // Try again after refresh
-              const { error: retryError } = await supabase.auth.updateUser({
-                password: password
-              });
-              if (retryError) {
-                toast.error(retryError.message || 'Failed to set password. Please try again.');
-                return;
-              }
-            } else {
-              toast.error('Session expired. Please click the invitation link again.');
-              navigate('/auth/login');
-              return;
-            }
-          } catch (refreshErr) {
-            toast.error(updateError.message || 'Failed to set password. Please try again.');
-            return;
-          }
-        } else {
-          toast.error(updateError.message || 'Failed to set password. Please try again.');
+        console.error('Error details:', {
+          message: updateError.message,
+          status: (updateError as any)?.status,
+          statusCode: (updateError as any)?.statusCode,
+          fullError: updateError
+        });
+
+        // Show the error to user for debugging
+        const errorMsg = updateError.message || 'Failed to set password. Please try again.';
+        toast.error(errorMsg);
+        setIsLoading(false);
+        return;
+      }
+
+      // Password update successful - verify user is authenticated
+      console.log('[SetPassword] Password updated successfully, verifying user authentication...');
+
+      const { data: { user: authenticatedUser }, error: userCheckError } = await supabase.auth.getUser();
+      if (userCheckError || !authenticatedUser) {
+        console.error('[SetPassword] User not authenticated after password update:', userCheckError);
+        // Try to refresh session and check again
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) {
+          console.error('[SetPassword] Error refreshing session:', refreshError);
+          toast.error('Session error after password setup. Please log in again.');
+          navigate('/auth/login');
+          return;
+        }
+
+        // Check again after refresh
+        const { data: { user: refreshedUser }, error: refreshCheckError } = await supabase.auth.getUser();
+        if (refreshCheckError || !refreshedUser) {
+          console.error('[SetPassword] Still not authenticated after refresh:', refreshCheckError);
+          toast.error('Session error after password setup. Please log in again.');
+          navigate('/auth/login');
           return;
         }
       }
+
+      console.log('[SetPassword] User authenticated after password update');
 
       // Ensure waitlist entry is linked to this user
       // Use waitlistEntryId from state or localStorage as fallback
@@ -167,7 +217,7 @@ export default function SetPassword() {
       if (entryIdToLink) {
         // Wait a moment for any triggers to run (trigger should auto-link by email)
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         // Check if waitlist entry is linked and get full entry data
         const { data: entry, error: entryError } = await supabase
           .from('meetings_waitlist')
@@ -176,13 +226,13 @@ export default function SetPassword() {
           .single();
 
         if (entry) {
-          if (!entry.user_id || entry.user_id !== session.user.id) {
+          if (!entry.user_id || entry.user_id !== authenticatedUser.id) {
             // Manually link if not already linked (trigger should handle this, but safety check)
-            console.log(`Linking waitlist entry ${entryIdToLink} to user ${session.user.id}`);
+            console.log(`Linking waitlist entry ${entryIdToLink} to user ${authenticatedUser.id}`);
             const { error: linkError } = await supabase
               .from('meetings_waitlist')
               .update({
-                user_id: session.user.id,
+                user_id: authenticatedUser.id,
                 status: 'converted',
                 converted_at: new Date().toISOString(),
                 invitation_accepted_at: new Date().toISOString()
@@ -213,7 +263,7 @@ export default function SetPassword() {
           if (entry.email && (entry.full_name || entry.company_name)) {
             try {
               const profileUpdates: any = {};
-              
+
               // Parse full_name into first_name and last_name if available
               if (entry.full_name) {
                 const nameParts = entry.full_name.trim().split(' ');
@@ -232,7 +282,7 @@ export default function SetPassword() {
                 const { error: profileError } = await supabase
                   .from('profiles')
                   .update(profileUpdates)
-                  .eq('id', session.user.id);
+                  .eq('id', authenticatedUser.id);
 
                 if (profileError) {
                   console.error('Error updating profile with waitlist data:', profileError);
@@ -252,7 +302,7 @@ export default function SetPassword() {
             const { error: progressError } = await supabase
               .from('waitlist_onboarding_progress')
               .upsert({
-                user_id: session.user.id,
+                user_id: authenticatedUser.id,
                 waitlist_entry_id: entryIdToLink,
                 account_created_at: new Date().toISOString()
               }, {
@@ -271,17 +321,17 @@ export default function SetPassword() {
           console.error('Error fetching waitlist entry:', entryError);
           // Non-critical - user can still proceed even if we can't link
         }
-        
+
         // Clear localStorage after successful linking
         localStorage.removeItem('waitlist_entry_id');
       } else {
         // Try to find waitlist entry by email (fallback)
-        console.log('No waitlist entry ID found, attempting to link by email:', session.user.email);
+        console.log('No waitlist entry ID found, attempting to link by email:', authenticatedUser.email);
         try {
           const { data: entryByEmail } = await supabase
             .from('meetings_waitlist')
             .select('id, user_id, status, email')
-            .eq('email', session.user.email)
+            .eq('email', authenticatedUser.email)
             .eq('status', 'released')
             .is('user_id', null)
             .order('created_at', { ascending: true })
@@ -293,12 +343,12 @@ export default function SetPassword() {
             await supabase
               .from('meetings_waitlist')
               .update({
-                user_id: session.user.id,
+                user_id: authenticatedUser.id,
                 status: 'converted',
                 converted_at: new Date().toISOString()
               })
               .eq('id', entryByEmail.id);
-            
+
             console.log('Linked waitlist entry by email match');
           }
         } catch (emailLinkError) {
