@@ -70,11 +70,39 @@ function SequenceCard({
   const { frontmatter, is_active, skill_key } = sequence;
   const steps = Array.isArray(frontmatter.sequence_steps) ? frontmatter.sequence_steps : [];
   const safeSteps = steps.filter(Boolean);
-  const { data: executions } = useSequenceExecutions(skill_key, { limit: 5 });
 
-  // Calculate test status
-  const lastExecution = executions?.[0];
-  const testStatus = lastExecution?.status;
+  // Fetch mock and live runs separately to ensure we get both
+  const { data: mockExecutions } = useSequenceExecutions(skill_key, { isSimulation: true, limit: 1 });
+  const { data: liveExecutions } = useSequenceExecutions(skill_key, { isSimulation: false, limit: 1 });
+
+  // Calculate test status based on both mock and live runs
+  const latestMockRun = mockExecutions?.[0];
+  const latestLiveRun = liveExecutions?.[0];
+
+  // Determine combined test status
+  type TestStatusType = 'passed' | 'failed' | 'partial' | 'running' | 'not_tested';
+  let testStatus: TestStatusType = 'not_tested';
+  let testStatusLabel = 'Not tested';
+
+  const mockPassed = latestMockRun?.status === 'completed';
+  const livePassed = latestLiveRun?.status === 'completed';
+  const mockFailed = latestMockRun?.status === 'failed';
+  const liveFailed = latestLiveRun?.status === 'failed';
+  const isRunning = latestMockRun?.status === 'running' || latestLiveRun?.status === 'running';
+
+  if (isRunning) {
+    testStatus = 'running';
+    testStatusLabel = 'Testing';
+  } else if (mockFailed || liveFailed) {
+    testStatus = 'failed';
+    testStatusLabel = mockFailed && liveFailed ? 'Both failed' : liveFailed ? 'Live failed' : 'Mock failed';
+  } else if (mockPassed && livePassed) {
+    testStatus = 'passed';
+    testStatusLabel = 'Tested';
+  } else if (mockPassed || livePassed) {
+    testStatus = 'partial';
+    testStatusLabel = mockPassed ? 'Mock only' : 'Live only';
+  }
 
   return (
     <motion.div
@@ -146,27 +174,23 @@ function SequenceCard({
           <GitBranch className="h-3 w-3" />
           {safeSteps.length} steps
         </span>
-        {testStatus && (
-          <span
-            className={cn(
-              'flex items-center gap-1',
-              testStatus === 'completed' && 'text-green-600',
-              testStatus === 'failed' && 'text-red-600',
-              testStatus === 'running' && 'text-yellow-600'
-            )}
-          >
-            {testStatus === 'completed' && <CheckCircle2 className="h-3 w-3" />}
-            {testStatus === 'failed' && <XCircle className="h-3 w-3" />}
-            {testStatus === 'running' && <Clock className="h-3 w-3" />}
-            {testStatus === 'completed' ? 'Tested' : testStatus === 'failed' ? 'Failed' : 'Testing'}
-          </span>
-        )}
-        {!testStatus && (
-          <span className="flex items-center gap-1 text-amber-600">
-            <AlertCircle className="h-3 w-3" />
-            Not tested
-          </span>
-        )}
+        <span
+          className={cn(
+            'flex items-center gap-1',
+            testStatus === 'passed' && 'text-green-600',
+            testStatus === 'failed' && 'text-red-600',
+            testStatus === 'running' && 'text-yellow-600',
+            testStatus === 'partial' && 'text-blue-600',
+            testStatus === 'not_tested' && 'text-amber-600'
+          )}
+        >
+          {testStatus === 'passed' && <CheckCircle2 className="h-3 w-3" />}
+          {testStatus === 'failed' && <XCircle className="h-3 w-3" />}
+          {testStatus === 'running' && <Clock className="h-3 w-3" />}
+          {testStatus === 'partial' && <AlertCircle className="h-3 w-3" />}
+          {testStatus === 'not_tested' && <AlertCircle className="h-3 w-3" />}
+          {testStatusLabel}
+        </span>
       </div>
 
       {/* Actions */}
