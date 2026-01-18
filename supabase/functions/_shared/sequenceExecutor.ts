@@ -166,30 +166,43 @@ export async function executeSequence(
     const stepStart = Date.now();
     const stepStartedAt = new Date().toISOString();
 
+    // Normalize skill_key and action - treat empty strings as undefined
+    const skillKey = typeof step.skill_key === 'string' && step.skill_key.trim() ? step.skill_key.trim() : undefined;
+    const actionKey = typeof step.action === 'string' && step.action.trim() ? step.action.trim() : undefined;
+
+    console.log(`[sequenceExecutor] Step ${i + 1}:`, {
+      raw_skill_key: step.skill_key,
+      raw_action: step.action,
+      normalized_skill_key: skillKey,
+      normalized_action: actionKey,
+    });
+
     // Validate step has either skill_key or action
-    if (!step.skill_key && !step.action) {
+    if (!skillKey && !actionKey) {
       overallStatus = 'failed';
       failedStepIndex = i;
-      errorMessage = `Step ${i + 1} has neither skill_key nor action`;
+      errorMessage = `Step ${i + 1} has neither skill_key nor action (raw values: skill_key=${JSON.stringify(step.skill_key)}, action=${JSON.stringify(step.action)})`;
       break;
     }
 
     const input = buildStepInput(step, state);
     let result: SkillResult;
-    let stepType: 'skill' | 'action' = step.skill_key ? 'skill' : 'action';
+    let stepType: 'skill' | 'action' = skillKey ? 'skill' : 'action';
 
     // Execute step based on type
-    if (step.skill_key) {
+    if (skillKey) {
       // Execute skill
+      console.log(`[sequenceExecutor] Executing skill: ${skillKey}`);
       result = await executeAgentSkillWithContract(supabase, {
         organizationId,
         userId,
-        skillKey: step.skill_key,
+        skillKey,
         context: input,
         dryRun: isSimulation,
       });
-    } else if (step.action) {
+    } else if (actionKey) {
       // Execute action (requires approval if requires_approval is true and not simulation)
+      console.log(`[sequenceExecutor] Executing action: ${actionKey}`);
       const actionInput = { ...input };
       // Safety: simulation mode should never perform write actions (ignore confirm even if provided in mapping)
       if (isSimulation) {
@@ -205,7 +218,7 @@ export async function executeSequence(
         supabase,
         userId,
         organizationId,
-        step.action,
+        actionKey as ExecuteActionName,
         actionInput
       );
 
@@ -220,18 +233,19 @@ export async function executeSequence(
         status: normalizedActionResult.success ? 'success' : 'failed',
         error: normalizedActionResult.error || undefined,
         summary: normalizedActionResult.success
-          ? `Action ${step.action} completed successfully`
-          : `Action ${step.action} failed: ${normalizedActionResult.error || 'Unknown error'}`,
+          ? `Action ${actionKey} completed successfully`
+          : `Action ${actionKey} failed: ${normalizedActionResult.error || 'Unknown error'}`,
         data: normalizedActionResult.data || {},
         references: [],
         meta: {
-          skill_id: step.action,
+          skill_id: actionKey,
           skill_version: '1.0',
           execution_time_ms: Date.now() - stepStart,
           model: undefined,
         },
       };
     } else {
+      // This shouldn't happen due to earlier validation, but keep as safety net
       throw new Error(`Step ${i + 1} has neither skill_key nor action`);
     }
 
@@ -268,8 +282,8 @@ export async function executeSequence(
     stepResults.push({
       step_index: i,
       step_type: stepType,
-      skill_key: step.skill_key || null,
-      action: step.action || null,
+      skill_key: skillKey || null,
+      action: actionKey || null,
       status: result.status,
       // Persist a sanitized input (never store mutable orchestration state to avoid cycles)
       input: (() => {

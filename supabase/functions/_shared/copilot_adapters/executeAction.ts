@@ -7,6 +7,19 @@ type SupabaseClient = ReturnType<typeof createClient>;
 // Maximum skill nesting depth to prevent infinite recursion
 const MAX_INVOKE_DEPTH = 3;
 
+const normalizeDueDate = (value: unknown): string | null => {
+  if (value === null || value === undefined) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const lowered = raw.toLowerCase();
+  if (['completed', 'done', 'n/a', 'na', 'none', 'null', 'undefined', 'tbd', 'unknown'].includes(lowered)) {
+    return null;
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+};
+
 export async function executeAction(
   client: SupabaseClient,
   userId: string,
@@ -629,12 +642,13 @@ export async function executeAction(
         return { success: false, data: null, error: 'title is required for create_task' };
       }
 
+      const normalizedDueDate = normalizeDueDate(params.due_date);
       const taskPreview = {
         title,
         description: params.description ? String(params.description) : null,
         status: 'pending',
         priority: params.priority || 'medium',
-        due_date: params.due_date ? String(params.due_date) : null,
+        due_date: normalizedDueDate,
         contact_id: params.contact_id ? String(params.contact_id) : null,
         deal_id: params.deal_id ? String(params.deal_id) : null,
         assignee_id: params.assignee_id ? String(params.assignee_id) : null,
@@ -653,8 +667,8 @@ export async function executeAction(
       }
 
       const taskData: Record<string, unknown> = {
-        user_id: userId,
-        org_id: orgId,
+        assigned_to: taskPreview.assignee_id || userId, // Use assignee if provided, else current user
+        created_by: userId,
         title,
         description: taskPreview.description,
         status: 'pending',
@@ -671,9 +685,6 @@ export async function executeAction(
       }
       if (taskPreview.deal_id) {
         taskData.deal_id = taskPreview.deal_id;
-      }
-      if (taskPreview.assignee_id) {
-        taskData.assignee_id = taskPreview.assignee_id;
       }
 
       const { data: newTask, error: taskError } = await client
