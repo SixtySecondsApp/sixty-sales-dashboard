@@ -511,17 +511,50 @@ export function useSequenceExecution() {
           if (error) throw error;
 
           // Map backend response to our state format
-          const backendResults: StepResult[] = (data?.step_results || []).map((sr: any, idx: number) => ({
-            step_index: idx,
-            skill_key: sr.skill_key || sr.action || `step_${idx + 1}`,
-            status: sr.status === 'success' ? 'completed' : sr.status === 'failed' ? 'failed' : 'completed',
-            input: sr.input || {},
-            output: sr.output || sr.data || null,
-            error: sr.error || null,
-            started_at: sr.started_at || null,
-            completed_at: sr.completed_at || null,
-            duration_ms: sr.duration_ms || null,
-          }));
+          const backendResults: StepResult[] = (data?.step_results || []).map((sr: any, idx: number) => {
+            // Ensure error is always a string or null
+            let errorStr: string | null = null;
+            if (sr.error) {
+              if (typeof sr.error === 'string') {
+                errorStr = sr.error;
+              } else if (sr.error.message) {
+                errorStr = sr.error.message;
+              } else {
+                try {
+                  errorStr = JSON.stringify(sr.error);
+                } catch {
+                  errorStr = String(sr.error);
+                }
+              }
+            }
+            return {
+              step_index: idx,
+              skill_key: sr.skill_key || sr.action || `step_${idx + 1}`,
+              status: sr.status === 'success' ? 'completed' : sr.status === 'failed' ? 'failed' : 'completed',
+              input: sr.input || {},
+              output: sr.output || sr.data || null,
+              error: errorStr,
+              started_at: sr.started_at || null,
+              completed_at: sr.completed_at || null,
+              duration_ms: sr.duration_ms || null,
+            };
+          });
+
+          // Normalize the top-level error to string
+          let topLevelError: string | null = null;
+          if (data?.error) {
+            if (typeof data.error === 'string') {
+              topLevelError = data.error;
+            } else if (data.error.message) {
+              topLevelError = data.error.message;
+            } else {
+              try {
+                topLevelError = JSON.stringify(data.error);
+              } catch {
+                topLevelError = String(data.error);
+              }
+            }
+          }
 
           setState((prev) => ({
             ...prev,
@@ -530,7 +563,7 @@ export function useSequenceExecution() {
             stepResults: backendResults.length > 0 ? backendResults : prev.stepResults,
             currentStepIndex: steps.length - 1,
             context: data?.final_context || { trigger: { params: options.inputContext }, outputs: {} },
-            error: data?.error || null,
+            error: topLevelError,
             isExecuting: false,
           }));
 
@@ -549,7 +582,7 @@ export function useSequenceExecution() {
             success: data?.status !== 'failed',
             results: backendResults,
             context: data?.final_context || {},
-            error: data?.error || null,
+            error: topLevelError,
             waitingHITL: false,
           };
         } catch (err) {
