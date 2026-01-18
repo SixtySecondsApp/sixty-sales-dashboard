@@ -5,7 +5,7 @@
  * Shows step-by-step execution progress and results.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   Play,
   Square,
@@ -19,11 +19,17 @@ import {
   Sparkles,
   Database,
   Edit3,
+  Code2,
+  AlertCircle,
+  Search,
+  User,
+  X,
+  Video,
+  Building2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -32,8 +38,30 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useQuery } from '@tanstack/react-query';
 import { useSequenceExecution, DEFAULT_MOCK_DATA } from '@/lib/hooks/useSequenceExecution';
+import { useLeads } from '@/lib/hooks/useLeads';
+import { useAuth } from '@/lib/contexts/AuthContext';
+import { supabase } from '@/lib/supabase/clientV2';
 import type { AgentSequence, StepResult } from '@/lib/hooks/useAgentSequences';
+import type { LeadWithPrep } from '@/lib/services/leadService';
+
+// =============================================================================
+// Meeting with Transcript Type
+// =============================================================================
+
+interface MeetingWithTranscript {
+  id: string;
+  title: string | null;
+  meeting_start: string | null;
+  meeting_end: string | null;
+  summary: string | null;
+  transcript_text: string | null;
+  company_id: string | null;
+  primary_contact_id: string | null;
+  companies?: { name: string } | null;
+}
 
 // =============================================================================
 // Types
@@ -42,6 +70,386 @@ import type { AgentSequence, StepResult } from '@/lib/hooks/useAgentSequences';
 interface SequenceSimulatorProps {
   sequence: AgentSequence;
   className?: string;
+}
+
+interface InputField {
+  name: string;
+  required: boolean;
+  placeholder?: string;
+  description?: string;
+}
+
+// Field names that indicate transcript input is needed
+const TRANSCRIPT_FIELD_NAMES = ['transcript', 'transcript_text', 'meeting_transcript', 'meeting_id'];
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Extract all input variables from sequence steps' input_mapping
+ * Looks for patterns like ${trigger.params.X} and returns unique field names
+ */
+function extractInputVariables(sequence: AgentSequence): InputField[] {
+  const requiredFields = new Set<string>(sequence.frontmatter.requires_context || []);
+  const allFields = new Set<string>();
+
+  // Add required fields first
+  requiredFields.forEach((field) => allFields.add(field));
+
+  // Scan all steps for input_mapping variables
+  const steps = sequence.frontmatter.sequence_steps || [];
+  for (const step of steps) {
+    const inputMapping = step.input_mapping || {};
+    for (const [, sourceExpr] of Object.entries(inputMapping)) {
+      if (typeof sourceExpr !== 'string') continue;
+
+      // Match ${trigger.params.X} patterns
+      const match = sourceExpr.match(/\$\{trigger\.params\.(\w+)\}/);
+      if (match) {
+        allFields.add(match[1]);
+      }
+    }
+  }
+
+  // Convert to InputField array with required info
+  return Array.from(allFields).map((name) => ({
+    name,
+    required: requiredFields.has(name),
+    placeholder: getFieldPlaceholder(name),
+    description: getFieldDescription(name),
+  }));
+}
+
+/**
+ * Get placeholder text for common field names
+ */
+function getFieldPlaceholder(name: string): string {
+  const placeholders: Record<string, string> = {
+    email: 'lead@company.com',
+    name: 'John Doe',
+    source: 'SavvyCal',
+    domain: 'company.com',
+    website: 'https://company.com',
+    company_name: 'Acme Inc',
+    phone: '+1 555 123 4567',
+    title: 'Sales Director',
+    linkedin_url: 'https://linkedin.com/in/johndoe',
+  };
+  return placeholders[name] || '';
+}
+
+/**
+ * Get description for common field names
+ */
+function getFieldDescription(name: string): string {
+  const descriptions: Record<string, string> = {
+    email: 'Email address of the lead',
+    name: 'Full name of the contact',
+    source: 'Where the lead came from',
+    domain: 'Company domain (e.g., company.com)',
+    website: 'Company website URL',
+    company_name: 'Company name',
+    phone: 'Phone number',
+    title: 'Job title',
+    linkedin_url: 'LinkedIn profile URL',
+  };
+  return descriptions[name] || '';
+}
+
+// =============================================================================
+// Lead Picker Component
+// =============================================================================
+
+interface LeadPickerProps {
+  leads: LeadWithPrep[];
+  isLoading: boolean;
+  selectedLead: LeadWithPrep | null;
+  onSelect: (lead: LeadWithPrep | null) => void;
+}
+
+function LeadPicker({ leads, isLoading, selectedLead, onSelect }: LeadPickerProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
+  // Filter leads by search term (email or name)
+  const filteredLeads = useMemo(() => {
+    if (!search.trim()) {
+      return leads.slice(0, 20); // Show first 20 when no search
+    }
+    const searchLower = search.toLowerCase();
+    return leads
+      .filter((lead) => {
+        const email = lead.contact_email?.toLowerCase() || '';
+        const name = lead.contact_name?.toLowerCase() || '';
+        const firstName = lead.contact_first_name?.toLowerCase() || '';
+        const lastName = lead.contact_last_name?.toLowerCase() || '';
+        return (
+          email.includes(searchLower) ||
+          name.includes(searchLower) ||
+          firstName.includes(searchLower) ||
+          lastName.includes(searchLower)
+        );
+      })
+      .slice(0, 20);
+  }, [leads, search]);
+
+  const getLeadDisplayName = (lead: LeadWithPrep) => {
+    if (lead.contact_name) return lead.contact_name;
+    if (lead.contact_first_name || lead.contact_last_name) {
+      return [lead.contact_first_name, lead.contact_last_name].filter(Boolean).join(' ');
+    }
+    return lead.contact_email || 'Unknown';
+  };
+
+  const handleSelect = (lead: LeadWithPrep) => {
+    onSelect(lead);
+    setOpen(false);
+    setSearch('');
+  };
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelect(null);
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs text-muted-foreground">Quick fill from existing lead</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between h-9 text-sm font-normal"
+          >
+            {selectedLead ? (
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <User className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                <span className="truncate">{getLeadDisplayName(selectedLead)}</span>
+                {selectedLead.contact_email && (
+                  <span className="text-muted-foreground truncate">
+                    ({selectedLead.contact_email})
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="text-muted-foreground">Search leads...</span>
+            )}
+            {selectedLead ? (
+              <X
+                className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                onClick={handleClear}
+              />
+            ) : (
+              <Search className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[320px] p-0" align="start">
+          <div className="p-2 border-b">
+            <Input
+              placeholder="Search by name or email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8"
+              autoFocus
+            />
+          </div>
+          <div className="max-h-[250px] overflow-y-auto">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : filteredLeads.length === 0 ? (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                {search ? 'No leads found' : 'No leads available'}
+              </div>
+            ) : (
+              <div className="py-1">
+                {filteredLeads.map((lead) => (
+                  <button
+                    key={lead.id}
+                    onClick={() => handleSelect(lead)}
+                    className={cn(
+                      'w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-muted/50 transition-colors',
+                      selectedLead?.id === lead.id && 'bg-muted'
+                    )}
+                  >
+                    <User className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">
+                        {getLeadDisplayName(lead)}
+                      </div>
+                      {lead.contact_email && (
+                        <div className="text-xs text-muted-foreground truncate">
+                          {lead.contact_email}
+                        </div>
+                      )}
+                      {(lead.domain || lead.external_source) && (
+                        <div className="text-xs text-muted-foreground truncate">
+                          {[lead.domain, lead.external_source].filter(Boolean).join(' • ')}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+// =============================================================================
+// Meeting Picker Component
+// =============================================================================
+
+interface MeetingPickerProps {
+  meetings: MeetingWithTranscript[];
+  isLoading: boolean;
+  selectedMeeting: MeetingWithTranscript | null;
+  onSelect: (meeting: MeetingWithTranscript | null) => void;
+}
+
+function MeetingPicker({ meetings, isLoading, selectedMeeting, onSelect }: MeetingPickerProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
+  // Filter meetings by search term (title or company name)
+  const filteredMeetings = useMemo(() => {
+    if (!search.trim()) {
+      return meetings.slice(0, 20);
+    }
+    const searchLower = search.toLowerCase();
+    return meetings
+      .filter((meeting) => {
+        const title = meeting.title?.toLowerCase() || '';
+        const companyName = meeting.companies?.name?.toLowerCase() || '';
+        return title.includes(searchLower) || companyName.includes(searchLower);
+      })
+      .slice(0, 20);
+  }, [meetings, search]);
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const handleSelect = (meeting: MeetingWithTranscript) => {
+    onSelect(meeting);
+    setOpen(false);
+    setSearch('');
+  };
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelect(null);
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs text-muted-foreground">Select meeting with transcript</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between h-9 text-sm font-normal"
+          >
+            {selectedMeeting ? (
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <Video className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                <span className="truncate">{selectedMeeting.title || 'Untitled Meeting'}</span>
+                {selectedMeeting.meeting_start && (
+                  <span className="text-muted-foreground truncate">
+                    ({formatDate(selectedMeeting.meeting_start)})
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="text-muted-foreground">Search meetings...</span>
+            )}
+            {selectedMeeting ? (
+              <X
+                className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                onClick={handleClear}
+              />
+            ) : (
+              <Search className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[320px] p-0" align="start">
+          <div className="p-2 border-b">
+            <Input
+              placeholder="Search by title or company..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8"
+              autoFocus
+            />
+          </div>
+          <div className="max-h-[250px] overflow-y-auto">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : filteredMeetings.length === 0 ? (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                {search ? 'No meetings found' : 'No meetings with transcripts'}
+              </div>
+            ) : (
+              <div className="py-1">
+                {filteredMeetings.map((meeting) => (
+                  <button
+                    key={meeting.id}
+                    onClick={() => handleSelect(meeting)}
+                    className={cn(
+                      'w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-muted/50 transition-colors',
+                      selectedMeeting?.id === meeting.id && 'bg-muted'
+                    )}
+                  >
+                    <Video className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">
+                        {meeting.title || 'Untitled Meeting'}
+                      </div>
+                      {meeting.meeting_start && (
+                        <div className="text-xs text-muted-foreground">
+                          {formatDate(meeting.meeting_start)}
+                        </div>
+                      )}
+                      {meeting.companies?.name && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground truncate">
+                          <Building2 className="h-3 w-3" />
+                          {meeting.companies.name}
+                        </div>
+                      )}
+                      {meeting.transcript_text && (
+                        <div className="text-xs text-green-600 mt-0.5">
+                          ✓ Transcript available
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
 }
 
 // =============================================================================
@@ -146,12 +554,73 @@ function StepResultDisplay({ result, index }: StepResultDisplayProps) {
 
 export function SequenceSimulator({ sequence, className }: SequenceSimulatorProps) {
   const [isSimulation, setIsSimulation] = useState(true);
+  const [showJsonEditor, setShowJsonEditor] = useState(false);
   const [inputContextJson, setInputContextJson] = useState('{}');
   const [mockDataJson, setMockDataJson] = useState(
     JSON.stringify(DEFAULT_MOCK_DATA, null, 2)
   );
   const [showMockEditor, setShowMockEditor] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const [selectedLead, setSelectedLead] = useState<LeadWithPrep | null>(null);
+  const [selectedMeeting, setSelectedMeeting] = useState<MeetingWithTranscript | null>(null);
+
+  // Auth for user-scoped queries
+  const { user } = useAuth();
+
+  // Fetch leads for the picker
+  const { data: leads = [], isLoading: leadsLoading } = useLeads();
+
+  // Fetch meetings with transcripts for the picker
+  const { data: meetingsWithTranscripts = [], isLoading: meetingsLoading } = useQuery({
+    queryKey: ['meetings-with-transcripts', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from('meetings')
+        .select(`
+          id,
+          title,
+          meeting_start,
+          meeting_end,
+          summary,
+          transcript_text,
+          company_id,
+          primary_contact_id,
+          companies:company_id (name)
+        `)
+        .eq('owner_user_id', user.id)
+        .not('transcript_text', 'is', null)
+        .order('meeting_start', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        console.error('Error fetching meetings with transcripts:', error);
+        return [];
+      }
+      return (data || []) as MeetingWithTranscript[];
+    },
+    enabled: !!user?.id,
+  });
+
+  // Extract input fields from sequence
+  const inputFields = useMemo(() => extractInputVariables(sequence), [sequence]);
+
+  // Detect if sequence needs transcript input
+  const hasTranscriptField = useMemo(() => {
+    return inputFields.some((field) =>
+      TRANSCRIPT_FIELD_NAMES.some((tf) => field.name.toLowerCase().includes(tf))
+    );
+  }, [inputFields]);
+
+  // Form state for input fields
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>(() => {
+    // Initialize with empty values for all fields
+    const initial: Record<string, string> = {};
+    inputFields.forEach((field) => {
+      initial[field.name] = '';
+    });
+    return initial;
+  });
 
   const execution = useSequenceExecution();
 
@@ -167,13 +636,102 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
     }
   }, []);
 
+  // Sync form values to JSON
+  const syncFormToJson = useCallback(() => {
+    const context: Record<string, string> = {};
+    for (const [key, value] of Object.entries(fieldValues)) {
+      if (value.trim()) {
+        context[key] = value.trim();
+      }
+    }
+    setInputContextJson(JSON.stringify(context, null, 2));
+  }, [fieldValues]);
+
+  // Handle field value change
+  const handleFieldChange = useCallback((name: string, value: string) => {
+    setFieldValues((prev) => ({ ...prev, [name]: value }));
+  }, []);
+
+  // Handle lead selection - populate form fields from lead data
+  const handleLeadSelect = useCallback((lead: LeadWithPrep | null) => {
+    setSelectedLead(lead);
+    if (lead) {
+      setFieldValues((prev) => {
+        const updated = { ...prev };
+        // Map lead fields to input fields
+        if (lead.contact_email) updated.email = lead.contact_email;
+        if (lead.contact_name) {
+          updated.name = lead.contact_name;
+        } else if (lead.contact_first_name || lead.contact_last_name) {
+          updated.name = [lead.contact_first_name, lead.contact_last_name].filter(Boolean).join(' ');
+        }
+        if (lead.external_source) updated.source = lead.external_source;
+        if (lead.domain) updated.domain = lead.domain;
+        return updated;
+      });
+    }
+  }, []);
+
+  // Handle meeting selection - populate transcript fields from meeting data
+  const handleMeetingSelect = useCallback((meeting: MeetingWithTranscript | null) => {
+    setSelectedMeeting(meeting);
+    if (meeting) {
+      setFieldValues((prev) => {
+        const updated = { ...prev };
+        // Map meeting fields to input fields (check for various transcript field names)
+        for (const field of inputFields) {
+          const fieldNameLower = field.name.toLowerCase();
+          if (fieldNameLower.includes('transcript') && meeting.transcript_text) {
+            updated[field.name] = meeting.transcript_text;
+          } else if (fieldNameLower === 'meeting_id') {
+            updated[field.name] = meeting.id;
+          } else if (fieldNameLower === 'summary' && meeting.summary) {
+            updated[field.name] = meeting.summary;
+          }
+        }
+        return updated;
+      });
+    }
+  }, [inputFields]);
+
+  // Validate required fields
+  const missingRequiredFields = useMemo(() => {
+    return inputFields
+      .filter((field) => field.required && !fieldValues[field.name]?.trim())
+      .map((field) => field.name);
+  }, [inputFields, fieldValues]);
+
+  // Build input context from form fields
+  const buildInputContext = useCallback((): Record<string, unknown> => {
+    if (showJsonEditor) {
+      return parseJson(inputContextJson) || {};
+    }
+
+    const context: Record<string, string> = {};
+    for (const [key, value] of Object.entries(fieldValues)) {
+      if (value.trim()) {
+        context[key] = value.trim();
+      }
+    }
+    return context;
+  }, [showJsonEditor, inputContextJson, fieldValues, parseJson]);
+
   // Handle run simulation
   const handleRun = useCallback(async () => {
-    const inputContext = parseJson(inputContextJson);
-    if (!inputContext) return;
+    const inputContext = buildInputContext();
+
+    // In live mode, require input context
+    // In mock mode, allow empty input since mock data will be used
+    if (!isSimulation && (!inputContext || Object.keys(inputContext).length === 0)) {
+      setJsonError('Live mode requires input context. Please fill in the required fields.');
+      return;
+    }
 
     const mockData = isSimulation ? parseJson(mockDataJson) : undefined;
     if (isSimulation && !mockData) return;
+
+    // Clear any previous errors
+    setJsonError(null);
 
     try {
       await execution.execute(sequence, {
@@ -195,7 +753,7 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
     } catch (error) {
       console.error('[Simulator] Execution error:', error);
     }
-  }, [sequence, isSimulation, inputContextJson, mockDataJson, parseJson, execution]);
+  }, [sequence, isSimulation, buildInputContext, mockDataJson, parseJson, execution]);
 
   // Handle stop
   const handleStop = useCallback(() => {
@@ -208,16 +766,19 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
     setJsonError(null);
   }, [execution]);
 
-  // Check if all steps have valid skill keys
-  const stepsWithSkills = sequence.frontmatter.sequence_steps?.filter(s => s.skill_key) || [];
-  const hasValidSteps = stepsWithSkills.length > 0;
+  // Check if all steps have valid skill keys or actions
+  const stepsWithSkillsOrActions = sequence.frontmatter.sequence_steps?.filter(s => s.skill_key || s.action) || [];
+  const hasValidSteps = stepsWithSkillsOrActions.length > 0;
   const totalSteps = sequence.frontmatter.sequence_steps?.length || 0;
-  const missingSkillCount = totalSteps - stepsWithSkills.length;
+  const missingSkillCount = totalSteps - stepsWithSkillsOrActions.length;
 
+  // In mock mode, allow running without required fields (mock data will be used)
+  // In live mode, require all required fields to be filled
   const canRun =
     !execution.isExecuting &&
     hasValidSteps &&
-    !jsonError;
+    !jsonError &&
+    (isSimulation || showJsonEditor || missingRequiredFields.length === 0);
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
@@ -258,19 +819,127 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
           </div>
         </div>
 
-        {/* Input Context */}
-        <div>
-          <Label className="text-sm">Input Context</Label>
-          <Textarea
-            value={inputContextJson}
-            onChange={(e) => {
-              setInputContextJson(e.target.value);
-              parseJson(e.target.value);
-            }}
-            placeholder='{ "email": "example@company.com" }'
-            className="mt-1 font-mono text-xs h-20"
-          />
-        </div>
+        {/* Input Fields Form */}
+        {!showJsonEditor && inputFields.length > 0 && (
+          <div className="space-y-3">
+            {/* Lead Picker - quick fill from existing leads */}
+            <LeadPicker
+              leads={leads}
+              isLoading={leadsLoading}
+              selectedLead={selectedLead}
+              onSelect={handleLeadSelect}
+            />
+
+            {/* Meeting Picker - for sequences that need transcript input */}
+            {hasTranscriptField && (
+              <MeetingPicker
+                meetings={meetingsWithTranscripts}
+                isLoading={meetingsLoading}
+                selectedMeeting={selectedMeeting}
+                onSelect={handleMeetingSelect}
+              />
+            )}
+
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Input Context</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs gap-1.5"
+                onClick={() => {
+                  syncFormToJson();
+                  setShowJsonEditor(true);
+                }}
+              >
+                <Code2 className="h-3 w-3" />
+                Edit JSON
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {inputFields.map((field) => (
+                <div key={field.name} className="space-y-1">
+                  <Label className="text-xs flex items-center gap-1">
+                    {field.name}
+                    {field.required && (
+                      <span className="text-red-500">*</span>
+                    )}
+                    {!field.required && (
+                      <span className="text-muted-foreground">(optional)</span>
+                    )}
+                  </Label>
+                  <Input
+                    value={fieldValues[field.name] || ''}
+                    onChange={(e) => handleFieldChange(field.name, e.target.value)}
+                    placeholder={field.placeholder}
+                    className={cn(
+                      'h-8 text-sm',
+                      field.required && !fieldValues[field.name]?.trim() && 'border-orange-300'
+                    )}
+                  />
+                  {field.description && (
+                    <p className="text-xs text-muted-foreground">{field.description}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Missing required fields warning */}
+            {missingRequiredFields.length > 0 && (
+              <div className="flex items-start gap-2 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
+                <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                <span>
+                  Required: {missingRequiredFields.join(', ')}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* JSON Editor (collapsible when form is shown) */}
+        {showJsonEditor && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">Input Context (JSON)</Label>
+              {inputFields.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs gap-1.5"
+                  onClick={() => setShowJsonEditor(false)}
+                >
+                  <Edit3 className="h-3 w-3" />
+                  Use Form
+                </Button>
+              )}
+            </div>
+            <Textarea
+              value={inputContextJson}
+              onChange={(e) => {
+                setInputContextJson(e.target.value);
+                parseJson(e.target.value);
+              }}
+              placeholder='{ "email": "example@company.com" }'
+              className="font-mono text-xs h-24"
+            />
+          </div>
+        )}
+
+        {/* Fallback: Show JSON editor if no fields extracted */}
+        {!showJsonEditor && inputFields.length === 0 && (
+          <div className="space-y-2">
+            <Label className="text-sm">Input Context (JSON)</Label>
+            <Textarea
+              value={inputContextJson}
+              onChange={(e) => {
+                setInputContextJson(e.target.value);
+                parseJson(e.target.value);
+              }}
+              placeholder='{ "email": "example@company.com" }'
+              className="font-mono text-xs h-20"
+            />
+          </div>
+        )}
 
         {/* Mock Data Editor (only in simulation mode) */}
         {isSimulation && (
@@ -326,10 +995,12 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
               <span>Add at least one step to run the simulation.</span>
             ) : missingSkillCount > 0 ? (
               <span>
-                {missingSkillCount} step{missingSkillCount > 1 ? 's' : ''} need{missingSkillCount === 1 ? 's' : ''} a skill selected.
+                {missingSkillCount} step{missingSkillCount > 1 ? 's' : ''} need{missingSkillCount === 1 ? 's' : ''} a skill or action.
               </span>
             ) : jsonError ? (
-              <span>Fix JSON errors to run the simulation.</span>
+              <span>{jsonError}</span>
+            ) : !isSimulation && missingRequiredFields.length > 0 ? (
+              <span>Fill in required fields for live mode.</span>
             ) : null}
           </div>
         )}
