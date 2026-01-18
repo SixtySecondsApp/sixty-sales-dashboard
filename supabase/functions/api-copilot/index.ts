@@ -145,6 +145,44 @@ interface GmailMessageSummary {
   link?: string
 }
 
+/**
+ * Strip AI preamble/narration from skill test output.
+ * Removes transitional phrases and meta-commentary that end users shouldn't see.
+ * Uses aggressive strategy: skip all lines until first markdown header (# or ##).
+ */
+function stripSkillTestPreamble(content: string): string {
+  if (!content) return content
+
+  const lines = content.split('\n')
+
+  // Find the first line that starts actual content (markdown header)
+  let contentStartIndex = 0
+  for (let i = 0; i < lines.length; i++) {
+    const trimmedLine = lines[i].trim()
+
+    // Content starts at first markdown header (# or ##)
+    if (trimmedLine.startsWith('#')) {
+      contentStartIndex = i
+      break
+    }
+
+    // Also detect content if we see a markdown table header (| Column |)
+    if (trimmedLine.startsWith('|') && trimmedLine.includes('|', 1)) {
+      contentStartIndex = i
+      break
+    }
+
+    // Also detect "**Bold Title**" format that indicates structured content
+    if (trimmedLine.startsWith('**') && trimmedLine.endsWith('**')) {
+      contentStartIndex = i
+      break
+    }
+  }
+
+  // Return content from the detected start point
+  return lines.slice(contentStartIndex).join('\n').trim()
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -1017,10 +1055,13 @@ async function handleDraftEmail(
  *
  * POST /api-copilot/actions/test-skill
  *
- * Supports optional contact context for testing skills with real contact data:
- * - contact_id: UUID of the contact to use
- * - contact_test_mode: 'good' | 'average' | 'bad' | 'custom'
- * - contact_context: { id, email, name, title, company_id, company_name, total_meetings_count, quality_tier, quality_score }
+ * Supports optional entity context for testing skills with real data:
+ * - entity_type: 'contact' | 'deal' | 'email' | 'activity' | 'meeting'
+ * - entity_test_mode: 'good' | 'average' | 'bad' | 'custom'
+ * - {entity_type}_id: UUID of the entity
+ * - {entity_type}_context: Entity-specific context object
+ *
+ * Legacy contact-specific fields are also supported for backwards compatibility.
  */
 async function handleTestSkill(
   client: any,
@@ -1033,7 +1074,20 @@ async function handleTestSkill(
     const testInput = body?.test_input ? String(body.test_input) : ''
     const mode = body?.mode ? String(body.mode) : 'readonly'
 
-    // Optional contact testing context
+    // Entity type detection (new generic approach)
+    const entityType = body?.entity_type ? String(body.entity_type) : null
+    const entityTestMode = body?.entity_test_mode ? String(body.entity_test_mode) : null
+
+    // Get entity ID and context based on entity type
+    let entityId: string | null = null
+    let entityContext: any = null
+
+    if (entityType) {
+      entityId = body?.[`${entityType}_id`] ? String(body[`${entityType}_id`]) : null
+      entityContext = body?.[`${entityType}_context`] || null
+    }
+
+    // Legacy contact support (backwards compatibility)
     const contactId = body?.contact_id ? String(body.contact_id) : null
     const contactTestMode = body?.contact_test_mode ? String(body.contact_test_mode) : null
     const contactContext = body?.contact_context || null
@@ -1043,27 +1097,137 @@ async function handleTestSkill(
     }
 
     // Build message parts
+    // Get today's date for context
+    const today = new Date()
+    const todayFormatted = today.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+    const todayISO = today.toISOString().split('T')[0]
+
     const messageParts = [
-      `Skill test mode: ${mode}.`,
-      `First call get_skill({ "skill_key": "${skillKey}" }) and follow that skill's instructions.`,
+      `SKILL TEST MODE: ${mode}`,
+      ``,
+      `TODAY'S DATE: ${todayISO} (${todayFormatted})`,
+      `IMPORTANT: When generating dates for tasks, milestones, deadlines, or any future events, ensure ALL dates are in the future relative to today (${todayISO}). Do not use past dates.`,
+      ``,
+      `CRITICAL OUTPUT RULES - READ CAREFULLY:`,
+      `- Your output goes DIRECTLY to end users - they should NEVER see AI narration`,
+      `- Start your response with the actual content (headers, data, analysis)`,
+      `- FORBIDDEN phrases (never write these): "I'll", "Let me", "Now executing", "I'm going to", "First I'll", "Retrieving", "I will"`,
+      `- NO transitional text, NO explanations of your process, NO meta-commentary`,
+      ``,
+      `EXECUTION STEPS (do silently, don't mention):`,
+      `1. Call get_skill({ "skill_key": "${skillKey}" }) to retrieve the skill`,
+      `2. Execute the skill's instructions completely`,
+      `3. Return ONLY the final deliverable - formatted markdown ready for display`,
+      ``,
     ]
 
-    // Add contact context if provided
-    if (contactId && contactContext) {
+    // Add entity context based on type
+    if (entityType === 'deal' && entityId && entityContext) {
+      const dealInfo = [
+        `\n--- DEAL TESTING CONTEXT ---`,
+        `Test Mode: ${entityTestMode || 'custom'}`,
+        `Quality Tier: ${entityContext.quality_tier || 'unknown'} (Score: ${entityContext.quality_score || 0}/100)`,
+        ``,
+        `Deal Details:`,
+        `- deal_id: ${entityContext.id}`,
+        `- Name: ${entityContext.name || 'Unknown'}`,
+        entityContext.company ? `- Company: ${entityContext.company}` : null,
+        entityContext.contact_name ? `- Contact: ${entityContext.contact_name}` : null,
+        entityContext.value ? `- Value: $${entityContext.value.toLocaleString()}` : null,
+        entityContext.stage_name ? `- Stage: ${entityContext.stage_name}` : null,
+        entityContext.health_status ? `- Health Status: ${entityContext.health_status}` : null,
+        entityContext.overall_health_score != null ? `- Health Score: ${entityContext.overall_health_score}/100` : null,
+        entityContext.days_in_current_stage != null ? `- Days in Stage: ${entityContext.days_in_current_stage}` : null,
+        ``,
+        `IMPORTANT: Use this deal for testing. The deal_id is: ${entityId}`,
+        `When the skill requires a deal_id, use: ${entityId}`,
+        `--- END DEAL CONTEXT ---\n`,
+      ].filter(Boolean).join('\n')
+
+      messageParts.push(dealInfo)
+    } else if (entityType === 'email' && entityId && entityContext) {
+      const emailInfo = [
+        `\n--- EMAIL TESTING CONTEXT ---`,
+        `Test Mode: ${entityTestMode || 'custom'}`,
+        `Quality Tier: ${entityContext.quality_tier || 'unknown'} (Score: ${entityContext.quality_score || 0}/100)`,
+        ``,
+        `Email Details:`,
+        `- email_id: ${entityContext.id}`,
+        `- Subject: ${entityContext.subject || 'No subject'}`,
+        `- From: ${entityContext.from_email || 'Unknown'}`,
+        entityContext.direction ? `- Direction: ${entityContext.direction}` : null,
+        entityContext.category ? `- Category: ${entityContext.category}` : null,
+        entityContext.received_at ? `- Received: ${entityContext.received_at}` : null,
+        ``,
+        `IMPORTANT: Use this email for testing. The email_id is: ${entityId}`,
+        `--- END EMAIL CONTEXT ---\n`,
+      ].filter(Boolean).join('\n')
+
+      messageParts.push(emailInfo)
+    } else if (entityType === 'activity' && entityId && entityContext) {
+      const activityInfo = [
+        `\n--- ACTIVITY TESTING CONTEXT ---`,
+        `Test Mode: ${entityTestMode || 'custom'}`,
+        `Quality Tier: ${entityContext.quality_tier || 'unknown'} (Score: ${entityContext.quality_score || 0}/100)`,
+        ``,
+        `Activity Details:`,
+        `- activity_id: ${entityContext.id}`,
+        `- Type: ${entityContext.type || 'Unknown'}`,
+        `- Client: ${entityContext.client_name || 'Unknown'}`,
+        entityContext.status ? `- Status: ${entityContext.status}` : null,
+        entityContext.priority ? `- Priority: ${entityContext.priority}` : null,
+        entityContext.amount ? `- Amount: $${entityContext.amount.toLocaleString()}` : null,
+        ``,
+        `IMPORTANT: Use this activity for testing. The activity_id is: ${entityId}`,
+        `--- END ACTIVITY CONTEXT ---\n`,
+      ].filter(Boolean).join('\n')
+
+      messageParts.push(activityInfo)
+    } else if (entityType === 'meeting' && entityId && entityContext) {
+      const meetingInfo = [
+        `\n--- MEETING TESTING CONTEXT ---`,
+        `Test Mode: ${entityTestMode || 'custom'}`,
+        `Quality Tier: ${entityContext.quality_tier || 'unknown'} (Score: ${entityContext.quality_score || 0}/100)`,
+        ``,
+        `Meeting Details:`,
+        `- meeting_id: ${entityContext.id}`,
+        `- Title: ${entityContext.title || 'Untitled'}`,
+        entityContext.company_name ? `- Company: ${entityContext.company_name}` : null,
+        entityContext.contact_name ? `- Contact: ${entityContext.contact_name}` : null,
+        entityContext.meeting_start ? `- Start: ${entityContext.meeting_start}` : null,
+        entityContext.duration_minutes ? `- Duration: ${entityContext.duration_minutes} min` : null,
+        entityContext.summary ? `- Summary: ${entityContext.summary.slice(0, 200)}${entityContext.summary.length > 200 ? '...' : ''}` : null,
+        ``,
+        `IMPORTANT: Use this meeting for testing. The meeting_id is: ${entityId}`,
+        `--- END MEETING CONTEXT ---\n`,
+      ].filter(Boolean).join('\n')
+
+      messageParts.push(meetingInfo)
+    } else if ((entityType === 'contact' && entityId && entityContext) || (contactId && contactContext)) {
+      // Contact context (supports both new and legacy format)
+      const ctxId = entityId || contactId
+      const ctx = entityContext || contactContext
+      const testMode = entityTestMode || contactTestMode
+
       const contactInfo = [
         `\n--- CONTACT TESTING CONTEXT ---`,
-        `Test Mode: ${contactTestMode || 'custom'}`,
-        `Quality Tier: ${contactContext.quality_tier || 'unknown'} (Score: ${contactContext.quality_score || 0}/100)`,
+        `Test Mode: ${testMode || 'custom'}`,
+        `Quality Tier: ${ctx.quality_tier || 'unknown'} (Score: ${ctx.quality_score || 0}/100)`,
         ``,
         `Contact Details:`,
-        `- ID: ${contactContext.id}`,
-        `- Name: ${contactContext.name || 'Unknown'}`,
-        `- Email: ${contactContext.email || 'Unknown'}`,
-        contactContext.title ? `- Title: ${contactContext.title}` : null,
-        contactContext.company_name ? `- Company: ${contactContext.company_name}` : null,
-        contactContext.total_meetings_count != null ? `- Meeting Count: ${contactContext.total_meetings_count}` : null,
+        `- contact_id: ${ctx.id}`,
+        `- Name: ${ctx.name || 'Unknown'}`,
+        `- Email: ${ctx.email || 'Unknown'}`,
+        ctx.title ? `- Title: ${ctx.title}` : null,
+        ctx.company_name ? `- Company: ${ctx.company_name}` : null,
+        ctx.total_meetings_count != null ? `- Meeting Count: ${ctx.total_meetings_count}` : null,
         ``,
-        `Use this contact's information when testing the skill. The contact_id is: ${contactId}`,
+        `IMPORTANT: Use this contact for testing. The contact_id is: ${ctxId}`,
         `--- END CONTACT CONTEXT ---\n`,
       ].filter(Boolean).join('\n')
 
@@ -1081,18 +1245,28 @@ async function handleTestSkill(
 
     const aiResponse = await callClaudeAPI(message, [], '', client, userId, null)
 
+    // Post-process output to strip AI preamble/narration
+    const cleanedOutput = stripSkillTestPreamble(aiResponse.content)
+
     return new Response(
       JSON.stringify({
         success: true,
         skill_key: skillKey,
-        output: aiResponse.content,
+        output: cleanedOutput,
         tools_used: aiResponse.tools_used || [],
         tool_iterations: aiResponse.tool_iterations || 0,
         tool_executions: aiResponse.tool_executions || [],
         usage: aiResponse.usage || undefined,
-        // Include contact testing info in response for debugging
-        contact_test_info: contactId ? {
-          contact_id: contactId,
+        // Include entity testing info in response for debugging
+        entity_test_info: entityId ? {
+          entity_type: entityType,
+          entity_id: entityId,
+          test_mode: entityTestMode,
+          quality_tier: entityContext?.quality_tier,
+          quality_score: entityContext?.quality_score,
+        } : contactId ? {
+          entity_type: 'contact',
+          entity_id: contactId,
           test_mode: contactTestMode,
           quality_tier: contactContext?.quality_tier,
           quality_score: contactContext?.quality_score,
@@ -2805,12 +2979,17 @@ Prefer running the **seq-deal-slippage-guardrails** sequence:
           }
           
           // Add timeout wrapper for tool execution.
-          // Some tools (notably run_sequence) may take longer than simple reads.
+          // execute_action calls may hit external services/APIs and need more time.
+          // run_sequence needs the most time as it runs multi-step workflows.
           const toolPromise = executeToolCall(toolCall.name, toolCall.input, client, userId, orgId)
-          const timeoutMs =
-            toolCall?.name === 'execute_action' && toolCall?.input?.action === 'run_sequence'
-              ? 45000
-              : 10000
+          let timeoutMs = 15000 // default 15s for simple tools
+          if (toolCall?.name === 'execute_action') {
+            if (toolCall?.input?.action === 'run_sequence') {
+              timeoutMs = 60000 // 60s for sequences
+            } else {
+              timeoutMs = 30000 // 30s for other execute_action calls (may hit external APIs)
+            }
+          }
           const timeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Tool execution timeout')), timeoutMs)
           )

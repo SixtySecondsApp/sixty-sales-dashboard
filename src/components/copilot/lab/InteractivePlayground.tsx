@@ -90,6 +90,340 @@ const SAMPLE_QUERIES = [
   { label: 'Daily Focus', query: 'What should I focus on today?' },
 ];
 
+/**
+ * Renders the structured response from the copilot API
+ * Handles the actual API structure: data.pipelineDeals.deals, data.contactsNeedingAttention.contacts, etc.
+ */
+function StructuredResponseRenderer({ data }: { data: any }) {
+  if (!data) return null;
+
+  // Extract data from various possible structures
+  const responseData = data.data || data;
+
+  // Deals: could be data.pipelineDeals.deals or data.deals
+  const deals = responseData?.pipelineDeals?.deals || responseData?.deals || [];
+  const dealsInfo = responseData?.pipelineDeals || {};
+
+  // Contacts: could be data.contactsNeedingAttention.contacts or data.contacts
+  const contacts = responseData?.contactsNeedingAttention?.contacts || responseData?.contacts || [];
+  const contactsInfo = responseData?.contactsNeedingAttention || {};
+
+  // Tasks: could be data.openTasks.tasks or data.tasks
+  const tasks = responseData?.openTasks?.tasks || responseData?.tasks || [];
+  const tasksInfo = responseData?.openTasks || {};
+
+  // Priorities: could be data.priorities or metadata.priorities
+  const priorities = responseData?.priorities || data?.metadata?.priorities || [];
+
+  // Actions: could be data.actions or at root
+  const actions = responseData?.actions || data?.actions || [];
+
+  // Task pack: could be data.taskPack or metadata.task_pack
+  const taskPack = responseData?.taskPack || responseData?.task_pack || data?.metadata?.task_pack || [];
+
+  // Check if we have any data to display
+  const hasData = deals.length > 0 || contacts.length > 0 || tasks.length > 0 ||
+                  priorities.length > 0 || actions.length > 0 || taskPack.length > 0;
+
+  if (!hasData) {
+    return (
+      <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+        <p className="text-sm text-gray-500">No structured data to display. Check the JSON tab for the raw response.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 border-t border-gray-200 dark:border-gray-700 pt-6">
+      {/* Pipeline Deals */}
+      {deals.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-500" />
+            Pipeline Deals
+            {dealsInfo.filter && (
+              <Badge variant="outline" className="text-xs ml-2">
+                {dealsInfo.filter} • {dealsInfo.period || 'this week'}
+              </Badge>
+            )}
+            <span className="text-gray-500 font-normal">({deals.length})</span>
+          </h4>
+          <div className="grid gap-2">
+            {deals.map((deal: any, idx: number) => (
+              <div
+                key={deal.id || idx}
+                className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {deal.name || deal.deal_name}
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      {deal.company || deal.company_name}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    {(deal.value || deal.amount) && (
+                      <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                        ${(deal.value || deal.amount).toLocaleString()}
+                      </p>
+                    )}
+                    {(deal.stage_name || deal.stage) && (
+                      <Badge variant="secondary" className="text-xs">
+                        {deal.stage_name || deal.stage}
+                      </Badge>
+                    )}
+                    {deal.expected_close_date && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Close: {new Date(deal.expected_close_date).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Contacts Needing Attention */}
+      {contacts.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-purple-500" />
+            Contacts Needing Attention
+            {contactsInfo.filter && (
+              <Badge variant="outline" className="text-xs ml-2">
+                {contactsInfo.filter}
+              </Badge>
+            )}
+            <span className="text-gray-500 font-normal">({contacts.length})</span>
+          </h4>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {contacts.slice(0, 6).map((contact: any, idx: number) => (
+              <div
+                key={contact.id || idx}
+                className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+              >
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {contact.name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || contact.email}
+                </p>
+                {contact.company_name && (
+                  <p className="text-xs text-gray-600 dark:text-gray-400">{contact.company_name}</p>
+                )}
+                <div className="flex items-center gap-2 mt-1">
+                  {contact.health_status && (
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        'text-xs',
+                        contact.health_status === 'critical' && 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+                        contact.health_status === 'at_risk' && 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+                        contact.health_status === 'healthy' && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                      )}
+                    >
+                      {contact.health_status}
+                    </Badge>
+                  )}
+                  {contact.risk_level && (
+                    <Badge variant="outline" className="text-xs">
+                      {contact.risk_level} risk
+                    </Badge>
+                  )}
+                </div>
+                {contact.risk_factors && contact.risk_factors.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {contact.risk_factors.join(', ')}
+                  </p>
+                )}
+              </div>
+            ))}
+            {contacts.length > 6 && (
+              <div className="p-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center">
+                <span className="text-sm text-gray-500">
+                  +{contacts.length - 6} more contacts
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Open Tasks */}
+      {tasks.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-orange-500" />
+            Open Tasks
+            <span className="text-gray-500 font-normal">({tasks.length})</span>
+          </h4>
+          <div className="grid gap-2">
+            {tasks.map((task: any, idx: number) => (
+              <div
+                key={task.id || idx}
+                className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+              >
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {task.title || task.subject || task.description}
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  {task.due_date && (
+                    <span className="text-xs text-gray-500">
+                      Due: {new Date(task.due_date).toLocaleDateString()}
+                    </span>
+                  )}
+                  {task.priority && (
+                    <Badge variant="outline" className="text-xs">
+                      {task.priority}
+                    </Badge>
+                  )}
+                  {task.status && (
+                    <Badge variant="secondary" className="text-xs">
+                      {task.status}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Priorities */}
+      {priorities.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            Priorities
+            <span className="text-gray-500 font-normal">({priorities.length})</span>
+          </h4>
+          <div className="grid gap-2">
+            {priorities.map((priority: any, idx: number) => (
+              <div
+                key={idx}
+                className={cn(
+                  'p-3 rounded-lg border',
+                  priority.urgency === 'critical' && 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',
+                  priority.urgency === 'high' && 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800',
+                  priority.urgency === 'medium' && 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800',
+                  (!priority.urgency || priority.urgency === 'low') && 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {priority.title || priority.reason || priority.description}
+                    </p>
+                    {priority.reason && priority.title && (
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        {priority.reason}
+                      </p>
+                    )}
+                  </div>
+                  {priority.urgency && (
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        'text-xs shrink-0',
+                        priority.urgency === 'critical' && 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+                        priority.urgency === 'high' && 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                      )}
+                    >
+                      {priority.urgency}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recommended Actions */}
+      {actions.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            Recommended Actions
+            <span className="text-gray-500 font-normal">({actions.length})</span>
+          </h4>
+          <div className="grid gap-2">
+            {actions.map((action: any, idx: number) => (
+              <div
+                key={idx}
+                className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="text-lg shrink-0">{action.icon || '📋'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {action.action || action.title || action.description}
+                    </p>
+                    {action.context && (
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        {action.context}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 mt-2">
+                      {action.time_estimate && (
+                        <Badge variant="outline" className="text-xs">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {action.time_estimate}
+                        </Badge>
+                      )}
+                      {action.impact && (
+                        <Badge variant="outline" className="text-xs text-emerald-600 dark:text-emerald-400">
+                          {action.impact}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Task Pack / Suggested Tasks */}
+      {taskPack.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-violet-500" />
+            Suggested Tasks to Create
+            <span className="text-gray-500 font-normal">({taskPack.length})</span>
+          </h4>
+          <div className="grid gap-2">
+            {taskPack.map((task: any, idx: number) => (
+              <div
+                key={idx}
+                className="p-3 rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {task.title || task.subject}
+                    </p>
+                    {task.description && (
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        {task.description}
+                      </p>
+                    )}
+                  </div>
+                  <Badge className="bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 text-xs shrink-0">
+                    {task.type || 'task'}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function InteractivePlayground({
   organizationId,
   users = [],
@@ -139,10 +473,9 @@ export function InteractivePlayground({
       });
       setResult({ success: true, response: '', steps, totalTime: 0 });
 
-      // Call the copilot API
-      const { data, error } = await supabase.functions.invoke('api-copilot', {
+      // Call the copilot API - use /chat endpoint path
+      const { data, error } = await supabase.functions.invoke('api-copilot/chat', {
         body: {
-          action: 'chat',
           message: query,
           context: {
             orgId: organizationId,
@@ -193,10 +526,69 @@ export function InteractivePlayground({
       });
 
       const totalTime = Date.now() - startTime;
+
+      // Debug: Log the raw API response to understand its structure
+      console.log('[Playground] Raw API response:', JSON.stringify(data, null, 2));
+
+      // Handle different response structures from the API
+      let responseText = '';
+      let structuredData = null;
+
+      // Check all possible response structures
+      const possibleStructures = {
+        hasResponseContent: !!data?.response?.content,
+        hasSummary: !!data?.summary,
+        hasType: data?.type,
+        hasData: !!data?.data,
+        hasActions: !!data?.actions,
+        hasMetadata: !!data?.metadata,
+        topLevelKeys: data ? Object.keys(data) : [],
+      };
+      console.log('[Playground] Response structure analysis:', possibleStructures);
+
+      if (data?.response?.content) {
+        // Nested structure: data.response.content
+        console.log('[Playground] Using nested structure');
+        responseText = data.response.content;
+        structuredData = data.response.structuredResponse || data.response;
+      } else if (data?.summary || data?.type === 'structured') {
+        // Flat structured response from API
+        console.log('[Playground] Using flat structured response');
+        responseText = data.summary || data.response || '';
+        structuredData = {
+          type: data.type,
+          summary: data.summary,
+          data: data.data,
+          actions: data.actions,
+          metadata: data.metadata,
+        };
+      } else if (data?.content) {
+        // Alternative: data.content with structured data at root
+        console.log('[Playground] Using data.content structure');
+        responseText = data.content;
+        structuredData = data;
+      } else if (typeof data === 'string') {
+        // Plain text response
+        console.log('[Playground] Using plain text response');
+        responseText = data;
+      } else {
+        // Fallback - try to extract what we can
+        console.log('[Playground] Using fallback extraction');
+        responseText = data?.message || '';
+        // Maybe the whole data object IS the structured response
+        if (data?.actions || data?.metadata || data?.data) {
+          structuredData = data;
+          responseText = data.summary || data.message || 'Response received';
+        }
+      }
+
+      console.log('[Playground] Final responseText:', responseText);
+      console.log('[Playground] Final structuredData:', structuredData);
+
       const finalResult: PlaygroundResult = {
         success: true,
-        response: data?.response?.content || '',
-        structuredResponse: data?.response?.structuredResponse,
+        response: responseText,
+        structuredResponse: structuredData,
         steps,
         totalTime,
         toolExecutions,
@@ -500,8 +892,16 @@ export function InteractivePlayground({
 
           <div className="bg-white dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700/50 rounded-xl p-4 min-h-[200px]">
             {outputView === 'rendered' && (
-              <div className="prose dark:prose-invert max-w-none">
-                {result.response || 'No response content'}
+              <div className="space-y-6">
+                {/* Summary */}
+                <div className="prose dark:prose-invert max-w-none">
+                  {result.response || 'No response content'}
+                </div>
+
+                {/* Structured Response Rendering */}
+                {result.structuredResponse && (
+                  <StructuredResponseRenderer data={result.structuredResponse} />
+                )}
               </div>
             )}
             {outputView === 'json' && (

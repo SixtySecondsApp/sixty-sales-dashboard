@@ -83,6 +83,17 @@ export interface CopilotAPIRequest {
   context: CopilotContext;
 }
 
+export interface ToolExecutionDetail {
+  toolName: string;
+  args: any;
+  result: any;
+  latencyMs: number;
+  success: boolean;
+  error?: string;
+  capability?: string;
+  provider?: string;
+}
+
 export interface CopilotAPIResponse {
   response: {
     type: 'text' | 'recommendations' | 'action_required';
@@ -92,6 +103,7 @@ export interface CopilotAPIResponse {
   };
   conversationId: string;
   timestamp: string;
+  tool_executions?: ToolExecutionDetail[];
 }
 
 export type CopilotResponsePayload = CopilotAPIResponse;
@@ -137,7 +149,15 @@ export type CopilotResponseType =
   | 'activity_creation'
   | 'task_creation'
   | 'proposal_selection'
-  | 'action_summary';
+  | 'action_summary'
+  | 'pipeline_focus_tasks'
+  | 'deal_rescue_pack'
+  | 'next_meeting_command_center'
+  | 'post_meeting_followup_pack'
+  | 'deal_map_builder'
+  | 'daily_focus_plan'
+  | 'followup_zero_inbox'
+  | 'deal_slippage_guardrails';
 
 export interface CopilotResponse {
   type: CopilotResponseType;
@@ -213,7 +233,140 @@ export type ResponseData =
   | MeetingCountResponseData
   | MeetingBriefingResponseData
   | MeetingListResponseData
-  | TimeBreakdownResponseData;
+  | TimeBreakdownResponseData
+  | PipelineFocusTasksResponseData
+  | DealRescuePackResponseData
+  | NextMeetingCommandCenterResponseData
+  | PostMeetingFollowUpPackResponseData
+  | DealMapBuilderResponseData
+  | DailyFocusPlanResponseData
+  | FollowupZeroInboxResponseData
+  | DealSlippageGuardrailsResponseData;
+
+// ============================================================================
+// Demo-grade sequence panels (Top 3 workflows)
+// ============================================================================
+
+export interface PipelineFocusTasksResponse extends CopilotResponse {
+  type: 'pipeline_focus_tasks';
+  data: PipelineFocusTasksResponseData;
+}
+
+export interface PipelineFocusTasksResponseData {
+  sequenceKey: string;
+  isSimulation: boolean;
+  executionId?: string;
+  deal: any | null;
+  taskPreview: any | null;
+}
+
+export interface DealRescuePackResponse extends CopilotResponse {
+  type: 'deal_rescue_pack';
+  data: DealRescuePackResponseData;
+}
+
+export interface DealRescuePackResponseData {
+  sequenceKey: string;
+  isSimulation: boolean;
+  executionId?: string;
+  deal: any | null;
+  plan: any | null;
+  taskPreview: any | null;
+}
+
+export interface NextMeetingCommandCenterResponse extends CopilotResponse {
+  type: 'next_meeting_command_center';
+  data: NextMeetingCommandCenterResponseData;
+}
+
+export interface NextMeetingCommandCenterResponseData {
+  sequenceKey: string;
+  isSimulation: boolean;
+  executionId?: string;
+  meeting: any | null;
+  brief: any | null;
+  prepTaskPreview: any | null;
+}
+
+export interface PostMeetingFollowUpPackResponse extends CopilotResponse {
+  type: 'post_meeting_followup_pack';
+  data: PostMeetingFollowUpPackResponseData;
+}
+
+export interface PostMeetingFollowUpPackResponseData {
+  sequenceKey: string;
+  isSimulation: boolean;
+  executionId?: string;
+  meeting: any | null;
+  contact: any | null;
+  digest: any | null;
+  pack: any | null;
+  emailPreview: any | null;
+  slackPreview: any | null;
+  taskPreview: any | null;
+}
+
+export interface DealMapBuilderResponse extends CopilotResponse {
+  type: 'deal_map_builder';
+  data: DealMapBuilderResponseData;
+}
+
+export interface DealMapBuilderResponseData {
+  sequenceKey: string;
+  isSimulation: boolean;
+  executionId?: string;
+  deal: any | null;
+  openTasks: any | null;
+  plan: any | null;
+  taskPreview: any | null;
+}
+
+export interface DailyFocusPlanResponse extends CopilotResponse {
+  type: 'daily_focus_plan';
+  data: DailyFocusPlanResponseData;
+}
+
+export interface DailyFocusPlanResponseData {
+  sequenceKey: string;
+  isSimulation: boolean;
+  executionId?: string;
+  pipelineDeals: any | null;
+  contactsNeedingAttention: any | null;
+  openTasks: any | null;
+  plan: any | null;
+  taskPreview: any | null;
+}
+
+export interface FollowupZeroInboxResponse extends CopilotResponse {
+  type: 'followup_zero_inbox';
+  data: FollowupZeroInboxResponseData;
+}
+
+export interface FollowupZeroInboxResponseData {
+  sequenceKey: string;
+  isSimulation: boolean;
+  executionId?: string;
+  emailThreads: any | null;
+  triage: any | null;
+  replyDrafts: any | null;
+  emailPreview: any | null;
+  taskPreview: any | null;
+}
+
+export interface DealSlippageGuardrailsResponse extends CopilotResponse {
+  type: 'deal_slippage_guardrails';
+  data: DealSlippageGuardrailsResponseData;
+}
+
+export interface DealSlippageGuardrailsResponseData {
+  sequenceKey: string;
+  isSimulation: boolean;
+  executionId?: string;
+  atRiskDeals: any | null;
+  diagnosis: any | null;
+  taskPreview: any | null;
+  slackPreview: any | null;
+}
 
 // Pipeline Response
 export interface PipelineResponse extends CopilotResponse {
