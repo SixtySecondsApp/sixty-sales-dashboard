@@ -180,6 +180,8 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
         isSimulation,
         inputContext,
         mockData,
+        // For live mode, use backend execution which supports both skills and actions
+        useLiveBackend: !isSimulation,
         onStepStart: (index) => {
           console.log(`[Simulator] Step ${index + 1} started`);
         },

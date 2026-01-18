@@ -39,6 +39,12 @@ export interface ExecutionOptions {
   onHITLResponse?: (request: HITLRequest, response: string) => void;
   /** Whether to skip HITL in simulation mode */
   skipHITLInSimulation?: boolean;
+  /**
+   * For live mode: use api-sequence-execute backend for full sequence execution.
+   * This supports both skill and action steps but doesn't provide step-by-step UI updates.
+   * Default: false (executes step-by-step from frontend, only works for skill_key steps)
+   */
+  useLiveBackend?: boolean;
 }
 
 export interface ExecutionState {
@@ -198,13 +204,16 @@ export function useSequenceExecution() {
 
   /**
    * Execute a single step
+   * Note: This is only used in simulation mode or for skill_key steps.
+   * For live mode with action steps, use useLiveBackend option which calls api-sequence-execute.
    */
   const executeStep = useCallback(
     async (
       step: SequenceStep,
       context: Record<string, unknown>,
       isSimulation: boolean,
-      mockData: Record<string, unknown>
+      mockData: Record<string, unknown>,
+      orgId: string
     ): Promise<StepResult> => {
       const startedAt = new Date().toISOString();
       const stepIndex = step.order - 1; // Convert 1-based order to 0-based index
@@ -233,23 +242,24 @@ export function useSequenceExecution() {
           await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 500));
         } else {
           // Live mode is currently only supported for skill_key steps in this UI simulator.
-          // (Action steps are executed by the backend sequence runner.)
+          // (Action steps are executed by the backend sequence runner via useLiveBackend option.)
           if (!step.skill_key) {
-            throw new Error(`Live execution not supported for action step: ${String(step.action || 'unknown')}`);
+            throw new Error(`Live execution not supported for action step: ${String(step.action || 'unknown')}. Use useLiveBackend option.`);
           }
 
-          const { data, error } = await supabase.functions.invoke('execute-skill', {
+          console.log('[executeStep] Calling api-skill-execute:', { skill_key: step.skill_key, orgId });
+          const { data, error } = await supabase.functions.invoke('api-skill-execute', {
             body: {
               skill_key: step.skill_key,
-              input,
-              organization_id: activeOrg?.id,
-              user_id: user?.id,
+              context: input,
+              organization_id: orgId,
             },
           });
 
           if (error) throw error;
-          if (!data?.success) throw new Error(data?.error || 'Skill execution failed');
-          output = data.result || {};
+          // api-skill-execute returns SkillResult directly with status: 'success' | 'partial' | 'failed'
+          if (data?.status === 'failed') throw new Error(data?.error || 'Skill execution failed');
+          output = data?.data || {};
         }
 
         const completedAt = new Date().toISOString();
@@ -285,7 +295,7 @@ export function useSequenceExecution() {
         };
       }
     },
-    [activeOrg?.id, user?.id]
+    []
   );
 
   /**
@@ -298,12 +308,10 @@ export function useSequenceExecution() {
       stepIndex: number,
       hitlConfig: HITLConfig,
       context: Record<string, unknown>,
-      mockData: Record<string, unknown>
+      mockData: Record<string, unknown>,
+      orgId: string,
+      userId: string
     ): Promise<HITLRequest> => {
-      if (!user?.id || !activeOrg?.id) {
-        throw new Error('User and organization required');
-      }
-
       // Interpolate prompt with context variables
       const interpolatedPrompt = hitlConfig.prompt.replace(
         /\$\{([^}]+)\}/g,
@@ -322,8 +330,8 @@ export function useSequenceExecution() {
           execution_id: executionId,
           sequence_key: sequenceKey,
           step_index: stepIndex,
-          organization_id: activeOrg.id,
-          requested_by_user_id: user.id,
+          organization_id: orgId,
+          requested_by_user_id: userId,
           assigned_to_user_id: hitlConfig.assigned_to_user_id || null,
           request_type: hitlConfig.request_type,
           prompt: interpolatedPrompt,
@@ -359,7 +367,7 @@ export function useSequenceExecution() {
           .invoke('send-hitl-slack-notification', {
             body: {
               hitl_request_id: request.id,
-              organization_id: activeOrg.id,
+              organization_id: orgId,
             },
           })
           .catch((err) => console.error('Failed to send Slack notification:', err));
@@ -367,7 +375,7 @@ export function useSequenceExecution() {
 
       return request as HITLRequest;
     },
-    [user?.id, activeOrg?.id]
+    []
   );
 
   /**
@@ -417,6 +425,18 @@ export function useSequenceExecution() {
         throw new Error('User and organization required');
       }
 
+      // Capture org ID at execution start to avoid closure issues
+      const orgId = activeOrg.id;
+      const userId = user.id;
+
+      console.log('[useSequenceExecution] Starting execution:', {
+        sequenceKey: sequence.skill_key,
+        isSimulation: options.isSimulation,
+        useLiveBackend: options.useLiveBackend,
+        orgId,
+        userId,
+      });
+
       // Reset and start
       abortControllerRef.current = new AbortController();
       const steps = sequence.frontmatter.sequence_steps;
@@ -445,40 +465,104 @@ export function useSequenceExecution() {
         hitlPosition: null,
       });
 
-      // Create execution record in database (skip for simulations to avoid requiring DB setup)
+      // Create execution record in database (for both simulations and live runs)
       let executionId: string;
 
-      if (options.isSimulation) {
-        // For simulations, generate a temporary ID without hitting the database
-        executionId = `sim-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      } else {
-        const { data: execution, error: createError } = await supabase
-          .from('sequence_executions')
-          .insert({
-            sequence_key: sequence.skill_key,
-            organization_id: activeOrg.id,
-            user_id: user.id,
-            status: 'running',
-            input_context: options.inputContext,
-            is_simulation: false,
-            mock_data_used: null,
-          })
-          .select()
-          .single();
+      const { data: execution, error: createError } = await supabase
+        .from('sequence_executions')
+        .insert({
+          sequence_key: sequence.skill_key,
+          organization_id: orgId,
+          user_id: userId,
+          status: 'running',
+          input_context: options.inputContext,
+          is_simulation: options.isSimulation,
+          mock_data_used: options.isSimulation ? mockData : null,
+        })
+        .select()
+        .single();
 
-        if (createError) {
+      if (createError) {
+        setState((prev) => ({
+          ...prev,
+          status: 'failed',
+          error: createError.message,
+          isExecuting: false,
+        }));
+        throw createError;
+      }
+      executionId = execution.id;
+
+      setState((prev) => ({ ...prev, executionId }));
+
+      // For live mode with useLiveBackend, call api-sequence-execute and let backend handle everything
+      if (!options.isSimulation && options.useLiveBackend) {
+        console.log('[useSequenceExecution] Using live backend execution via api-sequence-execute');
+        try {
+          const { data, error } = await supabase.functions.invoke('api-sequence-execute', {
+            body: {
+              organization_id: orgId,
+              sequence_key: sequence.skill_key,
+              sequence_context: options.inputContext,
+              is_simulation: false,
+            },
+          });
+
+          if (error) throw error;
+
+          // Map backend response to our state format
+          const backendResults: StepResult[] = (data?.step_results || []).map((sr: any, idx: number) => ({
+            step_index: idx,
+            skill_key: sr.skill_key || sr.action || `step_${idx + 1}`,
+            status: sr.status === 'success' ? 'completed' : sr.status === 'failed' ? 'failed' : 'completed',
+            input: sr.input || {},
+            output: sr.output || sr.data || null,
+            error: sr.error || null,
+            started_at: sr.started_at || null,
+            completed_at: sr.completed_at || null,
+            duration_ms: sr.duration_ms || null,
+          }));
+
+          setState((prev) => ({
+            ...prev,
+            executionId: data?.execution_id || executionId,
+            status: data?.status === 'failed' ? 'failed' : 'completed',
+            stepResults: backendResults.length > 0 ? backendResults : prev.stepResults,
+            currentStepIndex: steps.length - 1,
+            context: data?.final_context || { trigger: { params: options.inputContext }, outputs: {} },
+            error: data?.error || null,
+            isExecuting: false,
+          }));
+
+          // Notify callbacks for each step result
+          backendResults.forEach((result, idx) => {
+            if (result.status === 'completed') {
+              options.onStepComplete?.(idx, result);
+            } else if (result.status === 'failed') {
+              options.onStepFailed?.(idx, result.error || 'Unknown error');
+            }
+          });
+
+          queryClient.invalidateQueries({ queryKey: ['agent-sequences', 'executions'] });
+
+          return {
+            success: data?.status !== 'failed',
+            results: backendResults,
+            context: data?.final_context || {},
+            error: data?.error || null,
+            waitingHITL: false,
+          };
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
           setState((prev) => ({
             ...prev,
             status: 'failed',
-            error: createError.message,
+            error: errorMsg,
             isExecuting: false,
           }));
-          throw createError;
+          return { success: false, results: [], context: {}, error: errorMsg, waitingHITL: false };
         }
-        executionId = execution.id;
       }
-
-      setState((prev) => ({ ...prev, executionId }));
 
       let context: Record<string, unknown> = { trigger: { params: options.inputContext }, outputs: {} };
       const results: StepResult[] = [];
@@ -514,12 +598,14 @@ export function useSequenceExecution() {
         // Check for HITL BEFORE step execution
         if (shouldTriggerHITL(step.hitl_before)) {
           const hitlRequest = await createHITLRequest(
-            execution.id,
+            executionId,
             sequence.skill_key,
             i,
             step.hitl_before!,
             context,
-            mockData
+            mockData,
+            orgId,
+            userId
           );
 
           // Update state to waiting for HITL
@@ -550,7 +636,7 @@ export function useSequenceExecution() {
         }
 
         // Execute the step
-        const result = await executeStep(step, context, options.isSimulation, mockData);
+        const result = await executeStep(step, context, options.isSimulation, mockData, orgId);
         results.push(result);
 
         if (result.status === 'completed' && result.output) {
@@ -575,12 +661,14 @@ export function useSequenceExecution() {
           // Check for HITL AFTER step execution
           if (shouldTriggerHITL(step.hitl_after)) {
             const hitlRequest = await createHITLRequest(
-              execution.id,
+              executionId,
               sequence.skill_key,
               i,
               step.hitl_after!,
               context,
-              mockData
+              mockData,
+              orgId,
+              userId
             );
 
             // Update state to waiting for HITL
@@ -632,7 +720,7 @@ export function useSequenceExecution() {
                 failed_step_index: i,
                 completed_at: new Date().toISOString(),
               })
-              .eq('id', execution.id);
+              .eq('id', executionId);
 
             return { success: false, results, context, error: result.error };
           }
@@ -657,7 +745,7 @@ export function useSequenceExecution() {
           final_output: finalOutput,
           completed_at: new Date().toISOString(),
         })
-        .eq('id', execution.id);
+        .eq('id', executionId);
 
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ['agent-sequences', 'executions'] });
@@ -709,10 +797,15 @@ export function useSequenceExecution() {
  * Resolve a variable expression like "${contact.name}" or "${step1.output}"
  */
 function resolveVariable(
-  expression: string,
+  expression: unknown,
   context: Record<string, unknown>,
   mockData: Record<string, unknown>
 ): unknown {
+  // If expression is not a string, return it as-is (could be object, number, etc.)
+  if (typeof expression !== 'string') {
+    return expression;
+  }
+
   // Check if it's a variable expression
   const match = expression.match(/^\$\{(.+)\}$/);
   if (!match) return expression;
