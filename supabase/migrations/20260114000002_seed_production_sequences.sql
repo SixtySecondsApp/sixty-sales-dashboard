@@ -76,7 +76,7 @@ VALUES (
     "name": "Meeting Digest with Follow-up",
     "description": "Complete post-meeting workflow: extracts truth from transcript, creates tasks, drafts follow-up email and Slack update. All write actions are approval-gated.",
     "version": 1,
-    "requires_capabilities": ["transcript", "crm", "email", "messaging"],
+    "requires_capabilities": ["meetings", "crm", "email", "messaging"],
     "requires_context": ["meeting_id", "transcript_id"],
     "outputs": ["digest", "tasks", "email_draft", "slack_update"],
     "triggers": ["meeting_ended", "transcript_ready"],
