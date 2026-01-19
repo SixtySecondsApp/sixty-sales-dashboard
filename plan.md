@@ -1,5 +1,8 @@
 # Proactive 60 Notifications — Implementation Plan (Slack + In‑App)
 
+## Maintenance log
+- 2026-01-18: Normalize `create_task` due dates to avoid invalid timestamps from sequences.
+
 ## Objective
 Build a **proactive notification system** that runs continuously in the background for sales reps, using:
 - **Slack** as the primary delivery channel (DMs and optionally channels), with interactive actions and HITL approvals.
