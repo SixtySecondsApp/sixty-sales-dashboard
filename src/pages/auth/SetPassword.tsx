@@ -165,12 +165,11 @@ export default function SetPassword() {
         .insert({
           id: userId,
           email: userEmail,
-          status: 'active', // Mark as active since they've completed signup
+          status: 'active',
         });
 
       if (profileError) {
         console.error('[SetPassword] Error creating profile:', profileError);
-        // Don't fail completely - user is already in auth
         toast.warning('Account created but profile setup incomplete. Please log in.');
       } else {
         console.log('[SetPassword] Profile created successfully');
@@ -190,7 +189,6 @@ export default function SetPassword() {
 
         if (waitlistError) {
           console.error('[SetPassword] Error updating waitlist:', waitlistError);
-          // Don't fail - account is created
         } else {
           console.log('[SetPassword] Waitlist entry updated to converted');
         }
@@ -207,7 +205,6 @@ export default function SetPassword() {
           console.log('[SetPassword] Token marked as used');
         } catch (error) {
           console.error('[SetPassword] Error marking token as used:', error);
-          // Non-critical
         }
       }
 
@@ -227,7 +224,6 @@ export default function SetPassword() {
       console.log('[SetPassword] User signed in successfully');
       toast.success('Account created successfully! Welcome to Early Access.');
 
-      // Redirect to dashboard
       setTimeout(() => {
         navigate('/dashboard', { replace: true });
       }, 1000);
@@ -238,7 +234,6 @@ export default function SetPassword() {
     }
   };
 
-  // Loading state - validating token
   if (isValidatingToken) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
@@ -250,7 +245,6 @@ export default function SetPassword() {
     );
   }
 
-  // Error state - invalid or expired token
   if (tokenError) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
@@ -279,7 +273,6 @@ export default function SetPassword() {
     );
   }
 
-  // Success state - show password form
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.25),transparent)] pointer-events-none" />
@@ -290,7 +283,6 @@ export default function SetPassword() {
         className="w-full max-w-md relative z-10"
       >
         <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800 rounded-2xl p-8 shadow-2xl">
-          {/* Welcome Header */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-[#37bd7e]/20 rounded-full mb-4">
               <CheckCircle className="w-8 h-8 text-[#37bd7e]" />
@@ -301,7 +293,6 @@ export default function SetPassword() {
             </p>
           </div>
 
-          {/* Password Setup Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
@@ -359,7 +350,6 @@ export default function SetPassword() {
             </button>
           </form>
 
-          {/* Info Message */}
           <div className="mt-6 p-4 bg-blue-900/20 border border-blue-800/50 rounded-lg">
             <div className="flex items-start gap-3">
               <Mail className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
