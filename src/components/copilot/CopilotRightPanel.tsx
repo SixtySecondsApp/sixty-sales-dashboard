@@ -534,35 +534,33 @@ interface ConnectedSectionProps {
 }
 
 // Brand logos as SVG components for compact display
-const BrandLogos: Record<string, React.ReactNode> = {
-  hubspot: (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+const BrandLogos: Record<string, (connected: boolean) => React.ReactNode> = {
+  hubspot: (connected) => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill={connected ? '#FF7A59' : 'currentColor'}>
       <path d="M18.164 7.93V5.084a2.198 2.198 0 001.267-1.984v-.066A2.198 2.198 0 0017.235.838h-.066a2.198 2.198 0 00-2.196 2.196v.066c0 .907.55 1.685 1.334 2.022v2.793a5.14 5.14 0 00-2.514 1.313l-6.639-5.17A2.59 2.59 0 007.2 3.24a2.61 2.61 0 10-.518 1.548l6.549 5.1a5.173 5.173 0 00-.94 2.98 5.2 5.2 0 00.94 2.98l-2.067 2.067a1.97 1.97 0 00-.612-.1 1.99 1.99 0 101.99 1.99c0-.222-.037-.435-.1-.636l2.045-2.045a5.17 5.17 0 002.672.745 5.193 5.193 0 10.004-10.386 5.14 5.14 0 00-2.001.447zM17.169 15.8a2.593 2.593 0 01-2.597-2.597 2.593 2.593 0 012.597-2.597 2.593 2.593 0 012.597 2.597 2.593 2.593 0 01-2.597 2.597z"/>
     </svg>
   ),
-  fathom: (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-      <circle cx="12" cy="12" r="10" fillOpacity="0.2"/>
-      <path d="M12 6v12M8 9v6M16 8v8M4 11v2M20 10v4"/>
-      <circle cx="12" cy="12" r="3"/>
+  fathom: (connected) => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill={connected ? '#8B5CF6' : 'currentColor'}>
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+      <circle cx="12" cy="12" r="4"/>
     </svg>
   ),
-  slack: (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+  slack: (connected) => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill={connected ? '#E01E5A' : 'currentColor'}>
       <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/>
     </svg>
   ),
-  calendar: (
-    <svg className="w-5 h-5" viewBox="0 0 24 24">
-      <path fill="#4285F4" d="M22 5.5H2v15a2 2 0 002 2h16a2 2 0 002-2v-15z"/>
-      <path fill="#EA4335" d="M22 5.5V4a2 2 0 00-2-2H4a2 2 0 00-2 2v1.5h20z"/>
-      <path fill="#FBBC05" d="M6 2v3M18 2v3"/>
-      <rect fill="#fff" x="5" y="9" width="4" height="3" rx="0.5"/>
-      <rect fill="#fff" x="10" y="9" width="4" height="3" rx="0.5"/>
-      <rect fill="#fff" x="15" y="9" width="4" height="3" rx="0.5"/>
-      <rect fill="#fff" x="5" y="13.5" width="4" height="3" rx="0.5"/>
-      <rect fill="#fff" x="10" y="13.5" width="4" height="3" rx="0.5"/>
-      <rect fill="#fff" x="15" y="13.5" width="4" height="3" rx="0.5"/>
+  calendar: (connected) => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24">
+      <rect x="3" y="4" width="18" height="18" rx="2" fill={connected ? '#4285F4' : 'currentColor'}/>
+      <path d="M3 9h18" stroke={connected ? '#fff' : '#1e293b'} strokeWidth="1.5"/>
+      <path d="M8 2v4M16 2v4" stroke={connected ? '#EA4335' : 'currentColor'} strokeWidth="2" strokeLinecap="round"/>
+      <rect x="6" y="12" width="3" height="2.5" rx="0.5" fill={connected ? '#fff' : '#1e293b'}/>
+      <rect x="10.5" y="12" width="3" height="2.5" rx="0.5" fill={connected ? '#fff' : '#1e293b'}/>
+      <rect x="15" y="12" width="3" height="2.5" rx="0.5" fill={connected ? '#fff' : '#1e293b'}/>
+      <rect x="6" y="16" width="3" height="2.5" rx="0.5" fill={connected ? '#fff' : '#1e293b'}/>
+      <rect x="10.5" y="16" width="3" height="2.5" rx="0.5" fill={connected ? '#fff' : '#1e293b'}/>
     </svg>
   ),
 };
@@ -621,9 +619,9 @@ function ConnectedSection({ integrations, onAddConnector }: ConnectedSectionProp
       </div>
 
       {/* Compact horizontal logo row */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         {items.map((integration) => {
-          const logo = BrandLogos[integration.id];
+          const logoFn = BrandLogos[integration.id];
           const color = brandColors[integration.id] || '#64748b';
 
           return (
@@ -631,21 +629,19 @@ function ConnectedSection({ integrations, onAddConnector }: ConnectedSectionProp
               key={integration.id}
               type="button"
               onClick={() => handleIntegrationClick(integration)}
-              title={`${integration.name}${integration.connected ? ' (Connected)' : ' (Not connected)'}`}
+              title={`${integration.name}${integration.connected ? ' (Connected)' : ' (Click to connect)'}`}
               className={cn(
-                'relative w-10 h-10 rounded-xl flex items-center justify-center transition-all',
-                'hover:scale-105 hover:shadow-lg',
+                'relative w-11 h-11 rounded-xl flex items-center justify-center transition-all',
+                'hover:scale-110',
                 integration.connected
                   ? 'bg-white/10 hover:bg-white/15'
-                  : 'bg-white/5 hover:bg-white/10 opacity-40 hover:opacity-70'
+                  : 'bg-white/[0.03] hover:bg-white/10 text-slate-500 hover:text-slate-300'
               )}
               style={{
-                boxShadow: integration.connected ? `0 4px 12px ${color}20` : undefined
+                boxShadow: integration.connected ? `0 4px 14px ${color}30` : undefined
               }}
             >
-              <span style={{ color: integration.connected ? color : '#64748b' }}>
-                {logo || <Link2 className="w-5 h-5" />}
-              </span>
+              {logoFn ? logoFn(integration.connected) : <Link2 className="w-6 h-6" />}
               {/* Connected indicator dot */}
               {integration.connected && (
                 <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-slate-900 shadow-lg shadow-emerald-500/50" />
