@@ -100,12 +100,9 @@ interface ProgressSectionProps {
   totalSteps?: number;
 }
 
-function ProgressSection({ steps, isProcessing, totalSteps = 4 }: ProgressSectionProps) {
-  // Don't show if not processing and no steps
-  if (!isProcessing && steps.length === 0) {
-    return null;
-  }
-
+function ProgressSection({ steps, totalSteps = 4 }: Omit<ProgressSectionProps, 'isProcessing'>) {
+  // Always show the Progress section - it displays step indicators
+  // and either progress steps or placeholder text
   return (
     <div className="p-5 border-b border-white/5">
       <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
@@ -683,7 +680,7 @@ export function CopilotRightPanel({
 }: CopilotRightPanelProps) {
   return (
     <div className="h-full flex flex-col">
-      <ProgressSection steps={progressSteps} isProcessing={isProcessing} />
+      <ProgressSection steps={progressSteps} />
       <ActionItemsSection items={actionItems} />
       <ContextSection items={contextItems} />
       <ConnectedSection integrations={integrations} />
