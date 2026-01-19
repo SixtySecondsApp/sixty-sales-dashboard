@@ -28,6 +28,7 @@ import {
   evaluateReadiness,
   getCapabilityLabel,
   type ReadinessCheck,
+  type Capability,
 } from '@/lib/utils/skillReadiness';
 
 interface SkillCardProps {
@@ -269,7 +270,7 @@ export function SkillCard({
                     ) : (
                       <XCircle className="w-3 h-3 mr-1" />
                     )}
-                    {getCapabilityLabel(cap)}
+                    {getCapabilityLabel(cap as Capability)}
                   </Badge>
                 );
               })}
@@ -440,7 +441,7 @@ export function SkillCard({
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'
                 )}
               >
-                {isAvailable ? '✓' : '×'} {getCapabilityLabel(cap)}
+                {isAvailable ? '✓' : '×'} {getCapabilityLabel(cap as Capability)}
               </Badge>
             );
           })}

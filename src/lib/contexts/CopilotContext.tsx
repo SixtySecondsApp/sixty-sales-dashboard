@@ -326,7 +326,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         if (toolName?.includes('draft')) return 'email_draft';
         return 'email_search';
       }
-      if (capability === 'transcript') return 'meeting_analysis';
+      if (capability === 'meetings') return 'meeting_analysis';
       if (capability === 'messaging') return 'contact_lookup';
       // Fallback based on tool name
       if (toolName?.includes('task')) return 'task_search';
@@ -341,7 +341,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         crm: 'CRM',
         calendar: 'Calendar',
         email: 'Email',
-        transcript: 'Transcript',
+        meetings: 'Meetings',
         messaging: 'Messaging',
       };
       return labels[capability || ''] || 'Tool';

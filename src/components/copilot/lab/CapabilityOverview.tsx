@@ -38,7 +38,7 @@ const CAPABILITY_ICONS: Record<string, React.ElementType> = {
   crm: Database,
   calendar: Calendar,
   email: Mail,
-  transcript: Mic,
+  meetings: Mic,
   messaging: MessageSquare,
   tasks: ListTodo,
 };
@@ -47,7 +47,7 @@ const CAPABILITY_DESCRIPTIONS: Record<string, string> = {
   crm: 'Contact & deal management, pipeline data',
   calendar: 'Meeting scheduling, availability, events',
   email: 'Email drafting, search, send capabilities',
-  transcript: 'Meeting recordings, transcripts, AI summaries',
+  meetings: 'Transcripts, recordings, and AI summaries',
   messaging: 'Slack notifications, channel messages',
   tasks: 'Task creation, management, and tracking',
 };
