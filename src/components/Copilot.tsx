@@ -8,6 +8,7 @@ import { useCopilot } from '@/lib/contexts/CopilotContext';
 import { CopilotLayout } from './copilot/CopilotLayout';
 import { CopilotRightPanel } from './copilot/CopilotRightPanel';
 import { CopilotService } from '@/lib/services/copilotService';
+import { useCopilotContextData } from '@/lib/hooks/useCopilotContextData';
 import { EmailActionModal, EmailActionData, EmailActionType } from './copilot/EmailActionModal';
 import { useDynamicPrompts } from '@/lib/hooks/useDynamicPrompts';
 import logger from '@/lib/utils/logger';
@@ -51,6 +52,9 @@ export const Copilot: React.FC<CopilotProps> = ({
   const [inputValue, setInputValue] = useState(initialQuery || '');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { prompts: suggestedPrompts } = useDynamicPrompts(3);
+
+  // US-012: Fetch context data for right panel
+  const { contextItems } = useCopilotContextData();
 
   // Email action modal state
   const [emailModal, setEmailModal] = useState<EmailModalState>({
@@ -414,7 +418,7 @@ export const Copilot: React.FC<CopilotProps> = ({
   }, []);
 
   return (
-    <CopilotLayout rightPanel={<CopilotRightPanel />}>
+    <CopilotLayout rightPanel={<CopilotRightPanel contextItems={contextItems} />}>
       <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 flex flex-col min-h-0 overflow-hidden h-[calc(100dvh-var(--app-top-offset))]">
         <AssistantShell mode="page" />
 
