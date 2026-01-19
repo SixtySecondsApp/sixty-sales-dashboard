@@ -202,41 +202,46 @@ export interface UseCopilotContextDataReturn {
 }
 
 export function useCopilotContextData(): UseCopilotContextDataReturn {
-  const { context } = useCopilot();
+  const { context, relevantContextTypes } = useCopilot();
   const { activeOrgId } = useOrg();
 
   const { contactId, dealIds, userId } = context;
   const primaryDealId = dealIds?.[0];
 
-  // Fetch contact context
+  // Only fetch data sources that are relevant to the current query
+  const shouldFetchHubspot = relevantContextTypes.includes('hubspot');
+  const shouldFetchFathom = relevantContextTypes.includes('fathom');
+  const shouldFetchCalendar = relevantContextTypes.includes('calendar');
+
+  // Fetch contact context (only when HubSpot context is relevant)
   const contactQuery = useQuery({
     queryKey: ['copilot-context', 'contact', contactId, userId],
     queryFn: () => fetchContactContext(contactId!, userId!),
-    enabled: !!contactId && !!userId,
+    enabled: shouldFetchHubspot && !!contactId && !!userId,
     staleTime: 30000, // 30 seconds
   });
 
-  // Fetch deal context (only if no contact)
+  // Fetch deal context (only if no contact and HubSpot context is relevant)
   const dealQuery = useQuery({
     queryKey: ['copilot-context', 'deal', primaryDealId, userId],
     queryFn: () => fetchDealContext(primaryDealId!, userId!),
-    enabled: !!primaryDealId && !contactId && !!userId,
+    enabled: shouldFetchHubspot && !!primaryDealId && !contactId && !!userId,
     staleTime: 30000,
   });
 
-  // Fetch Fathom context
+  // Fetch Fathom context (only when Fathom context is relevant)
   const fathomQuery = useQuery({
     queryKey: ['copilot-context', 'fathom', activeOrgId, contactId],
     queryFn: () => fetchFathomContext(activeOrgId!, contactId),
-    enabled: !!activeOrgId,
+    enabled: shouldFetchFathom && !!activeOrgId,
     staleTime: 60000, // 1 minute
   });
 
-  // Fetch Calendar context
+  // Fetch Calendar context (only when Calendar context is relevant)
   const calendarQuery = useQuery({
     queryKey: ['copilot-context', 'calendar', userId],
     queryFn: () => fetchCalendarContext(userId!),
-    enabled: !!userId,
+    enabled: shouldFetchCalendar && !!userId,
     staleTime: 60000,
   });
 

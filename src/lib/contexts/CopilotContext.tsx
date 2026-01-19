@@ -59,6 +59,9 @@ interface AgentModeState {
 // Context Value Interface
 // =============================================================================
 
+// Context types that can be fetched for the right panel
+export type ContextDataType = 'hubspot' | 'fathom' | 'calendar';
+
 interface CopilotContextValue {
   // Core state
   isOpen: boolean;
@@ -73,6 +76,9 @@ interface CopilotContextValue {
   startNewChat: () => void;
   conversationId?: string;
   loadConversation: (conversationId: string) => Promise<void>;
+
+  // Context panel data control
+  relevantContextTypes: ContextDataType[];
 
   // Agent mode
   agentMode: AgentModeState;
@@ -110,6 +116,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     currentView: 'dashboard'
   });
   const [pendingQuery, setPendingQuery] = useState<{ query: string; startNewChat: boolean } | null>(null);
+  const [relevantContextTypes, setRelevantContextTypes] = useState<ContextDataType[]>([]);
 
   // =============================================================================
   // Agent Mode State
@@ -206,6 +213,9 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
       mode: 'empty',
       isLoading: false
     }));
+
+    // Clear context panel data
+    setRelevantContextTypes([]);
 
     // Reset agent state if in agent mode
     if (agentModeEnabled) {
@@ -505,6 +515,46 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     return null;
   }, []);
 
+  // Helper function to detect which context panel data sources are relevant
+  const detectRelevantContextTypes = useCallback((message: string): ContextDataType[] => {
+    const lowerMessage = message.toLowerCase();
+    const types: ContextDataType[] = [];
+
+    // HubSpot/CRM context - contacts, deals, pipeline, companies
+    const crmKeywords = [
+      'contact', 'deal', 'pipeline', 'company', 'account', 'opportunity',
+      'lead', 'prospect', 'customer', 'crm', 'hubspot', 'salesforce',
+      'health score', 'deal health', 'stale', 'attention', 'priority',
+      'follow up', 'follow-up', 'email', 'draft'
+    ];
+    if (crmKeywords.some(keyword => lowerMessage.includes(keyword))) {
+      types.push('hubspot');
+    }
+
+    // Fathom/Meetings context - calls, transcripts, meetings analysis
+    const meetingKeywords = [
+      'meeting', 'call', 'transcript', 'fathom', 'recording',
+      'said', 'discussed', 'talked about', 'mentioned', 'conversation',
+      'prep', 'prepare', 'brief', 'debrief', 'summary', 'summarise', 'summarize',
+      'what did', 'action items', 'next steps'
+    ];
+    if (meetingKeywords.some(keyword => lowerMessage.includes(keyword))) {
+      types.push('fathom');
+    }
+
+    // Calendar context - scheduling, upcoming meetings
+    const calendarKeywords = [
+      'calendar', 'schedule', 'upcoming', 'today', 'tomorrow', 'this week',
+      'next week', 'appointment', 'event', 'when', 'time', 'busy', 'free',
+      'book', 'reschedule'
+    ];
+    if (calendarKeywords.some(keyword => lowerMessage.includes(keyword))) {
+      types.push('calendar');
+    }
+
+    return types;
+  }, []);
+
   // Helper function to create initial tool call
   const createToolCall = useCallback((toolType: ToolType): ToolCall => {
       const getStepsForTool = (tool: ToolType) => {
@@ -611,6 +661,10 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
       // Create new abort controller for this request
       abortControllerRef.current = new AbortController();
       const abortSignal = abortControllerRef.current.signal;
+
+      // Detect and set relevant context types for this query
+      const contextTypes = detectRelevantContextTypes(message);
+      setRelevantContextTypes(contextTypes);
 
       // Add user message to state
       const userMessage: CopilotMessage = {
@@ -905,6 +959,9 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     startNewChat,
     conversationId: state.conversationId,
     loadConversation,
+
+    // Context panel data control
+    relevantContextTypes,
 
     // Agent mode
     agentMode,
