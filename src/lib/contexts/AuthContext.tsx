@@ -235,16 +235,23 @@ const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               break;
               
             case 'SIGNED_OUT':
-              // Check if this is a password recovery flow
-              // Supabase clears the session when processing recovery tokens
-              // We should NOT show the "Successfully signed out!" toast in this case
-              const isPasswordRecovery = 
+              // Check if this is a password recovery flow or invitation flow
+              // Supabase clears the session when processing recovery/invite tokens
+              // We should NOT show the "Successfully signed out!" toast in these cases
+              const isPasswordRecovery =
                 window.location.search.includes('token_hash') ||
                 window.location.search.includes('type=recovery') ||
                 window.location.hash.includes('type=recovery') ||
                 window.location.pathname.startsWith('/auth/reset-password');
-              
-              if (!isPasswordRecovery) {
+
+              // Also check for invite flow (waitlist/org invitations)
+              const isInviteFlow =
+                window.location.search.includes('type=invite') ||
+                window.location.search.includes('waitlist_entry') ||
+                window.location.hash.includes('type=invite') ||
+                window.location.pathname.includes('/auth/set-password');
+
+              if (!isPasswordRecovery && !isInviteFlow) {
                 toast.success('Successfully signed out!');
               }
               

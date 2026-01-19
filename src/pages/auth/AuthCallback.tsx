@@ -386,13 +386,14 @@ export default function AuthCallback() {
                 localStorage.setItem('waitlist_entry_id', finalWaitlistId);
               }
 
-              // Wait a moment to ensure session is properly established before navigating
-              await new Promise(resolve => setTimeout(resolve, 500));
+              // Wait a bit longer to ensure tokens in hash are fully processed by Supabase client
+              // This is especially important on production where network latency might be higher
+              await new Promise(resolve => setTimeout(resolve, 1000));
 
               // Note: Waitlist entry user_id linking happens earlier in this callback (Phase 2.2)
               // Status will be updated to 'converted' after user completes password setup
 
-              // Redirect to password setup page
+              // Redirect to password setup page with session tokens intact
               if (finalWaitlistId && finalWaitlistId !== 'pending') {
                 navigate(`/auth/set-password?waitlist_entry=${finalWaitlistId}`, { replace: true });
               } else {
