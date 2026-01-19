@@ -23,6 +23,8 @@ import {
   Clock,
   Sparkles,
   ExternalLink,
+  Check,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useActionItemStore, type ActionItem } from '@/lib/stores/actionItemStore';
@@ -81,6 +83,107 @@ function CollapsibleSection({
     </div>
   );
 }
+
+// ============================================================================
+// Progress Section
+// ============================================================================
+
+export interface ProgressStep {
+  id: number;
+  label: string;
+  status: 'pending' | 'active' | 'complete';
+}
+
+interface ProgressSectionProps {
+  steps: ProgressStep[];
+  isProcessing: boolean;
+  totalSteps?: number;
+}
+
+function ProgressSection({ steps, isProcessing, totalSteps = 4 }: ProgressSectionProps) {
+  // Don't show if not processing and no steps
+  if (!isProcessing && steps.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="p-5 border-b border-white/5">
+      <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+        <Zap className="w-4 h-4 text-amber-400" />
+        Progress
+      </h3>
+
+      {/* Step Indicator Circles */}
+      <div className="flex items-center gap-2 mb-4">
+        {Array.from({ length: totalSteps }, (_, i) => i + 1).map((stepNum) => {
+          const progressItem = steps.find(p => p.id === stepNum);
+          const status = progressItem?.status || 'pending';
+
+          return (
+            <React.Fragment key={stepNum}>
+              <div
+                className={cn(
+                  'w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-all',
+                  status === 'complete' &&
+                    'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg shadow-emerald-500/25',
+                  status === 'active' &&
+                    'bg-gradient-to-br from-violet-400 to-purple-600 text-white animate-pulse shadow-lg shadow-violet-500/25',
+                  status === 'pending' &&
+                    'bg-white/5 text-slate-600 border border-white/10'
+                )}
+              >
+                {status === 'complete' ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : (
+                  stepNum
+                )}
+              </div>
+              {stepNum < totalSteps && (
+                <div
+                  className={cn(
+                    'flex-1 h-0.5 rounded-full transition-all',
+                    status === 'complete'
+                      ? 'bg-gradient-to-r from-emerald-400 to-emerald-600'
+                      : 'bg-white/10'
+                  )}
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {/* Step Labels */}
+      <div className="space-y-2">
+        {steps.length > 0 ? (
+          steps.map((step) => (
+            <div key={step.id} className="flex items-center gap-2">
+              {step.status === 'active' ? (
+                <Loader2 className="w-3.5 h-3.5 text-violet-400 animate-spin" />
+              ) : (
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+              )}
+              <span
+                className={cn(
+                  'text-xs',
+                  step.status === 'active' ? 'text-violet-300' : 'text-slate-400'
+                )}
+              >
+                {step.label}
+              </span>
+            </div>
+          ))
+        ) : (
+          <p className="text-sm text-slate-500">Steps will show as the task unfolds.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Action Items Section
+// ============================================================================
 
 interface ActionItemsSectionProps {
   items?: ActionItem[];
@@ -565,15 +668,22 @@ export interface CopilotRightPanelProps {
   contextItems?: ContextItem[];
   /** Integration connection status */
   integrations?: Integration[];
+  /** Progress steps for current task */
+  progressSteps?: ProgressStep[];
+  /** Whether AI is currently processing */
+  isProcessing?: boolean;
 }
 
 export function CopilotRightPanel({
   actionItems = [],
   contextItems = [],
   integrations,
+  progressSteps = [],
+  isProcessing = false,
 }: CopilotRightPanelProps) {
   return (
     <div className="h-full flex flex-col">
+      <ProgressSection steps={progressSteps} isProcessing={isProcessing} />
       <ActionItemsSection items={actionItems} />
       <ContextSection items={contextItems} />
       <ConnectedSection integrations={integrations} />
