@@ -81,6 +81,8 @@ interface ToolExecutionDetail {
   latencyMs: number
   success: boolean
   error?: string
+  capability?: string
+  provider?: string
 }
 
 interface StructuredResponse {
@@ -143,6 +145,44 @@ interface GmailMessageSummary {
   link?: string
 }
 
+/**
+ * Strip AI preamble/narration from skill test output.
+ * Removes transitional phrases and meta-commentary that end users shouldn't see.
+ * Uses aggressive strategy: skip all lines until first markdown header (# or ##).
+ */
+function stripSkillTestPreamble(content: string): string {
+  if (!content) return content
+
+  const lines = content.split('\n')
+
+  // Find the first line that starts actual content (markdown header)
+  let contentStartIndex = 0
+  for (let i = 0; i < lines.length; i++) {
+    const trimmedLine = lines[i].trim()
+
+    // Content starts at first markdown header (# or ##)
+    if (trimmedLine.startsWith('#')) {
+      contentStartIndex = i
+      break
+    }
+
+    // Also detect content if we see a markdown table header (| Column |)
+    if (trimmedLine.startsWith('|') && trimmedLine.includes('|', 1)) {
+      contentStartIndex = i
+      break
+    }
+
+    // Also detect "**Bold Title**" format that indicates structured content
+    if (trimmedLine.startsWith('**') && trimmedLine.endsWith('**')) {
+      contentStartIndex = i
+      break
+    }
+  }
+
+  // Return content from the detected start point
+  return lines.slice(contentStartIndex).join('\n').trim()
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -181,7 +221,13 @@ serve(async (req) => {
     // Create service role client for database operations (bypasses RLS)
     const client = createClient(
       supabaseUrl,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
+      {
+        // Include the user JWT so DB access remains correct even if service role is misconfigured in secrets.
+        // This also ensures membership-gated queries in shared executors work reliably.
+        global: { headers: { Authorization: authHeader } },
+        auth: { persistSession: false },
+      }
     )
 
     const user_id = user.id
@@ -478,6 +524,87 @@ async function handleChat(
     // This allows us to skip AI and go straight to structured response
     const messageLower = body.message.toLowerCase()
     const originalMessage = body.message
+
+    // -------------------------------------------------------------------------
+    // Deterministic confirmation handling (avoids UI "Select Contact" modal)
+    // If the previous assistant message set a pending_action (e.g., run_sequence preview),
+    // then a user reply like "yes" should execute the pending action directly.
+    // -------------------------------------------------------------------------
+    const isAffirmative = /^(yes|yep|yeah|y|ok|okay|sure|do it|go ahead|confirm|create it|create the task|yes create a task)/i.test(
+      body.message.trim()
+    )
+
+    if (isAffirmative) {
+      try {
+        const { data: lastAssistant } = await client
+          .from('copilot_messages')
+          .select('content, metadata')
+          .eq('conversation_id', conversationId)
+          .eq('role', 'assistant')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        const pending = (lastAssistant?.metadata as any)?.pending_action
+        const content = String(lastAssistant?.content || '')
+        const inferredPipelineFocus =
+          content.includes('Pipeline Focus Tasks') || content.includes('seq-pipeline-focus-tasks')
+
+        const pendingSequenceKey =
+          pending?.type === 'run_sequence' && typeof pending.sequence_key === 'string'
+            ? String(pending.sequence_key)
+            : (inferredPipelineFocus ? 'seq-pipeline-focus-tasks' : null)
+
+        // Safety: only allow confirmation execution for known demo sequences.
+        const CONFIRMABLE_SEQUENCES = new Set([
+          'seq-pipeline-focus-tasks',
+          'seq-next-meeting-command-center',
+          'seq-deal-rescue-pack',
+          'seq-post-meeting-followup-pack',
+          'seq-deal-map-builder',
+          'seq-daily-focus-plan',
+          'seq-followup-zero-inbox',
+          'seq-deal-slippage-guardrails',
+        ])
+
+        if (pendingSequenceKey && CONFIRMABLE_SEQUENCES.has(pendingSequenceKey)) {
+          const resolvedOrgId = body.context?.orgId ? String(body.context.orgId) : null
+          const sequenceContext =
+            pending?.sequence_context && typeof pending.sequence_context === 'object'
+              ? pending.sequence_context
+              : {}
+
+          const result = await executeAction(
+            client,
+            userId,
+            resolvedOrgId,
+            'run_sequence',
+            { sequence_key: pendingSequenceKey, is_simulation: false, sequence_context: sequenceContext }
+          )
+
+          const text = `Done — I ran ${pendingSequenceKey}.`
+
+          return new Response(
+            JSON.stringify({
+              response: { type: 'text', content: text, recommendations: [] },
+              conversationId,
+              timestamp: new Date().toISOString(),
+              tool_executions: [
+                {
+                  toolName: 'execute_action',
+                  args: { action: 'run_sequence', params: { sequence_key: pendingSequenceKey, is_simulation: false, sequence_context: sequenceContext } },
+                  result,
+                  success: (result as any)?.success === true,
+                },
+              ],
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+          )
+        }
+      } catch (err) {
+        // Fail open - fall back to normal handling
+      }
+    }
     
     // ULTRA SIMPLE detection: If message contains "performance" anywhere, it's a performance query
     // This catches ALL variations: "Phil's performance", "show performance", "performance this week", etc.
@@ -621,6 +748,29 @@ async function handleChat(
 
     // Save assistant message (skip if we're using structured response)
     if (!shouldSkipClaude) {
+      // Store lightweight execution metadata for follow-up confirmations (e.g., "Yes, create it")
+      let pendingAction: any = null
+      try {
+        // IMPORTANT: tool executions are tracked in `toolExecutions` (computed server-side),
+        // not on the Claude response object.
+        const execs = Array.isArray(toolExecutions) ? toolExecutions : []
+        const lastRunSequence = execs
+          .filter((t: any) => t?.toolName === 'execute_action' && t?.args?.action === 'run_sequence')
+          .slice(-1)[0]
+
+        if (lastRunSequence?.args?.params?.sequence_key && lastRunSequence?.args?.params?.is_simulation === true) {
+          pendingAction = {
+            type: 'run_sequence',
+            sequence_key: String(lastRunSequence.args.params.sequence_key),
+            sequence_context: lastRunSequence.args.params.sequence_context || {},
+            is_simulation: false,
+            created_at: new Date().toISOString(),
+          }
+        }
+      } catch {
+        pendingAction = null
+      }
+
       const { error: assistantMsgError } = await client
         .from('copilot_messages')
         .insert({
@@ -628,7 +778,8 @@ async function handleChat(
           role: 'assistant',
           content: aiResponse.content,
           metadata: {
-            recommendations: aiResponse.recommendations || []
+            recommendations: aiResponse.recommendations || [],
+            pending_action: pendingAction || undefined
           }
         })
 
@@ -754,7 +905,8 @@ async function handleChat(
         structuredResponse: structuredResponse || undefined
       },
       conversationId,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      tool_executions: aiResponse?.tool_executions || []
     }
     
     // Debug logging
@@ -903,10 +1055,13 @@ async function handleDraftEmail(
  *
  * POST /api-copilot/actions/test-skill
  *
- * Supports optional contact context for testing skills with real contact data:
- * - contact_id: UUID of the contact to use
- * - contact_test_mode: 'good' | 'average' | 'bad' | 'custom'
- * - contact_context: { id, email, name, title, company_id, company_name, total_meetings_count, quality_tier, quality_score }
+ * Supports optional entity context for testing skills with real data:
+ * - entity_type: 'contact' | 'deal' | 'email' | 'activity' | 'meeting'
+ * - entity_test_mode: 'good' | 'average' | 'bad' | 'custom'
+ * - {entity_type}_id: UUID of the entity
+ * - {entity_type}_context: Entity-specific context object
+ *
+ * Legacy contact-specific fields are also supported for backwards compatibility.
  */
 async function handleTestSkill(
   client: any,
@@ -919,7 +1074,20 @@ async function handleTestSkill(
     const testInput = body?.test_input ? String(body.test_input) : ''
     const mode = body?.mode ? String(body.mode) : 'readonly'
 
-    // Optional contact testing context
+    // Entity type detection (new generic approach)
+    const entityType = body?.entity_type ? String(body.entity_type) : null
+    const entityTestMode = body?.entity_test_mode ? String(body.entity_test_mode) : null
+
+    // Get entity ID and context based on entity type
+    let entityId: string | null = null
+    let entityContext: any = null
+
+    if (entityType) {
+      entityId = body?.[`${entityType}_id`] ? String(body[`${entityType}_id`]) : null
+      entityContext = body?.[`${entityType}_context`] || null
+    }
+
+    // Legacy contact support (backwards compatibility)
     const contactId = body?.contact_id ? String(body.contact_id) : null
     const contactTestMode = body?.contact_test_mode ? String(body.contact_test_mode) : null
     const contactContext = body?.contact_context || null
@@ -929,27 +1097,137 @@ async function handleTestSkill(
     }
 
     // Build message parts
+    // Get today's date for context
+    const today = new Date()
+    const todayFormatted = today.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+    const todayISO = today.toISOString().split('T')[0]
+
     const messageParts = [
-      `Skill test mode: ${mode}.`,
-      `First call get_skill({ "skill_key": "${skillKey}" }) and follow that skill's instructions.`,
+      `SKILL TEST MODE: ${mode}`,
+      ``,
+      `TODAY'S DATE: ${todayISO} (${todayFormatted})`,
+      `IMPORTANT: When generating dates for tasks, milestones, deadlines, or any future events, ensure ALL dates are in the future relative to today (${todayISO}). Do not use past dates.`,
+      ``,
+      `CRITICAL OUTPUT RULES - READ CAREFULLY:`,
+      `- Your output goes DIRECTLY to end users - they should NEVER see AI narration`,
+      `- Start your response with the actual content (headers, data, analysis)`,
+      `- FORBIDDEN phrases (never write these): "I'll", "Let me", "Now executing", "I'm going to", "First I'll", "Retrieving", "I will"`,
+      `- NO transitional text, NO explanations of your process, NO meta-commentary`,
+      ``,
+      `EXECUTION STEPS (do silently, don't mention):`,
+      `1. Call get_skill({ "skill_key": "${skillKey}" }) to retrieve the skill`,
+      `2. Execute the skill's instructions completely`,
+      `3. Return ONLY the final deliverable - formatted markdown ready for display`,
+      ``,
     ]
 
-    // Add contact context if provided
-    if (contactId && contactContext) {
+    // Add entity context based on type
+    if (entityType === 'deal' && entityId && entityContext) {
+      const dealInfo = [
+        `\n--- DEAL TESTING CONTEXT ---`,
+        `Test Mode: ${entityTestMode || 'custom'}`,
+        `Quality Tier: ${entityContext.quality_tier || 'unknown'} (Score: ${entityContext.quality_score || 0}/100)`,
+        ``,
+        `Deal Details:`,
+        `- deal_id: ${entityContext.id}`,
+        `- Name: ${entityContext.name || 'Unknown'}`,
+        entityContext.company ? `- Company: ${entityContext.company}` : null,
+        entityContext.contact_name ? `- Contact: ${entityContext.contact_name}` : null,
+        entityContext.value ? `- Value: $${entityContext.value.toLocaleString()}` : null,
+        entityContext.stage_name ? `- Stage: ${entityContext.stage_name}` : null,
+        entityContext.health_status ? `- Health Status: ${entityContext.health_status}` : null,
+        entityContext.overall_health_score != null ? `- Health Score: ${entityContext.overall_health_score}/100` : null,
+        entityContext.days_in_current_stage != null ? `- Days in Stage: ${entityContext.days_in_current_stage}` : null,
+        ``,
+        `IMPORTANT: Use this deal for testing. The deal_id is: ${entityId}`,
+        `When the skill requires a deal_id, use: ${entityId}`,
+        `--- END DEAL CONTEXT ---\n`,
+      ].filter(Boolean).join('\n')
+
+      messageParts.push(dealInfo)
+    } else if (entityType === 'email' && entityId && entityContext) {
+      const emailInfo = [
+        `\n--- EMAIL TESTING CONTEXT ---`,
+        `Test Mode: ${entityTestMode || 'custom'}`,
+        `Quality Tier: ${entityContext.quality_tier || 'unknown'} (Score: ${entityContext.quality_score || 0}/100)`,
+        ``,
+        `Email Details:`,
+        `- email_id: ${entityContext.id}`,
+        `- Subject: ${entityContext.subject || 'No subject'}`,
+        `- From: ${entityContext.from_email || 'Unknown'}`,
+        entityContext.direction ? `- Direction: ${entityContext.direction}` : null,
+        entityContext.category ? `- Category: ${entityContext.category}` : null,
+        entityContext.received_at ? `- Received: ${entityContext.received_at}` : null,
+        ``,
+        `IMPORTANT: Use this email for testing. The email_id is: ${entityId}`,
+        `--- END EMAIL CONTEXT ---\n`,
+      ].filter(Boolean).join('\n')
+
+      messageParts.push(emailInfo)
+    } else if (entityType === 'activity' && entityId && entityContext) {
+      const activityInfo = [
+        `\n--- ACTIVITY TESTING CONTEXT ---`,
+        `Test Mode: ${entityTestMode || 'custom'}`,
+        `Quality Tier: ${entityContext.quality_tier || 'unknown'} (Score: ${entityContext.quality_score || 0}/100)`,
+        ``,
+        `Activity Details:`,
+        `- activity_id: ${entityContext.id}`,
+        `- Type: ${entityContext.type || 'Unknown'}`,
+        `- Client: ${entityContext.client_name || 'Unknown'}`,
+        entityContext.status ? `- Status: ${entityContext.status}` : null,
+        entityContext.priority ? `- Priority: ${entityContext.priority}` : null,
+        entityContext.amount ? `- Amount: $${entityContext.amount.toLocaleString()}` : null,
+        ``,
+        `IMPORTANT: Use this activity for testing. The activity_id is: ${entityId}`,
+        `--- END ACTIVITY CONTEXT ---\n`,
+      ].filter(Boolean).join('\n')
+
+      messageParts.push(activityInfo)
+    } else if (entityType === 'meeting' && entityId && entityContext) {
+      const meetingInfo = [
+        `\n--- MEETING TESTING CONTEXT ---`,
+        `Test Mode: ${entityTestMode || 'custom'}`,
+        `Quality Tier: ${entityContext.quality_tier || 'unknown'} (Score: ${entityContext.quality_score || 0}/100)`,
+        ``,
+        `Meeting Details:`,
+        `- meeting_id: ${entityContext.id}`,
+        `- Title: ${entityContext.title || 'Untitled'}`,
+        entityContext.company_name ? `- Company: ${entityContext.company_name}` : null,
+        entityContext.contact_name ? `- Contact: ${entityContext.contact_name}` : null,
+        entityContext.meeting_start ? `- Start: ${entityContext.meeting_start}` : null,
+        entityContext.duration_minutes ? `- Duration: ${entityContext.duration_minutes} min` : null,
+        entityContext.summary ? `- Summary: ${entityContext.summary.slice(0, 200)}${entityContext.summary.length > 200 ? '...' : ''}` : null,
+        ``,
+        `IMPORTANT: Use this meeting for testing. The meeting_id is: ${entityId}`,
+        `--- END MEETING CONTEXT ---\n`,
+      ].filter(Boolean).join('\n')
+
+      messageParts.push(meetingInfo)
+    } else if ((entityType === 'contact' && entityId && entityContext) || (contactId && contactContext)) {
+      // Contact context (supports both new and legacy format)
+      const ctxId = entityId || contactId
+      const ctx = entityContext || contactContext
+      const testMode = entityTestMode || contactTestMode
+
       const contactInfo = [
         `\n--- CONTACT TESTING CONTEXT ---`,
-        `Test Mode: ${contactTestMode || 'custom'}`,
-        `Quality Tier: ${contactContext.quality_tier || 'unknown'} (Score: ${contactContext.quality_score || 0}/100)`,
+        `Test Mode: ${testMode || 'custom'}`,
+        `Quality Tier: ${ctx.quality_tier || 'unknown'} (Score: ${ctx.quality_score || 0}/100)`,
         ``,
         `Contact Details:`,
-        `- ID: ${contactContext.id}`,
-        `- Name: ${contactContext.name || 'Unknown'}`,
-        `- Email: ${contactContext.email || 'Unknown'}`,
-        contactContext.title ? `- Title: ${contactContext.title}` : null,
-        contactContext.company_name ? `- Company: ${contactContext.company_name}` : null,
-        contactContext.total_meetings_count != null ? `- Meeting Count: ${contactContext.total_meetings_count}` : null,
+        `- contact_id: ${ctx.id}`,
+        `- Name: ${ctx.name || 'Unknown'}`,
+        `- Email: ${ctx.email || 'Unknown'}`,
+        ctx.title ? `- Title: ${ctx.title}` : null,
+        ctx.company_name ? `- Company: ${ctx.company_name}` : null,
+        ctx.total_meetings_count != null ? `- Meeting Count: ${ctx.total_meetings_count}` : null,
         ``,
-        `Use this contact's information when testing the skill. The contact_id is: ${contactId}`,
+        `IMPORTANT: Use this contact for testing. The contact_id is: ${ctxId}`,
         `--- END CONTACT CONTEXT ---\n`,
       ].filter(Boolean).join('\n')
 
@@ -967,18 +1245,28 @@ async function handleTestSkill(
 
     const aiResponse = await callClaudeAPI(message, [], '', client, userId, null)
 
+    // Post-process output to strip AI preamble/narration
+    const cleanedOutput = stripSkillTestPreamble(aiResponse.content)
+
     return new Response(
       JSON.stringify({
         success: true,
         skill_key: skillKey,
-        output: aiResponse.content,
+        output: cleanedOutput,
         tools_used: aiResponse.tools_used || [],
         tool_iterations: aiResponse.tool_iterations || 0,
         tool_executions: aiResponse.tool_executions || [],
         usage: aiResponse.usage || undefined,
-        // Include contact testing info in response for debugging
-        contact_test_info: contactId ? {
-          contact_id: contactId,
+        // Include entity testing info in response for debugging
+        entity_test_info: entityId ? {
+          entity_type: entityType,
+          entity_id: entityId,
+          test_mode: entityTestMode,
+          quality_tier: entityContext?.quality_tier,
+          quality_score: entityContext?.quality_score,
+        } : contactId ? {
+          entity_type: 'contact',
+          entity_id: contactId,
           test_mode: contactTestMode,
           quality_tier: contactContext?.quality_tier,
           quality_score: contactContext?.quality_score,
@@ -2126,8 +2414,8 @@ const AVAILABLE_TOOLS = [
  * Skills Router Tools (3-tool surface)
  *
  * Copilot is intentionally limited to:
- * - list_skills: discover skills
- * - get_skill: load a skill document (compiled per org)
+ * - list_skills: discover skills and sequences
+ * - get_skill: load a skill/sequence document (compiled per org)
  * - execute_action: fetch data / perform actions through adapters
  */
 const SKILLS_ROUTER_TOOLS = [
@@ -2137,9 +2425,15 @@ const SKILLS_ROUTER_TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
+        kind: {
+          type: 'string',
+          enum: ['skill', 'sequence', 'all'],
+          default: 'all',
+          description: 'Filter to skills (single-step) vs sequences (category=agent-sequence).',
+        },
         category: {
           type: 'string',
-          enum: ['sales-ai', 'writing', 'enrichment', 'workflows', 'data-access', 'output-format'],
+          enum: ['sales-ai', 'writing', 'enrichment', 'workflows', 'data-access', 'output-format', 'agent-sequence'],
           description: 'Optional skill category filter.',
         },
         enabled_only: {
@@ -2152,7 +2446,7 @@ const SKILLS_ROUTER_TOOLS = [
   },
   {
     name: 'get_skill',
-    description: 'Retrieve a compiled skill document by skill_key for the user’s organization.',
+    description: 'Retrieve a compiled skill or sequence document by skill_key for the user’s organization.',
     input_schema: {
       type: 'object',
       properties: {
@@ -2232,7 +2526,14 @@ Write actions require params.confirm=true.`,
             'draft_email',
             'update_crm',
             'send_notification',
+            'enrich_contact',
+            'enrich_company',
+            'invoke_skill',
             'run_skill',
+            'run_sequence',
+            'create_task',
+            'list_tasks',
+            'create_activity',
           ],
           description: 'The action to execute',
         },
@@ -2291,6 +2592,10 @@ Write actions require params.confirm=true.`,
             // Skill execution params
             skill_key: { type: 'string', description: 'Skill to execute (for run_skill): lead-research, company-analysis, competitor-intel, market-research, industry-trends, meeting-prep, etc.' },
             skill_context: { type: 'object', description: 'Context variables for the skill (for run_skill): domain, company_name, competitor_name, industry, etc.' },
+            // Sequence execution params
+            sequence_key: { type: 'string', description: 'Sequence to execute (for run_sequence): must be an enabled agent-sequence skill_key' },
+            sequence_context: { type: 'object', description: 'Input context for the sequence trigger (for run_sequence)' },
+            is_simulation: { type: 'boolean', description: 'If true, run in simulation/dry-run mode (for run_sequence)' },
           },
         },
       },
@@ -2328,7 +2633,8 @@ async function callClaudeAPI(
   // Build messages array for Claude
   // Resolve company name and available skills for system prompt
   let companyName = 'your company'
-  let availableSkills: { skill_id: string; name: string; category: string }[] = []
+  // NOTE: get_organization_skills_for_agent returns { skill_key, category, frontmatter, content, is_enabled }
+  let availableSkills: { skill_key: string; name: string; category: string }[] = []
   try {
     // Use the orgId parameter if provided, otherwise look it up
     let resolvedOrgId = orgId
@@ -2371,44 +2677,68 @@ async function callClaudeAPI(
         p_category: null
       })
       if (orgSkills && Array.isArray(orgSkills)) {
-        availableSkills = orgSkills.map((s: any) => ({
-          skill_id: s.skill_id,
-          name: s.skill_name,
-          category: s.category
-        }))
+        availableSkills = orgSkills
+          .map((s: any) => {
+            const skillKey = String(s.skill_key || s.skill_id || '').trim()
+            const fm = (s.frontmatter || {}) as Record<string, unknown>
+            const nameCandidate =
+              (typeof fm.name === 'string' && fm.name.trim())
+                ? fm.name
+                : (typeof (fm as any).title === 'string' && String((fm as any).title).trim())
+                  ? String((fm as any).title)
+                  : skillKey
+            return {
+              skill_key: skillKey,
+              name: String(nameCandidate),
+              category: String(s.category || 'other')
+            }
+          })
+          .filter((s: any) => Boolean(s.skill_key))
       }
     }
   } catch {
     // fail open: keep default companyName
   }
 
-  // Format available skills for the system prompt
+  // Format available skills/sequences for the system prompt
+  const sequences = availableSkills.filter((s) => s.category === 'agent-sequence')
+  const skillsOnly = availableSkills.filter((s) => s.category !== 'agent-sequence')
+
   const skillsByCategory: Record<string, string[]> = {}
-  for (const skill of availableSkills) {
+  for (const skill of skillsOnly) {
     const cat = skill.category || 'other'
     if (!skillsByCategory[cat]) skillsByCategory[cat] = []
-    skillsByCategory[cat].push(`${skill.skill_id} (${skill.name})`)
+    skillsByCategory[cat].push(`${skill.skill_key} (${skill.name})`)
   }
   const skillsListText = Object.entries(skillsByCategory)
     .map(([cat, skills]) => `  ${cat}: ${skills.join(', ')}`)
     .join('\n')
 
+  const sequencesListText = sequences
+    .map((s) => `  - ${s.skill_key} (${s.name})`)
+    .join('\n')
+
   const systemPrompt = `You are a sales assistant for ${companyName}. You help sales reps prepare for calls, follow up after meetings, and manage their pipeline.
 
 ## How You Work
-You have access to skills - documents that contain instructions, context, and best practices specific to ${companyName}. Always retrieve the relevant skill before taking action.
+You have access to **skills** (single-step) and **sequences** (multi-step processes that use many skills) specific to ${companyName}.
 
-### Available Skills
+Always retrieve the relevant skill/sequence before taking action.
+
+### Available Sequences (multi-step)
+${sequencesListText || '  No sequences configured yet'}
+
+### Available Skills (single-step)
 ${skillsListText || '  No skills configured yet'}
 
 ### Your Tools
-1. list_skills - See available skills by category
-2. get_skill - Retrieve a skill document for guidance (use exact skill_id from list above)
+1. list_skills - See available skills and sequences by category
+2. get_skill - Retrieve a skill/sequence document for guidance (use exact skill_key from lists above)
 3. execute_action - Perform actions (query CRM, fetch meetings, search emails, etc.)
 
 ### Workflow Pattern
 1. Understand what the user needs
-2. Retrieve the relevant skill(s) with get_skill using the exact skill_id
+2. Retrieve the relevant skill(s) or sequence(s) with get_skill using the exact skill_key
 3. Follow the skill's instructions
 4. Use execute_action to gather data or perform tasks
 5. Deliver results in the user's preferred channel
@@ -2480,6 +2810,48 @@ These skills use real-time web search and return structured JSON with sources.
 
 **"What's the status with [company]?"**
 - Use execute_action with get_company_status { company_name: "X" } for holistic view
+
+### Pipeline Focus Task Scheduling (when user says "Help me schedule tasks to engage deals I should focus on" or similar)
+Prefer running the **seq-pipeline-focus-tasks** sequence:
+1. Run execute_action with run_sequence { sequence_key: "seq-pipeline-focus-tasks", is_simulation: true, sequence_context: { period: "this_week" } }
+2. Show the user the task preview (title, checklist, due_date) and the selected top deals
+3. Ask for confirmation before creating tasks
+4. If user confirms, re-run execute_action with run_sequence { sequence_key: "seq-pipeline-focus-tasks", is_simulation: false, sequence_context: { period: "this_week" } }
+
+### Post-Meeting Follow-Up Pack (when user says "generate my follow-up pack" / "send recap" / "Slack update + tasks")
+Prefer running the **seq-post-meeting-followup-pack** sequence:
+1. Run execute_action with run_sequence { sequence_key: "seq-post-meeting-followup-pack", is_simulation: true, sequence_context: {} }
+2. Show the user the email + Slack + task previews
+3. Ask for confirmation before sending/posting/creating
+4. If user confirms, re-run execute_action with run_sequence { sequence_key: "seq-post-meeting-followup-pack", is_simulation: false, sequence_context: {} }
+
+### Deal Mutual Action Plan (MAP) Builder (when user says "build a mutual action plan / MAP for deal X")
+Prefer running the **seq-deal-map-builder** sequence:
+1. Run execute_action with run_sequence { sequence_key: "seq-deal-map-builder", is_simulation: true, sequence_context: { deal_id: "..." } }
+2. Show the milestones + task preview
+3. Ask for confirmation before creating the task
+4. If user confirms, re-run execute_action with run_sequence { sequence_key: "seq-deal-map-builder", is_simulation: false, sequence_context: { deal_id: "..." } }
+
+### Daily Focus Plan (when user says "what should I do today?" / "show me my priorities" / "daily plan")
+Prefer running the **seq-daily-focus-plan** sequence:
+1. Run execute_action with run_sequence { sequence_key: "seq-daily-focus-plan", is_simulation: true, sequence_context: {} }
+2. Show priorities, next best actions, and top task preview
+3. Ask for confirmation before creating the task
+4. If user confirms, re-run execute_action with run_sequence { sequence_key: "seq-daily-focus-plan", is_simulation: false, sequence_context: {} }
+
+### Follow-Up Zero Inbox (when user says "what follow-ups am I missing?" / "check my emails" / "unanswered emails")
+Prefer running the **seq-followup-zero-inbox** sequence:
+1. Run execute_action with run_sequence { sequence_key: "seq-followup-zero-inbox", is_simulation: true, sequence_context: {} }
+2. Show threads needing response, reply drafts, and follow-up task preview
+3. Ask for confirmation before creating the task
+4. If user confirms, re-run execute_action with run_sequence { sequence_key: "seq-followup-zero-inbox", is_simulation: false, sequence_context: {} }
+
+### Deal Slippage Guardrails (when user says "what deals are at risk?" / "show me at-risk deals" / "deal slippage")
+Prefer running the **seq-deal-slippage-guardrails** sequence:
+1. Run execute_action with run_sequence { sequence_key: "seq-deal-slippage-guardrails", is_simulation: true, sequence_context: {} }
+2. Show risk radar, rescue actions, rescue task preview, and Slack update preview
+3. Ask for confirmation before creating the task and posting Slack update
+4. If user confirms, re-run execute_action with run_sequence { sequence_key: "seq-deal-slippage-guardrails", is_simulation: false, sequence_context: {} }
 
 ## Core Rules
 - Confirm before any CRM updates, notifications, or sends (execute_action write actions require params.confirm=true)
@@ -2560,7 +2932,9 @@ These skills use real-time web search and return structured JSON with sources.
   let maxToolIterations = 5 // Prevent infinite loops
   let iteration = 0
   const startTime = Date.now()
-  const MAX_EXECUTION_TIME = 30000 // 30 seconds max execution time
+  // NOTE: Sequences can legitimately take longer than single-step tools.
+  // Keep a hard cap to avoid runaway loops, but allow demo-grade sequences to complete.
+  const MAX_EXECUTION_TIME = 120000 // 120 seconds max execution time
 
   while (data.stop_reason === 'tool_use' && data.content && iteration < maxToolIterations) {
     // Check timeout
@@ -2604,15 +2978,29 @@ These skills use real-time web search and return structured JSON with sources.
             toolsUsed.push(toolCall.name)
           }
           
-          // Add timeout wrapper for tool execution
+          // Add timeout wrapper for tool execution.
+          // execute_action calls may hit external services/APIs and need more time.
+          // run_sequence needs the most time as it runs multi-step workflows.
           const toolPromise = executeToolCall(toolCall.name, toolCall.input, client, userId, orgId)
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Tool execution timeout')), 10000)
+          let timeoutMs = 15000 // default 15s for simple tools
+          if (toolCall?.name === 'execute_action') {
+            if (toolCall?.input?.action === 'run_sequence') {
+              timeoutMs = 60000 // 60s for sequences
+            } else {
+              timeoutMs = 30000 // 30s for other execute_action calls (may hit external APIs)
+            }
+          }
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Tool execution timeout')), timeoutMs)
           )
           
           const toolResult = await Promise.race([toolPromise, timeoutPromise])
           const toolLatencyMs = Date.now() - toolStartTime
           toolsSuccessCount++
+          
+          // Extract capability/provider from result if available
+          const capability = (toolResult as any)?.capability;
+          const provider = (toolResult as any)?.provider;
           
           // Track detailed execution metadata
           toolExecutions.push({
@@ -2620,7 +3008,9 @@ These skills use real-time web search and return structured JSON with sources.
             args: toolCall.input,
             result: toolResult,
             latencyMs: toolLatencyMs,
-            success: true
+            success: true,
+            capability,
+            provider
           })
           
           toolResults.push({
@@ -2765,6 +3155,7 @@ async function executeToolCall(
     if (toolName === 'list_skills') {
       const category = args?.category ? String(args.category) : null
       const enabledOnly = args?.enabled_only !== false
+      const kind = args?.kind ? String(args.kind) : 'all' // 'skill' | 'sequence' | 'all'
 
       if (enabledOnly) {
         const { data: skills, error } = await client.rpc('get_organization_skills_for_agent', {
@@ -2772,16 +3163,24 @@ async function executeToolCall(
         })
         if (error) throw new Error(`Failed to list skills: ${error.message}`)
 
-        const filtered = (skills || []).filter((s: any) => (!category ? true : s.category === category))
+        const filtered = (skills || [])
+          .filter((s: any) => (!category ? true : s.category === category))
+          .filter((s: any) => {
+            if (kind === 'sequence') return s.category === 'agent-sequence'
+            if (kind === 'skill') return s.category !== 'agent-sequence'
+            return true
+          })
         return {
           success: true,
           count: filtered.length,
           skills: filtered.map((s: any) => ({
             skill_key: s.skill_key,
+            kind: s.category === 'agent-sequence' ? 'sequence' : 'skill',
             category: s.category,
             name: s.frontmatter?.name,
             description: s.frontmatter?.description,
             triggers: s.frontmatter?.triggers || [],
+            step_count: Array.isArray(s.frontmatter?.sequence_steps) ? s.frontmatter.sequence_steps.length : undefined,
             is_enabled: s.is_enabled ?? true,
           })),
         }
@@ -2816,16 +3215,23 @@ async function executeToolCall(
           version: r.platform_skill_version ?? 1,
         }))
         .filter((s: any) => (!category ? true : s.category === category))
+        .filter((s: any) => {
+          if (kind === 'sequence') return s.category === 'agent-sequence'
+          if (kind === 'skill') return s.category !== 'agent-sequence'
+          return true
+        })
 
       return {
         success: true,
         count: all.length,
         skills: all.map((s: any) => ({
           skill_key: s.skill_key,
+          kind: s.category === 'agent-sequence' ? 'sequence' : 'skill',
           category: s.category,
           name: s.frontmatter?.name,
           description: s.frontmatter?.description,
           triggers: s.frontmatter?.triggers || [],
+          step_count: Array.isArray(s.frontmatter?.sequence_steps) ? s.frontmatter.sequence_steps.length : undefined,
           is_enabled: s.is_enabled ?? true,
         })),
       }
@@ -2847,9 +3253,13 @@ async function executeToolCall(
           success: true,
           skill: {
             skill_key: found.skill_key,
+            kind: found.category === 'agent-sequence' ? 'sequence' : 'skill',
             category: found.category,
             frontmatter: found.frontmatter || {},
             content: found.content || '',
+            step_count: Array.isArray(found.frontmatter?.sequence_steps)
+              ? found.frontmatter.sequence_steps.length
+              : undefined,
             is_enabled: found.is_enabled ?? true,
           },
         }
@@ -2882,9 +3292,13 @@ async function executeToolCall(
         success: true,
         skill: {
           skill_key: row.skill_id,
+          kind: row.platform_skills?.category === 'agent-sequence' ? 'sequence' : 'skill',
           category: row.platform_skills?.category || 'uncategorized',
           frontmatter: row.compiled_frontmatter || row.platform_skills?.frontmatter || {},
           content: row.compiled_content || row.platform_skills?.content_template || '',
+          step_count: Array.isArray((row.compiled_frontmatter || row.platform_skills?.frontmatter)?.sequence_steps)
+            ? (row.compiled_frontmatter || row.platform_skills?.frontmatter).sequence_steps.length
+            : undefined,
           is_enabled: row.is_enabled ?? true,
         },
       }
@@ -5289,6 +5703,244 @@ async function detectAndStructureResponse(
   
   // Store original message for limit extraction
   const originalMessage = userMessage
+
+  // ---------------------------------------------------------------------------
+  // Sequence-aware structured responses (demo-grade panels)
+  // If Copilot ran a sequence, convert it into a rich structured panel with
+  // links + confirm buttons (instead of relying on plain text).
+  // ---------------------------------------------------------------------------
+  if (toolExecutions && toolExecutions.length > 0) {
+    const runSeqExec = toolExecutions
+      .filter((e) => e.toolName === 'execute_action' && e.success && (e as any).args?.action === 'run_sequence')
+      .slice(-1)[0] as any
+
+    const seqKey = runSeqExec?.args?.params?.sequence_key
+      ? String(runSeqExec.args.params.sequence_key)
+      : null
+
+    const seqResult = runSeqExec?.result?.data || null
+    const finalOutputs = seqResult?.final_output?.outputs || null
+
+    if (seqKey && finalOutputs) {
+      // Pipeline Focus Tasks
+      if (seqKey === 'seq-pipeline-focus-tasks') {
+        const deals = finalOutputs?.pipeline_deals?.deals || []
+        const topDeal = Array.isArray(deals) ? deals[0] : null
+        const taskPreview = finalOutputs?.task_preview || null
+
+        return {
+          type: 'pipeline_focus_tasks',
+          summary: 'Here are the deals to focus on and the task I can create for you.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            deal: topDeal || null,
+            taskPreview,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'crm'],
+          },
+        }
+      }
+
+      // Deal Rescue Pack
+      if (seqKey === 'seq-deal-rescue-pack') {
+        const deal = Array.isArray(finalOutputs?.deal?.deals) ? finalOutputs.deal.deals[0] : null
+        const plan = finalOutputs?.plan || null
+        const taskPreview = finalOutputs?.task_previews || null
+
+        return {
+          type: 'deal_rescue_pack',
+          summary: 'Here’s the deal diagnosis + rescue plan, and the task I can create.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            deal,
+            plan,
+            taskPreview,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'crm'],
+          },
+        }
+      }
+
+      // Next Meeting Command Center
+      if (seqKey === 'seq-next-meeting-command-center') {
+        const nextMeeting = finalOutputs?.next_meeting?.meeting || null
+        const prepTaskPreview = finalOutputs?.prep_task_preview || null
+
+        return {
+          type: 'next_meeting_command_center',
+          summary: 'Here’s your next meeting brief and a prep checklist task ready to create.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            meeting: nextMeeting,
+            brief: finalOutputs?.brief || null,
+            prepTaskPreview,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'calendar', 'crm'],
+          },
+        }
+      }
+
+      // Post-Meeting Follow-Up Pack
+      if (seqKey === 'seq-post-meeting-followup-pack') {
+        const meeting = Array.isArray(finalOutputs?.meeting_data?.meetings)
+          ? finalOutputs.meeting_data.meetings[0]
+          : null
+
+        const contact = Array.isArray(finalOutputs?.contact_data?.contacts)
+          ? finalOutputs.contact_data.contacts[0]
+          : null
+
+        return {
+          type: 'post_meeting_followup_pack',
+          summary: 'Here’s your follow-up pack (email, Slack update, and tasks) ready to send/create.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            meeting,
+            contact,
+            digest: finalOutputs?.digest || null,
+            pack: finalOutputs?.pack || null,
+            emailPreview: finalOutputs?.email_preview || null,
+            slackPreview: finalOutputs?.slack_preview || null,
+            taskPreview: finalOutputs?.task_preview || null,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'meetings', 'crm', 'email', 'messaging'],
+          },
+        }
+      }
+
+      // Deal MAP Builder
+      if (seqKey === 'seq-deal-map-builder') {
+        const deal = Array.isArray(finalOutputs?.deal?.deals) ? finalOutputs.deal.deals[0] : null
+        const openTasks = finalOutputs?.open_tasks || null
+        const plan = finalOutputs?.plan || null
+        const taskPreview = finalOutputs?.task_previews || null
+
+        return {
+          type: 'deal_map_builder',
+          summary: 'Here\'s a Mutual Action Plan (MAP) for this deal, with milestones and the top task ready to create.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            deal,
+            openTasks,
+            plan,
+            taskPreview,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'crm', 'tasks'],
+          },
+        }
+      }
+
+      // Daily Focus Plan
+      if (seqKey === 'seq-daily-focus-plan') {
+        const pipelineDeals = finalOutputs?.pipeline_deals || null
+        const contactsNeedingAttention = finalOutputs?.contacts_needing_attention || null
+        const openTasks = finalOutputs?.open_tasks || null
+        const plan = finalOutputs?.plan || null
+        const taskPreview = finalOutputs?.task_previews || null
+
+        return {
+          type: 'daily_focus_plan',
+          summary: 'Here\'s your daily focus plan: priorities, next best actions, and the top task ready to create.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            pipelineDeals,
+            contactsNeedingAttention,
+            openTasks,
+            plan,
+            taskPreview,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'crm', 'tasks'],
+          },
+        }
+      }
+
+      // Follow-Up Zero Inbox
+      if (seqKey === 'seq-followup-zero-inbox') {
+        const emailThreads = finalOutputs?.email_threads || null
+        const triage = finalOutputs?.triage || null
+        const replyDrafts = finalOutputs?.reply_drafts || null
+        const emailPreview = finalOutputs?.email_preview || null
+        const taskPreview = finalOutputs?.task_preview || null
+
+        return {
+          type: 'followup_zero_inbox',
+          summary: 'Here are the email threads needing response, reply drafts, and a follow-up task ready to create.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            emailThreads,
+            triage,
+            replyDrafts,
+            emailPreview,
+            taskPreview,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'email', 'crm', 'tasks'],
+          },
+        }
+      }
+
+      // Deal Slippage Guardrails
+      if (seqKey === 'seq-deal-slippage-guardrails') {
+        const atRiskDeals = finalOutputs?.at_risk_deals || null
+        const diagnosis = finalOutputs?.diagnosis || null
+        const taskPreview = finalOutputs?.task_preview || null
+        const slackPreview = finalOutputs?.slack_preview || null
+
+        return {
+          type: 'deal_slippage_guardrails',
+          summary: 'Here are the at-risk deals, rescue actions, and a rescue task + Slack update ready to create/post.',
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            atRiskDeals,
+            diagnosis,
+            taskPreview,
+            slackPreview,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'crm', 'tasks', 'messaging'],
+          },
+        }
+      }
+    }
+  }
   
   if (isAvailabilityQuestion(messageLower)) {
     const availabilityStructured = await structureCalendarAvailabilityResponse(
@@ -5371,11 +6023,27 @@ async function detectAndStructureResponse(
     'follow up', 'follow-up', 'followup'
   ]
 
+  // Pipeline-focus task requests should NOT go through the contact-based task creation flow.
+  // These should be handled by Copilot tools/sequences (e.g. seq-pipeline-focus-tasks).
+  const isPipelineFocusTaskRequest =
+    (messageLower.includes('deal') || messageLower.includes('deals') || messageLower.includes('pipeline')) &&
+    (messageLower.includes('focus') || messageLower.includes('priorit')) &&
+    (messageLower.includes('schedule') || messageLower.includes('task') || messageLower.includes('tasks')) &&
+    (messageLower.includes('engage') || messageLower.includes('outreach') || messageLower.includes('follow up') || messageLower.includes('follow-up'))
+
+  // If user is responding with an affirmative confirmation ("yes", "ok", "confirm", etc),
+  // do not route into the generic contact-based task creation flow. This avoids the
+  // "Select Contact" modal when the intent is to confirm a previously previewed workflow.
+  const isAffirmativeConfirmation =
+    /^(yes|yep|yeah|y|ok|okay|sure|do it|go ahead|confirm|approved|create it|create the task|yes create|yes create a task)\b/i.test(
+      userMessage.trim()
+    )
+
   // Exclude if the message is about email (e.g., "follow-up email")
   const isAboutEmail = messageLower.includes('email')
 
   const isTaskCreationRequest =
-    !isAboutEmail && (
+    !isAboutEmail && !isPipelineFocusTaskRequest && !isAffirmativeConfirmation && (
       taskCreationKeywords.some(keyword => messageLower.includes(keyword)) ||
       (messageLower.includes('task') && (messageLower.includes('create') || messageLower.includes('add') || messageLower.includes('for') || messageLower.includes('to'))) ||
       (messageLower.includes('remind') && (messageLower.includes('to') || messageLower.includes('me') || messageLower.includes('about'))) ||
@@ -5437,7 +6105,7 @@ async function detectAndStructureResponse(
     messageLower.includes('pipeline health') ||
     (messageLower.includes('show me my') && (messageLower.includes('deal') || messageLower.includes('pipeline')))
   
-  if (isPipelineQuery) {
+  if (isPipelineQuery && !isPipelineFocusTaskRequest) {
     const structured = await structurePipelineResponse(client, userId, aiContent, userMessage)
     return structured
   }

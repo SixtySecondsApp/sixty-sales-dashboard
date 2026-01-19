@@ -29,10 +29,12 @@ export interface HITLConfig {
 
 export interface SequenceStep {
   order: number;
-  skill_key: string;
-  input_mapping: Record<string, string>; // { targetParam: "${sourceVar}" }
-  output_key: string;
-  on_failure: 'stop' | 'continue' | 'fallback';
+  // Either a skill_key (runs an AI skill document) OR an action (execute_action capability call)
+  skill_key?: string;
+  action?: string;
+  input_mapping?: Record<string, string>; // { targetParam: "${sourceVar}" }
+  output_key?: string;
+  on_failure?: 'stop' | 'continue' | 'fallback';
   fallback_skill_key?: string;
   // HITL configuration - pause and ask user before/after this step
   hitl_before?: HITLConfig; // Ask user BEFORE executing this step

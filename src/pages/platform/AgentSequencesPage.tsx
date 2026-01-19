@@ -68,12 +68,41 @@ function SequenceCard({
   onToggleActive,
 }: SequenceCardProps) {
   const { frontmatter, is_active, skill_key } = sequence;
-  const steps = frontmatter.sequence_steps || [];
-  const { data: executions } = useSequenceExecutions(skill_key, { limit: 5 });
+  const steps = Array.isArray(frontmatter.sequence_steps) ? frontmatter.sequence_steps : [];
+  const safeSteps = steps.filter(Boolean);
 
-  // Calculate test status
-  const lastExecution = executions?.[0];
-  const testStatus = lastExecution?.status;
+  // Fetch mock and live runs separately to ensure we get both
+  const { data: mockExecutions } = useSequenceExecutions(skill_key, { isSimulation: true, limit: 1 });
+  const { data: liveExecutions } = useSequenceExecutions(skill_key, { isSimulation: false, limit: 1 });
+
+  // Calculate test status based on both mock and live runs
+  const latestMockRun = mockExecutions?.[0];
+  const latestLiveRun = liveExecutions?.[0];
+
+  // Determine combined test status
+  type TestStatusType = 'passed' | 'failed' | 'partial' | 'running' | 'not_tested';
+  let testStatus: TestStatusType = 'not_tested';
+  let testStatusLabel = 'Not tested';
+
+  const mockPassed = latestMockRun?.status === 'completed';
+  const livePassed = latestLiveRun?.status === 'completed';
+  const mockFailed = latestMockRun?.status === 'failed';
+  const liveFailed = latestLiveRun?.status === 'failed';
+  const isRunning = latestMockRun?.status === 'running' || latestLiveRun?.status === 'running';
+
+  if (isRunning) {
+    testStatus = 'running';
+    testStatusLabel = 'Testing';
+  } else if (mockFailed || liveFailed) {
+    testStatus = 'failed';
+    testStatusLabel = mockFailed && liveFailed ? 'Both failed' : liveFailed ? 'Live failed' : 'Mock failed';
+  } else if (mockPassed && livePassed) {
+    testStatus = 'passed';
+    testStatusLabel = 'Tested';
+  } else if (mockPassed || livePassed) {
+    testStatus = 'partial';
+    testStatusLabel = mockPassed ? 'Mock only' : 'Live only';
+  }
 
   return (
     <motion.div
@@ -91,7 +120,7 @@ function SequenceCard({
             <GitBranch className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h3 className="font-semibold text-sm line-clamp-1">{frontmatter.name}</h3>
+            <h3 className="font-semibold text-sm line-clamp-1">{frontmatter.name || 'Untitled sequence'}</h3>
             <code className="text-xs text-muted-foreground">{skill_key}</code>
           </div>
         </div>
@@ -115,18 +144,27 @@ function SequenceCard({
 
       {/* Steps Preview */}
       <div className="flex items-center gap-1 mb-3 overflow-hidden">
-        {steps.slice(0, 4).map((step, idx) => (
+        {safeSteps.slice(0, 4).map((step: any, idx) => {
+          const stepKey =
+            typeof step?.skill_key === 'string'
+              ? step.skill_key
+              : typeof step?.action === 'string'
+                ? step.action
+                : 'step';
+          const shortLabel = (stepKey.split('-')[0] || 'step').trim() || 'step';
+          return (
           <div key={idx} className="flex items-center">
             <Badge variant="outline" className="text-xs shrink-0">
-              {step.skill_key.split('-')[0]}
+              {shortLabel}
             </Badge>
-            {idx < Math.min(steps.length - 1, 3) && (
+            {idx < Math.min(safeSteps.length - 1, 3) && (
               <ArrowRight className="h-3 w-3 text-muted-foreground mx-0.5 shrink-0" />
             )}
           </div>
-        ))}
-        {steps.length > 4 && (
-          <span className="text-xs text-muted-foreground ml-1">+{steps.length - 4} more</span>
+          );
+        })}
+        {safeSteps.length > 4 && (
+          <span className="text-xs text-muted-foreground ml-1">+{safeSteps.length - 4} more</span>
         )}
       </div>
 
@@ -134,29 +172,25 @@ function SequenceCard({
       <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
         <span className="flex items-center gap-1">
           <GitBranch className="h-3 w-3" />
-          {steps.length} steps
+          {safeSteps.length} steps
         </span>
-        {testStatus && (
-          <span
-            className={cn(
-              'flex items-center gap-1',
-              testStatus === 'completed' && 'text-green-600',
-              testStatus === 'failed' && 'text-red-600',
-              testStatus === 'running' && 'text-yellow-600'
-            )}
-          >
-            {testStatus === 'completed' && <CheckCircle2 className="h-3 w-3" />}
-            {testStatus === 'failed' && <XCircle className="h-3 w-3" />}
-            {testStatus === 'running' && <Clock className="h-3 w-3" />}
-            {testStatus === 'completed' ? 'Tested' : testStatus === 'failed' ? 'Failed' : 'Testing'}
-          </span>
-        )}
-        {!testStatus && (
-          <span className="flex items-center gap-1 text-amber-600">
-            <AlertCircle className="h-3 w-3" />
-            Not tested
-          </span>
-        )}
+        <span
+          className={cn(
+            'flex items-center gap-1',
+            testStatus === 'passed' && 'text-green-600',
+            testStatus === 'failed' && 'text-red-600',
+            testStatus === 'running' && 'text-yellow-600',
+            testStatus === 'partial' && 'text-blue-600',
+            testStatus === 'not_tested' && 'text-amber-600'
+          )}
+        >
+          {testStatus === 'passed' && <CheckCircle2 className="h-3 w-3" />}
+          {testStatus === 'failed' && <XCircle className="h-3 w-3" />}
+          {testStatus === 'running' && <Clock className="h-3 w-3" />}
+          {testStatus === 'partial' && <AlertCircle className="h-3 w-3" />}
+          {testStatus === 'not_tested' && <AlertCircle className="h-3 w-3" />}
+          {testStatusLabel}
+        </span>
       </div>
 
       {/* Actions */}

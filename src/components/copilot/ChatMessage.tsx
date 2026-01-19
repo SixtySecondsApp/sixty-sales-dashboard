@@ -12,6 +12,7 @@ import { ToolCallIndicator } from './ToolCallIndicator';
 import { CopilotResponse } from './CopilotResponse';
 import type { CopilotMessage } from './types';
 import { useUser } from '@/lib/hooks/useUser';
+import ReactMarkdown from 'react-markdown';
 
 interface ChatMessageProps {
   message: CopilotMessage;
@@ -106,7 +107,22 @@ export const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, on
                   transition={{ duration: 0.5, ease: "easeOut" }}
                   className="bg-white dark:bg-gray-900/60 backdrop-blur-xl border border-gray-200 dark:border-gray-800/40 rounded-xl px-5 py-4 shadow-lg dark:shadow-none"
                 >
-                  <p className="text-sm text-gray-900 dark:text-gray-100 leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                  <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:underline">
+                    <ReactMarkdown
+                      components={{
+                        a: ({ node, ...props }) => (
+                          <a
+                            {...props}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline underline-offset-2"
+                          />
+                        ),
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>

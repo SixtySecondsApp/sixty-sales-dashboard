@@ -66,6 +66,7 @@ export const CopilotEmpty: React.FC<CopilotEmptyProps> = ({ onPromptClick }) => 
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyPress}
+                  data-testid="copilot-input"
                   className={cn(
                     'w-full px-6 py-4 bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl',
                     'text-base text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500',

@@ -148,32 +148,36 @@ class RecordingService {
    */
   async stopRecording(recordingId: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const { data: recording, error: fetchError } = await supabase
-        .from('recordings')
-        .select('id, bot_id, status')
-        .eq('id', recordingId)
-        .single();
+      // Get auth token for edge function call
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
 
-      if (fetchError || !recording) {
-        return { success: false, error: 'Recording not found' };
+      if (!accessToken) {
+        return { success: false, error: 'Not authenticated' };
       }
 
-      if (recording.status !== 'recording' && recording.status !== 'bot_joining') {
-        return { success: false, error: 'Recording is not active' };
-      }
+      // Call the stop-recording-bot edge function
+      // This handles removing the bot from MeetingBaaS and updating all relevant records
+      const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
+      const response = await fetch(`${supabaseUrl}/functions/v1/stop-recording-bot`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          recording_id: recordingId,
+        }),
+      });
 
-      // TODO: Call edge function to stop the bot
-      // For now, just update status
-      const { error: updateError } = await supabase
-        .from('recordings')
-        .update({
-          status: 'processing',
-          meeting_end_time: new Date().toISOString(),
-        })
-        .eq('id', recordingId);
+      const result = await response.json();
 
-      if (updateError) {
-        return { success: false, error: 'Failed to stop recording' };
+      if (!response.ok || !result.success) {
+        logger.error('[RecordingService] Stop bot failed:', result);
+        return {
+          success: false,
+          error: result.error || 'Failed to stop recording',
+        };
       }
 
       return { success: true };

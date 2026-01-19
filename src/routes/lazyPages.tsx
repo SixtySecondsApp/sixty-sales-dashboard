@@ -26,12 +26,14 @@ export const MetaAdsAnalytics = lazyWithRetry(() => import('@/pages/platform/Met
 export const ErrorMonitoring = lazyWithRetry(() => import('@/pages/platform/ErrorMonitoring'));
 export const SentryBridge = lazyWithRetry(() => import('@/pages/platform/SentryBridge'));
 export const SkillsAdmin = lazyWithRetry(() => import('@/pages/platform/SkillsAdmin'));
+export const SkillsQAPage = lazyWithRetry(() => import('@/pages/platform/SkillsQAPage'));
 export const PlatformSkillViewPage = lazyWithRetry(() => import('@/pages/platform/PlatformSkillViewPage'));
 export const PlatformSkillEditPage = lazyWithRetry(() => import('@/pages/platform/PlatformSkillEditPage'));
 export const SkillDetailPage = lazyWithRetry(() => import('@/pages/skills/SkillDetailPage'));
 export const AgentSequencesPage = lazyWithRetry(() => import('@/pages/platform/AgentSequencesPage'));
 export const AgentSequenceBuilderPage = lazyWithRetry(() => import('@/pages/platform/AgentSequenceBuilderPage'));
 export const CopilotTestPage = lazyWithRetry(() => import('@/pages/platform/CopilotTestPage'));
+export const CopilotLabPage = lazyWithRetry(() => import('@/pages/platform/CopilotLabPage'));
 export const NotetakerBranding = lazyWithRetry(() => import('@/pages/platform/NotetakerBranding'));
 
 // Admin Configuration

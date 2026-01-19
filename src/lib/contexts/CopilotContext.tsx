@@ -18,8 +18,10 @@ import type {
 import type {
   ToolCall,
   ToolType,
-  ToolState
+  ToolState,
+  ToolStep
 } from '@/components/copilot/toolTypes';
+import type { ToolExecutionDetail } from '@/components/copilot/types';
 import type {
   ExecutionPlan,
   ExecutionReport,
@@ -314,6 +316,99 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     }));
   }, []);
 
+  // Helper function to create tool call from real telemetry
+  const createToolCallFromTelemetry = useCallback((executions: ToolExecutionDetail[]): ToolCall => {
+    // Map capability to tool type
+    const capabilityToToolType = (capability?: string, toolName?: string): ToolType => {
+      if (capability === 'crm') return 'pipeline_data';
+      if (capability === 'calendar') return 'calendar_search';
+      if (capability === 'email') {
+        if (toolName?.includes('draft')) return 'email_draft';
+        return 'email_search';
+      }
+      if (capability === 'meetings') return 'meeting_analysis';
+      if (capability === 'messaging') return 'contact_lookup';
+      // Fallback based on tool name
+      if (toolName?.includes('task')) return 'task_search';
+      if (toolName?.includes('contact')) return 'contact_search';
+      if (toolName?.includes('deal')) return 'deal_health';
+      return 'pipeline_data'; // Default
+    };
+
+    // Get capability labels
+    const getCapabilityLabel = (capability?: string): string => {
+      const labels: Record<string, string> = {
+        crm: 'CRM',
+        calendar: 'Calendar',
+        email: 'Email',
+        meetings: 'Meetings',
+        messaging: 'Messaging',
+      };
+      return labels[capability || ''] || 'Tool';
+    };
+
+    // Get provider labels
+    const getProviderLabel = (provider?: string): string => {
+      const labels: Record<string, string> = {
+        db: 'Database',
+        hubspot: 'HubSpot',
+        salesforce: 'Salesforce',
+        google: 'Google',
+        gmail: 'Gmail',
+        slack: 'Slack',
+        fathom: 'Fathom',
+        meetingbaas: 'MeetingBaaS',
+      };
+      return labels[provider || ''] || provider || '';
+    };
+
+    // Group executions by capability
+    const executionsByCapability = new Map<string, ToolExecutionDetail[]>();
+    for (const exec of executions) {
+      const cap = exec.capability || 'unknown';
+      if (!executionsByCapability.has(cap)) {
+        executionsByCapability.set(cap, []);
+      }
+      executionsByCapability.get(cap)!.push(exec);
+    }
+
+    // Create steps from executions
+    const steps: ToolStep[] = [];
+    for (const [capability, execs] of executionsByCapability.entries()) {
+      for (const exec of execs) {
+        const toolType = capabilityToToolType(exec.capability, exec.toolName);
+        const capabilityLabel = getCapabilityLabel(exec.capability);
+        const providerLabel = getProviderLabel(exec.provider);
+        
+        steps.push({
+          id: `step-${exec.toolName}-${exec.latencyMs}`,
+          label: `${capabilityLabel}${providerLabel ? ` (${providerLabel})` : ''}: ${exec.toolName}`,
+          icon: capability === 'crm' ? 'database' : capability === 'calendar' ? 'calendar' : capability === 'email' ? 'mail' : 'activity',
+          state: exec.success ? 'complete' : 'complete', // All steps are complete when we receive telemetry
+          duration: exec.latencyMs,
+          metadata: { result: exec.result, args: exec.args },
+          capability: exec.capability,
+          provider: exec.provider,
+        });
+      }
+    }
+
+    // Determine overall tool type from first execution
+    const firstExec = executions[0];
+    const toolType = capabilityToToolType(firstExec?.capability, firstExec?.toolName);
+
+    return {
+      id: `tool-${Date.now()}`,
+      tool: toolType,
+      state: 'complete',
+      startTime: executions.reduce((min, e) => Math.min(min, Date.now() - (e.latencyMs || 0)), Date.now()),
+      endTime: Date.now(),
+      steps,
+      capability: firstExec?.capability,
+      provider: firstExec?.provider,
+    };
+  }, []);
+
   // Helper function to detect intent and determine tool type
   const detectToolType = useCallback((message: string): ToolType | null => {
     const lowerMessage = message.toLowerCase();
@@ -525,14 +620,8 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         timestamp: new Date()
       };
 
-      // Detect tool type and create tool call if needed
-      const toolType = detectToolType(message);
+      // Tool call will be created from real telemetry in the response
       let toolCall: ToolCall | undefined;
-
-      if (toolType) {
-        toolCall = createToolCall(toolType);
-        logger.log('🔧 Created tool call:', { toolType, toolCall });
-      }
 
       // Add assistant message placeholder with tool call
       const assistantMessageId = `assistant-${Date.now()}`;
@@ -632,7 +721,14 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
           throw (err instanceof Error ? err : new Error(String(err)));
         }
 
-        // Update AI message with actual response - this will trigger fade out of tool call
+        // Create tool call from real telemetry if available
+        let realToolCall: ToolCall | undefined;
+        if (response.tool_executions && response.tool_executions.length > 0) {
+          realToolCall = createToolCallFromTelemetry(response.tool_executions);
+          logger.log('🔧 Created tool call from telemetry:', { toolCall: realToolCall, executions: response.tool_executions });
+        }
+
+        // Update AI message with actual response
         setState(prev => {
           const updatedMessages = prev.messages.map(msg => {
             if (msg.id === assistantMessageId) {
@@ -640,11 +736,11 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
                 id: msg.id,
                 role: msg.role,
                 content: response.response.content || 'I processed your request, but received an empty response.',
-          timestamp: new Date(response.timestamp),
+                timestamp: new Date(response.timestamp),
                 recommendations: response.response.recommendations || undefined,
                 structuredResponse: response.response.structuredResponse || undefined,
-                // Remove toolCall when response is ready to trigger fade out
-                toolCall: undefined
+                // Show tool call if we have telemetry, otherwise remove it
+                toolCall: realToolCall
               };
               
               return updatedMessage;
@@ -653,10 +749,10 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
           });
           
           return {
-          ...prev,
+            ...prev,
             messages: updatedMessages,
-          isLoading: false,
-          conversationId: response.conversationId
+            isLoading: false,
+            conversationId: response.conversationId
           };
         });
       } catch (error) {

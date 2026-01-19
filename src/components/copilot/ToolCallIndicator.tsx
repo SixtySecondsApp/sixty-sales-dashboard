@@ -19,6 +19,7 @@ import {
   Target,
   LucideIcon
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import type { ToolCall, ToolStep, ToolState, ToolType } from './toolTypes';
 
 interface ToolCallIndicatorProps {
@@ -176,6 +177,9 @@ function formatMetadata(metadata: Record<string, any>): string {
 // Individual Step Component
 function ToolStepComponent({ step, isLast }: { step: ToolStep; isLast: boolean }) {
   const StepIcon = getStepIcon(step.icon);
+  const capabilityLabel = step.capability
+    ? step.capability.charAt(0).toUpperCase() + step.capability.slice(1)
+    : null;
 
   return (
     <motion.div
@@ -228,16 +232,35 @@ function ToolStepComponent({ step, isLast }: { step: ToolStep; isLast: boolean }
 
       {/* Label */}
       <div className="flex-1 pt-0.5 pb-2">
-        <div
-          className={`text-sm transition-colors duration-200 ${
-            step.state === 'complete'
-              ? 'text-gray-700 dark:text-gray-300'
-              : step.state === 'active'
-              ? 'text-gray-900 dark:text-gray-100 font-medium'
-              : 'text-gray-500 dark:text-gray-400'
-          }`}
-        >
-          {step.label}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div
+            className={`text-sm transition-colors duration-200 ${
+              step.state === 'complete'
+                ? 'text-gray-700 dark:text-gray-300'
+                : step.state === 'active'
+                ? 'text-gray-900 dark:text-gray-100 font-medium'
+                : 'text-gray-500 dark:text-gray-400'
+            }`}
+          >
+            {step.label}
+          </div>
+          {capabilityLabel && (
+            <Badge variant="outline" className="text-xs h-5 px-1.5">
+              {capabilityLabel}
+            </Badge>
+          )}
+          {step.provider && step.provider !== 'db' && (
+            <Badge variant="outline" className="text-xs h-5 px-1.5">
+              {step.provider === 'hubspot' ? 'HubSpot' :
+               step.provider === 'salesforce' ? 'Salesforce' :
+               step.provider === 'google' ? 'Google' :
+               step.provider === 'gmail' ? 'Gmail' :
+               step.provider === 'slack' ? 'Slack' :
+               step.provider === 'fathom' ? 'Fathom' :
+               step.provider === 'meetingbaas' ? 'MeetingBaaS' :
+               step.provider}
+            </Badge>
+          )}
         </div>
 
         {/* Metadata */}
@@ -345,7 +368,21 @@ export function ToolCallIndicator({
           </motion.div>
 
           <div className="flex-1">
-            <div className="text-base font-semibold text-gray-900 dark:text-gray-100">{config.label}</div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="text-base font-semibold text-gray-900 dark:text-gray-100">{config.label}</div>
+              {toolCall.provider && toolCall.provider !== 'db' && (
+                <Badge variant="outline" className="text-xs h-5">
+                  {toolCall.provider === 'hubspot' ? 'HubSpot' :
+                   toolCall.provider === 'salesforce' ? 'Salesforce' :
+                   toolCall.provider === 'google' ? 'Google' :
+                   toolCall.provider === 'gmail' ? 'Gmail' :
+                   toolCall.provider === 'slack' ? 'Slack' :
+                   toolCall.provider === 'fathom' ? 'Fathom' :
+                   toolCall.provider === 'meetingbaas' ? 'MeetingBaaS' :
+                   toolCall.provider}
+                </Badge>
+              )}
+            </div>
             <div className="text-xs text-gray-600 dark:text-gray-500 mt-0.5 flex items-center gap-2">
               {isComplete ? (
                 <>

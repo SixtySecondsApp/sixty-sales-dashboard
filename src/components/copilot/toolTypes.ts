@@ -32,6 +32,8 @@ export interface ToolStep {
   state: ToolState;
   duration?: number;
   metadata?: Record<string, any>;
+  capability?: string;
+  provider?: string;
 }
 
 export interface ToolCall {
@@ -43,5 +45,7 @@ export interface ToolCall {
   steps: ToolStep[];
   result?: any;
   error?: string;
+  capability?: string;
+  provider?: string;
 }
 

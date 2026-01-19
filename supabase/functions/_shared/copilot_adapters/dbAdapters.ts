@@ -24,6 +24,51 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
     source: 'db_meetings',
     async listMeetings(params) {
       try {
+        const meetingId =
+          (params as any)?.meeting_id ? String((params as any).meeting_id).trim() : null;
+
+        // Fast path: fetch a specific meeting by id (used by sequences/skills)
+        if (meetingId) {
+          const { data: meeting, error: meetingError } = await client
+            .from('meetings')
+            .select(
+              'id,title,meeting_start,meeting_end,duration_minutes,summary,transcript_text,share_url,company_id,primary_contact_id'
+            )
+            .eq('owner_user_id', userId)
+            .eq('id', meetingId)
+            .maybeSingle();
+
+          if (meetingError) throw meetingError;
+
+          if (!meeting) {
+            return ok(
+              {
+                meetings: [],
+                matchedOn: 'meeting_id',
+                note: `No meeting found for meeting_id: ${meetingId}`,
+              },
+              this.source
+            );
+          }
+
+          const { data: attendees, error: attendeesError } = await client
+            .from('meeting_attendees')
+            .select('name,email')
+            .eq('meeting_id', meetingId)
+            .order('created_at', { ascending: true })
+            .limit(50);
+
+          if (attendeesError) throw attendeesError;
+
+          return ok(
+            {
+              meetings: [{ ...meeting, attendees: attendees || [] }],
+              matchedOn: 'meeting_id',
+            },
+            this.source
+          );
+        }
+
         const limit = Math.min(Math.max(Number(params.limit ?? 5) || 5, 1), 20);
 
         let contactEmail: string | null = params.contactEmail ? String(params.contactEmail).trim().toLowerCase() : null;
