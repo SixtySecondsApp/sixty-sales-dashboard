@@ -8,6 +8,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useOrgStore } from '@/lib/stores/orgStore';
 import type { QualityScore, QualityTier } from '@/lib/utils/entityTestTypes';
 
 export interface TestMeeting {
@@ -139,6 +140,8 @@ function calculateMeetingQualityScore(meeting: {
  */
 async function fetchMeetingsByTier(
   userId: string,
+  userEmail: string | undefined,
+  orgId: string | null,
   tier: QualityTier,
   limit: number
 ): Promise<TestMeeting[]> {
@@ -156,8 +159,19 @@ async function fetchMeetingsByTier(
       owner_user_id,
       companies:company_id(id, name),
       contacts:primary_contact_id(id, first_name, last_name, full_name)
-    `)
-    .eq('owner_user_id', userId); // meetings uses owner_user_id!
+    `) as any; // Use any to avoid deep type instantiation issues
+
+  // Filter by org_id if available
+  if (orgId) {
+    query = query.eq('org_id', orgId);
+  }
+
+  // Filter by owner - check both owner_user_id and owner_email
+  if (userEmail) {
+    query = query.or(`owner_user_id.eq.${userId},owner_email.eq.${userEmail}`);
+  } else {
+    query = query.eq('owner_user_id', userId);
+  }
 
   // Apply tier-specific filters
   switch (tier) {
@@ -241,10 +255,11 @@ async function fetchMeetingsByTier(
 export function useTestMeetings(options: UseTestMeetingsOptions): UseTestMeetingsReturn {
   const { mode, enabled = true, limit = 10 } = options;
   const { user } = useAuth();
+  const { activeOrgId } = useOrgStore();
 
   const query = useQuery({
-    queryKey: ['test-meetings', mode, user?.id, limit],
-    queryFn: () => fetchMeetingsByTier(user!.id, mode, limit),
+    queryKey: ['test-meetings', mode, user?.id, user?.email, activeOrgId, limit],
+    queryFn: () => fetchMeetingsByTier(user!.id, user?.email, activeOrgId, mode, limit),
     enabled: enabled && !!user?.id,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -262,12 +277,14 @@ export function useTestMeetings(options: UseTestMeetingsOptions): UseTestMeeting
  */
 export async function searchTestMeetings(
   userId: string,
+  userEmail: string | undefined,
+  orgId: string | null,
   searchQuery: string,
   limit: number = 10
 ): Promise<TestMeeting[]> {
   if (!searchQuery.trim()) return [];
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('meetings')
     .select(`
       id,
@@ -281,8 +298,21 @@ export async function searchTestMeetings(
       owner_user_id,
       companies:company_id(id, name),
       contacts:primary_contact_id(id, first_name, last_name, full_name)
-    `)
-    .eq('owner_user_id', userId)
+    `) as any;
+
+  // Filter by org_id if available
+  if (orgId) {
+    query = query.eq('org_id', orgId);
+  }
+
+  // Filter by owner - check both owner_user_id and owner_email
+  if (userEmail) {
+    query = query.or(`owner_user_id.eq.${userId},owner_email.eq.${userEmail}`);
+  } else {
+    query = query.eq('owner_user_id', userId);
+  }
+
+  const { data, error } = await query
     .ilike('title', `%${searchQuery}%`)
     .order('meeting_start', { ascending: false })
     .limit(limit);

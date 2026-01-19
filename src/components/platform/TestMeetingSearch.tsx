@@ -9,6 +9,7 @@ import { Search, Loader2, Video, Building2, Clock, FileText, X } from 'lucide-re
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useOrgStore } from '@/lib/stores/orgStore';
 import { searchTestMeetings, type TestMeeting } from '@/lib/hooks/useTestMeetings';
 import { getTierColorClasses } from '@/lib/utils/entityTestTypes';
 import { useDebounce } from '@/lib/hooks/useDebounce';
@@ -21,6 +22,7 @@ interface TestMeetingSearchProps {
 
 export function TestMeetingSearch({ selectedMeeting, onSelect }: TestMeetingSearchProps) {
   const { user } = useAuth();
+  const { activeOrgId } = useOrgStore();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<TestMeeting[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -41,7 +43,7 @@ export function TestMeetingSearch({ selectedMeeting, onSelect }: TestMeetingSear
 
       setIsSearching(true);
       try {
-        const meetings = await searchTestMeetings(user.id, debouncedQuery, 10);
+        const meetings = await searchTestMeetings(user.id, user?.email, activeOrgId, debouncedQuery, 10);
         setResults(meetings);
         setHasSearched(true);
       } catch (error) {
@@ -53,7 +55,7 @@ export function TestMeetingSearch({ selectedMeeting, onSelect }: TestMeetingSear
     };
 
     performSearch();
-  }, [debouncedQuery, user?.id]);
+  }, [debouncedQuery, user?.id, user?.email, activeOrgId]);
 
   // Show loading when query is different from debounced query
   const showLoading = isSearching || (query.trim() && query !== debouncedQuery);

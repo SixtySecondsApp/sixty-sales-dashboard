@@ -39,11 +39,17 @@ export function TestMeetingList({
   }
 
   if (meetings.length === 0) {
+    const emptyMessages: Record<QualityTier, string> = {
+      good: 'No meetings with transcripts found. Try connecting Fathom or 60 Notetaker, or try the "Bad" tier to see meetings without transcripts.',
+      average: 'No meetings with partial data found. Try the "Bad" tier to see all meetings.',
+      bad: 'No meetings found in your account. Meetings are synced from calendar integrations or created when recording calls.',
+    };
+
     return (
       <div className="text-center py-8">
         <Video className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          No {tier} meetings found. {tier === 'good' && 'Try connecting Fathom or 60 Notetaker to get transcripts.'}
+        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs mx-auto">
+          {emptyMessages[tier]}
         </p>
       </div>
     );

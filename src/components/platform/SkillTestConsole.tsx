@@ -87,11 +87,13 @@ interface SkillTestConsoleProps {
 
 /**
  * Map requires_context fields to entity types
+ * Note: transcript_id maps to meeting since transcripts come from meetings
  */
 const CONTEXT_TO_ENTITY_MAP: Record<string, EntityType> = {
   deal_id: 'deal',
   contact_id: 'contact',
   meeting_id: 'meeting',
+  transcript_id: 'meeting', // Transcripts are part of meetings
   email_id: 'email',
   activity_id: 'activity',
 };
@@ -416,6 +418,16 @@ export function SkillTestConsole({ skillKey, initialInput }: SkillTestConsolePro
           requestBody.contact_id = entityContext.id;
           requestBody.contact_test_mode = entityMode;
           requestBody.contact_context = entityContext;
+        }
+
+        // For meetings, also set transcript_id since transcripts are part of meetings
+        if (entityType === 'meeting') {
+          requestBody.transcript_id = entityContext.id;
+          requestBody.transcript_context = {
+            id: entityContext.id,
+            text: entityContext.transcript_text,
+            excerpt: entityContext.transcript_excerpt,
+          };
         }
       }
 
