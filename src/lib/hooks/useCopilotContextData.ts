@@ -98,6 +98,58 @@ async function fetchDealContext(
   };
 }
 
+// Helper to extract a clean summary text from meeting data
+function extractSummaryText(meeting: {
+  summary_oneliner?: string | null;
+  summary?: string | null;
+  title?: string | null;
+}): string | undefined {
+  // Prefer the one-liner summary if available
+  if (meeting.summary_oneliner && meeting.summary_oneliner.trim()) {
+    return meeting.summary_oneliner.trim();
+  }
+
+  // Try to parse summary if it's JSON
+  if (meeting.summary) {
+    const summary = meeting.summary.trim();
+
+    // Check if it looks like JSON
+    if (summary.startsWith('{') || summary.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(summary);
+        // Try common JSON structures for summaries
+        if (typeof parsed === 'object' && parsed !== null) {
+          // Check for common summary fields
+          const textFields = ['summary', 'text', 'content', 'description', 'overview'];
+          for (const field of textFields) {
+            if (parsed[field] && typeof parsed[field] === 'string') {
+              return parsed[field].trim();
+            }
+          }
+        }
+        // If it's just a string wrapped in JSON, return it
+        if (typeof parsed === 'string') {
+          return parsed.trim();
+        }
+      } catch {
+        // Not valid JSON, check if it's plain text that doesn't look like template
+      }
+    }
+
+    // If it's plain text and doesn't look like a template/markdown header, use it
+    if (!summary.startsWith('##') && !summary.startsWith('{') && !summary.includes('template_name')) {
+      return summary;
+    }
+  }
+
+  // Fall back to meeting title if no good summary
+  if (meeting.title && meeting.title.trim()) {
+    return `Meeting: ${meeting.title.trim()}`;
+  }
+
+  return undefined;
+}
+
 async function fetchFathomContext(
   orgId: string,
   contactId?: string
@@ -105,7 +157,7 @@ async function fetchFathomContext(
   // Query meetings/transcripts - filter by contact if available
   let query = supabase
     .from('meetings')
-    .select('id, title, start_time, meeting_end, summary, fathom_recording_id')
+    .select('id, title, start_time, meeting_end, summary, summary_oneliner, fathom_recording_id')
     .eq('org_id', orgId)
     .order('start_time', { ascending: false })
     .limit(10);
@@ -139,9 +191,10 @@ async function fetchFathomContext(
     lastCallDuration = `${minutes} min`;
   }
 
-  // Use summary as key insight
-  const keyInsight = lastMeeting.summary
-    ? lastMeeting.summary.slice(0, 150) + (lastMeeting.summary.length > 150 ? '...' : '')
+  // Extract clean summary text
+  const summaryText = extractSummaryText(lastMeeting);
+  const keyInsight = summaryText
+    ? summaryText.slice(0, 150) + (summaryText.length > 150 ? '...' : '')
     : undefined;
 
   return {
