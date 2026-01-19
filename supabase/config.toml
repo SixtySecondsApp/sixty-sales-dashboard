@@ -103,3 +103,8 @@ verify_jwt = false
 # We handle auth verification manually inside the function
 [functions.meetingbaas-connect-calendar]
 verify_jwt = false
+
+# Check org capabilities - called from frontend with user JWT
+# We handle auth verification manually inside the function
+[functions.check-org-capabilities]
+verify_jwt = false
