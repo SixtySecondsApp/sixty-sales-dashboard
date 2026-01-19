@@ -27,6 +27,25 @@ interface OrgSetupStepProps {
   onBack: () => void;
 }
 
+// Comprehensive list of generic/personal email domains
+const GENERIC_EMAIL_DOMAINS = [
+  'gmail.com',
+  'yahoo.com',
+  'hotmail.com',
+  'outlook.com',
+  'icloud.com',
+  'aol.com',
+  'protonmail.com',
+  'mail.com',
+  'inbox.com',
+  'zoho.com',
+  'yandex.com',
+  'mail.ru',
+  'qq.com',
+  '163.com',
+  'sina.com',
+];
+
 export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
   const { user } = useAuth();
   const { activeOrg, refreshOrgs, createOrg, isLoading: orgLoading } = useOrg();
@@ -41,10 +60,11 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
   const [isLoadingMatches, setIsLoadingMatches] = useState(false);
   const [selectedOption, setSelectedOption] = useState<'join' | 'create' | null>(null);
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const [askingForOrgName, setAskingForOrgName] = useState(false);
 
   // Extract domain from user email
   const userDomain = user?.email?.split('@')[1]?.toLowerCase() || '';
-  const isPersonalEmail = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com', 'protonmail.com'].includes(userDomain);
+  const isPersonalEmail = GENERIC_EMAIL_DOMAINS.includes(userDomain);
 
   // Check for matching organizations by domain
   useEffect(() => {
@@ -55,9 +75,9 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
         return;
       }
 
-      // For personal emails or no domain, skip to create
+      // For personal emails, ask user to enter organization name
       if (isPersonalEmail || !userDomain || !user?.id) {
-        setSelectedOption('create');
+        setAskingForOrgName(true);
         return;
       }
 
@@ -121,8 +141,11 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
           if (waitlistEntry?.company_name) {
             // Use company name from waitlist (will be used by trigger to create org)
             setOrgName(waitlistEntry.company_name.trim());
+          } else if (isPersonalEmail) {
+            // For personal emails, leave orgName empty and let user enter it
+            setOrgName('');
           } else {
-            // Fallback to user's name
+            // For company emails, fallback to domain-based name
             const firstName = user.user_metadata?.first_name || '';
             const lastName = user.user_metadata?.last_name || '';
             const fullName = user.user_metadata?.full_name || `${firstName} ${lastName}`.trim();
@@ -139,18 +162,24 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
           }
         } catch (err) {
           console.warn('Error fetching waitlist entry:', err);
-          // Fallback to user's name
-          const firstName = user.user_metadata?.first_name || '';
-          const lastName = user.user_metadata?.last_name || '';
-          const fullName = user.user_metadata?.full_name || `${firstName} ${lastName}`.trim();
+          // Fallback logic
+          if (isPersonalEmail) {
+            // For personal emails, leave orgName empty and let user enter it
+            setOrgName('');
+          } else {
+            // For company emails, fallback to domain-based name
+            const firstName = user.user_metadata?.first_name || '';
+            const lastName = user.user_metadata?.last_name || '';
+            const fullName = user.user_metadata?.full_name || `${firstName} ${lastName}`.trim();
 
-          if (fullName) {
-            setOrgName(`${fullName}'s Organization`);
-          } else if (user.email) {
-            const domain = user.email.split('@')[1];
-            if (domain) {
-              const companyName = domain.split('.')[0];
-              setOrgName(companyName.charAt(0).toUpperCase() + companyName.slice(1));
+            if (fullName) {
+              setOrgName(`${fullName}'s Organization`);
+            } else if (user.email) {
+              const domain = user.email.split('@')[1];
+              if (domain) {
+                const companyName = domain.split('.')[0];
+                setOrgName(companyName.charAt(0).toUpperCase() + companyName.slice(1));
+              }
             }
           }
         }
@@ -158,7 +187,7 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
     };
 
     initializeOrgName();
-  }, [activeOrg?.name, orgLoading, user]);
+  }, [activeOrg?.name, orgLoading, user, isPersonalEmail]);
 
   // Background org enrichment (non-blocking)
   useEffect(() => {
@@ -355,7 +384,7 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
   const hasMatchingOrgs = matchingOrgs.length > 0 && !activeOrg;
   const showChoiceUI = hasMatchingOrgs && selectedOption === null;
   const showJoinUI = hasMatchingOrgs && selectedOption === 'join';
-  const showCreateUI = selectedOption === 'create' || activeOrg;
+  const showCreateUI = (selectedOption === 'create' || activeOrg) && !askingForOrgName;
   const isCreatingNew = !activeOrg && selectedOption === 'create';
 
   return (
@@ -375,7 +404,9 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
           <Building2 className="w-10 h-10 text-white" />
         </motion.div>
         <h1 className="text-3xl font-bold mb-4 text-white">
-          {showChoiceUI
+          {askingForOrgName
+            ? 'What\'s your organization name?'
+            : showChoiceUI
             ? 'Join Your Team'
             : showJoinUI
             ? 'Select Team'
@@ -384,7 +415,9 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
             : 'Pick your team name'}
         </h1>
         <p className="text-lg text-gray-400">
-          {showChoiceUI
+          {askingForOrgName
+            ? 'Enter your company or organization name'
+            : showChoiceUI
             ? `We found existing teams from ${userDomain}`
             : showJoinUI
             ? 'Choose the team you want to join'
@@ -395,6 +428,112 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
       </div>
 
       <AnimatePresence mode="wait">
+        {/* Personal Email - Ask for Organization Name */}
+        {askingForOrgName && (
+          <motion.div
+            key="ask-org-name"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-4 mb-8"
+          >
+            <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-800/50 p-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    Organization Name
+                  </label>
+                  <input
+                    type="text"
+                    value={orgName}
+                    onChange={(e) => {
+                      setOrgName(e.target.value);
+                      setError(null);
+                    }}
+                    placeholder="e.g., Acme Corporation"
+                    className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-700/70"
+                    disabled={isUpdating}
+                    maxLength={100}
+                    autoFocus
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    This can be your company name, team name, or any organization name you'd like to use
+                  </p>
+                </div>
+
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-2 text-red-400 text-sm"
+                  >
+                    <AlertCircle className="w-4 h-4" />
+                    {error}
+                  </motion.div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-4 justify-center">
+              <Button
+                onClick={onBack}
+                variant="ghost"
+                className="text-gray-400 hover:text-white"
+                disabled={isUpdating}
+              >
+                Back
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!orgName.trim()) {
+                    setError('Organization name is required');
+                    return;
+                  }
+                  if (orgName.trim().length > 100) {
+                    setError('Organization name must be 100 characters or less');
+                    return;
+                  }
+
+                  setIsUpdating(true);
+                  setError(null);
+                  try {
+                    const newOrg = await createOrg(orgName.trim());
+                    if (!newOrg) {
+                      throw new Error('Failed to create organization');
+                    }
+                    toast.success('Organization created!');
+                    setAskingForOrgName(false);
+                    setSelectedOption('create');
+                    onNext();
+                  } catch (err: any) {
+                    console.error('Error creating organization:', err);
+                    if (err.code === '23505' || err.message?.includes('duplicate') || err.message?.includes('unique')) {
+                      setError('This organization name is already taken. Please choose a different name.');
+                      toast.error('Organization name already exists');
+                    } else {
+                      setError(err.message || 'Failed to create organization');
+                      toast.error('Failed to create organization');
+                    }
+                  } finally {
+                    setIsUpdating(false);
+                  }
+                }}
+                disabled={isUpdating || !orgName.trim()}
+                className="bg-[#37bd7e] hover:bg-[#2da76c] text-white px-8"
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Create Organization'
+                )}
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
         {/* Choice UI - Join or Create */}
         {showChoiceUI && (
           <motion.div
@@ -603,7 +742,7 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
       )}
 
       {/* Action buttons */}
-      {!showChoiceUI && (
+      {!showChoiceUI && !askingForOrgName && (
         <div className="flex gap-4 justify-center">
           <Button
             onClick={() => {

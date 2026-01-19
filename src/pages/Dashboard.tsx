@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/lib/hooks/useUser';
 import { useTargets } from '@/lib/hooks/useTargets';
 import { useActivityFilters } from '@/lib/hooks/useActivityFilters';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useRecentDeals } from '@/lib/hooks/useLazyActivities';
 import { useDashboardMetrics } from '@/lib/hooks/useDashboardMetrics';
 import { format, startOfMonth, endOfMonth, subMonths, addMonths, isAfter, isBefore, getDate } from 'date-fns';
@@ -22,7 +22,11 @@ import {
 import { LazySalesActivityChart } from '@/components/LazySalesActivityChart';
 import ReactDOM from 'react-dom';
 import { LazySubscriptionStats } from '@/components/LazySubscriptionStats';
+import { MonthYearPicker } from '@/components/MonthYearPicker';
+import { PendingJoinRequestBanner } from '@/components/PendingJoinRequestBanner';
 import logger from '@/lib/utils/logger';
+import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase/clientV2';
 
 interface MetricCardProps {
   title: string;
@@ -185,7 +189,7 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
   return (
     <div
       onClick={handleClick}
-      className="relative overflow-visible rounded-3xl p-6 border cursor-pointer shadow-sm dark:shadow-none bg-white dark:bg-transparent dark:bg-gradient-to-br dark:from-gray-900/80 dark:to-gray-900/40 dark:backdrop-blur-xl border-transparent dark:border-gray-800/50"
+      className="relative overflow-visible rounded-3xl p-6 sm:p-7 border cursor-pointer shadow-sm dark:shadow-none bg-white dark:bg-transparent dark:bg-gradient-to-br dark:from-gray-900/80 dark:to-gray-900/40 dark:backdrop-blur-xl border-transparent dark:border-gray-800/50 flex flex-col"
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -295,29 +299,29 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
         </div>
       </div>
       
-      <div className="space-y-2">
-        <div className="flex items-baseline gap-2">
+      <div className="space-y-3 flex-1">
+        <div className="flex items-baseline gap-2 flex-wrap">
           {isInitialLoad ? (
             <div className="flex items-baseline gap-2">
               <div className="w-24 h-9 bg-slate-200 dark:bg-gray-800/50 rounded animate-pulse" />
-              <span className="text-sm text-[#64748B] dark:text-gray-500 font-medium">
+              <span className="text-xs sm:text-sm text-[#64748B] dark:text-gray-500 font-medium">
                 / {title === 'New Business' ? `£${target.toLocaleString()}` : target}
               </span>
             </div>
           ) : (
             <>
-              <span className="text-3xl font-bold text-[#1E293B] dark:text-white transition-none" suppressHydrationWarning>
+              <span className="text-2xl sm:text-3xl font-bold text-[#1E293B] dark:text-white transition-none" suppressHydrationWarning>
                 {title === 'New Business' ? `£${value.toLocaleString()}` : value}
               </span>
-              <span className="text-sm text-[#64748B] dark:text-gray-500 font-medium">
+              <span className="text-xs sm:text-sm text-[#64748B] dark:text-gray-500 font-medium">
                 / {title === 'New Business' ? `£${target.toLocaleString()}` : target}
               </span>
             </>
           )}
         </div>
         
-        <div className="space-y-1">
-          <div className="h-2.5 bg-slate-200 dark:bg-gray-900/80 rounded-full overflow-hidden">
+        <div className="space-y-2 pt-1">
+          <div className="h-2 sm:h-2.5 bg-slate-200 dark:bg-gray-900/80 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-none ${
                 title === 'New Business'
@@ -331,9 +335,9 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
               style={{ width: `${Math.min(100, (value / target) * 100)}%` }}
             ></div>
           </div>
-          <div className="text-xs text-[#64748B] dark:text-gray-400 flex justify-between">
+          <div className="text-xs text-[#64748B] dark:text-gray-400 flex justify-between items-center gap-2">
             <span>Progress</span>
-            <span>{Math.round((value / target) * 100)}%</span>
+            <span className="font-medium">{Math.round((value / target) * 100)}%</span>
           </div>
         </div>
       </div>
@@ -478,8 +482,21 @@ export default function Dashboard() {
   };
   const { userData, isLoading: isLoadingUser, session } = useUser();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { setFilters } = useActivityFilters();
-  
+
+  // Check for Fathom connection success notification
+  useEffect(() => {
+    const fathomStatus = searchParams.get('fathom');
+    if (fathomStatus === 'connected') {
+      toast.success('Fathom connected successfully!', {
+        description: 'Your Fathom account has been connected. Starting initial sync...',
+      });
+      // Clean up the query parameter from the URL
+      window.history.replaceState({}, '', '/dashboard');
+    }
+  }, [searchParams]);
+
   // Log current auth state for debugging
   useEffect(() => {
     logger.log('📊 Dashboard auth state:', {
@@ -489,6 +506,96 @@ export default function Dashboard() {
       isLoadingUser
     });
   }, [session, userData, isLoadingUser]);
+
+  // Check if user just joined an existing organization and show success message
+  useEffect(() => {
+    const checkJoinedExistingOrg = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.user_metadata?.joined_existing_org) {
+          toast.success('Organization found! You\'ve joined your team.', {
+            description: 'Welcome to the team! You can now see all your organization\'s data.',
+          });
+
+          // Clear the flag so we don't show it again
+          await supabase.auth.updateUser({
+            data: { joined_existing_org: false }
+          });
+        }
+      } catch (err) {
+        logger.error('Error checking joined_existing_org flag:', err);
+      }
+    };
+
+    checkJoinedExistingOrg();
+  }, []);
+
+  // Mark waitlist entry as converted after user completes onboarding
+  useEffect(() => {
+    const markWaitlistConverted = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) return;
+
+        // Check if user has waitlist_entry_id in metadata
+        const waitlistEntryId = session.user.user_metadata?.waitlist_entry_id;
+        if (!waitlistEntryId) return;
+
+        // Check if user has completed onboarding
+        const { data: progress, error: progressError } = await supabase
+          .from('user_onboarding_progress')
+          .select('onboarding_completed_at, skipped_onboarding')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (progressError) {
+          logger.warn('Error checking onboarding progress:', progressError);
+          return;
+        }
+
+        const hasCompletedOnboarding = progress?.onboarding_completed_at || progress?.skipped_onboarding;
+
+        if (hasCompletedOnboarding) {
+          // Check current status of waitlist entry
+          const { data: waitlistEntry, error: entryError } = await supabase
+            .from('meetings_waitlist')
+            .select('status, converted_at')
+            .eq('id', waitlistEntryId)
+            .maybeSingle();
+
+          if (entryError) {
+            logger.warn('Error checking waitlist entry:', entryError);
+            return;
+          }
+
+          // Only update if not already converted
+          if (waitlistEntry && waitlistEntry.status !== 'converted') {
+            const { error: updateError } = await supabase
+              .from('meetings_waitlist')
+              .update({
+                status: 'converted',
+                converted_at: new Date().toISOString()
+              })
+              .eq('id', waitlistEntryId);
+
+            if (updateError) {
+              logger.error('Error marking waitlist as converted:', updateError);
+            } else {
+              logger.log('✅ Waitlist entry marked as converted:', waitlistEntryId);
+              // Clear the flag from user metadata
+              await supabase.auth.updateUser({
+                data: { waitlist_entry_id: null }
+              });
+            }
+          }
+        }
+      } catch (err) {
+        logger.error('Error in markWaitlistConverted:', err);
+      }
+    };
+
+    markWaitlistConverted();
+  }, []);
   
   // Get targets first - use session.user.id if userData is not yet loaded
   const userId = userData?.id || session?.user?.id;
@@ -592,32 +699,34 @@ export default function Dashboard() {
         <h1 className="text-3xl font-bold text-[#1E293B] dark:text-white">Welcome back{userData?.first_name ? `, ${userData.first_name}` : ''}</h1>
         <div className="flex items-center justify-between mt-2">
           <p className="text-[#64748B] dark:text-gray-400">Here's how your sales performance is tracking</p>
-          <div className="flex items-center gap-3 bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-2 border border-transparent dark:border-gray-800/50 shadow-sm dark:shadow-none">
+          <div className="flex items-center gap-2 bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-2 border border-transparent dark:border-gray-800/50 shadow-sm dark:shadow-none">
             <button
               onClick={handlePreviousMonth}
               className="p-1.5 hover:bg-slate-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
+              title="Previous month"
             >
               <ChevronLeft className="w-4 h-4 text-[#64748B] dark:text-gray-400" />
             </button>
-            <span className="text-sm font-medium text-[#1E293B] dark:text-white min-w-[100px] text-center">
-              {(() => {
-                try {
-                  return format(selectedMonth, 'MMMM yyyy');
-                } catch (error) {
-                  logger.error('Error formatting selected month:', error);
-                  return 'Invalid Date';
-                }
-              })()}
-            </span>
+            <MonthYearPicker
+              value={selectedMonth}
+              onChange={setSelectedMonth}
+              maxDate={new Date()}
+            />
             <button
               onClick={handleNextMonth}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={selectedMonth >= new Date()}
+              title="Next month"
             >
               <ChevronRight className="w-4 h-4 text-[#64748B] dark:text-gray-400" />
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Pending Join Request Banner */}
+      <div className="mb-6">
+        <PendingJoinRequestBanner />
       </div>
 
       {/* Metrics Grid */}

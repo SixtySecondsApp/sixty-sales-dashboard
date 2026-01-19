@@ -111,10 +111,34 @@ export function WaitlistHeroV2() {
 
   const sendWelcomeEmail = async (email: string, fullName: string, companyName: string) => {
     try {
-      await supabase.functions.invoke('waitlist-welcome-email', {
-        body: { email, full_name: fullName, company_name: companyName }
-      });
-      console.log('[Waitlist] Welcome email sent');
+      // Try Supabase SDK first
+      try {
+        await supabase.functions.invoke('waitlist-welcome-email', {
+          body: { email, full_name: fullName, company_name: companyName }
+        });
+        console.log('[Waitlist] Welcome email sent via Supabase SDK');
+      } catch (supabaseErr) {
+        // Fallback to direct HTTP call if SDK fails (handles auth issues)
+        console.log('[Waitlist] Supabase SDK failed, trying direct HTTP call:', supabaseErr);
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const response = await fetch(`${supabaseUrl}/functions/v1/waitlist-welcome-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email,
+            full_name: fullName,
+            company_name: companyName
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        }
+
+        console.log('[Waitlist] Welcome email sent via direct HTTP call');
+      }
     } catch (err) {
       console.warn('[Waitlist] Welcome email failed:', err);
     }

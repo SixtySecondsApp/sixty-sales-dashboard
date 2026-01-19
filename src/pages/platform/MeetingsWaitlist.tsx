@@ -16,6 +16,7 @@ import { resendMagicLink } from '@/lib/services/waitlistAdminService';
 import { MagicLinkSentModal } from '@/components/platform/waitlist/MagicLinkSentModal';
 import { ChevronDown, ChevronUp, Bell } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 
 export default function MeetingsWaitlist() {
   const { user } = useAuth();
@@ -71,17 +72,17 @@ export default function MeetingsWaitlist() {
 
   const handleResendMagicLink = async (entryId: string) => {
     if (!user?.id) return;
-    
+
     // Find the entry to get email for modal
     const entry = entries.find(e => e.id === entryId);
     const recipientEmail = entry?.email;
-    
+
     const result = await resendMagicLink(entryId, user.id);
     if (result.success) {
       setMagicLinkRecipientEmail(recipientEmail);
       setShowMagicLinkSentModal(true);
     } else {
-      alert(`Failed: ${result.error}`);
+      toast.error(result.error || 'Failed to resend invitation');
     }
   };
 

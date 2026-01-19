@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/contexts/AuthContext';
@@ -18,9 +18,26 @@ export default function Login() {
   const location = useLocation();
   const { signIn, verifySecondFactor } = useAuth();
   const { logoDark } = usePublicBrandingSettings();
-  
-  // Get the intended destination from location state, or default to dashboard
+
+  // Pre-fill email from URL params if provided (from invitation or signup existing account)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const emailParam = params.get('email');
+    if (emailParam) {
+      setFormData(prev => ({ ...prev, email: emailParam }));
+    }
+  }, [location.search]);
+
+  // Get the intended destination from location state or URL params
   const getRedirectPath = () => {
+    // Check URL params first (for invitation redirects)
+    const params = new URLSearchParams(location.search);
+    const redirectParam = params.get('redirect');
+    if (redirectParam && redirectParam !== '/auth/login' && redirectParam !== '/learnmore') {
+      return redirectParam;
+    }
+
+    // Fall back to location state (from ProtectedRoute)
     const from = (location.state as any)?.from;
     if (from && from !== '/auth/login' && from !== '/learnmore') {
       return from;

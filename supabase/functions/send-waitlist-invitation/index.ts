@@ -1,15 +1,15 @@
 /**
  * Send Waitlist Invitation Edge Function
  *
- * Replaces the magic link system with password-based invitation flow.
- * Uses Supabase's admin.inviteUserByEmail() to create user and send invitation.
+ * Creates auth user and generates invitation link.
+ * Returns emailParams for frontend to send via encharge-send-email.
  *
  * Flow:
  * 1. Validate waitlist entry exists
  * 2. Check if user already has an account
- * 3. Send invitation via Supabase Admin API
+ * 3. Create auth user and generate invitation link
  * 4. Update waitlist entry with invitation tracking
- * 5. Return success/error response
+ * 5. Return emailParams for frontend to send
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -24,6 +24,18 @@ interface InvitationResponse {
   success: boolean;
   error?: string;
   invitedUserId?: string;
+  emailParams?: {
+    template_type: string;
+    to_email: string;
+    to_name: string;
+    user_id: string;
+    variables: {
+      first_name: string;
+      last_name?: string;
+      action_url: string;
+      invitation_link: string;
+    };
+  };
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -125,27 +137,66 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // 3. Generate invitation link using Supabase Admin API
-    // Use generateLink instead of inviteUserByEmail to get the URL without Supabase sending an email
-    // This way we only send our custom branded email
+    // 3. Parse name
     const nameParts = (entry.full_name || '').trim().split(/\s+/);
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
 
-    console.log(`Generating invitation for ${entry.email} (${entry.full_name})`);
+    console.log(`Creating auth user for ${entry.email} (${entry.full_name})`);
 
+    // 4. Create auth user
+    const { data: createUserData, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
+      email: entry.email,
+      email_confirm: true,
+      user_metadata: {
+        first_name: firstName,
+        last_name: lastName,
+        full_name: entry.full_name,
+        company_name: entry.company_name || '',
+        waitlist_entry_id: entryId,
+        invited_by_admin_id: adminUserId,
+        source: 'waitlist_invitation'
+      }
+    });
+
+    if (createUserError) {
+      console.error('Failed to create auth user:', createUserError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Failed to create account: ${createUserError.message}`
+        } as InvitationResponse),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        }
+      );
+    }
+
+    const invitedUserId = createUserData?.user?.id;
+    if (!invitedUserId) {
+      console.error('User created but no id returned');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'User created but no id returned'
+        } as InvitationResponse),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        }
+      );
+    }
+
+    console.log(`Created auth user ${invitedUserId} for ${entry.email}`);
+
+    // 5. Generate password setup link
+    const redirectTo = `${Deno.env.get('SITE_URL')}/auth/callback?waitlist_entry=${entryId}`;
     const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'invite',
       email: entry.email,
       options: {
-        data: {
-          waitlist_entry_id: entryId,
-          first_name: firstName,
-          last_name: lastName,
-          company_name: entry.company_name || '',
-          source: 'waitlist_invitation'
-        },
-        redirectTo: `${Deno.env.get('SITE_URL')}/auth/callback?waitlist_entry=${entryId}`
+        redirectTo: redirectTo
       }
     });
 
@@ -163,12 +214,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    if (!inviteData?.properties?.hashed_token) {
-      console.error('Invitation link generation succeeded but no token returned');
+    const invitationUrl = inviteData?.properties?.action_link;
+    if (!invitationUrl) {
+      console.error('Invitation link generation succeeded but no link returned');
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Invitation failed: no token generated'
+          error: 'Invitation failed: no link generated'
         } as InvitationResponse),
         {
           status: 500,
@@ -177,13 +229,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // The invitation URL from Supabase includes the token
-    const invitationUrl = inviteData.properties.action_link;
-    const invitedUserId = inviteData.user.id;
-
     console.log(`Generated invitation link for ${entry.email}, user ID: ${invitedUserId}`);
 
-    // 4. Update waitlist entry with invitation tracking
+    // 6. Update waitlist entry with invitation tracking
     const invitedAt = new Date();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiration
@@ -192,6 +240,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .from('meetings_waitlist')
       .update({
         status: 'released',
+        user_id: invitedUserId,
         invited_at: invitedAt.toISOString(),
         invitation_expires_at: expiresAt.toISOString(),
         invited_user_id: invitedUserId,
@@ -203,11 +252,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     if (updateError) {
       console.error('Failed to update waitlist entry:', updateError);
-      // Don't fail the invitation if update fails - user was already created
-      console.warn('Invitation generated but failed to update waitlist entry');
+      // Don't fail - user was already created successfully
     }
 
-    // 5. Log admin action (optional - table may not exist)
+    // 7. Log admin action (optional - table may not exist)
     try {
       await supabaseAdmin.from('waitlist_admin_actions').insert({
         waitlist_entry_id: entryId,
@@ -220,54 +268,32 @@ Deno.serve(async (req: Request): Promise<Response> => {
         },
         notes: adminNotes,
         new_value: {
-          status: 'invited',
+          status: 'released',
           invited_at: invitedAt.toISOString()
         }
       });
     } catch (logError) {
-      // Admin actions table may not exist, continue without logging
       console.warn('Failed to log admin action:', logError);
     }
 
-    // 6. Send custom branded email with the real invitation URL
-    // This is the ONLY email sent (Supabase doesn't send one when using generateLink)
-    try {
-      // Send custom branded email via encharge-send-email edge function
-      await supabaseAdmin.functions.invoke('encharge-send-email', {
-        body: {
-          template_type: 'waitlist_invitation',
-          to_email: entry.email,
-          to_name: firstName || entry.email.split('@')[0],
-          variables: {
-            invitation_url: invitationUrl,
-            user_name: firstName || entry.email.split('@')[0],
-            user_email: entry.email,
-            full_name: entry.full_name || '',
-            company_name: entry.company_name || ''
-          }
-        }
-      });
-      console.log(`Successfully sent invitation email to ${entry.email} with link: ${invitationUrl.substring(0, 50)}...`);
-    } catch (emailError) {
-      // Critical error - this is the only email being sent
-      console.error('CRITICAL: Failed to send invitation email:', emailError);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'User was created but failed to send invitation email. Please contact support.'
-        } as InvitationResponse),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-        }
-      );
-    }
-
-    // 7. Return success response
+    // 8. Return success with emailParams for frontend to send
     return new Response(
       JSON.stringify({
         success: true,
-        invitedUserId: invitedUserId
+        invitedUserId: invitedUserId,
+        emailParams: {
+          template_type: 'waitlist_invite',
+          to_email: entry.email,
+          to_name: firstName || entry.email.split('@')[0],
+          user_id: invitedUserId,
+          variables: {
+            first_name: firstName || entry.email.split('@')[0],
+            last_name: lastName || '',
+            action_url: invitationUrl,
+            invitation_link: invitationUrl,
+            magic_link: invitationUrl,  // Add magic_link as alias for template compatibility
+          },
+        }
       } as InvitationResponse),
       {
         status: 200,

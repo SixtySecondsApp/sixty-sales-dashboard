@@ -61,17 +61,22 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
   // Charts now using direct imports for stability
 
   const chartData = useMemo(() => {
+    // Deduplicate activities by ID to prevent counting duplicates
+    const uniqueActivities = Array.from(
+      new Map(activities.map(a => [a.id, a])).values()
+    );
+
     if (timeframe === 'daily') {
       // Get all days in the selected month
       const monthStart = startOfMonth(selectedMonth);
       const monthEnd = endOfMonth(selectedMonth);
       const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
-      
+
       return daysInMonth.map(date => {
         const dateStr = format(date, 'yyyy-MM-dd');
-        
+
         // Filter activities for this date
-        const dayActivities = activities.filter(a => 
+        const dayActivities = uniqueActivities.filter(a =>
           format(new Date(a.date), 'yyyy-MM-dd') === dateStr
         );
         
@@ -104,12 +109,12 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
         start: firstWeekStart,
         end: lastWeekEnd
       });
-      
+
       return weeks.map(weekStart => {
         const weekEnd = endOfWeek(weekStart);
-        
+
         // Filter activities for this week
-        const weekActivities = activities.filter(a => {
+        const weekActivities = uniqueActivities.filter(a => {
           const activityDate = new Date(a.date);
           return activityDate >= weekStart && activityDate <= weekEnd;
         });
@@ -135,14 +140,14 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
     // Monthly view - show last 12 months up to selected month
     const monthsData = [];
     const endDate = endOfMonth(selectedMonth);
-    
+
     for (let i = 11; i >= 0; i--) {
       const date = subMonths(endDate, i);
       const monthStart = startOfMonth(date);
       const monthEnd = endOfMonth(date);
-      
+
       // Filter activities for this month
-      const monthActivities = activities.filter(a => {
+      const monthActivities = uniqueActivities.filter(a => {
         const activityDate = new Date(a.date);
         return activityDate >= monthStart && activityDate <= monthEnd;
       });
@@ -206,9 +211,9 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
             Sales Activities Overview
           </h3>
           <p className={`text-sm mt-1 ${colors.text.secondary}`}>
-            {timeframe === 'daily' ? 'Last 14 days' :
-             timeframe === 'weekly' ? 'Last 12 weeks' :
-             'Year to date'} breakdown of all sales activities
+            {timeframe === 'daily' ? `Daily breakdown for ${format(selectedMonth, 'MMMM yyyy')}` :
+             timeframe === 'weekly' ? `Weekly breakdown for ${format(selectedMonth, 'MMMM yyyy')}` :
+             'Last 12 months breakdown'} of all sales activities
           </p>
         </div>
         <div className="relative">
@@ -248,7 +253,7 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
         <ResponsiveContainer width="100%" height={400}>
           <ComposedChart
           data={chartData}
-          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+          margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
         >
           <defs>
             <linearGradient id="outboundGradient" x1="0" y1="0" x2="0" y2="1">
@@ -278,9 +283,13 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
             axisLine={false}
             tickLine={false}
             tick={{ fill: colors.chart.axis, fontSize: 12 }}
-            dy={10}
+            dy={5}
             scale="band"
             padding={{ left: 10, right: 10 }}
+            interval={timeframe === 'daily' ? 2 : timeframe === 'weekly' ? 0 : 0}
+            angle={-45}
+            textAnchor="end"
+            height={80}
           />
           <YAxis
             axisLine={false}

@@ -257,41 +257,15 @@ export default function EarlyAccessLanding() {
         }
       }
 
-      // Send welcome email using the same method as onboarding simulator
-      try {
-        const firstName = sanitizeName(formData.full_name.trim()).split(' ')[0];
-        const { data: emailData, error: emailError } = await supabase.functions.invoke('encharge-send-email', {
-          body: {
-            template_type: 'waitlist_welcome',
-            to_email: formData.email.trim().toLowerCase(),
-            to_name: firstName,
-            variables: {
-              user_name: firstName,
-              full_name: sanitizeName(formData.full_name.trim()),
-              company_name: sanitizeName(formData.company_name.trim()) || '',
-              first_name: firstName,
-              email: formData.email.trim().toLowerCase(),
-            },
-          },
-        });
-
-        if (emailError) {
-          console.error('[Waitlist] Welcome email failed:', emailError);
-        } else {
-          console.log('[Waitlist] Welcome email sent successfully:', emailData);
-        }
-      } catch (err) {
-        console.error('[Waitlist] Welcome email exception:', err);
-      }
-
       // Mark partial signup as converted (fire and forget)
       markPartialSignupConverted(formData.email.trim().toLowerCase());
 
       // Navigate to thank you page with user data (using state to avoid URL exposure)
       const email = formData.email.trim().toLowerCase();
       const fullName = sanitizeName(formData.full_name.trim());
+      const companyName = sanitizeName(formData.company_name.trim()) || '';
       navigate('/waitlist/thank-you', {
-        state: { email, fullName }
+        state: { email, fullName, companyName }
       });
     } catch (err: any) {
       // Preserve form data on error - don't clear fields

@@ -196,6 +196,18 @@ interface OnboardingV2State {
   isSaving: boolean;
   saveError: string | null;
 
+  // Organization creation state (for personal email users)
+  organizationCreationInProgress: boolean;
+  organizationCreationError: string | null;
+
+  // Pending join request state
+  pendingJoinRequest: {
+    requestId: string;
+    orgId: string;
+    orgName: string;
+    status: 'pending' | 'approved' | 'rejected';
+  } | null;
+
   // Context setters
   setOrganizationId: (id: string) => void;
   setDomain: (domain: string) => void;
@@ -213,6 +225,9 @@ interface OnboardingV2State {
   // Manual enrichment actions
   setManualData: (data: ManualEnrichmentData) => void;
   submitManualEnrichment: (organizationId: string) => Promise<void>;
+
+  // Organization creation actions (for personal email users without org)
+  createOrganizationFromManualData: (userId: string, manualData: ManualEnrichmentData) => Promise<string>;
 
   // Enrichment actions
   startEnrichment: (organizationId: string, domain: string, force?: boolean) => Promise<void>;
@@ -332,6 +347,13 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
   isSaving: false,
   saveError: null,
 
+  // Organization creation state
+  organizationCreationInProgress: false,
+  organizationCreationError: null,
+
+  // Pending join request state
+  pendingJoinRequest: null,
+
   // Context setters
   setOrganizationId: (id) => set({ organizationId: id }),
   setDomain: (domain) => set({ domain }),
@@ -354,24 +376,174 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
   setHasNoWebsite: (value) => set({ hasNoWebsite: value }),
 
   submitWebsite: async (organizationId) => {
-    const { websiteUrl } = get();
+    let finalOrgId = organizationId;
+    const { websiteUrl, userEmail } = get();
     if (!websiteUrl) return;
 
     const domain = extractDomain(websiteUrl);
-    set({
-      domain,
-      enrichmentSource: 'website',
-      currentStep: 'enrichment_loading',
-    });
 
-    // Start enrichment with the provided website
-    get().startEnrichment(organizationId, domain);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('No session');
+
+      // If organizationId is empty/null (personal email user), check for existing org by domain
+      if (!finalOrgId || finalOrgId === '') {
+        // Check if organization with this domain already exists
+        const { data: existingOrg } = await supabase
+          .from('organizations')
+          .select('id, name, company_domain')
+          .eq('company_domain', domain)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (existingOrg) {
+          // Organization exists - create join request instead
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          const joinRequestResult = await supabase.rpc('create_join_request', {
+            p_org_id: existingOrg.id,
+            p_user_id: session.user.id,
+            p_user_profile: profileData
+              ? {
+                  first_name: profileData.first_name,
+                  last_name: profileData.last_name,
+                }
+              : null,
+          });
+
+          if (joinRequestResult.error) throw joinRequestResult.error;
+
+          // Store pending join request state
+          set({
+            organizationId: existingOrg.id,
+            domain,
+            enrichmentSource: 'website',
+            currentStep: 'enrichment_loading',
+            // Store join request status
+            pendingJoinRequest: {
+              requestId: joinRequestResult.data[0].join_request_id,
+              orgId: existingOrg.id,
+              orgName: existingOrg.name,
+              status: 'pending',
+            },
+          });
+
+          // Continue with enrichment (limited access)
+          get().startEnrichment(existingOrg.id, domain);
+          return;
+        }
+
+        // No existing org - create new one
+        const organizationName = domain || 'My Organization';
+        const { data: newOrg, error: createError } = await supabase
+          .from('organizations')
+          .insert({
+            name: organizationName,
+            company_domain: domain,
+            created_by: session.user.id,
+            is_active: true,
+          })
+          .select('id')
+          .single();
+
+        if (createError || !newOrg?.id) {
+          throw createError || new Error('Failed to create organization');
+        }
+
+        // Add user as owner of the new organization
+        const { error: memberError } = await supabase
+          .from('organization_memberships')
+          .insert({
+            org_id: newOrg.id,
+            user_id: session.user.id,
+            role: 'owner',
+          });
+
+        if (memberError) throw memberError;
+
+        finalOrgId = newOrg.id;
+        set({ organizationId: finalOrgId });
+      }
+
+      set({
+        domain,
+        enrichmentSource: 'website',
+        currentStep: 'enrichment_loading',
+      });
+
+      // Start enrichment with the provided website
+      get().startEnrichment(finalOrgId, domain);
+
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to process website';
+      set({ enrichmentError: message, currentStep: 'website_input' });
+    }
   },
 
   // Manual enrichment actions
   setManualData: (data) => set({ manualData: data }),
 
+  // Create organization from manual data (for personal email users without org)
+  createOrganizationFromManualData: async (userId, manualData) => {
+    set({
+      organizationCreationInProgress: true,
+      organizationCreationError: null,
+    });
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('No session');
+
+      // Create organization with manual data company_name
+      const organizationName = manualData.company_name || 'My Organization';
+      const { data: newOrg, error: createError } = await supabase
+        .from('organizations')
+        .insert({
+          name: organizationName,
+          created_by: userId,
+          is_active: true,
+        })
+        .select('id')
+        .single();
+
+      if (createError || !newOrg?.id) {
+        throw createError || new Error('Failed to create organization');
+      }
+
+      // Add user as owner of the new organization
+      const { error: memberError } = await supabase
+        .from('organization_memberships')
+        .insert({
+          org_id: newOrg.id,
+          user_id: userId,
+          role: 'owner',
+        });
+
+      if (memberError) throw memberError;
+
+      set({
+        organizationCreationInProgress: false,
+        organizationId: newOrg.id,
+      });
+
+      return newOrg.id;
+
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create organization';
+      set({
+        organizationCreationInProgress: false,
+        organizationCreationError: message,
+      });
+      throw error;
+    }
+  },
+
   submitManualEnrichment: async (organizationId) => {
+    let finalOrgId = organizationId;
     const { manualData } = get();
     if (!manualData) return;
 
@@ -386,11 +558,17 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('No session');
 
+      // If organizationId is empty/null (personal email user), create org first
+      if (!finalOrgId || finalOrgId === '') {
+        finalOrgId = await get().createOrganizationFromManualData(session.user.id, manualData);
+        set({ organizationId: finalOrgId });
+      }
+
       // Call edge function with manual data
       const response = await supabase.functions.invoke('deep-enrich-organization', {
         body: {
           action: 'manual',
-          organization_id: organizationId,
+          organization_id: finalOrgId,
           manual_data: manualData,
         },
       });
@@ -399,7 +577,7 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       if (!response.data?.success) throw new Error(response.data?.error || 'Failed to process data');
 
       // Start polling for status (manual enrichment still runs AI skill generation)
-      get().pollEnrichmentStatus(organizationId);
+      get().pollEnrichmentStatus(finalOrgId);
 
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to process your information';
@@ -502,7 +680,10 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
     set((state) => ({
       skillConfigs: {
         ...state.skillConfigs,
-        [skillId]: config,
+        [skillId]: {
+          ...state.skillConfigs[skillId],
+          ...config,
+        },
       },
     }));
   },
@@ -771,6 +952,11 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       // Saving
       isSaving: false,
       saveError: null,
+      // Organization creation
+      organizationCreationInProgress: false,
+      organizationCreationError: null,
+      // Pending join request
+      pendingJoinRequest: null,
     });
   },
 }));

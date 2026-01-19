@@ -38,6 +38,7 @@ import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/auth/login';
 import AuthCallback from '@/pages/auth/AuthCallback';
 import AcceptInvitation from '@/pages/auth/AcceptInvitation';
+import InviteSignup from '@/pages/auth/InviteSignup';
 import TestGoogleTasks from '@/pages/TestGoogleTasks';
 import MeetingThumbnail from '@/pages/MeetingThumbnail';
 import BrowserlessTest from '@/pages/BrowserlessTest';
@@ -271,6 +272,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/auth/login" element={<Login />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/auth/signup" element={<Signup />} />
+        <Route path="/auth/invite-signup/:token" element={<InviteSignup />} />
         <Route path="/auth/verify-email" element={<VerifyEmail />} />
         <Route path="/auth/forgot-password" element={<ForgotPassword />} />
         <Route path="/auth/reset-password/*" element={<ResetPassword />} />

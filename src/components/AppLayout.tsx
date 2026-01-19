@@ -236,7 +236,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       label: string;
       href: string;
       badge?: string;
+      displayGroup?: number;
       subItems?: Array<{ icon: typeof Activity; label: string; href: string }>;
+      isDivider?: boolean;
     };
 
     // Map route configs to menu item format
@@ -245,12 +247,49 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       label: config.label || '',
       href: config.path,
       badge: config.badge,
+      displayGroup: config.displayGroup,
       subItems: undefined, // Route config doesn't have subItems, they can be added if needed
     });
 
-    // Combine main and tools items for the menu
-    return [...mainItems.map(mapToMenuItem), ...toolsItems.map(mapToMenuItem)];
-  }, [effectiveUserType, isAdmin, isOrgAdmin]);
+    // Combine main and tools items for the menu, then add dividers between display groups
+    let allItems = [...mainItems.map(mapToMenuItem), ...toolsItems.map(mapToMenuItem)];
+
+    // Filter items for customer/external view - only show group 1
+    if (isViewingAsExternal) {
+      allItems = allItems.filter(item => !item.isDivider && (item.displayGroup === 1 || !item.displayGroup));
+    }
+
+    // Sort by displayGroup and order within group
+    allItems.sort((a, b) => {
+      const groupA = a.displayGroup ?? 999;
+      const groupB = b.displayGroup ?? 999;
+      if (groupA !== groupB) return groupA - groupB;
+      return 0;
+    });
+
+    // Add dividers between display groups
+    const itemsWithDividers: MenuItem[] = [];
+    let lastGroup: number | undefined;
+
+    for (const item of allItems) {
+      const currentGroup = item.displayGroup ?? 999;
+
+      // Add divider if group changed and we have items (but not in external view)
+      if (!isViewingAsExternal && lastGroup !== undefined && lastGroup !== currentGroup && itemsWithDividers.length > 0) {
+        itemsWithDividers.push({
+          icon: Activity,
+          label: '',
+          href: '',
+          isDivider: true,
+        });
+      }
+
+      itemsWithDividers.push(item);
+      lastGroup = currentGroup;
+    }
+
+    return itemsWithDividers;
+  }, [effectiveUserType, isAdmin, isOrgAdmin, isViewingAsExternal]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-gradient-to-br dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 text-[#1E293B] dark:text-gray-100 transition-colors duration-200">
@@ -315,8 +354,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       
-      {/* Quick Add FAB - Only shown in internal view */}
-      {location.pathname !== '/workflows' && !isViewingAsExternal && (
+      {/* Quick Add FAB - Only shown for admins in internal view */}
+      {location.pathname !== '/workflows' && !isViewingAsExternal && isUserAdmin(userData) && (
         <motion.button
           type="button"
           whileHover={{ scale: 1.05 }}
@@ -336,7 +375,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99] lg:hidden"
               onClick={() => toggleMobileMenu()}
             />
             <motion.div
@@ -344,7 +383,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
-              className="fixed inset-0 w-full bg-white dark:bg-gray-900/95 backdrop-blur-xl z-50 lg:hidden transition-colors duration-200 flex flex-col"
+              className="fixed inset-0 w-full bg-white dark:bg-gray-900/95 backdrop-blur-xl z-[100] lg:hidden transition-colors duration-200 flex flex-col"
             >
               {/* Fixed Header */}
               <div className="flex-shrink-0 p-4 sm:p-6 border-b border-[#E2E8F0] dark:border-gray-800">
@@ -384,48 +423,57 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {/* Scrollable Navigation */}
               <div className="flex-1 overflow-y-auto">
                 <nav className="p-4 sm:p-6 space-y-1 sm:space-y-2">
-                  {menuItems.map((item) => (
-                    <div key={item.href + item.label}>
-                      <Link
-                        to={item.href}
-                        onClick={() => toggleMobileMenu()}
-                        className={cn(
-                          'w-full flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] sm:min-h-[64px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]',
-                          location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
-                            ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
-                            : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
-                        )}
-                      >
-                        <item.icon className={cn(
-                          'w-6 h-6 sm:w-7 sm:h-7 flex-shrink-0',
-                          location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
-                            ? 'text-indigo-700 dark:text-white' : 'text-[#64748B] dark:text-gray-400/80'
-                        )} />
-                        <span>{item.label}</span>
-                      </Link>
+                  {menuItems.map((item) => {
+                    // Handle dividers
+                    if (item.isDivider) {
+                      return (
+                        <div key={`divider-${Math.random()}`} className="my-2 border-t border-[#E2E8F0] dark:border-gray-800/50" />
+                      );
+                    }
 
-                      {item.subItems && (
-                        <div className="ml-10 sm:ml-12 mt-1 space-y-1">
-                          {item.subItems.map((subItem) => (
-                            <Link
-                              key={subItem.href + subItem.label}
-                              to={subItem.href}
-                              onClick={() => toggleMobileMenu()}
-                              className={cn(
-                                'w-full flex items-center gap-3 px-4 py-3 min-h-[48px] rounded-xl text-sm font-medium transition-colors',
-                                location.pathname === subItem.href
-                                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
-                                  : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
-                              )}
-                            >
-                              <subItem.icon className="w-5 h-5" />
-                              <span>{subItem.label}</span>
-                            </Link>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    return (
+                      <div key={item.href + item.label}>
+                        <Link
+                          to={item.href}
+                          onClick={() => toggleMobileMenu()}
+                          className={cn(
+                            'w-full flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] sm:min-h-[64px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]',
+                            location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
+                              ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                              : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
+                          )}
+                        >
+                          <item.icon className={cn(
+                            'w-6 h-6 sm:w-7 sm:h-7 flex-shrink-0',
+                            location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
+                              ? 'text-indigo-700 dark:text-white' : 'text-[#64748B] dark:text-gray-400/80'
+                          )} />
+                          <span>{item.label}</span>
+                        </Link>
+
+                        {item.subItems && (
+                          <div className="ml-10 sm:ml-12 mt-1 space-y-1">
+                            {item.subItems.map((subItem) => (
+                              <Link
+                                key={subItem.href + subItem.label}
+                                to={subItem.href}
+                                onClick={() => toggleMobileMenu()}
+                                className={cn(
+                                  'w-full flex items-center gap-3 px-4 py-3 min-h-[48px] rounded-xl text-sm font-medium transition-colors',
+                                  location.pathname === subItem.href
+                                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                                    : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
+                                )}
+                              >
+                                <subItem.icon className="w-5 h-5" />
+                                <span>{subItem.label}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </nav>
               </div>
 
@@ -695,69 +743,81 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               'pb-6',
               isCollapsed ? 'space-y-3' : 'space-y-2'
             )}>
-              {menuItems.map((item) => (
-                <div key={item.href + item.label}>
-                  <Link
-                    to={item.href}
-                    className={cn(
-                      'flex items-center transition-colors text-sm font-medium',
-                      isCollapsed 
-                        ? 'w-12 h-12 mx-auto rounded-xl justify-center' 
-                        : 'w-full gap-3 px-2 py-2.5 rounded-xl',
-                      location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
-                        ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
-                        : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
-                    )}
-                  >
-                    <motion.div
-                      animate={{
-                        x: isCollapsed ? 0 : 0,
-                        scale: isCollapsed ? 1.1 : 1
-                      }}
+              {menuItems.map((item) => {
+                // Handle dividers
+                if (item.isDivider) {
+                  return (
+                    <div key={`divider-${Math.random()}`} className={cn(
+                      'my-2 border-t border-[#E2E8F0] dark:border-gray-800/50',
+                      isCollapsed && 'my-3'
+                    )} />
+                  );
+                }
+
+                return (
+                  <div key={item.href + item.label}>
+                    <Link
+                      to={item.href}
                       className={cn(
-                        'relative z-10 flex items-center justify-center',
-                        isCollapsed ? 'w-full h-full' : 'min-w-[20px]',
+                        'flex items-center transition-colors text-sm font-medium',
+                        isCollapsed
+                          ? 'w-12 h-12 mx-auto rounded-xl justify-center'
+                          : 'w-full gap-3 px-2 py-2.5 rounded-xl',
                         location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
-                          ? 'text-indigo-700 dark:text-white' : 'text-[#64748B] dark:text-gray-400/80'
+                          ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                          : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
                       )}
                     >
-                      <item.icon className={cn(isCollapsed ? 'w-5 h-5' : 'w-4 h-4')} />
-                    </motion.div>
-                    <AnimatePresence>
-                      {!isCollapsed && (
-                        <motion.span
-                          initial={{ opacity: 0, width: 0 }}
-                          animate={{ opacity: 1, width: 'auto' }}
-                          exit={{ opacity: 0, width: 0 }}
-                          className="overflow-hidden whitespace-nowrap"
-                        >
-                          {item.label}
-                        </motion.span>
-                      )}
-                    </AnimatePresence>
-                  </Link>
-                  
-                  {item.subItems && !isCollapsed && (
-                    <div className="ml-8 mt-1 space-y-1">
-                      {item.subItems.map((subItem) => (
-                        <Link
-                          key={subItem.href + subItem.label}
-                          to={subItem.href}
-                          className={cn(
-                            'w-full flex items-center gap-3 px-2 py-2 rounded-xl text-xs font-medium transition-colors',
-                            location.pathname === subItem.href
-                              ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
-                              : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
-                          )}
-                        >
-                          <subItem.icon className="w-3.5 h-3.5" />
-                          <span>{subItem.label}</span>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+                      <motion.div
+                        animate={{
+                          x: isCollapsed ? 0 : 0,
+                          scale: isCollapsed ? 1.1 : 1
+                        }}
+                        className={cn(
+                          'relative z-10 flex items-center justify-center',
+                          isCollapsed ? 'w-full h-full' : 'min-w-[20px]',
+                          location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
+                            ? 'text-indigo-700 dark:text-white' : 'text-[#64748B] dark:text-gray-400/80'
+                        )}
+                      >
+                        <item.icon className={cn(isCollapsed ? 'w-5 h-5' : 'w-4 h-4')} />
+                      </motion.div>
+                      <AnimatePresence>
+                        {!isCollapsed && (
+                          <motion.span
+                            initial={{ opacity: 0, width: 0 }}
+                            animate={{ opacity: 1, width: 'auto' }}
+                            exit={{ opacity: 0, width: 0 }}
+                            className="overflow-hidden whitespace-nowrap"
+                          >
+                            {item.label}
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </Link>
+
+                    {item.subItems && !isCollapsed && (
+                      <div className="ml-8 mt-1 space-y-1">
+                        {item.subItems.map((subItem) => (
+                          <Link
+                            key={subItem.href + subItem.label}
+                            to={subItem.href}
+                            className={cn(
+                              'w-full flex items-center gap-3 px-2 py-2 rounded-xl text-xs font-medium transition-colors',
+                              location.pathname === subItem.href
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                                : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
+                            )}
+                          >
+                            <subItem.icon className="w-3.5 h-3.5" />
+                            <span>{subItem.label}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </nav>
           </div>
           

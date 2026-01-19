@@ -89,30 +89,41 @@ serve(async (req) => {
     });
 
     // Generate magic link using admin API
-    // Store waitlist_entry_id in user metadata so we can find it later if URL params are lost
-    const userMetadata = {
-      ...(request.data || {}),
-      // Ensure waitlist_entry_id is in metadata for easy retrieval
-      waitlist_entry_id: request.data?.waitlist_entry_id || null,
-    };
-    
+    // Use simple invite type with just redirectTo (no data in options)
     const { data: magicLinkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
+      type: 'invite',
       email: request.email,
       options: {
         redirectTo: request.redirectTo,
-        data: userMetadata,
       },
     });
 
     if (magicLinkError || !magicLinkData) {
       console.error('Failed to generate magic link:', magicLinkError);
+
+      // Check if error is due to user already existing
+      const errorMessage = magicLinkError?.message || '';
+      const errorStatus = (magicLinkError as any)?.status;
+
+      // Detect existing user errors - Supabase returns 422 for duplicate users
+      const isUserExists = errorMessage.toLowerCase().includes('already') ||
+                          errorMessage.toLowerCase().includes('exists') ||
+                          errorMessage.toLowerCase().includes('conflict') ||
+                          errorMessage.toLowerCase().includes('duplicate') ||
+                          errorStatus === 422 ||
+                          errorStatus === 409;
+
+      console.log('Error detection:', { errorMessage, errorStatus, isUserExists });
+
       return new Response(
         JSON.stringify({
           success: false,
-          error: magicLinkError?.message || 'Failed to generate magic link',
+          error: isUserExists
+            ? 'This email is already registered. Please log in instead.'
+            : errorMessage || 'Failed to generate magic link',
+          userExists: isUserExists,
         }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
