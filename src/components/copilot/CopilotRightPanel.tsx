@@ -18,6 +18,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useActionItemStore, type ActionItem } from '@/lib/stores/actionItemStore';
 import { ActionItemCard } from './ActionItemCard';
+import { ActionItemPreviewModal } from './ActionItemPreviewModal';
 
 interface CollapsibleSectionProps {
   title: string;
@@ -77,46 +78,81 @@ interface ActionItemsSectionProps {
 function ActionItemsSection({ items: propItems }: ActionItemsSectionProps) {
   // Use store items if no props provided
   const storeItems = useActionItemStore((state) => state.getPendingItems());
+  const approveItem = useActionItemStore((state) => state.approveItem);
+  const dismissItem = useActionItemStore((state) => state.dismissItem);
   const items = propItems ?? storeItems;
   const hasItems = items.length > 0;
 
+  // Modal state
+  const [previewItem, setPreviewItem] = useState<ActionItem | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  const handlePreview = (item: ActionItem) => {
+    setPreviewItem(item);
+    setIsPreviewOpen(true);
+  };
+
+  const handleClosePreview = () => {
+    setIsPreviewOpen(false);
+    // Delay clearing item to allow close animation
+    setTimeout(() => setPreviewItem(null), 200);
+  };
+
+  const handleApprove = (item: ActionItem) => {
+    // TODO: Wire actual approval execution in US-011 (send email, update CRM, etc.)
+    approveItem(item.id);
+  };
+
+  const handleDismiss = (item: ActionItem, reason: string) => {
+    dismissItem(item.id, reason);
+  };
+
+  const handleEdit = (item: ActionItem) => {
+    // TODO: Wire edit functionality in future story
+    setPreviewItem(item);
+    setIsPreviewOpen(true);
+  };
+
   return (
-    <CollapsibleSection
-      title="Action Items"
-      icon={<Zap className="w-4 h-4" />}
-      iconColor="text-amber-400"
-      count={items.length}
-      defaultOpen={true}
-    >
-      {hasItems ? (
-        <div className="space-y-2">
-          {items.map((item) => (
-            <ActionItemCard
-              key={item.id}
-              item={item}
-              onPreview={(actionItem) => {
-                // TODO: Open preview modal in US-005
-                console.log('Preview:', actionItem.id);
-              }}
-              onEdit={(actionItem) => {
-                // TODO: Open edit modal in US-005
-                console.log('Edit:', actionItem.id);
-              }}
-              onApprove={(actionItem) => {
-                // TODO: Wire approval flow in US-011
-                console.log('Approve:', actionItem.id);
-              }}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-          <p className="text-sm text-slate-500">
-            No pending actions. Ask me to draft a follow-up or prep for a meeting.
-          </p>
-        </div>
-      )}
-    </CollapsibleSection>
+    <>
+      <CollapsibleSection
+        title="Action Items"
+        icon={<Zap className="w-4 h-4" />}
+        iconColor="text-amber-400"
+        count={items.length}
+        defaultOpen={true}
+      >
+        {hasItems ? (
+          <div className="space-y-2">
+            {items.map((item) => (
+              <ActionItemCard
+                key={item.id}
+                item={item}
+                onPreview={handlePreview}
+                onEdit={handleEdit}
+                onApprove={handleApprove}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+            <p className="text-sm text-slate-500">
+              No pending actions. Ask me to draft a follow-up or prep for a meeting.
+            </p>
+          </div>
+        )}
+      </CollapsibleSection>
+
+      {/* Preview Modal */}
+      <ActionItemPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={handleClosePreview}
+        item={previewItem}
+        onEdit={handleEdit}
+        onApprove={handleApprove}
+        onDismiss={handleDismiss}
+      />
+    </>
   );
 }
 

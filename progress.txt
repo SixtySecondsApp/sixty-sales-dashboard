@@ -84,3 +84,20 @@ Started: 2026-01-19T14:55:00.000Z
   - Card is keyboard accessible with tabIndex={0} and onKeyDown Enter handler
   - Callbacks wired with TODO comments for US-005 (preview modal) and US-011 (approval flow)
 ---
+
+## 2026-01-19 19:25 - US-005
+- What was implemented: Action Item Preview Modal with full content display
+- Files changed:
+  - src/components/copilot/ActionItemPreviewModal.tsx - NEW: Modal with type-specific content views
+  - src/components/copilot/CopilotRightPanel.tsx - Added modal state, wired preview/edit/approve/dismiss handlers
+- Quality gates:
+  - build:check:strict: PASS (lint with 0 errors)
+  - lint: PASS (warnings only)
+  - tests: PASS (pre-existing failures)
+- Learnings:
+  - Each action type has dedicated content view (FollowUpContentView, MeetingPrepContentView, etc.)
+  - Dismiss dropdown using DropdownMenu with "Not relevant" / "Bad timing" options
+  - Modal uses Radix Dialog with glassmorphic dark theme styling
+  - Scrollable content area with max-h-[85vh] to stay within viewport
+  - Store's approveItem/dismissItem wired directly to modal handlers
+---
