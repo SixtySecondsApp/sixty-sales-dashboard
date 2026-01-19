@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useActionItemStore, type ActionItem } from '@/lib/stores/actionItemStore';
+import { approveActionItem, dismissActionItem } from '@/lib/services/actionItemApprovalService';
+import { useAuthUser } from '@/lib/hooks/useAuthUser';
 import { ActionItemCard } from './ActionItemCard';
 import { ActionItemPreviewModal } from './ActionItemPreviewModal';
 
@@ -87,14 +89,16 @@ interface ActionItemsSectionProps {
 function ActionItemsSection({ items: propItems }: ActionItemsSectionProps) {
   // Use store items if no props provided
   const storeItems = useActionItemStore((state) => state.getPendingItems());
-  const approveItem = useActionItemStore((state) => state.approveItem);
-  const dismissItem = useActionItemStore((state) => state.dismissItem);
   const items = propItems ?? storeItems;
   const hasItems = items.length > 0;
+
+  // Get current user for approval service
+  const { data: user } = useAuthUser();
 
   // Modal state
   const [previewItem, setPreviewItem] = useState<ActionItem | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
 
   const handlePreview = (item: ActionItem) => {
     setPreviewItem(item);
@@ -107,13 +111,21 @@ function ActionItemsSection({ items: propItems }: ActionItemsSectionProps) {
     setTimeout(() => setPreviewItem(null), 200);
   };
 
-  const handleApprove = (item: ActionItem) => {
-    // TODO: Wire actual approval execution in US-011 (send email, update CRM, etc.)
-    approveItem(item.id);
+  const handleApprove = async (item: ActionItem) => {
+    if (!user?.id || isApproving) return;
+
+    setIsApproving(true);
+    try {
+      // US-011: Execute approval via service (send email, update CRM, etc.)
+      await approveActionItem(item, user.id);
+    } finally {
+      setIsApproving(false);
+    }
   };
 
   const handleDismiss = (item: ActionItem, reason: string) => {
-    dismissItem(item.id, reason);
+    // US-011: Dismiss with feedback via service
+    dismissActionItem(item, reason);
   };
 
   const handleEdit = (item: ActionItem) => {

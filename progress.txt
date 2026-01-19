@@ -166,3 +166,20 @@ Started: 2026-01-19T14:55:00.000Z
   - DEFAULT_PROMPTS updated to match brief: action items, stale deals, follow-ups, priorities
   - Prompts deduplicated by category to ensure variety
 ---
+
+## 2026-01-19 20:25 - US-011
+- What was implemented: Action Item Approval Flow with email/Slack fallback
+- Files changed:
+  - src/lib/services/actionItemApprovalService.ts - NEW: Approval handlers for all action types
+  - src/components/copilot/CopilotRightPanel.tsx - Wired approval service to panel handlers
+- Quality gates:
+  - lint: PASS (0 errors, 31 warnings - consistent with codebase patterns)
+- Learnings:
+  - approveActionItem routes to type-specific handlers (approveFollowUp, approveCrmUpdate, etc.)
+  - Email integration checks user_integrations table for email config
+  - Slack fallback pushes rich Block Kit message with email draft content
+  - HubSpot updates call hubspot-update Edge Function (graceful fallback if unavailable)
+  - Toast notifications via sonner for success/failure feedback
+  - Auto-removal from panel with setTimeout delay for UX polish
+  - dismissActionItem supports feedback reasons: 'not_relevant' or 'bad_timing'
+---
