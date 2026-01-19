@@ -7,7 +7,7 @@
  * 3. Connected - Integration status (HubSpot, Fathom, Slack, Calendar)
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -88,7 +88,13 @@ interface ActionItemsSectionProps {
 
 function ActionItemsSection({ items: propItems }: ActionItemsSectionProps) {
   // Use store items if no props provided
-  const storeItems = useActionItemStore((state) => state.getPendingItems());
+  // IMPORTANT: Select raw items array, not getPendingItems() - calling a method creates
+  // a new array reference on every render causing infinite re-render loops
+  const allStoreItems = useActionItemStore((state) => state.items);
+  const storeItems = useMemo(
+    () => allStoreItems.filter((item) => item.status === 'pending'),
+    [allStoreItems]
+  );
   const items = propItems ?? storeItems;
   const hasItems = items.length > 0;
 
