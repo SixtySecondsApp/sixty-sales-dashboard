@@ -119,3 +119,19 @@ Started: 2026-01-19T14:55:00.000Z
   - Calendar: emerald branding, Calendar icon, date/time display
   - Empty state shows all three source icons with helpful prompt
 ---
+
+## 2026-01-19 19:45 - US-007
+- What was implemented: Connected Integrations Panel with icons, status, and settings links
+- Files changed:
+  - src/components/copilot/CopilotRightPanel.tsx - Enhanced ConnectedSection with proper icons, status indicators, settings navigation
+- Quality gates:
+  - lint: PASS (0 errors, 20 warnings - consistent with codebase patterns)
+- Learnings:
+  - integrationConfig object maps integration IDs to icon, color, and gradient configuration
+  - Custom Slack SVG icon since lucide-react doesn't have Slack logo
+  - Integration rows are clickable buttons that navigate to settings pages
+  - settingsUrl added to Integration interface for deep linking
+  - Connected integrations show gradient background, disconnected show muted gray state
+  - Connected count displayed in section header badge
+  - "Add connector" button links to /settings/integrations
+---

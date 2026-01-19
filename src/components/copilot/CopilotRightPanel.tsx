@@ -403,63 +403,134 @@ function ContextSection({ items = [] }: ContextSectionProps) {
   );
 }
 
-interface Integration {
+export interface Integration {
   id: string;
   name: string;
   connected: boolean;
+  settingsUrl?: string;
 }
 
 interface ConnectedSectionProps {
   integrations?: Integration[];
+  onAddConnector?: () => void;
 }
 
-function ConnectedSection({ integrations }: ConnectedSectionProps) {
+// Integration-specific icons and colors
+const integrationConfig: Record<string, {
+  icon: React.ReactNode;
+  connectedColor: string;
+  gradient: string;
+}> = {
+  hubspot: {
+    icon: <Building2 className="w-4 h-4" />,
+    connectedColor: 'text-orange-400',
+    gradient: 'from-orange-500 to-amber-500',
+  },
+  fathom: {
+    icon: <Mic className="w-4 h-4" />,
+    connectedColor: 'text-violet-400',
+    gradient: 'from-violet-500 to-purple-500',
+  },
+  slack: {
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/>
+      </svg>
+    ),
+    connectedColor: 'text-pink-400',
+    gradient: 'from-pink-500 to-rose-500',
+  },
+  calendar: {
+    icon: <Calendar className="w-4 h-4" />,
+    connectedColor: 'text-emerald-400',
+    gradient: 'from-emerald-500 to-teal-500',
+  },
+};
+
+function ConnectedSection({ integrations, onAddConnector }: ConnectedSectionProps) {
   // Default to the 4 integrations in scope
   const defaultIntegrations: Integration[] = [
-    { id: 'hubspot', name: 'HubSpot', connected: false },
-    { id: 'fathom', name: 'Fathom', connected: false },
-    { id: 'slack', name: 'Slack', connected: false },
-    { id: 'calendar', name: 'Calendar', connected: false },
+    { id: 'hubspot', name: 'HubSpot', connected: false, settingsUrl: '/settings/integrations/hubspot' },
+    { id: 'fathom', name: 'Fathom', connected: false, settingsUrl: '/settings/integrations/fathom' },
+    { id: 'slack', name: 'Slack', connected: false, settingsUrl: '/settings/integrations/slack' },
+    { id: 'calendar', name: 'Calendar', connected: false, settingsUrl: '/settings/integrations/calendar' },
   ];
 
   const items = integrations || defaultIntegrations;
+  const connectedCount = items.filter(i => i.connected).length;
+
+  const handleAddConnector = () => {
+    if (onAddConnector) {
+      onAddConnector();
+    } else {
+      // Default navigation to integrations settings
+      window.location.href = '/settings/integrations';
+    }
+  };
+
+  const handleIntegrationClick = (integration: Integration) => {
+    if (integration.settingsUrl) {
+      window.location.href = integration.settingsUrl;
+    }
+  };
 
   return (
     <CollapsibleSection
       title="Connected"
       icon={<Link2 className="w-4 h-4" />}
       iconColor="text-purple-400"
+      count={connectedCount}
       defaultOpen={true}
     >
       <div className="space-y-2">
-        {items.map((integration) => (
-          <div
-            key={integration.id}
-            className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/5 transition-colors"
-          >
-            <div className={cn(
-              'w-9 h-9 rounded-xl flex items-center justify-center border',
-              integration.connected
-                ? 'bg-emerald-500/10 border-emerald-500/20'
-                : 'bg-white/5 border-white/10'
-            )}>
-              <IntegrationIcon id={integration.id} connected={integration.connected} />
-            </div>
-            <span className={cn(
-              'text-sm flex-1',
-              integration.connected ? 'text-slate-300' : 'text-slate-500'
-            )}>
-              {integration.name}
-            </span>
-            {integration.connected && (
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50" />
-            )}
-          </div>
-        ))}
+        {items.map((integration) => {
+          const config = integrationConfig[integration.id];
+
+          return (
+            <button
+              key={integration.id}
+              type="button"
+              onClick={() => handleIntegrationClick(integration)}
+              className={cn(
+                'w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left',
+                'hover:bg-white/5',
+                integration.connected && 'hover:border-emerald-500/30'
+              )}
+            >
+              <div className={cn(
+                'w-9 h-9 rounded-xl flex items-center justify-center border transition-colors',
+                integration.connected
+                  ? `bg-gradient-to-br ${config?.gradient || 'from-slate-500 to-slate-600'} border-white/20`
+                  : 'bg-white/5 border-white/10'
+              )}>
+                <span className={cn(
+                  integration.connected ? 'text-white' : 'text-slate-500'
+                )}>
+                  {config?.icon || <Link2 className="w-4 h-4" />}
+                </span>
+              </div>
+              <span className={cn(
+                'text-sm flex-1',
+                integration.connected ? 'text-slate-300' : 'text-slate-500'
+              )}>
+                {integration.name}
+              </span>
+              {integration.connected ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-emerald-400/70">Connected</span>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50" />
+                </div>
+              ) : (
+                <span className="text-xs text-slate-500">Not connected</span>
+              )}
+            </button>
+          );
+        })}
 
         <button
           type="button"
-          className="w-full flex items-center justify-center gap-2 p-3 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all mt-3 border border-dashed border-white/10"
+          onClick={handleAddConnector}
+          className="w-full flex items-center justify-center gap-2 p-3 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all mt-3 border border-dashed border-white/10 hover:border-violet-500/30"
         >
           <span className="text-lg leading-none">+</span>
           Add connector
@@ -467,42 +538,6 @@ function ConnectedSection({ integrations }: ConnectedSectionProps) {
       </div>
     </CollapsibleSection>
   );
-}
-
-function IntegrationIcon({ id, connected }: { id: string; connected: boolean }) {
-  const baseClass = cn(
-    'w-4 h-4',
-    connected ? getConnectedColor(id) : 'text-slate-500'
-  );
-
-  // Simple placeholder icons - these would be replaced with actual brand icons
-  switch (id) {
-    case 'hubspot':
-      return <span className={cn(baseClass, 'font-bold text-xs')}>HS</span>;
-    case 'fathom':
-      return <span className={cn(baseClass, 'font-bold text-xs')}>F</span>;
-    case 'slack':
-      return <span className={cn(baseClass, 'font-bold text-xs')}>S</span>;
-    case 'calendar':
-      return <span className={cn(baseClass, 'font-bold text-xs')}>C</span>;
-    default:
-      return <span className={cn(baseClass, 'font-bold text-xs')}>?</span>;
-  }
-}
-
-function getConnectedColor(id: string): string {
-  switch (id) {
-    case 'hubspot':
-      return 'text-orange-400';
-    case 'fathom':
-      return 'text-violet-400';
-    case 'slack':
-      return 'text-pink-400';
-    case 'calendar':
-      return 'text-emerald-400';
-    default:
-      return 'text-slate-400';
-  }
 }
 
 export interface CopilotRightPanelProps {
