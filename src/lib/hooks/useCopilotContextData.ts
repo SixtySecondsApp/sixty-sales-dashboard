@@ -26,7 +26,7 @@ import type {
 
 async function fetchContactContext(
   contactId: string,
-  orgId: string
+  userId: string
 ): Promise<HubSpotContext | null> {
   const { data: contact } = await supabase
     .from('contacts')
@@ -35,12 +35,12 @@ async function fetchContactContext(
       first_name,
       last_name,
       email,
-      job_title,
+      title,
       company_id,
       companies:company_id (id, name)
     `)
     .eq('id', contactId)
-    .eq('organization_id', orgId)
+    .eq('owner_id', userId)
     .maybeSingle();
 
   if (!contact) return null;
@@ -50,7 +50,7 @@ async function fetchContactContext(
     .from('activities')
     .select('id', { count: 'exact', head: true })
     .eq('contact_id', contactId)
-    .eq('organization_id', orgId);
+    .eq('owner_id', userId);
 
   const contactName = [contact.first_name, contact.last_name]
     .filter(Boolean)
@@ -62,7 +62,7 @@ async function fetchContactContext(
     type: 'hubspot',
     companyName,
     contactName,
-    contactRole: contact.job_title || undefined,
+    contactRole: contact.title || undefined,
     activityCount: activityCount || 0,
     hubspotUrl: undefined, // Could add HubSpot deep link if we have the external ID
   };
@@ -70,7 +70,7 @@ async function fetchContactContext(
 
 async function fetchDealContext(
   dealId: string,
-  orgId: string
+  userId: string
 ): Promise<HubSpotContext | null> {
   const { data: deal } = await supabase
     .from('deals')
@@ -78,12 +78,11 @@ async function fetchDealContext(
       id,
       name,
       value,
-      stage,
       company_id,
       companies:company_id (id, name)
     `)
     .eq('id', dealId)
-    .eq('organization_id', orgId)
+    .eq('owner_id', userId)
     .maybeSingle();
 
   if (!deal) return null;
@@ -106,8 +105,8 @@ async function fetchFathomContext(
   // Query meetings/transcripts - filter by contact if available
   let query = supabase
     .from('meetings')
-    .select('id, title, start_time, end_time, summary, fathom_call_id')
-    .eq('organization_id', orgId)
+    .select('id, title, start_time, meeting_end, summary, fathom_recording_id')
+    .eq('org_id', orgId)
     .order('start_time', { ascending: false })
     .limit(10);
 
@@ -130,11 +129,11 @@ async function fetchFathomContext(
       })
     : undefined;
 
-  // Calculate duration if end_time exists
+  // Calculate duration if meeting_end exists
   let lastCallDuration: string | undefined;
-  if (lastMeeting.start_time && lastMeeting.end_time) {
+  if (lastMeeting.start_time && lastMeeting.meeting_end) {
     const durationMs =
-      new Date(lastMeeting.end_time).getTime() -
+      new Date(lastMeeting.meeting_end).getTime() -
       new Date(lastMeeting.start_time).getTime();
     const minutes = Math.round(durationMs / 60000);
     lastCallDuration = `${minutes} min`;
@@ -151,8 +150,8 @@ async function fetchFathomContext(
     lastCallDate,
     lastCallDuration,
     keyInsight,
-    fathomUrl: lastMeeting.fathom_call_id
-      ? `https://fathom.video/call/${lastMeeting.fathom_call_id}`
+    fathomUrl: lastMeeting.fathom_recording_id
+      ? `https://fathom.video/call/${lastMeeting.fathom_recording_id}`
       : undefined,
   };
 }
@@ -211,17 +210,17 @@ export function useCopilotContextData(): UseCopilotContextDataReturn {
 
   // Fetch contact context
   const contactQuery = useQuery({
-    queryKey: ['copilot-context', 'contact', contactId, activeOrgId],
-    queryFn: () => fetchContactContext(contactId!, activeOrgId!),
-    enabled: !!contactId && !!activeOrgId,
+    queryKey: ['copilot-context', 'contact', contactId, userId],
+    queryFn: () => fetchContactContext(contactId!, userId!),
+    enabled: !!contactId && !!userId,
     staleTime: 30000, // 30 seconds
   });
 
   // Fetch deal context (only if no contact)
   const dealQuery = useQuery({
-    queryKey: ['copilot-context', 'deal', primaryDealId, activeOrgId],
-    queryFn: () => fetchDealContext(primaryDealId!, activeOrgId!),
-    enabled: !!primaryDealId && !contactId && !!activeOrgId,
+    queryKey: ['copilot-context', 'deal', primaryDealId, userId],
+    queryFn: () => fetchDealContext(primaryDealId!, userId!),
+    enabled: !!primaryDealId && !contactId && !!userId,
     staleTime: 30000,
   });
 
