@@ -53,3 +53,18 @@ Started: 2026-01-19T14:55:00.000Z
   - Each section has icon, title, optional count badge
   - Sections have empty state placeholders ready for content in later stories
 ---
+
+## 2026-01-19 18:50 - US-010 & US-003
+- What was implemented: ActionItem TypeScript types, Zustand store, and wired to right panel
+- Files changed:
+  - src/lib/stores/actionItemStore.ts - NEW: Types (ActionItem, ActionItemType, ActionItemStatus) and Zustand store with persist
+  - src/components/copilot/CopilotRightPanel.tsx - Connected to store, renders pending items
+- Quality gates:
+  - build:check:strict: PASS
+  - lint: PASS
+  - tests: PASS (pre-existing failures)
+- Learnings:
+  - Store uses zustand/middleware persist for localStorage
+  - ActionItem content is typed per action type (FollowUpContent, MeetingPrepContent, etc.)
+  - Panel falls back to store if no props provided
+---

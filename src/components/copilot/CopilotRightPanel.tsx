@@ -16,6 +16,7 @@ import {
   Link2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useActionItemStore, type ActionItem } from '@/lib/stores/actionItemStore';
 
 interface CollapsibleSectionProps {
   title: string;
@@ -69,10 +70,13 @@ function CollapsibleSection({
 }
 
 interface ActionItemsSectionProps {
-  items?: unknown[];
+  items?: ActionItem[];
 }
 
-function ActionItemsSection({ items = [] }: ActionItemsSectionProps) {
+function ActionItemsSection({ items: propItems }: ActionItemsSectionProps) {
+  // Use store items if no props provided
+  const storeItems = useActionItemStore((state) => state.getPendingItems());
+  const items = propItems ?? storeItems;
   const hasItems = items.length > 0;
 
   return (
@@ -86,7 +90,15 @@ function ActionItemsSection({ items = [] }: ActionItemsSectionProps) {
       {hasItems ? (
         <div className="space-y-2">
           {/* Action item cards will be rendered here in US-004 */}
-          <p className="text-sm text-slate-400">Action items will appear here.</p>
+          {items.map((item) => (
+            <div
+              key={item.id}
+              className="p-3 rounded-xl bg-white/5 border border-white/10 hover:border-violet-500/30 transition-colors"
+            >
+              <p className="text-sm font-medium text-white truncate">{item.title}</p>
+              <p className="text-xs text-slate-400 truncate mt-1">{item.preview}</p>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="p-4 rounded-xl bg-white/5 border border-white/5">
@@ -240,8 +252,8 @@ function getConnectedColor(id: string): string {
 }
 
 export interface CopilotRightPanelProps {
-  /** Action items pending user approval */
-  actionItems?: unknown[];
+  /** Action items pending user approval (uses store if not provided) */
+  actionItems?: ActionItem[];
   /** Context data sources being used */
   contextItems?: ContextItem[];
   /** Integration connection status */

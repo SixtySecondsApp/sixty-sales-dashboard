@@ -55,8 +55,8 @@
         "Verify in browser on localhost:5175"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "",
+      "passes": true,
+      "notes": "Connected to actionItemStore, shows pending items with basic card preview",
       "aiDevHubTaskId": null
     },
     {
@@ -179,8 +179,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "Foundation story - should be done early",
+      "passes": true,
+      "notes": "Created actionItemStore.ts with typed content interfaces for each action type, persist middleware",
       "aiDevHubTaskId": null
     },
     {
