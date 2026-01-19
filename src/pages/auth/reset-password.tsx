@@ -281,7 +281,7 @@ export default function ResetPassword() {
         >
           <div className="w-8 h-8 border-2 border-[#37bd7e] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-400 mb-4">Verifying password reset link...</p>
-          {debugInfo && (
+          {debugInfo && import.meta.env.DEV && (
             <div className="bg-gray-900/80 border border-gray-700 rounded-xl p-4 mt-4 text-left">
               <h3 className="text-white font-medium mb-2">Debug Information:</h3>
               <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono bg-gray-800/50 p-3 rounded overflow-auto max-h-96">
