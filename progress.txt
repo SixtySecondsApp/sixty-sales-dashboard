@@ -151,3 +151,18 @@ Started: 2026-01-19T14:55:00.000Z
   - Quick prompts displayed as pill buttons with flex-wrap
   - Light/dark mode support throughout
 ---
+
+## 2026-01-19 20:05 - US-009
+- What was implemented: Capability-matched dynamic prompts with personalization
+- Files changed:
+  - src/lib/hooks/useDynamicPrompts.ts - Updated with new prompt templates and data sources
+- Quality gates:
+  - lint: PASS (0 errors, 7 warnings - function length/complexity warnings)
+- Learnings:
+  - Added 'fathom' category for transcript-based prompts
+  - formatMeetingTime helper converts ISO dates to "3pm" format
+  - Dynamic prompts now include: "Prep me for my 3pm call", "What did [Name] say about next steps?"
+  - Added companies query for "Summarise my calls with [Company]" prompt
+  - DEFAULT_PROMPTS updated to match brief: action items, stale deals, follow-ups, priorities
+  - Prompts deduplicated by category to ensure variety
+---
