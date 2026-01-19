@@ -36,13 +36,20 @@ export default function AuthCallback() {
       try {
         setIsProcessing(true);
 
-        // Get the auth code/token from URL
+        // Get the auth code/token from URL (search params or hash)
+        // Supabase sends tokens in different formats depending on flow:
+        // - Search params: token_hash, type, code (modern/hybrid flows)
+        // - Hash params: access_token, type (implicit flow for invites)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+
         const code = searchParams.get('code');
         const tokenHash = searchParams.get('token_hash');
-        const type = searchParams.get('type');
+        const type = searchParams.get('type') || hashParams.get('type');
+
         // Get waitlist entry ID from URL or localStorage (URL params might be lost in redirects)
         const waitlistEntryId = searchParams.get('waitlist_entry') || localStorage.getItem('waitlist_entry_id');
         const next = searchParams.get('next') || '/dashboard';
+
         // Get invited user's name if provided in URL (from admin invite)
         // NOTE: Names should NOT be in query params - they break Supabase auth verification
         // Instead, they should be in user_metadata after invitation
@@ -56,6 +63,18 @@ export default function AuthCallback() {
           waitlistEntryId,
           urlParams: Object.fromEntries(searchParams.entries()),
           hash: window.location.hash
+        });
+
+        // Check if this is an invite flow based on type parameter or waitlist entry
+        // MUST do this check early, before checking email_confirmed_at
+        const isWaitlistInvite = type === 'invite' && waitlistEntryId;
+        const isOrgInvite = type === 'invite';
+
+        console.log('[AuthCallback] Invite flow detection:', {
+          type,
+          isWaitlistInvite,
+          isOrgInvite,
+          waitlistEntryId
         });
 
         // Check if there are session tokens in URL hash (from invitation redirect)
@@ -76,20 +95,42 @@ export default function AuthCallback() {
           invitedAt: session?.user?.invited_at
         });
 
-        // If we already have a valid session with verified email, skip verification and proceed
+        // For invitation flows, route to SetPassword IMMEDIATELY (don't wait for email confirmation)
+        // This handles the case where an invite has been clicked and a session is being established
+        if (session?.user && (isWaitlistInvite || (isOrgInvite && session.user.invited_at))) {
+          const waitlistIdFromUrl = waitlistEntryId;
+          const waitlistIdFromStorage = localStorage.getItem('waitlist_entry_id');
+          const waitlistIdFromMetadata = session.user.user_metadata?.waitlist_entry_id;
+          const waitlistEntryIdToUse = waitlistIdFromUrl || waitlistIdFromStorage || waitlistIdFromMetadata;
+
+          console.log('[AuthCallback] Routing invite flow to SetPassword:', waitlistEntryIdToUse);
+          localStorage.setItem('waitlist_entry_id', waitlistEntryIdToUse);
+
+          // Wait a bit to ensure session is fully established
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          if (waitlistEntryIdToUse) {
+            navigate(`/auth/set-password?waitlist_entry=${waitlistEntryIdToUse}`, { replace: true });
+          } else {
+            navigate('/auth/set-password', { replace: true });
+          }
+          return;
+        }
+
+        // If we have a valid session with verified email, proceed with normal flow
         if (session?.user?.email_confirmed_at) {
           // Check if this is a waitlist user - check multiple sources
           const waitlistIdFromUrl = waitlistEntryId;
           const waitlistIdFromStorage = localStorage.getItem('waitlist_entry_id');
           const waitlistIdFromMetadata = session.user.user_metadata?.waitlist_entry_id;
           const waitlistEntryIdToUse = waitlistIdFromUrl || waitlistIdFromStorage || waitlistIdFromMetadata;
-          
+
           if (waitlistEntryIdToUse) {
             localStorage.setItem('waitlist_entry_id', waitlistEntryIdToUse);
             navigate(`/auth/set-password?waitlist_entry=${waitlistEntryIdToUse}`, { replace: true });
             return;
           }
-          
+
           // User is already authenticated and verified - go directly to appropriate page
           await navigateBasedOnOnboarding(session, next);
           return;
