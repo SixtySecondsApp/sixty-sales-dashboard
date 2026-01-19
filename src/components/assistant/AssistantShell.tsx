@@ -173,8 +173,8 @@ export function AssistantShell({ mode, onOpenQuickAdd }: AssistantShellProps) {
         <div ref={endRef} />
       </div>
 
-      {/* Input */}
-      <div className="p-4 border-t border-gray-800/50">
+      {/* Input - flex-shrink-0 ensures it's always visible at bottom */}
+      <div className="flex-shrink-0 p-4 border-t border-gray-800/50">
         {/* Quick Add chips (V2-style) */}
         {mode === 'overlay' && (
           <div className="mb-3">

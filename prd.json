@@ -1,0 +1,225 @@
+{
+  "project": "Copilot V2 Redesign",
+  "runSlug": "copilot-v2-redesign",
+  "branchName": "feature/copilot-v2-redesign",
+  "description": "Transform the Sales Copilot into a two-panel interface with Action Items, Context awareness, and 100vh viewport compliance",
+  "aiDevHubProjectId": "cae03d2d-74ac-49e6-9da2-aae2440e0c00",
+  "createdAt": "2026-01-19T14:55:00.000Z",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Implement 100vh Layout Container",
+      "description": "As a user, I want the Copilot interface to fit entirely within my viewport so that the chat input is always visible without scrolling the page.",
+      "acceptanceCriteria": [
+        "CopilotLayout container uses h-screen / 100vh with overflow-hidden",
+        "Chat messages area scrolls internally within a flex container",
+        "Chat input area has flex-shrink-0 and is always visible at bottom",
+        "Right panel scrolls independently from chat area",
+        "Layout works on common screen sizes (1280x720, 1920x1080, 2560x1440)",
+        "Typecheck passes",
+        "Verify in browser on localhost:5175"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Layout now supports rightPanel prop, flex-shrink-0 on input, independent scrolling on right panel",
+      "aiDevHubTaskId": null
+    },
+    {
+      "id": "US-002",
+      "title": "Create Right Panel Shell with Tab Structure",
+      "description": "As a user, I want a right sidebar panel on the Copilot page so that I can see Action Items, Context, and Connected integrations.",
+      "acceptanceCriteria": [
+        "Right panel is 320px wide with border-left separator",
+        "Panel contains three collapsible sections: Action Items, Context, Connected",
+        "Each section has header with icon and optional count badge",
+        "Sections are independently scrollable if content overflows",
+        "Panel respects the 100vh constraint",
+        "Typecheck passes",
+        "Verify in browser on localhost:5175"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "aiDevHubTaskId": null
+    },
+    {
+      "id": "US-003",
+      "title": "Build Action Items Panel with Empty State",
+      "description": "As a user, I want to see an Action Items panel that shows pending actions the AI has prepared for my approval.",
+      "acceptanceCriteria": [
+        "Action Items section shows count badge in header (e.g., Action Items (2))",
+        "Empty state displays: No pending actions. Ask me to draft a follow-up or prep for a meeting.",
+        "Panel uses the ActionItem TypeScript interface from the brief",
+        "Styling matches the design.jsx glassmorphic dark theme",
+        "Typecheck passes",
+        "Verify in browser on localhost:5175"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "",
+      "aiDevHubTaskId": null
+    },
+    {
+      "id": "US-004",
+      "title": "Implement Action Item Card Component",
+      "description": "As a user, I want each Action Item to display as a card with preview text and action buttons so I can quickly review and approve AI-generated actions.",
+      "acceptanceCriteria": [
+        "Card shows icon based on type (email, meeting-prep, crm-update, reminder)",
+        "Card displays title, preview snippet, and timestamp (Generated 2m ago)",
+        "Card has three action buttons: Preview, Edit, Approve (or Approve & Send for emails)",
+        "Hover state highlights the card with violet border",
+        "Card is keyboard accessible (focusable, Enter to expand)",
+        "Typecheck passes",
+        "Verify in browser on localhost:5175"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "",
+      "aiDevHubTaskId": null
+    },
+    {
+      "id": "US-005",
+      "title": "Build Action Item Preview Modal",
+      "description": "As a user, I want to click Preview on an Action Item to see the full content in a modal so I can review it before approving.",
+      "acceptanceCriteria": [
+        "Modal opens with full action content (email body, meeting brief, etc.)",
+        "Modal has Edit, Approve, and Dismiss buttons in footer",
+        "Dismiss button shows feedback options (Not relevant / Bad timing)",
+        "Modal closes on Escape key or clicking outside",
+        "Modal is responsive and doesn't exceed viewport",
+        "Typecheck passes",
+        "Verify in browser on localhost:5175"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "",
+      "aiDevHubTaskId": null
+    },
+    {
+      "id": "US-006",
+      "title": "Build Context Panel with Data Sources",
+      "description": "As a user, I want to see what data the Copilot is using (HubSpot, Fathom, Calendar) so I can trust its responses are grounded in real information.",
+      "acceptanceCriteria": [
+        "Context section shows HubSpot data: company name, deal value, contact name/role, activity count",
+        "Context section shows Fathom data: call count, last call date/duration, key insight",
+        "Context section shows Calendar data: next meeting date/time",
+        "Each source is clickable to show more detail or link out",
+        "Icons match integration branding (orange for HubSpot, microphone for Fathom, calendar for Calendar)",
+        "Empty state shows when no context is loaded",
+        "Typecheck passes",
+        "Verify in browser on localhost:5175"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "",
+      "aiDevHubTaskId": null
+    },
+    {
+      "id": "US-007",
+      "title": "Build Connected Integrations Panel",
+      "description": "As a user, I want to see which integrations are connected so I know what data sources the Copilot can access.",
+      "acceptanceCriteria": [
+        "Shows compact row of integration icons with checkmarks for connected status",
+        "Integrations shown: HubSpot, Fathom, Slack, Calendar (only these 4)",
+        "Green dot indicator for connected integrations",
+        "Add connector button links to settings/integrations page",
+        "Disconnected integrations show gray/muted state",
+        "Typecheck passes",
+        "Verify in browser on localhost:5175"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "",
+      "aiDevHubTaskId": null
+    },
+    {
+      "id": "US-008",
+      "title": "Update Welcome State with 4 Suggested Actions",
+      "description": "As a user, I want to see 4 relevant suggested actions when I first open Copilot so I can quickly start a useful workflow.",
+      "acceptanceCriteria": [
+        "Shows exactly 4 action cards in a 2x2 grid (not 6)",
+        "Actions are: Draft a follow-up, Prep for a meeting, What needs attention?, Catch me up",
+        "Each card has icon, label, and short description",
+        "Cards use gradient backgrounds matching design.jsx",
+        "Clicking a card starts the corresponding workflow",
+        "Typecheck passes",
+        "Verify in browser on localhost:5175"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "",
+      "aiDevHubTaskId": null
+    },
+    {
+      "id": "US-009",
+      "title": "Update Quick Prompts to Match Capabilities",
+      "description": "As a user, I want the suggested prompts to reflect what the Copilot can actually do well so my first experience is successful.",
+      "acceptanceCriteria": [
+        "Quick prompts updated to capability-matched list from brief",
+        "Prompts are generated dynamically where possible (contact names, meeting times)",
+        "Clicking a prompt auto-sends it (current behavior maintained)",
+        "Typecheck passes",
+        "Verify in browser on localhost:5175"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "",
+      "aiDevHubTaskId": null
+    },
+    {
+      "id": "US-010",
+      "title": "Create ActionItem TypeScript Types and Store",
+      "description": "As a developer, I want TypeScript types and a Zustand store for Action Items so the feature has proper type safety and state management.",
+      "acceptanceCriteria": [
+        "ActionItem interface matches the brief: id, type, status, title, preview, content, context, createdAt, actions",
+        "ActionItemType union: follow-up | meeting-prep | crm-update | reminder",
+        "ActionItemStatus union: pending | approved | dismissed | edited",
+        "Zustand store with: items array, addItem, updateItem, removeItem, approveItem, dismissItem",
+        "Store persists to localStorage for session continuity",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Foundation story - should be done early",
+      "aiDevHubTaskId": null
+    },
+    {
+      "id": "US-011",
+      "title": "Wire Action Item Approval Flow",
+      "description": "As a user, I want to approve an Action Item and have it execute (send email, update CRM, etc.) so the Copilot can take action on my behalf.",
+      "acceptanceCriteria": [
+        "Approve & Send on follow-up emails triggers email send via existing email integration",
+        "If email not configured, falls back to pushing draft to Slack DM",
+        "Approve on CRM updates triggers HubSpot API call",
+        "Success shows toast notification and moves item to completed state",
+        "Failure shows error toast and keeps item in pending state",
+        "Approved items are removed from the panel (or moved to completed section)",
+        "Typecheck passes",
+        "Verify in browser on localhost:5175"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "",
+      "aiDevHubTaskId": null
+    },
+    {
+      "id": "US-012",
+      "title": "Integrate Context Panel with CopilotContext",
+      "description": "As a developer, I want the Context panel to pull data from the existing CopilotContext so it reflects the current conversation's data sources.",
+      "acceptanceCriteria": [
+        "Context panel reads from useCopilot() context state",
+        "When user asks about a contact/deal, Context panel updates to show that entity",
+        "HubSpot data pulled from existing hubspotService",
+        "Fathom data pulled from existing meeting/transcript queries",
+        "Calendar data pulled from existing calendar integration",
+        "Context updates in real-time as conversation progresses",
+        "Typecheck passes",
+        "Verify in browser on localhost:5175"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "",
+      "aiDevHubTaskId": null
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+# Progress Log
+Run: copilot-v2-redesign
+Started: 2026-01-19T14:55:00.000Z
+
+## Codebase Patterns
+(Add reusable patterns/gotchas discovered during implementation)
+
+### Key Files
+- `src/components/Copilot.tsx` - Main Copilot component wrapper
+- `src/components/copilot/CopilotLayout.tsx` - Layout with history sidebar
+- `src/components/assistant/AssistantShell.tsx` - Chat interface (messages + input)
+- `src/lib/contexts/CopilotContext.tsx` - Copilot state management
+- `src/components/copilot/ChatMessage.tsx` - Individual message component
+
+### Design Reference
+- `improve-mcp-copilot/design.jsx` - Target UI mockup
+- `improve-mcp-copilot/improve-copilot-brief.md` - Feature requirements
+
+### Integrations in Scope
+- HubSpot (primary CRM)
+- Fathom (meeting transcripts)
+- Slack (notifications)
+- Calendar (meeting awareness)
+
+---
+
+## 2026-01-19 18:36 - US-001
+- What was implemented: 100vh layout container with right panel support
+- Files changed:
+  - src/components/copilot/CopilotLayout.tsx - Added rightPanel prop, toggle button, glassmorphic sidebar
+  - src/components/assistant/AssistantShell.tsx - Added flex-shrink-0 to input area
+- Quality gates:
+  - build:check:strict: PASS (tsc --noEmit)
+  - lint: PASS
+  - tests: PASS (pre-existing failures unrelated to changes)
+- Learnings:
+  - CopilotLayout already had h-full min-h-0 from parent Copilot.tsx
+  - AssistantShell messages area already had flex-1 overflow-y-auto
+  - Right panel uses w-80 (320px) with backdrop-blur-xl glassmorphic effect
+---
