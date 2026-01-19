@@ -27,6 +27,8 @@ import {
   Video,
   Building2,
   Briefcase,
+  Eye,
+  Code,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -47,6 +49,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/clientV2';
 import type { AgentSequence, StepResult } from '@/lib/hooks/useAgentSequences';
 import type { LeadWithPrep } from '@/lib/services/leadService';
+import { SkillOutputRenderer } from './SkillOutputRenderer';
 
 // =============================================================================
 // Meeting with Transcript Type
@@ -640,8 +643,42 @@ interface StepResultDisplayProps {
   index: number;
 }
 
+/**
+ * Extract renderable content from skill output
+ * Returns markdown/text content if found, otherwise null
+ */
+function extractRenderableContent(output: unknown): string | null {
+  if (!output) return null;
+
+  // If output is already a string, it might be markdown
+  if (typeof output === 'string') {
+    // Check if it looks like markdown (has headers, lists, or significant formatting)
+    if (output.includes('#') || output.includes('*') || output.includes('-') || output.length > 100) {
+      return output;
+    }
+    return null;
+  }
+
+  // If output is an object, look for common content fields
+  if (typeof output === 'object' && output !== null) {
+    const obj = output as Record<string, unknown>;
+
+    // Priority fields that typically contain rendered content
+    const contentFields = ['analysis', 'content', 'summary', 'report', 'output', 'text', 'markdown'];
+
+    for (const field of contentFields) {
+      if (typeof obj[field] === 'string' && (obj[field] as string).length > 50) {
+        return obj[field] as string;
+      }
+    }
+  }
+
+  return null;
+}
+
 function StepResultDisplay({ result, index }: StepResultDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [outputView, setOutputView] = useState<'rendered' | 'raw'>('rendered');
 
   const statusIcon = {
     pending: <Clock className="h-4 w-4 text-muted-foreground" />,
@@ -653,11 +690,15 @@ function StepResultDisplay({ result, index }: StepResultDisplayProps) {
 
   const statusColor = {
     pending: 'border-muted',
-    running: 'border-yellow-500 bg-yellow-50',
-    completed: 'border-green-500 bg-green-50',
-    failed: 'border-red-500 bg-red-50',
+    running: 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20',
+    completed: 'border-green-500 bg-green-50 dark:bg-green-950/20',
+    failed: 'border-red-500 bg-red-50 dark:bg-red-950/20',
     skipped: 'border-muted',
   };
+
+  // Check if output has renderable content
+  const renderableContent = extractRenderableContent(result.output);
+  const hasRenderableContent = renderableContent !== null;
 
   return (
     <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
@@ -695,7 +736,7 @@ function StepResultDisplay({ result, index }: StepResultDisplayProps) {
             {Object.keys(result.input).length > 0 && (
               <div>
                 <Label className="text-xs text-muted-foreground">Input</Label>
-                <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-x-auto">
+                <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-x-auto max-h-[200px]">
                   {JSON.stringify(result.input, null, 2)}
                 </pre>
               </div>
@@ -704,10 +745,54 @@ function StepResultDisplay({ result, index }: StepResultDisplayProps) {
             {/* Output */}
             {result.output && (
               <div>
-                <Label className="text-xs text-muted-foreground">Output</Label>
-                <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-x-auto">
-                  {JSON.stringify(result.output, null, 2)}
-                </pre>
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="text-xs text-muted-foreground">Output</Label>
+                  {hasRenderableContent && (
+                    <div className="flex bg-muted rounded-md p-0.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOutputView('rendered');
+                        }}
+                        className={cn(
+                          'px-2 py-0.5 text-xs font-medium rounded transition-colors flex items-center gap-1',
+                          outputView === 'rendered'
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        <Eye className="w-3 h-3" />
+                        Rendered
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOutputView('raw');
+                        }}
+                        className={cn(
+                          'px-2 py-0.5 text-xs font-medium rounded transition-colors flex items-center gap-1',
+                          outputView === 'raw'
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        <Code className="w-3 h-3" />
+                        Raw
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {hasRenderableContent && outputView === 'rendered' ? (
+                  <div className="mt-1 p-3 bg-background border rounded-lg overflow-auto max-h-[400px]">
+                    <SkillOutputRenderer content={renderableContent} />
+                  </div>
+                ) : (
+                  <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-x-auto max-h-[300px]">
+                    {JSON.stringify(result.output, null, 2)}
+                  </pre>
+                )}
               </div>
             )}
 
@@ -715,7 +800,7 @@ function StepResultDisplay({ result, index }: StepResultDisplayProps) {
             {result.error && (
               <div>
                 <Label className="text-xs text-red-600">Error</Label>
-                <pre className="mt-1 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                <pre className="mt-1 p-2 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-400">
                   {result.error}
                 </pre>
               </div>
@@ -954,9 +1039,10 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
   const handleRun = useCallback(async () => {
     const inputContext = buildInputContext();
 
-    // In live mode, require input context
-    // In mock mode, allow empty input since mock data will be used
-    if (!isSimulation && (!inputContext || Object.keys(inputContext).length === 0)) {
+    // In live mode, only require input context if the sequence has required fields
+    // Sequences that don't reference trigger.params can run with empty context
+    const hasRequiredFields = inputFields.some(f => f.required);
+    if (!isSimulation && hasRequiredFields && (!inputContext || Object.keys(inputContext).length === 0)) {
       setJsonError('Live mode requires input context. Please fill in the required fields.');
       return;
     }
@@ -987,7 +1073,7 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
     } catch (error) {
       console.error('[Simulator] Execution error:', error);
     }
-  }, [sequence, isSimulation, buildInputContext, mockDataJson, parseJson, execution]);
+  }, [sequence, isSimulation, buildInputContext, mockDataJson, parseJson, execution, inputFields]);
 
   // Handle stop
   const handleStop = useCallback(() => {
@@ -1273,20 +1359,22 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
                 className={cn(
                   'mt-4 p-4 rounded-lg border',
                   execution.status === 'completed'
-                    ? 'bg-green-50 border-green-200'
-                    : 'bg-red-50 border-red-200'
+                    ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800'
+                    : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
                 )}
               >
                 <div className="flex items-center gap-2 mb-2">
                   {execution.status === 'completed' ? (
-                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                   ) : (
-                    <XCircle className="h-5 w-5 text-red-600" />
+                    <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
                   )}
                   <span
                     className={cn(
                       'font-semibold',
-                      execution.status === 'completed' ? 'text-green-700' : 'text-red-700'
+                      execution.status === 'completed'
+                        ? 'text-green-700 dark:text-green-300'
+                        : 'text-red-700 dark:text-red-300'
                     )}
                   >
                     {execution.status === 'completed'
@@ -1296,13 +1384,13 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
                 </div>
 
                 {execution.error && (
-                  <p className="text-sm text-red-700">{execution.error}</p>
+                  <p className="text-sm text-red-700 dark:text-red-400">{execution.error}</p>
                 )}
 
                 {execution.status === 'completed' && Object.keys(execution.context).length > 0 && (
                   <div className="mt-3">
                     <Label className="text-xs text-muted-foreground">Final Context</Label>
-                    <pre className="mt-1 p-2 bg-white border rounded text-xs overflow-x-auto max-h-48">
+                    <pre className="mt-1 p-2 bg-background border rounded text-xs overflow-x-auto max-h-48">
                       {JSON.stringify(execution.context, null, 2)}
                     </pre>
                   </div>
