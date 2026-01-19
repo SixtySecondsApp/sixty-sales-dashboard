@@ -68,3 +68,19 @@ Started: 2026-01-19T14:55:00.000Z
   - ActionItem content is typed per action type (FollowUpContent, MeetingPrepContent, etc.)
   - Panel falls back to store if no props provided
 ---
+
+## 2026-01-19 19:15 - US-004
+- What was implemented: Action Item Card component with full functionality
+- Files changed:
+  - src/components/copilot/ActionItemCard.tsx - NEW: Card with type-based icon/gradient, title, preview, timestamp, action buttons
+  - src/components/copilot/CopilotRightPanel.tsx - Wired ActionItemCard to ActionItemsSection
+- Quality gates:
+  - build:check:strict: PASS
+  - lint: PASS (warnings only)
+  - tests: PASS (pre-existing failures)
+- Learnings:
+  - ActionItemCard uses getTypeIcon/getTypeColor helpers for type-based styling
+  - getApproveLabel returns context-aware button text (Approve & Send for emails, Mark Ready for meetings)
+  - Card is keyboard accessible with tabIndex={0} and onKeyDown Enter handler
+  - Callbacks wired with TODO comments for US-005 (preview modal) and US-011 (approval flow)
+---

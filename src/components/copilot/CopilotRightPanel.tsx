@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useActionItemStore, type ActionItem } from '@/lib/stores/actionItemStore';
+import { ActionItemCard } from './ActionItemCard';
 
 interface CollapsibleSectionProps {
   title: string;
@@ -89,15 +90,23 @@ function ActionItemsSection({ items: propItems }: ActionItemsSectionProps) {
     >
       {hasItems ? (
         <div className="space-y-2">
-          {/* Action item cards will be rendered here in US-004 */}
           {items.map((item) => (
-            <div
+            <ActionItemCard
               key={item.id}
-              className="p-3 rounded-xl bg-white/5 border border-white/10 hover:border-violet-500/30 transition-colors"
-            >
-              <p className="text-sm font-medium text-white truncate">{item.title}</p>
-              <p className="text-xs text-slate-400 truncate mt-1">{item.preview}</p>
-            </div>
+              item={item}
+              onPreview={(actionItem) => {
+                // TODO: Open preview modal in US-005
+                console.log('Preview:', actionItem.id);
+              }}
+              onEdit={(actionItem) => {
+                // TODO: Open edit modal in US-005
+                console.log('Edit:', actionItem.id);
+              }}
+              onApprove={(actionItem) => {
+                // TODO: Wire approval flow in US-011
+                console.log('Approve:', actionItem.id);
+              }}
+            />
           ))}
         </div>
       ) : (
