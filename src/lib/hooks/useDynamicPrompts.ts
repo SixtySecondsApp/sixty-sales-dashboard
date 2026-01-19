@@ -64,7 +64,7 @@ export function useDynamicPrompts(maxPrompts: number = 4): {
           supabase
             .from('deals')
             .select('id, name, health_score, updated_at, expected_close_date')
-            .eq('user_id', user.id)
+            .eq('owner_id', user.id)
             .lt('updated_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString())
             .order('value', { ascending: false })
             .limit(5),
@@ -92,7 +92,7 @@ export function useDynamicPrompts(maxPrompts: number = 4): {
           supabase
             .from('companies')
             .select('id, name')
-            .eq('user_id', user.id)
+            .eq('owner_id', user.id)
             .order('updated_at', { ascending: false })
             .limit(3)
         ]);

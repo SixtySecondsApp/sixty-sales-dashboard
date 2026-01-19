@@ -200,3 +200,20 @@ Started: 2026-01-19T14:55:00.000Z
   - fetchCalendarContext: calendar_events table, gets next upcoming meeting
   - Context panel updates in real-time as CopilotContext changes (React Query refetches)
 ---
+
+## 2026-01-19 23:00 - Progress Section
+- What was implemented: Progress section for right panel showing task processing steps
+- Files changed:
+  - src/components/copilot/CopilotRightPanel.tsx - Added ProgressStep interface, ProgressSection component, progressSteps and isProcessing props
+  - src/components/Copilot.tsx - Wired isLoading to CopilotRightPanel via isProcessing prop
+- Quality gates:
+  - UI tested: PASS (Progress section appears during processing, hides when complete)
+  - build: PASS (no new errors introduced)
+- Learnings:
+  - ProgressSection shows when isProcessing=true, hides when false with no steps
+  - Step indicators use 4 circles with connecting lines
+  - Three states: pending (gray), active (violet pulse), complete (emerald with check icon)
+  - Step labels show Loader2 spinner for active, Check icon for complete
+  - Placeholder text "Steps will show as the task unfolds" when no step data
+  - Future: progressSteps array can be populated from AI streaming response to show actual progress
+---

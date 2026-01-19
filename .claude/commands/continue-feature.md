@@ -6,7 +6,41 @@ Execute up to N iterations, completing one user story per iteration from `prd.js
 
 ---
 
+## HOOKS (Claude-level configuration)
+
+This command is hook-aware. Hooks are configured at the Claude settings level (not in a repo file).
+
+**Preflight behavior:**
+- At command start, check if hook configuration is available.
+- If hooks are unavailable or fail to load, log a warning and continue.
+- Hook failures are **never blocking** — the command always proceeds.
+
+**Continue hook events emitted:**
+| Event | Payload | When |
+|-------|---------|------|
+| `continue.onStart` | `{ runSlug, iterationCount }` | Loop begins |
+| `story.onStart` | `{ storyId, title }` | Story implementation starts |
+| `story.onQualityGatesStart` | `{ storyId }` | Quality gates begin |
+| `story.onQualityGatesPass` | `{ storyId }` | All gates pass |
+| `story.onQualityGatesFail` | `{ storyId, error, retryCount }` | Gate fails |
+| `story.onComplete` | `{ storyId, filesChanged }` | Story done successfully |
+| `story.onBlocked` | `{ storyId, reason }` | Story marked blocked |
+| `continue.onComplete` | `{ completedCount, remainingCount }` | Loop ends |
+
+**Session limits (hook-configured):**
+- `maxStoriesPerSession`: Stop after N stories (default: 10, from $ARGUMENTS).
+- `maxHoursPerSession`: Stop after N hours (default: none).
+
+---
+
 ## LOOP WORKFLOW
+
+### Step 0: Hook preflight
+
+1. Emit `continue.onStart` event with runSlug (if known) and iterationCount.
+2. If hook system is unavailable, log: `⚠️ Hooks unavailable — continuing without hook events.`
+3. If session limits are configured, enforce them throughout the loop.
+4. Continue to Step 1 regardless of hook status.
 
 For each iteration (up to the requested count):
 
@@ -69,6 +103,8 @@ const { dealService, activityService } = useServices();
 
 ### Step 6: Run quality gates
 
+Emit `story.onQualityGatesStart` event.
+
 Run these commands (all must pass):
 
 ```bash
@@ -80,6 +116,18 @@ npm run test:run
 **For UI stories:**
 - Verify in browser on `localhost:5175`
 - Run Playwright tests if relevant: `npm run test:e2e`
+
+**Hook-configured retry behavior (if available):**
+
+If quality gates fail and hooks specify retry behavior:
+1. Attempt auto-fix if configured (e.g., `npm run lint -- --fix`).
+2. Re-run failing gate(s) up to `maxRetries` (default: 1).
+3. Emit `story.onQualityGatesFail` with `{ storyId, error, retryCount }` on each failure.
+4. If retries exhausted, follow `fallback` action:
+   - `"pause"`: Stop the loop and report (default behavior).
+   - `"mark-blocked"`: Mark story blocked and continue to next story.
+
+If hooks are unavailable, use default behavior: stop on first failure.
 
 ### Step 7: Handle result
 
@@ -105,7 +153,10 @@ npm run test:run
 5. Update AI Dev Hub task:
    - Status: `in_review`
    - Add comment: Summary of implementation + files changed + gates passed
-6. **Auto-commit** with message: `feat: <storyId> - <Story Title>`
+6. **Commit** per the commit policy (see COMMIT FORMAT & POLICY section):
+   - Unattended: auto-commit with message `feat: <storyId> - <Story Title>`
+   - Interactive: ask before committing
+7. Emit `story.onComplete` event with `{ storyId, filesChanged }`.
 
 **If gates FAIL:**
 
@@ -134,6 +185,8 @@ After completing a story successfully:
 
 ## END OF LOOP SUMMARY
 
+Emit `continue.onComplete` event with `{ completedCount, remainingCount }`.
+
 After the loop ends (or all stories complete), print:
 
 ```
@@ -145,6 +198,7 @@ Total stories: Y
 Remaining: Z
 
 Commits made: N
+🔗 Hooks: <executed | unavailable>
 
 🎫 AI Dev Hub tasks updated
 
@@ -155,9 +209,18 @@ Next steps:
 
 ---
 
-## COMMIT FORMAT
+## COMMIT FORMAT & POLICY
 
-Auto-commits use this format:
+**Commit policy (hook-aware):**
+- **Unattended runs** (e.g., automated loops, background execution): Auto-commit on successful story completion.
+- **Interactive runs** (user is present): Ask before committing unless explicitly instructed otherwise.
+
+To determine run mode:
+- If the command was invoked with an iteration count > 1 and no user interaction occurred, treat as unattended.
+- If hooks indicate `autoConfirm.storyComplete = true`, treat as unattended.
+- Otherwise, treat as interactive.
+
+**Commit message format:**
 ```
 feat: <storyId> - <Story Title>
 ```

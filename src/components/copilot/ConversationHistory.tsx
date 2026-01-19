@@ -131,12 +131,22 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
   isDeleting,
   formatTime
 }) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   return (
     <li>
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onClick}
+        onKeyDown={handleKeyDown}
         className={cn(
-          'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors group',
+          'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors group cursor-pointer',
           'hover:bg-gray-50 dark:hover:bg-gray-800/50',
           isActive && 'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-500'
         )}
@@ -169,6 +179,7 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
 
         {/* Delete button */}
         <button
+          type="button"
           onClick={onDelete}
           disabled={isDeleting}
           className={cn(
@@ -179,7 +190,7 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
-      </button>
+      </div>
     </li>
   );
 };
