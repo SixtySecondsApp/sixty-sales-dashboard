@@ -11,7 +11,7 @@
 
 import type { PlatformSkill } from '@/lib/services/platformSkillService';
 
-export type Capability = 'crm' | 'calendar' | 'email' | 'transcript' | 'messaging' | 'tasks';
+export type Capability = 'crm' | 'calendar' | 'email' | 'meetings' | 'messaging' | 'tasks';
 
 export interface CapabilityStatus {
   capability: Capability;
@@ -56,19 +56,21 @@ export async function checkOrgCapabilities(
     features: hasHubSpot ? ['contacts', 'deals', 'companies'] : ['contacts', 'deals'], // DB-only has basic features
   });
 
-  // Calendar capability
+  // Calendar capability (Google Calendar only - MeetingBaaS is for Meetings, not Calendar)
   const hasGoogleCalendar = orgId
     ? await checkGoogleCalendarIntegration(supabase, orgId)
     : false;
+  capabilities.push({
+    capability: 'calendar',
+    available: hasGoogleCalendar,
+    provider: hasGoogleCalendar ? 'google' : undefined,
+    features: hasGoogleCalendar ? ['events', 'attendees', 'availability'] : [],
+  });
+
+  // Check MeetingBaaS for Meetings capability (not Calendar)
   const hasMeetingBaaS = orgId
     ? await checkMeetingBaaSIntegration(supabase, orgId)
     : false;
-  capabilities.push({
-    capability: 'calendar',
-    available: hasGoogleCalendar || hasMeetingBaaS,
-    provider: hasGoogleCalendar ? 'google' : hasMeetingBaaS ? 'meetingbaas' : 'db',
-    features: hasGoogleCalendar || hasMeetingBaaS ? ['events', 'attendees', 'availability'] : [],
-  });
 
   // Email capability
   const hasGmail = orgId
@@ -81,19 +83,20 @@ export async function checkOrgCapabilities(
     features: hasGmail ? ['search', 'draft', 'send'] : ['search'], // DB may have stored emails
   });
 
-  // Transcript capability - available via Fathom OR MeetingBaaS (60 Notetaker)
+  // Meetings capability - available via Fathom OR MeetingBaaS (60 Notetaker)
+  // Records: transcripts, recordings, summaries
   const hasFathom = orgId
     ? await checkFathomIntegration(supabase, orgId)
     : false;
   const hasMeetingBaaSTranscript = orgId
     ? await checkMeetingBaaSIntegration(supabase, orgId)
     : false;
-  const hasTranscript = hasFathom || hasMeetingBaaSTranscript;
+  const hasMeetingsProvider = hasFathom || hasMeetingBaaSTranscript;
   capabilities.push({
-    capability: 'transcript',
-    available: hasTranscript,
+    capability: 'meetings',
+    available: hasMeetingsProvider,
     provider: hasFathom ? 'fathom' : hasMeetingBaaSTranscript ? 'meetingbaas' : undefined,
-    features: hasTranscript ? ['transcripts', 'recordings', 'ai_summaries'] : [],
+    features: hasMeetingsProvider ? ['transcripts', 'recordings', 'summaries'] : [],
   });
 
   // Messaging capability (Slack)
@@ -367,7 +370,7 @@ export function getCapabilityLabel(capability: Capability): string {
     crm: 'CRM',
     calendar: 'Calendar',
     email: 'Email',
-    transcript: 'Transcript',
+    meetings: 'Meetings',
     messaging: 'Messaging',
     tasks: 'Tasks',
   };
@@ -381,6 +384,7 @@ export function getProviderLabel(provider?: string): string {
   if (!provider) return 'None';
   const labels: Record<string, string> = {
     db: 'Database Only',
+    sixty: 'Sixty',
     hubspot: 'HubSpot',
     salesforce: 'Salesforce',
     pipedrive: 'Pipedrive',
@@ -390,7 +394,7 @@ export function getProviderLabel(provider?: string): string {
     outlook: 'Outlook',
     slack: 'Slack',
     fathom: 'Fathom',
-    meetingbaas: 'MeetingBaaS',
+    meetingbaas: '60 Notetaker',
   };
   return labels[provider] || provider;
 }

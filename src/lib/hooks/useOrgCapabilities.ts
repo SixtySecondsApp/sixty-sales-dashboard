@@ -1,13 +1,13 @@
 /**
  * useOrgCapabilities Hook
- * 
- * Fetches capability status for an organization (CRM, Calendar, Email, Transcript, Messaging)
+ *
+ * Fetches capability status for an organization (CRM, Calendar, Email, Meetings, Messaging)
  */
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../supabase/clientV2';
 
-export type Capability = 'crm' | 'calendar' | 'email' | 'transcript' | 'messaging' | 'tasks';
+export type Capability = 'crm' | 'calendar' | 'email' | 'meetings' | 'messaging' | 'tasks';
 
 export interface CapabilityStatus {
   capability: Capability;

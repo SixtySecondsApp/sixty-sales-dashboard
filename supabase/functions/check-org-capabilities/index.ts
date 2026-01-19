@@ -1,8 +1,8 @@
 /**
  * check-org-capabilities
- * 
+ *
  * Edge function to check which capabilities are available for an organization.
- * Returns capability status for CRM, Calendar, Email, Transcript, and Messaging.
+ * Returns capability status for CRM, Calendar, Email, Meetings, and Messaging.
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -13,7 +13,7 @@ import {
   errorResponse,
 } from '../_shared/corsHelper.ts';
 
-type Capability = 'crm' | 'calendar' | 'email' | 'transcript' | 'messaging' | 'tasks';
+type Capability = 'crm' | 'calendar' | 'email' | 'meetings' | 'messaging' | 'tasks';
 
 interface CapabilityStatus {
   capability: Capability;
@@ -91,51 +91,68 @@ serve(async (req) => {
       features: hasHubSpot ? ['contacts', 'deals', 'companies'] : ['contacts', 'deals'],
     });
 
-    // Calendar capability
+    // Calendar capability - check Google Calendar direct integration first
     const { data: googleData } = await supabase
       .from('google_integrations')
       .select('scopes')
       .eq('org_id', organizationId)
       .eq('is_active', true)
       .maybeSingle();
-    const hasGoogleCalendar =
+    const hasGoogleCalendar = !!(
       googleData?.scopes &&
       Array.isArray(googleData.scopes) &&
       googleData.scopes.some((s: string) =>
         s.includes('calendar') || s.includes('https://www.googleapis.com/auth/calendar')
-      );
+      )
+    );
 
+    // Check MeetingBaaS calendars (provides calendar read access for bot deployment)
     const { data: meetingBaaSData } = await supabase
       .from('meetingbaas_calendars')
-      .select('id')
+      .select('id, platform')
       .eq('org_id', organizationId)
       .eq('is_active', true)
       .limit(1)
       .maybeSingle();
     const hasMeetingBaaS = !!meetingBaaSData;
+    const meetingBaaSPlatform = meetingBaaSData?.platform as string | undefined;
+
+    // Calendar: prefer direct Google integration, fall back to MeetingBaaS
+    const hasCalendar = hasGoogleCalendar || hasMeetingBaaS;
+    let calendarProvider: string | undefined;
+    let calendarFeatures: string[] = [];
+
+    if (hasGoogleCalendar) {
+      calendarProvider = 'google';
+      calendarFeatures = ['events', 'attendees', 'availability'];
+    } else if (hasMeetingBaaS) {
+      calendarProvider = meetingBaaSPlatform === 'microsoft' ? 'microsoft' : 'google';
+      calendarFeatures = ['events']; // Limited features via MeetingBaaS
+    }
 
     capabilities.push({
       capability: 'calendar',
-      available: hasGoogleCalendar || hasMeetingBaaS,
-      provider: hasGoogleCalendar ? 'google' : hasMeetingBaaS ? 'meetingbaas' : 'db',
-      features: hasGoogleCalendar || hasMeetingBaaS ? ['events', 'attendees', 'availability'] : [],
+      available: hasCalendar,
+      provider: calendarProvider,
+      features: calendarFeatures,
     });
 
     // Email capability
-    const hasGmail =
+    const hasGmail = !!(
       googleData?.scopes &&
       Array.isArray(googleData.scopes) &&
       googleData.scopes.some((s: string) =>
         s.includes('gmail') || s.includes('https://www.googleapis.com/auth/gmail')
-      );
+      )
+    );
     capabilities.push({
       capability: 'email',
       available: hasGmail || true, // DB may have stored emails
-      provider: hasGmail ? 'gmail' : 'db',
+      provider: hasGmail ? 'google' : 'db',
       features: hasGmail ? ['search', 'draft', 'send'] : ['search'],
     });
 
-    // Transcript capability
+    // Meetings capability (records: transcripts, recordings, summaries)
     const { data: fathomData } = await supabase
       .from('fathom_integrations')
       .select('is_connected')
@@ -144,10 +161,10 @@ serve(async (req) => {
       .maybeSingle();
     const hasFathom = !!fathomData;
     capabilities.push({
-      capability: 'transcript',
-      available: hasFathom,
-      provider: hasFathom ? 'fathom' : undefined,
-      features: hasFathom ? ['transcripts', 'recordings', 'ai_summaries'] : [],
+      capability: 'meetings',
+      available: hasFathom || hasMeetingBaaS,
+      provider: hasFathom ? 'fathom' : hasMeetingBaaS ? 'meetingbaas' : undefined,
+      features: hasFathom || hasMeetingBaaS ? ['transcripts', 'recordings', 'summaries'] : [],
     });
 
     // Messaging capability (Slack)
@@ -165,11 +182,11 @@ serve(async (req) => {
       features: hasSlack ? ['channels', 'messages', 'notifications'] : [],
     });
 
-    // Tasks capability - always available via DB
+    // Tasks capability - always available via platform
     capabilities.push({
       capability: 'tasks',
-      available: true, // Tasks are stored in the DB, always available
-      provider: 'db',
+      available: true, // Tasks are stored in the platform
+      provider: 'sixty',
       features: ['create', 'update', 'list', 'complete'],
     });
 

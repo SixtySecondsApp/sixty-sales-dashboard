@@ -24,9 +24,9 @@ export interface AdapterBundle {
 }
 
 export interface CapabilityInfo {
-  capability: 'crm' | 'calendar' | 'email' | 'transcript' | 'messaging';
+  capability: 'crm' | 'calendar' | 'email' | 'meetings' | 'messaging' | 'tasks';
   available: boolean;
-  provider: string; // 'db' | 'hubspot' | 'salesforce' | 'pipedrive' | 'google' | 'microsoft' | 'slack' | 'fathom' | etc.
+  provider?: string; // 'db' | 'sixty' | 'hubspot' | 'salesforce' | 'pipedrive' | 'google' | 'microsoft' | 'slack' | 'fathom' | 'meetingbaas' | etc.
   features: string[];
 }
 
@@ -199,13 +199,27 @@ export class AdapterRegistry {
       features: crmFeatures,
     });
 
-    // 2. Calendar Capability
-    let calendarProvider = 'db';
+    // 2. Calendar Capability - check Google Calendar first, fall back to MeetingBaaS
+    let calendarProvider: string | undefined;
     let calendarFeatures: string[] = [];
     let calendarAvailable = false;
 
+    // Check MeetingBaaS calendars (provides calendar read access for bot deployment)
+    let meetingBaaSCalendarData: { id: string; platform: string } | null = null;
     if (orgId) {
-      // Check Google Calendar
+      const { data } = await this.client
+        .from('meetingbaas_calendars')
+        .select('id, platform')
+        .eq('org_id', orgId)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+      meetingBaaSCalendarData = data;
+    }
+    const hasMeetingBaaSCalendar = !!meetingBaaSCalendarData;
+
+    if (orgId) {
+      // Check Google Calendar direct integration
       const { data: googleData } = await this.client
         .from('google_integrations')
         .select('scopes')
@@ -213,36 +227,25 @@ export class AdapterRegistry {
         .eq('is_active', true)
         .maybeSingle();
 
-      const hasGoogleCalendar =
+      const hasGoogleCalendar = !!(
         googleData?.scopes &&
         Array.isArray(googleData.scopes) &&
         googleData.scopes.some(
           (s: unknown) =>
             typeof s === 'string' &&
             (s.includes('calendar') || s.includes('https://www.googleapis.com/auth/calendar'))
-        );
-
-      // Check MeetingBaaS
-      const { data: meetingBaaSData } = await this.client
-        .from('meetingbaas_calendars')
-        .select('id')
-        .eq('org_id', orgId)
-        .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
-
-      const hasMeetingBaaS = !!meetingBaaSData;
+        )
+      );
 
       if (hasGoogleCalendar) {
         calendarProvider = 'google';
         calendarAvailable = true;
         calendarFeatures = ['events', 'attendees', 'availability', 'free_busy'];
-      } else if (hasMeetingBaaS) {
-        calendarProvider = 'meetingbaas';
+      } else if (hasMeetingBaaSCalendar) {
+        calendarProvider = meetingBaaSCalendarData?.platform === 'microsoft' ? 'microsoft' : 'google';
         calendarAvailable = true;
-        calendarFeatures = ['events', 'attendees'];
+        calendarFeatures = ['events']; // Limited features via MeetingBaaS
       }
-      // TODO: Add Microsoft/Outlook Calendar check when implemented
     }
 
     capabilities.push({
@@ -274,7 +277,7 @@ export class AdapterRegistry {
         );
 
       if (hasGmail) {
-        emailProvider = 'gmail';
+        emailProvider = 'google';
         emailFeatures = ['search', 'draft', 'send', 'threads'];
       }
       // TODO: Add Outlook/Microsoft 365 check when implemented
@@ -287,33 +290,47 @@ export class AdapterRegistry {
       features: emailFeatures,
     });
 
-    // 4. Transcript Capability
-    let transcriptProvider: string | undefined;
-    let transcriptFeatures: string[] = [];
-    let transcriptAvailable = false;
+    // 4. Meetings Capability (records: transcripts, recordings, summaries)
+    let meetingsProvider: string | undefined;
+    let meetingsFeatures: string[] = [];
+    let meetingsAvailable = false;
 
     if (orgId) {
+      // Check Fathom
       const { data: fathomData } = await this.client
         .from('fathom_integrations')
         .select('is_connected')
         .eq('org_id', orgId)
         .eq('is_connected', true)
         .maybeSingle();
-
       const hasFathom = !!fathomData;
+
+      // Check MeetingBaaS (60 Notetaker)
+      const { data: meetingBaaSData } = await this.client
+        .from('meetingbaas_calendars')
+        .select('id')
+        .eq('org_id', orgId)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+      const hasMeetingBaaS = !!meetingBaaSData;
+
       if (hasFathom) {
-        transcriptProvider = 'fathom';
-        transcriptAvailable = true;
-        transcriptFeatures = ['transcripts', 'recordings', 'ai_summaries', 'search'];
+        meetingsProvider = 'fathom';
+        meetingsAvailable = true;
+        meetingsFeatures = ['transcripts', 'recordings', 'summaries', 'search'];
+      } else if (hasMeetingBaaS) {
+        meetingsProvider = 'meetingbaas';
+        meetingsAvailable = true;
+        meetingsFeatures = ['transcripts', 'recordings', 'summaries'];
       }
-      // TODO: Add other transcript providers (Fireflies, Otter, etc.) when implemented
     }
 
     capabilities.push({
-      capability: 'transcript',
-      available: transcriptAvailable,
-      provider: transcriptProvider || 'db',
-      features: transcriptFeatures,
+      capability: 'meetings',
+      available: meetingsAvailable,
+      provider: meetingsProvider,
+      features: meetingsFeatures,
     });
 
     // 5. Messaging Capability (Slack)
@@ -341,8 +358,16 @@ export class AdapterRegistry {
     capabilities.push({
       capability: 'messaging',
       available: messagingAvailable,
-      provider: messagingProvider || 'db',
+      provider: messagingProvider,
       features: messagingFeatures,
+    });
+
+    // 6. Tasks Capability - always available via platform
+    capabilities.push({
+      capability: 'tasks',
+      available: true,
+      provider: 'sixty',
+      features: ['create', 'update', 'list', 'complete'],
     });
 
     return {
