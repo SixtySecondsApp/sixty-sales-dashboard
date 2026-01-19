@@ -222,9 +222,111 @@ export default function AuthCallback() {
                 console.warn('[AuthCallback] Failed to upsert profile:', profileError);
               } else {
                 console.log('[AuthCallback] Successfully ensured profile exists');
+
+                // Check if an organization already exists for this email domain
+                // This handles when multiple people from the same company sign up
+                if (session.user.email) {
+                  try {
+                    const emailDomain = session.user.email.split('@')[1]?.toLowerCase();
+                    // Complete list of personal email domains
+                    const personalEmailDomains = [
+                      'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com',
+                      'aol.com', 'protonmail.com', 'proton.me', 'mail.com', 'ymail.com',
+                      'live.com', 'msn.com', 'me.com', 'mac.com'
+                    ];
+                    const isPersonalEmail = personalEmailDomains.includes(emailDomain);
+
+                    if (isPersonalEmail) {
+                      console.log('[AuthCallback] Personal email detected:', emailDomain, 'will request website input during onboarding');
+                      // Set flag for onboarding V2 to show website input step
+                      try {
+                        await supabase.auth.updateUser({
+                          data: { ...session.user.user_metadata, needs_website_input: true }
+                        });
+                      } catch (flagError) {
+                        console.warn('[AuthCallback] Could not set needs_website_input flag:', flagError);
+                      }
+                    } else if (emailDomain) {
+                      console.log('[AuthCallback] Checking for existing organizations with domain:', emailDomain);
+
+                      // Call RPC to find organizations by email domain
+                      const { data: existingOrgs, error: queryError } = await supabase
+                        .rpc('find_orgs_by_email_domain', {
+                          p_domain: emailDomain,
+                          p_user_id: session.user.id,
+                        });
+
+                      if (queryError) {
+                        console.warn('[AuthCallback] Error querying organizations by domain:', queryError);
+                      } else if (existingOrgs && existingOrgs.length > 0) {
+                        console.log('[AuthCallback] Found existing organizations:', existingOrgs);
+
+                        // User will join the existing org (the largest/most active one)
+                        const targetOrg = existingOrgs[0];
+
+                        // Get the auto-created organization for this user (there should be one from the trigger)
+                        const { data: userOrgs } = await supabase
+                          .from('organization_memberships')
+                          .select('org_id')
+                          .eq('user_id', session.user.id)
+                          .eq('role', 'owner');
+
+                        if (userOrgs && userOrgs.length > 0) {
+                          const autoCreatedOrgId = userOrgs[0].org_id;
+
+                          // Check if this is not the target org (avoid deleting the correct one)
+                          if (autoCreatedOrgId !== targetOrg.id) {
+                            console.log('[AuthCallback] Transferring user to existing organization');
+
+                            // Add user to existing organization as a regular member
+                            const { error: memberError } = await supabase
+                              .from('organization_memberships')
+                              .insert({
+                                org_id: targetOrg.id,
+                                user_id: session.user.id,
+                                role: 'member',
+                              });
+
+                            if (!memberError) {
+                              // Delete the auto-created organization since user is joining existing one
+                              await supabase
+                                .from('organizations')
+                                .delete()
+                                .eq('id', autoCreatedOrgId);
+
+                              console.log('[AuthCallback] User joined existing organization and auto-created org was removed');
+                            } else {
+                              console.warn('[AuthCallback] Error adding user to existing organization:', memberError);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  } catch (orgError) {
+                    console.error('[AuthCallback] Error handling organization detection:', orgError);
+                  }
+                }
               }
             } catch (err) {
               console.error('[AuthCallback] Error upserting profile:', err);
+            }
+
+            // Link waitlist entry to user if this is a waitlist invitation
+            // Do this early so the entry is linked before onboarding checks
+            let linkedWaitlistEntryId: string | null = null;
+            if (waitlistEntryId && session.user.id) {
+              try {
+                await supabase
+                  .from('meetings_waitlist')
+                  .update({
+                    user_id: session.user.id,
+                  })
+                  .eq('id', waitlistEntryId);
+                linkedWaitlistEntryId = waitlistEntryId;
+                console.log('[AuthCallback] Successfully linked waitlist entry to user:', waitlistEntryId);
+              } catch (linkErr) {
+                console.error('[AuthCallback] Error linking waitlist entry early:', linkErr);
+              }
             }
           }
 
@@ -274,39 +376,28 @@ export default function AuthCallback() {
               }
             }
 
-            // If this is a waitlist/invitation callback, redirect to dashboard with password setup flag
+            // If this is a waitlist/invitation callback, redirect to set password page
             if (storedWaitlistEntryId || isInvitation) {
               const finalWaitlistId = storedWaitlistEntryId || 'pending';
-              console.log('[AuthCallback] Setting up invited user for password setup on dashboard:', finalWaitlistId);
+              console.log('[AuthCallback] Routing invited user to set password page:', finalWaitlistId);
 
-              // Mark user as needing password setup - this triggers the modal on dashboard
-              try {
-                await supabase.auth.updateUser({
-                  data: { needs_password_setup: true, waitlist_entry_id: finalWaitlistId }
-                });
-              } catch (err) {
-                console.error('[AuthCallback] Error setting needs_password_setup flag:', err);
+              // Store waitlist entry ID in localStorage for SetPassword page
+              if (finalWaitlistId && finalWaitlistId !== 'pending') {
+                localStorage.setItem('waitlist_entry_id', finalWaitlistId);
               }
 
-              // Link waitlist entry to user
-              if (finalWaitlistId && finalWaitlistId !== 'pending' && session?.user) {
-                try {
-                  await supabase.from('meetings_waitlist').update({
-                    user_id: session.user.id,
-                    status: 'converted',
-                    converted_at: new Date().toISOString(),
-                    invitation_accepted_at: new Date().toISOString()
-                  }).eq('id', finalWaitlistId);
-                } catch (err) {
-                  console.error('[AuthCallback] Error linking waitlist entry:', err);
-                }
+              // Wait a moment to ensure session is properly established before navigating
+              await new Promise(resolve => setTimeout(resolve, 500));
+
+              // Note: Waitlist entry user_id linking happens earlier in this callback (Phase 2.2)
+              // Status will be updated to 'converted' after user completes password setup
+
+              // Redirect to password setup page
+              if (finalWaitlistId && finalWaitlistId !== 'pending') {
+                navigate(`/auth/set-password?waitlist_entry=${finalWaitlistId}`, { replace: true });
+              } else {
+                navigate('/auth/set-password', { replace: true });
               }
-
-              // Clear localStorage
-              localStorage.removeItem('waitlist_entry_id');
-
-              // Redirect to dashboard - password modal will appear there
-              navigate('/dashboard', { replace: true });
               return;
             }
 
@@ -413,6 +504,48 @@ export default function AuthCallback() {
 
           navigate(next, { replace: true });
           return;
+        }
+
+        // Check if user just joined an existing organization (organization detection happened above)
+        // If they have more than one organization membership and are not the owner of all, they joined an existing org
+        try {
+          const { data: memberships } = await supabase
+            .from('organization_memberships')
+            .select('org_id, role')
+            .eq('user_id', session.user.id);
+
+          const isJoinedExistingOrg = memberships && memberships.length > 0 &&
+                                     memberships.some(m => m.role === 'member');
+
+          if (isJoinedExistingOrg) {
+            console.log('[AuthCallback] User joined existing organization, skipping onboarding');
+
+            // Mark onboarding as completed and set flag to show success message
+            try {
+              await supabase
+                .from('user_onboarding_progress')
+                .upsert({
+                  user_id: session.user.id,
+                  skipped_onboarding: true,
+                  onboarding_completed_at: new Date().toISOString(),
+                  onboarding_step: 'complete',
+                }, {
+                  onConflict: 'user_id',
+                });
+
+              // Set metadata flag so dashboard can show a success message
+              await supabase.auth.updateUser({
+                data: { joined_existing_org: true }
+              });
+            } catch (skipError) {
+              console.warn('[AuthCallback] Could not mark onboarding as completed:', skipError);
+            }
+
+            navigate(next, { replace: true });
+            return;
+          }
+        } catch (membershipError) {
+          console.warn('[AuthCallback] Error checking organization memberships:', membershipError);
         }
 
         const { data: progress } = await supabase

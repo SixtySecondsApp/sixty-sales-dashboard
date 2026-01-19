@@ -62,34 +62,62 @@ export default function WaitlistThankYouPage() {
       }
 
       try {
-        const supabase = createClient(
-          import.meta.env.VITE_SUPABASE_URL || '',
-          import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-        );
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-        // Use waitlist-welcome-email edge function (handles auth internally)
-        const { data, error } = await supabase.functions.invoke('waitlist-welcome-email', {
-          body: {
-            email: email.trim().toLowerCase(),
-            full_name: fullName,
-            company_name: companyName || '',
-          },
-        });
+        let emailSent = false;
 
-        if (error) {
-          console.error('[Waitlist] Welcome email failed:', error);
-          console.error('[Waitlist] Error details:', {
-            message: error.message,
-            status: (error as any).status,
-            context: (error as any).context,
+        // Try Supabase SDK first
+        try {
+          const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+          // Use waitlist-welcome-email edge function (handles auth internally)
+          const { data, error } = await supabase.functions.invoke('waitlist-welcome-email', {
+            body: {
+              email: email.trim().toLowerCase(),
+              full_name: fullName,
+              company_name: companyName || '',
+            },
           });
-        } else {
-          console.log('[Waitlist] Welcome email sent successfully:', data);
+
+          if (error) {
+            throw error;
+          }
+
+          console.log('[Waitlist] Welcome email sent successfully via SDK:', data);
+          emailSent = true;
+        } catch (sdkErr) {
+          // Fallback to direct HTTP call if SDK fails (handles auth issues)
+          console.log('[Waitlist] SDK call failed, trying direct HTTP:', sdkErr);
+
+          const response = await fetch(`${supabaseUrl}/functions/v1/waitlist-welcome-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: email.trim().toLowerCase(),
+              full_name: fullName,
+              company_name: companyName || '',
+            })
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+          }
+
+          const data = await response.json();
+          console.log('[Waitlist] Welcome email sent successfully via HTTP:', data);
+          emailSent = true;
+        }
+
+        if (emailSent) {
           sessionStorage.setItem(emailSentKey, 'true');
           setEmailSent(true);
         }
       } catch (err) {
-        console.error('[Waitlist] Welcome email exception:', err);
+        console.error('[Waitlist] Welcome email failed:', err);
         // On localhost, edge functions might not have service role key - this is non-blocking
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
           console.warn('[Waitlist] Email failed on localhost (expected) - ensure supabase start and function deployment are set up');

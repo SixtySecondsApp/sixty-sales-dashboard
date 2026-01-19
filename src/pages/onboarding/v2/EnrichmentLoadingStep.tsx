@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check } from 'lucide-react';
+import { Check, Loader } from 'lucide-react';
 import { useOnboardingV2Store } from '@/lib/stores/onboardingV2Store';
 
 interface EnrichmentLoadingStepProps {
@@ -23,12 +23,20 @@ const tasks = [
   { label: 'Building profile', threshold: 100 },
 ];
 
-export function EnrichmentLoadingStep({ domain, organizationId }: EnrichmentLoadingStepProps) {
+export function EnrichmentLoadingStep({ domain, organizationId: propOrgId }: EnrichmentLoadingStepProps) {
   const [progress, setProgress] = useState(0);
-  const { startEnrichment, enrichment, isEnrichmentLoading, enrichmentError, setStep } = useOnboardingV2Store();
+  const { organizationId: storeOrgId, startEnrichment, enrichment, isEnrichmentLoading, enrichmentError, setStep } = useOnboardingV2Store();
+
+  // Use organizationId from store (which gets updated when new org is created)
+  // Fall back to prop if store is empty
+  const organizationId = storeOrgId || propOrgId;
 
   // Start enrichment on mount
   useEffect(() => {
+    if (!organizationId || organizationId === '') {
+      console.warn('EnrichmentLoadingStep: organizationId is empty, skipping enrichment start');
+      return;
+    }
     startEnrichment(organizationId, domain);
   }, [organizationId, domain, startEnrichment]);
 
@@ -81,8 +89,9 @@ export function EnrichmentLoadingStep({ domain, organizationId }: EnrichmentLoad
           <h2 className="text-xl font-bold text-white mb-2">Something went wrong</h2>
           <p className="text-gray-400 mb-6">{enrichmentError}</p>
           <button
-            onClick={() => startEnrichment(organizationId, domain)}
-            className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium transition-colors"
+            onClick={() => organizationId && startEnrichment(organizationId, domain)}
+            disabled={!organizationId}
+            className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Try Again
           </button>
@@ -145,25 +154,64 @@ export function EnrichmentLoadingStep({ domain, organizationId }: EnrichmentLoad
         <div className="space-y-2.5 text-left">
           {tasks.map((task, i) => {
             const isDone = progress > task.threshold - 20;
+            // Current task is the first incomplete one
+            const isCurrentTask = !isDone && (i === 0 || tasks[i - 1] && progress > tasks[i - 1].threshold - 20);
             return (
-              <div
+              <motion.div
                 key={i}
                 className={`flex items-center gap-3 py-2 px-3 rounded-lg transition-all ${
                   isDone
                     ? 'bg-emerald-900/30 text-emerald-400'
+                    : isCurrentTask
+                    ? 'bg-violet-900/20 text-violet-300'
                     : 'text-gray-500'
                 }`}
+                animate={isCurrentTask ? { backgroundColor: ['rgb(88, 28, 135, 0.2)', 'rgb(109, 40, 217, 0.3)'] } : {}}
+                transition={{ duration: 1.5, repeat: Infinity }}
               >
                 {isDone ? (
                   <Check className="w-4 h-4" />
+                ) : isCurrentTask ? (
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                  >
+                    <Loader className="w-4 h-4" />
+                  </motion.div>
                 ) : (
                   <div className="w-4 h-4 rounded-full border-2 border-current" />
                 )}
                 <span className="text-sm font-medium">{task.label}</span>
-              </div>
+              </motion.div>
             );
           })}
         </div>
+
+        {/* Processing indicator when stuck at 90% */}
+        {progress >= 90 && enrichment?.status !== 'completed' && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-6 pt-4 border-t border-gray-800/50"
+          >
+            <div className="flex items-center justify-center gap-3">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+              >
+                <Loader className="w-4 h-4 text-violet-400" />
+              </motion.div>
+              <p className="text-xs text-gray-400">
+                Finalizing analysis<motion.span
+                  animate={{ opacity: [0.5, 1, 0.5] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                >
+                  ...
+                </motion.span>
+              </p>
+            </div>
+          </motion.div>
+        )}
 
         {/* Progressive Data Preview */}
         {enrichment && (enrichment.company_name || enrichment.products?.length) && (

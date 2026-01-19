@@ -41,10 +41,22 @@ export function RecoveryTokenDetector() {
 
     setChecked(true);
 
+    // Check if this is an invite type (for waitlist invitations) - don't redirect these
+    const typeParam = searchParams.get('type') || hashParams.get('type');
+    const isInvite = typeParam === 'invite';
+
+    // Check if URL has waitlist_entry parameter - this is an invitation callback
+    const hasWaitlistEntry = searchParams.has('waitlist_entry');
+
     // If user is on base domain/path without recovery route but has recovery tokens, redirect
+    // But DON'T redirect if it's an invite or if already on callback/set-password pages
     if (
       (hasTokenHash || hasRecoveryType || hasCode || hasAccessToken || hasAccessTokenInHash) &&
-      !window.location.pathname.startsWith('/auth/reset-password')
+      !window.location.pathname.startsWith('/auth/reset-password') &&
+      !window.location.pathname.startsWith('/auth/callback') &&
+      !window.location.pathname.startsWith('/auth/set-password') &&
+      !isInvite &&
+      !hasWaitlistEntry
     ) {
       console.log('[RecoveryTokenDetector] Found recovery token, redirecting to reset page', {
         hasTokenHash,
@@ -54,7 +66,7 @@ export function RecoveryTokenDetector() {
         hasAccessTokenInHash,
         hash: window.location.hash.substring(0, 50)
       });
-      
+
       // Do a full page redirect to reset-password, preserving hash
       // This ensures React Router re-initializes with the correct path
       const targetPath = `/auth/reset-password${window.location.search}${window.location.hash}`;

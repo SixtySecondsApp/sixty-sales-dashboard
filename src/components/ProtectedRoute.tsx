@@ -12,6 +12,7 @@ interface ProtectedRouteProps {
 const publicRoutes = [
   '/auth/login',
   '/auth/signup',
+  '/auth/invite-signup',
   '/auth/forgot-password',
   '/auth/reset-password',
   '/auth/callback',
@@ -50,6 +51,7 @@ const onboardingExemptRoutes = [
   '/auth',
   '/debug',
   '/oauth',
+  '/invite', // Invitation acceptance - users should complete this before onboarding
   '/platform' // All platform routes are exempt from onboarding redirect
 ];
 

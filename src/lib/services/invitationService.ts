@@ -38,6 +38,87 @@ export interface AcceptInvitationResult {
 }
 
 // =====================================================
+// Send Invitation Email
+// =====================================================
+
+async function sendInvitationEmail(invitation: Invitation, inviterName?: string) {
+  try {
+    // Get organization name
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('name')
+      .eq('id', invitation.org_id)
+      .single();
+
+    const organizationName = org?.name || 'the organization';
+
+    // Get invitee's first name from profile or extract from email
+    let inviteeName = 'there';
+    const { data: inviteeProfile } = await supabase
+      .from('profiles')
+      .select('first_name')
+      .eq('email', invitation.email.toLowerCase())
+      .maybeSingle();
+
+    if (inviteeProfile?.first_name) {
+      inviteeName = inviteeProfile.first_name;
+    } else {
+      // Extract name from email if no profile exists
+      const emailName = invitation.email.split('@')[0];
+      inviteeName = emailName.charAt(0).toUpperCase() + emailName.slice(1);
+    }
+
+    // Build invitation URL
+    const baseUrl = typeof window !== 'undefined'
+      ? window.location.origin
+      : 'https://app.use60.com'; // Default to production URL
+
+    const invitationUrl = `${baseUrl}/invite/${invitation.token}`;
+
+    // Generate inviter initials from name
+    const name = inviterName || 'A team member';
+    const initials = name
+      .split(' ')
+      .filter((part) => part.length > 0)
+      .slice(0, 2)
+      .map((part) => part[0].toUpperCase())
+      .join('');
+
+    // Call encharge-send-email edge function
+    const { error } = await supabase.functions.invoke('encharge-send-email', {
+      body: {
+        to_email: invitation.email,
+        template_type: 'organization_invitation',
+        variables: {
+          first_name: inviteeName,
+          organization_name: organizationName,
+          inviter_name: name,
+          inviter_initials: initials || 'SS',
+          invitation_url: invitationUrl,
+        },
+        user_id: null, // No user_id yet since invitee may not have account
+        metadata: {
+          invitation_id: invitation.id,
+          org_id: invitation.org_id,
+        },
+      },
+    });
+
+    if (error) {
+      logger.error('[InvitationService] Error sending invitation email:', error);
+      // Don't throw - invitation still created even if email fails
+      return false;
+    }
+
+    logger.log('[InvitationService] Invitation email sent successfully');
+    return true;
+  } catch (err: any) {
+    logger.error('[InvitationService] Exception sending invitation email:', err);
+    return false;
+  }
+}
+
+// =====================================================
 // Create Invitation
 // =====================================================
 
@@ -54,7 +135,7 @@ export async function createInvitation({
       .from('profiles')
       .select('id')
       .eq('email', email.toLowerCase())
-      .single();
+      .maybeSingle();
 
     const profileId = (profileData as { id: string } | null)?.id;
     if (profileId) {
@@ -63,26 +144,65 @@ export async function createInvitation({
         .select('user_id')
         .eq('org_id', orgId)
         .eq('user_id', profileId)
-        .single();
+        .maybeSingle();
 
       if (existingMembership) {
         return { data: null, error: 'User is already a member of this organization' };
       }
     }
 
-    // Check for existing pending invitation
+    // Check for existing pending invitation - if exists, regenerate token instead of rejecting
+    // This allows admins to easily resend if user accidentally closed the tab or lost the link
     const { data: existingInvite } = await supabase
       .from('organization_invitations')
-      .select('id')
+      .select('*')
       .eq('org_id', orgId)
       .eq('email', email.toLowerCase())
       .is('accepted_at', null)
-      .gt('expires_at', new Date().toISOString())
-      .single();
+      .maybeSingle();
 
     if (existingInvite) {
-      return { data: null, error: 'A pending invitation already exists for this email' };
+      // If still valid (not expired), regenerate token and extend expiration
+      const existingExpiry = new Date(existingInvite.expires_at);
+      const now = new Date();
+
+      // If invitation hasn't expired, reuse and regenerate token for security
+      if (existingExpiry > now) {
+        logger.log('[InvitationService] Reusing pending invitation and regenerating token:', existingInvite.id);
+
+        // Update with new token and 7-day expiration
+        const { data: updatedInvite, error: updateError } = await supabase
+          .from('organization_invitations' as any)
+          .update({
+            // Generate new hex token (64-char hex string like the schema expects)
+            token: Array.from(crypto.getRandomValues(new Uint8Array(32)))
+              .map(b => b.toString(16).padStart(2, '0'))
+              .join(''),
+            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          } as any)
+          .eq('id', existingInvite.id)
+          .select()
+          .single();
+
+        if (updateError) {
+          logger.error('[InvitationService] Error regenerating token:', updateError);
+          return { data: null, error: updateError.message };
+        }
+
+        const invitationData = updatedInvite as unknown as Invitation;
+
+        // Send invitation email with new token
+        const { data: { user } } = await supabase.auth.getUser();
+        const inviterName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'A team member';
+        await sendInvitationEmail(invitationData, inviterName);
+
+        return { data: invitationData, error: null };
+      }
+      // If expired, fall through to create new one
     }
+
+    // Get current user for invited_by
+    const { data: { user } } = await supabase.auth.getUser();
 
     // Create the invitation
     // Note: organization_invitations table is created by our migrations but not in generated types
@@ -92,6 +212,7 @@ export async function createInvitation({
         org_id: orgId,
         email: email.toLowerCase(),
         role,
+        invited_by: user?.id || null,
         expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
       } as any)
       .select()
@@ -105,8 +226,9 @@ export async function createInvitation({
     const invitationData = data as unknown as Invitation;
     logger.log('[InvitationService] Invitation created:', invitationData?.id);
 
-    // TODO: Send invitation email via Edge Function
-    // await sendInvitationEmail(invitationData);
+    // Send invitation email
+    const inviterName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'A team member';
+    await sendInvitationEmail(invitationData, inviterName);
 
     return { data: invitationData, error: null };
   } catch (err: any) {
@@ -215,8 +337,15 @@ export async function getInvitationByToken(
     const { data, error } = await supabase
       .from('organization_invitations')
       .select(`
-        *,
-        organization:organizations(id, name)
+        id,
+        org_id,
+        email,
+        role,
+        invited_by,
+        token,
+        expires_at,
+        accepted_at,
+        created_at
       `)
       .eq('token', token)
       .is('accepted_at', null)
@@ -231,7 +360,21 @@ export async function getInvitationByToken(
       return { data: null, error: error.message };
     }
 
-    return { data, error: null };
+    // Fetch organization details separately to avoid ambiguity
+    if (data) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id, name')
+        .eq('id', (data as any).org_id)
+        .single();
+
+      return { data: {
+        ...data,
+        organization: org || undefined,
+      } as Invitation, error: null };
+    }
+
+    return { data: null, error: null };
   } catch (err: any) {
     logger.error('[InvitationService] Exception fetching invitation:', err);
     return { data: null, error: err.message || 'Failed to fetch invitation' };
@@ -268,6 +411,66 @@ export async function revokeInvitation(
 }
 
 // =====================================================
+// Complete Invite Signup (for new users signing up via invitation)
+// =====================================================
+
+export async function completeInviteSignup(
+  token: string
+): Promise<AcceptInvitationResult> {
+  try {
+    logger.log('[InvitationService] Completing invite signup with token');
+
+    // Call the complete_invite_signup RPC function
+    const response = await (supabase.rpc as any)('complete_invite_signup', {
+      p_token: token,
+    }) as { data: AcceptInvitationResult[] | null; error: any };
+
+    if (response.error) {
+      logger.error('[InvitationService] Error completing invite signup:', response.error);
+      return {
+        success: false,
+        org_id: null,
+        org_name: null,
+        role: null,
+        error_message: response.error.message,
+      };
+    }
+
+    // The function returns a table, so data will be an array
+    const result = response.data?.[0] || null;
+
+    if (!result?.success) {
+      return {
+        success: false,
+        org_id: result?.org_id || null,
+        org_name: result?.org_name || null,
+        role: result?.role || null,
+        error_message: result?.error_message || 'Failed to complete invite signup',
+      };
+    }
+
+    logger.log('[InvitationService] Invite signup completed:', result);
+
+    return {
+      success: true,
+      org_id: result.org_id,
+      org_name: result.org_name,
+      role: result.role,
+      error_message: null,
+    };
+  } catch (err: any) {
+    logger.error('[InvitationService] Exception completing invite signup:', err);
+    return {
+      success: false,
+      org_id: null,
+      org_name: null,
+      role: null,
+      error_message: err.message || 'Failed to complete invite signup',
+    };
+  }
+}
+
+// =====================================================
 // Resend Invitation (update expiry and resend email)
 // =====================================================
 
@@ -277,14 +480,16 @@ export async function resendInvitation(
   try {
     logger.log('[InvitationService] Resending invitation:', invitationId);
 
-    // Update expiry date
+    // Update expiry date and regenerate token
     // Use type assertion to work around missing types for organization_invitations
     const response = await (supabase
       .from('organization_invitations') as any)
       .update({
         expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        // Generate new token for security
-        token: crypto.randomUUID(),
+        // Generate new 64-char hex token for security (matches schema)
+        token: Array.from(crypto.getRandomValues(new Uint8Array(32)))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join(''),
       })
       .eq('id', invitationId)
       .is('accepted_at', null)
@@ -298,8 +503,10 @@ export async function resendInvitation(
 
     const invitationData = response.data;
 
-    // TODO: Send invitation email via Edge Function
-    // await sendInvitationEmail(invitationData);
+    // Send invitation email
+    const { data: { user } } = await supabase.auth.getUser();
+    const inviterName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'A team member';
+    await sendInvitationEmail(invitationData, inviterName);
 
     logger.log('[InvitationService] Invitation resent');
     return { data: invitationData, error: null };

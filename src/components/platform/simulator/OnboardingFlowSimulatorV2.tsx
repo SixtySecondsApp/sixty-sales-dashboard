@@ -38,6 +38,7 @@ import {
   Package,
   FlaskConical,
   X,
+  Loader,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -234,7 +235,7 @@ const loadingTasks = [
   { label: 'Identifying industry', threshold: 40 },
   { label: 'Analyzing products', threshold: 60 },
   { label: 'Finding competitors', threshold: 80 },
-  { label: 'Building AI suggestions', threshold: 100 },
+  { label: 'Building profile', threshold: 100 },
 ];
 
 export function OnboardingFlowSimulatorV2() {
@@ -979,24 +980,75 @@ export function OnboardingFlowSimulatorV2() {
                   </div>
 
                   <h2 className="text-xl font-bold mb-2 text-white">Analyzing {domain}</h2>
-                  <p className="mb-8 text-gray-400">Learning about your business to customize your assistant...</p>
+                  <p className="text-gray-400 mb-8">
+                    Learning about your business to customize your assistant...
+                  </p>
 
                   <div className="space-y-2.5 text-left">
                     {loadingTasks.map((task, i) => {
                       const isDone = loadingProgress > task.threshold - 20;
+                      // Current task is the first incomplete one
+                      const isCurrentTask = !isDone && (i === 0 || loadingTasks[i - 1] && loadingProgress > loadingTasks[i - 1].threshold - 20);
                       return (
-                        <div
+                        <motion.div
                           key={i}
                           className={`flex items-center gap-3 py-2 px-3 rounded-lg transition-all ${
-                            isDone ? 'bg-emerald-900/30 text-emerald-400' : 'text-gray-500'
+                            isDone
+                              ? 'bg-emerald-900/30 text-emerald-400'
+                              : isCurrentTask
+                              ? 'bg-violet-900/20 text-violet-300'
+                              : 'text-gray-500'
                           }`}
+                          animate={isCurrentTask ? { backgroundColor: ['rgb(88, 28, 135, 0.2)', 'rgb(109, 40, 217, 0.3)'] } : {}}
+                          transition={{ duration: 1.5, repeat: Infinity }}
                         >
-                          {isDone ? <Check className="w-4 h-4" /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
+                          {isDone ? (
+                            <Check className="w-4 h-4" />
+                          ) : isCurrentTask ? (
+                            <motion.div
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                            >
+                              <Loader className="w-4 h-4" />
+                            </motion.div>
+                          ) : (
+                            <div className="w-4 h-4 rounded-full border-2 border-current" />
+                          )}
                           <span className="text-sm font-medium">{task.label}</span>
-                        </div>
+                        </motion.div>
                       );
                     })}
                   </div>
+
+                  {/* Processing indicator when stuck at 90% */}
+                  {loadingProgress >= 90 && loadingProgress < 100 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-6 pt-4 border-t border-gray-800/50"
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <motion.div
+                          animate={{ scale: [1, 1.2, 1] }}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                          className="w-2 h-2 bg-violet-400 rounded-full"
+                        />
+                        <p className="text-xs text-gray-400">
+                          Finalizing analysis<motion.span
+                            animate={{ opacity: [0.5, 1, 0.5] }}
+                            transition={{ duration: 1.5, repeat: Infinity }}
+                          >
+                            ...
+                          </motion.span>
+                        </p>
+                        <motion.div
+                          animate={{ scale: [1, 1.2, 1] }}
+                          transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
+                          className="w-2 h-2 bg-violet-400 rounded-full"
+                        />
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -1074,8 +1126,72 @@ export function OnboardingFlowSimulatorV2() {
               </motion.div>
             )}
 
+            {/* Skills Config Step - Show loading screen while waiting for skills */}
+            {currentStep === 'skills' && !enrichmentData && (
+              <motion.div
+                key="skills-loading"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="w-full max-w-md mx-auto px-4"
+              >
+                <div className="rounded-2xl shadow-xl border border-gray-800 bg-gray-900 p-8 sm:p-12 text-center">
+                  <div className="flex justify-center mb-6">
+                    <div className="relative w-16 h-16">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                        className="absolute inset-0"
+                      >
+                        <Sparkles className="w-full h-full text-violet-400" />
+                      </motion.div>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <motion.div
+                          animate={{ scale: [1, 1.2, 1] }}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                          className="w-2 h-2 bg-violet-400 rounded-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <h2 className="text-xl font-bold text-white mb-2">Building with AI Results</h2>
+                  <p className="text-gray-400 mb-6">
+                    Generating personalized skill suggestions based on your company...
+                  </p>
+
+                  {/* Loading steps */}
+                  <div className="space-y-2.5 text-left mb-6">
+                    {[
+                      'Analyzing enrichment data',
+                      'Generating skill suggestions',
+                      'Building configuration',
+                    ].map((step, i) => (
+                      <motion.div
+                        key={i}
+                        animate={{
+                          backgroundColor: ['rgba(88, 28, 135, 0)', 'rgba(88, 28, 135, 0.2)'],
+                        }}
+                        transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.3 }}
+                        className="flex items-center gap-3 py-2 px-3 rounded-lg"
+                      >
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                          className="flex-shrink-0"
+                        >
+                          <Loader className="w-4 h-4 text-violet-400" />
+                        </motion.div>
+                        <span className="text-sm text-gray-300">{step}</span>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {/* Skills Config Step */}
-            {currentStep === 'skills' && (
+            {currentStep === 'skills' && enrichmentData && (
               <motion.div
                 key="skills"
                 initial={{ opacity: 0, y: 20 }}

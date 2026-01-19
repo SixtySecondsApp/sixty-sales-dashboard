@@ -42,6 +42,18 @@ export default function ResetPassword() {
         const hashParams = new URLSearchParams(hash.substring(1));
         const searchParams = new URLSearchParams(search);
 
+        // Check if this is an invitation (type=invite in hash)
+        const inviteType = hashParams.get('type');
+        const waitlistEntry = searchParams.get('waitlist_entry');
+
+        // If this is an invitation, redirect to set-password instead
+        if (inviteType === 'invite' && waitlistEntry) {
+          logger.log('Detected invitation, redirecting to set-password');
+          // Use window.location to preserve the hash with auth tokens
+          window.location.href = `/auth/set-password?waitlist_entry=${waitlistEntry}${hash}`;
+          return;
+        }
+
         const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token');
         const type = hashParams.get('type') || searchParams.get('type');
@@ -269,7 +281,7 @@ export default function ResetPassword() {
         >
           <div className="w-8 h-8 border-2 border-[#37bd7e] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-400 mb-4">Verifying password reset link...</p>
-          {debugInfo && (
+          {debugInfo && import.meta.env.DEV && (
             <div className="bg-gray-900/80 border border-gray-700 rounded-xl p-4 mt-4 text-left">
               <h3 className="text-white font-medium mb-2">Debug Information:</h3>
               <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono bg-gray-800/50 p-3 rounded overflow-auto max-h-96">

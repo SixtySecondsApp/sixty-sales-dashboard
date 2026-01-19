@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase/clientV2'
@@ -10,6 +10,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { MeetingsEmptyState } from './MeetingsEmptyState'
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration'
+import { useDebouncedSearch, filterItems } from '@/lib/hooks/useDebounce'
+import { MeetingsFilterBar } from './MeetingsFilterBar'
+import { DateRangePreset, DateRange, getDateRangeFromPreset } from '@/components/ui/date-filter'
 import { toast } from 'sonner'
 import {
   Table,
@@ -43,7 +46,8 @@ import {
   Mic,
   AudioLines,
   Bot,
-  Radio
+  Radio,
+  Filter
 } from 'lucide-react'
 import { MeetingUsageBar } from '@/components/MeetingUsageIndicator'
 
@@ -132,27 +136,29 @@ const StatCard: React.FC<{
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.3 }}
-    whileHover={{ scale: 1.02, y: -2 }}
-    className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl p-5 border border-gray-200/50 dark:border-gray-700/30 shadow-sm dark:shadow-lg dark:shadow-black/10 hover:border-gray-300/50 dark:hover:border-gray-600/40 transition-all duration-300 group"
+    whileHover={{ y: -2 }}
+    className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border border-gray-200/50 dark:border-gray-700/30 shadow-sm dark:shadow-lg dark:shadow-black/10 hover:border-gray-300/50 dark:hover:border-gray-600/40 transition-all duration-300 group w-full flex flex-col"
   >
-    <div className="flex items-start justify-between">
-      <div className="flex flex-col gap-1.5">
-        <div className="text-gray-500 dark:text-gray-400 text-xs font-medium uppercase tracking-wider">{title}</div>
-        <div className="text-3xl font-bold text-gray-900 dark:text-gray-50">{value}</div>
-        {sub && (
-          <div className={cn(
-            "text-xs font-medium",
-            trend === 'up' ? 'text-emerald-600 dark:text-emerald-400' :
-            trend === 'down' ? 'text-red-600 dark:text-red-400' :
-            'text-gray-500 dark:text-gray-400'
-          )}>
-            {sub}
-          </div>
-        )}
-      </div>
+    <div className="flex items-start justify-between gap-3 mb-3">
       {icon && (
-        <div className="p-2.5 rounded-xl bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30 text-gray-500 dark:text-gray-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 group-hover:border-emerald-200 dark:group-hover:border-emerald-500/30 transition-all duration-300">
-          {icon}
+        <div className="p-2 sm:p-2.5 rounded-xl bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30 text-gray-500 dark:text-gray-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 group-hover:border-emerald-200 dark:group-hover:border-emerald-500/30 transition-all duration-300 flex-shrink-0">
+          <div className="w-5 h-5 sm:w-5 sm:h-5 flex items-center justify-center">
+            {icon}
+          </div>
+        </div>
+      )}
+    </div>
+    <div className="flex flex-col gap-2 flex-1">
+      <div className="text-gray-500 dark:text-gray-400 text-xs font-medium uppercase tracking-wider leading-snug">{title}</div>
+      <div className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-50 leading-tight">{value}</div>
+      {sub && (
+        <div className={cn(
+          "text-xs font-medium",
+          trend === 'up' ? 'text-emerald-600 dark:text-emerald-400' :
+          trend === 'down' ? 'text-red-600 dark:text-red-400' :
+          'text-gray-500 dark:text-gray-400'
+        )}>
+          {sub}
         </div>
       )}
     </div>
@@ -161,13 +167,13 @@ const StatCard: React.FC<{
 
 // Skeleton Components for Loading State
 const StatCardSkeleton: React.FC = () => (
-  <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl p-5 border border-gray-200/50 dark:border-gray-700/30 shadow-sm dark:shadow-lg dark:shadow-black/10">
-    <div className="flex items-start justify-between">
+  <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl p-3 sm:p-5 border border-gray-200/50 dark:border-gray-700/30 shadow-sm dark:shadow-lg dark:shadow-black/10">
+    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between sm:gap-3">
       <div className="flex flex-col gap-2">
-        <Skeleton className="h-3 w-16 bg-gray-200/60 dark:bg-gray-700/40" />
-        <Skeleton className="h-9 w-14 bg-gray-200/60 dark:bg-gray-700/40" />
+        <Skeleton className="h-2 w-20 bg-gray-200/60 dark:bg-gray-700/40" />
+        <Skeleton className="h-8 sm:h-9 w-16 bg-gray-200/60 dark:bg-gray-700/40" />
       </div>
-      <Skeleton className="h-10 w-10 rounded-xl bg-gray-200/60 dark:bg-gray-700/40" />
+      <Skeleton className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-gray-200/60 dark:bg-gray-700/40 mt-2 sm:mt-0" />
     </div>
   </div>
 )
@@ -216,24 +222,24 @@ const MeetingRowSkeleton: React.FC = () => (
 )
 
 const MeetingsListSkeleton: React.FC<{ view: 'list' | 'grid' }> = ({ view }) => (
-  <div className="p-6 space-y-6">
+  <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
     {/* Header Skeleton */}
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <Skeleton className="h-12 w-12 rounded-xl bg-gray-200/60 dark:bg-gray-700/40" />
-        <div>
-          <Skeleton className="h-8 w-32 mb-2 bg-gray-200/60 dark:bg-gray-700/40" />
-          <Skeleton className="h-4 w-56 bg-gray-200/60 dark:bg-gray-700/40" />
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <Skeleton className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-gray-200/60 dark:bg-gray-700/40 flex-shrink-0" />
+        <div className="min-w-0 flex-1">
+          <Skeleton className="h-6 sm:h-8 w-24 mb-2 bg-gray-200/60 dark:bg-gray-700/40" />
+          <Skeleton className="h-3 w-32 sm:w-56 bg-gray-200/60 dark:bg-gray-700/40" />
         </div>
       </div>
-      <div className="flex items-center gap-3">
-        <Skeleton className="h-9 w-32 rounded-xl bg-gray-200/60 dark:bg-gray-700/40" />
-        <Skeleton className="h-9 w-20 rounded-xl bg-gray-200/60 dark:bg-gray-700/40" />
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <Skeleton className="h-8 w-24 sm:w-32 rounded-xl bg-gray-200/60 dark:bg-gray-700/40" />
+        <Skeleton className="h-8 w-16 sm:w-20 rounded-xl bg-gray-200/60 dark:bg-gray-700/40" />
       </div>
     </div>
 
     {/* Stats Skeleton */}
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
       {[...Array(5)].map((_, i) => (
         <StatCardSkeleton key={i} />
       ))}
@@ -242,30 +248,32 @@ const MeetingsListSkeleton: React.FC<{ view: 'list' | 'grid' }> = ({ view }) => 
     {/* Content Skeleton */}
     {view === 'list' ? (
       <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/30 overflow-hidden shadow-sm dark:shadow-lg dark:shadow-black/10">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-gray-200/50 dark:border-gray-700/30">
-              <TableHead className="text-gray-500 dark:text-gray-400">Title</TableHead>
-              <TableHead className="text-gray-500 dark:text-gray-400">Company</TableHead>
-              <TableHead className="text-gray-500 dark:text-gray-400">Rep</TableHead>
-              <TableHead className="text-gray-500 dark:text-gray-400">Date</TableHead>
-              <TableHead className="text-gray-500 dark:text-gray-400">Duration</TableHead>
-              <TableHead className="text-gray-500 dark:text-gray-400">Type</TableHead>
-              <TableHead className="text-gray-500 dark:text-gray-400">Sentiment</TableHead>
-              <TableHead className="text-gray-500 dark:text-gray-400">Coach</TableHead>
-              <TableHead className="text-gray-500 dark:text-gray-400">Tasks</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {[...Array(6)].map((_, i) => (
-              <MeetingRowSkeleton key={i} />
-            ))}
-          </TableBody>
-        </Table>
+        <div className="overflow-x-scroll">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-gray-200/50 dark:border-gray-700/30">
+                <TableHead className="text-gray-500 dark:text-gray-400">Title</TableHead>
+                <TableHead className="text-gray-500 dark:text-gray-400 hidden sm:table-cell">Company</TableHead>
+                <TableHead className="text-gray-500 dark:text-gray-400 hidden md:table-cell">Rep</TableHead>
+                <TableHead className="text-gray-500 dark:text-gray-400">Date</TableHead>
+                <TableHead className="text-gray-500 dark:text-gray-400 hidden sm:table-cell">Duration</TableHead>
+                <TableHead className="text-gray-500 dark:text-gray-400 hidden lg:table-cell">Type</TableHead>
+                <TableHead className="text-gray-500 dark:text-gray-400 hidden lg:table-cell">Sentiment</TableHead>
+                <TableHead className="text-gray-500 dark:text-gray-400 hidden xl:table-cell">Coach</TableHead>
+                <TableHead className="text-gray-500 dark:text-gray-400 hidden sm:table-cell">Tasks</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[...Array(6)].map((_, i) => (
+                <MeetingRowSkeleton key={i} />
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     ) : (
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
         {[...Array(6)].map((_, i) => (
           <MeetingCardSkeleton key={i} />
         ))}
@@ -299,6 +307,31 @@ const MeetingsList: React.FC = () => {
   const [thumbnailsEnsured, setThumbnailsEnsured] = useState(false)
   const autoSyncAttemptedRef = useRef(false)
 
+  // Sorting state
+  const [sortField, setSortField] = useState<'title' | 'owner_email' | 'meeting_start' | 'duration_minutes' | 'sentiment_score' | 'coach_rating'>('meeting_start')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+
+  // Filtering state
+  const { searchQuery, debouncedSearchQuery, isSearching, setSearchQuery } = useDebouncedSearch('', 400)
+  const [datePreset, setDatePreset] = useState<DateRangePreset>('all')
+  const [customDateRange, setCustomDateRange] = useState<DateRange | null>(null)
+  const [selectedRepId, setSelectedRepId] = useState<string | null | undefined>(undefined)
+  const [durationBucket, setDurationBucket] = useState<'all' | 'short' | 'medium' | 'long'>('all')
+  const [sentimentCategory, setSentimentCategory] = useState<'all' | 'positive' | 'neutral' | 'challenging'>('all')
+  const [coachingCategory, setCoachingCategory] = useState<'all' | 'excellent' | 'good' | 'needs-work'>('all')
+
+  // Calculate active filter count
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (datePreset !== 'all') count++
+    if (selectedRepId) count++
+    if (durationBucket !== 'all') count++
+    if (sentimentCategory !== 'all') count++
+    if (coachingCategory !== 'all') count++
+    if (searchQuery.trim()) count++
+    return count
+  }, [datePreset, selectedRepId, durationBucket, sentimentCategory, coachingCategory, searchQuery])
+
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
 
   // Reset to page 1 when scope or org changes
@@ -306,9 +339,14 @@ const MeetingsList: React.FC = () => {
     setCurrentPage(1)
   }, [scope, activeOrgId])
 
+  // Reset to page 1 when any filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [sortField, sortDirection, datePreset, customDateRange, selectedRepId, durationBucket, sentimentCategory, coachingCategory, debouncedSearchQuery])
+
   useEffect(() => {
     fetchMeetings()
-  }, [scope, user, activeOrgId, currentPage])
+  }, [scope, user, activeOrgId, currentPage, sortField, sortDirection, datePreset, customDateRange, selectedRepId])
 
   // Auto-sync when user arrives with Fathom connected but no meetings
   // This handles users coming from onboarding who skipped the sync step
@@ -501,7 +539,7 @@ const MeetingsList: React.FC = () => {
           action_items:meeting_action_items(completed),
           tasks!tasks_meeting_id_fkey(status)
         `)
-        .order('meeting_start', { ascending: false })
+        .order(sortField, { ascending: sortDirection === 'asc' })
         .range(from, to) as any
 
       // Apply org scoping if we have an active org
@@ -518,6 +556,19 @@ const MeetingsList: React.FC = () => {
         query = query.or(`owner_user_id.eq.${user.id},owner_email.eq.${user.email}`)
       }
 
+      // Server-side date filtering
+      const dateRange = customDateRange || getDateRangeFromPreset(datePreset)
+      if (dateRange) {
+        query = query
+          .gte('meeting_start', dateRange.start.toISOString())
+          .lte('meeting_start', dateRange.end.toISOString())
+      }
+
+      // Server-side rep filtering (when scope is 'team')
+      if (selectedRepId && scope === 'team') {
+        query = query.eq('owner_user_id', selectedRepId)
+      }
+
       const { data, error } = await query
 
       if (error) throw error
@@ -532,10 +583,6 @@ const MeetingsList: React.FC = () => {
       setMeetings(meetingsData)
       // Reset to allow ensureThumbnails to run for the new list
       setThumbnailsEnsured(false)
-      // Only calculate stats on first page to avoid recalculating on every page
-      if (currentPage === 1) {
-        calculateStats(meetingsData)
-      }
     } catch (error: any) {
       console.error('Error fetching meetings:', error)
       // Set user-friendly error message
@@ -600,43 +647,96 @@ const MeetingsList: React.FC = () => {
     navigate(`/meetings/${meetingId}`)
   }
 
+  // Client-side filtering pipeline
+  const filteredMeetings = useMemo(() => {
+    let filtered = meetings
+
+    // Search filter (title, company name)
+    if (debouncedSearchQuery.trim()) {
+      filtered = filterItems(filtered, debouncedSearchQuery, ['title', 'company.name'] as (keyof Meeting)[])
+    }
+
+    // Duration bucket filter
+    if (durationBucket !== 'all') {
+      filtered = filtered.filter(m => {
+        const duration = m.duration_minutes || 0
+        switch (durationBucket) {
+          case 'short': return duration < 30
+          case 'medium': return duration >= 30 && duration <= 60
+          case 'long': return duration > 60
+          default: return true
+        }
+      })
+    }
+
+    // Sentiment category filter
+    if (sentimentCategory !== 'all') {
+      filtered = filtered.filter(m => {
+        const label = sentimentLabel(m.sentiment_score).toLowerCase()
+        return label === sentimentCategory
+      })
+    }
+
+    // Coaching category filter
+    if (coachingCategory !== 'all') {
+      filtered = filtered.filter(m => {
+        if (m.coach_rating === null) return false
+        switch (coachingCategory) {
+          case 'excellent': return m.coach_rating >= 8
+          case 'good': return m.coach_rating >= 6 && m.coach_rating < 8
+          case 'needs-work': return m.coach_rating < 6
+          default: return true
+        }
+      })
+    }
+
+    return filtered
+  }, [meetings, debouncedSearchQuery, durationBucket, sentimentCategory, coachingCategory])
+
+  // Update stats based on filtered meetings
+  useEffect(() => {
+    calculateStats(filteredMeetings)
+  }, [filteredMeetings])
+
   if (loading) {
     return <MeetingsListSkeleton view={view} />
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 w-full max-w-full overflow-x-hidden">
       {/* Recording Source Tabs */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center gap-2"
+        className="flex items-center gap-2 flex-wrap w-full"
       >
         <Button
           variant={location.pathname === '/meetings' || location.pathname === '/meetings/' ? 'default' : 'outline'}
           size="sm"
           onClick={() => navigate('/meetings')}
           className={cn(
-            'gap-2',
+            'gap-2 text-xs sm:text-sm',
             (location.pathname === '/meetings' || location.pathname === '/meetings/') &&
             'bg-emerald-600 hover:bg-emerald-700 text-white'
           )}
         >
-          <Radio className="h-4 w-4" />
-          External Recorders
+          <Radio className="h-3 w-3 sm:h-4 sm:w-4" />
+          <span className="hidden sm:inline">External Recorders</span>
+          <span className="sm:hidden">Recorders</span>
         </Button>
         <Button
           variant={location.pathname.startsWith('/meetings/recordings') ? 'default' : 'outline'}
           size="sm"
           onClick={() => navigate('/meetings/recordings')}
           className={cn(
-            'gap-2',
+            'gap-2 text-xs sm:text-sm',
             location.pathname.startsWith('/meetings/recordings') &&
             'bg-emerald-600 hover:bg-emerald-700 text-white'
           )}
         >
-          <Bot className="h-4 w-4" />
-          60 Notetaker
+          <Bot className="h-3 w-3 sm:h-4 sm:w-4" />
+          <span className="hidden sm:inline">60 Notetaker</span>
+          <span className="sm:hidden">Notetaker</span>
         </Button>
       </motion.div>
 
@@ -650,18 +750,18 @@ const MeetingsList: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-emerald-500/10 via-emerald-600/10 to-teal-500/10 dark:from-emerald-500/20 dark:via-emerald-600/20 dark:to-teal-500/20 backdrop-blur-xl rounded-2xl p-4 border border-emerald-500/30 dark:border-emerald-500/40"
+          className="bg-gradient-to-r from-emerald-500/10 via-emerald-600/10 to-teal-500/10 dark:from-emerald-500/20 dark:via-emerald-600/20 dark:to-teal-500/20 backdrop-blur-xl rounded-2xl p-3 sm:p-4 border border-emerald-500/30 dark:border-emerald-500/40 w-full"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Loader2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 animate-spin" />
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="relative flex-shrink-0">
+                <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 dark:text-emerald-400 animate-spin" />
               </div>
-              <div>
-                <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm font-medium text-emerald-700 dark:text-emerald-300 truncate">
                   Syncing meetings from Fathom...
                 </p>
-                <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80">
+                <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80 truncate">
                   {syncState.meetings_synced > 0
                     ? `${syncState.meetings_synced.toLocaleString()} of ${syncState.total_meetings_found.toLocaleString()} synced`
                     : 'Fetching meeting list...'}
@@ -669,9 +769,9 @@ const MeetingsList: React.FC = () => {
               </div>
             </div>
             {syncState.total_meetings_found > 0 && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                 {/* Progress bar */}
-                <div className="w-32 h-2 bg-emerald-200/50 dark:bg-emerald-900/50 rounded-full overflow-hidden">
+                <div className="w-24 sm:w-32 h-2 bg-emerald-200/50 dark:bg-emerald-900/50 rounded-full overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{
@@ -681,7 +781,7 @@ const MeetingsList: React.FC = () => {
                     className="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full"
                   />
                 </div>
-                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium min-w-[40px]">
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium min-w-[35px] text-right">
                   {Math.round((syncState.meetings_synced / syncState.total_meetings_found) * 100)}%
                 </span>
               </div>
@@ -694,21 +794,21 @@ const MeetingsList: React.FC = () => {
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 w-full"
       >
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-emerald-600/10 dark:bg-emerald-500/20 backdrop-blur-sm rounded-xl border border-emerald-600/20 dark:border-emerald-500/20">
-            <Video className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="p-2 bg-emerald-600/10 dark:bg-emerald-500/20 backdrop-blur-sm rounded-xl border border-emerald-600/20 dark:border-emerald-500/20 flex-shrink-0">
+            <Video className="h-5 sm:h-6 w-5 sm:w-6 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 truncate">
               Meetings
             </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Review your recorded conversations and insights</p>
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1 truncate">Review your recorded conversations and insights</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {/* Scope Toggle */}
           <motion.div
             whileHover={{ scale: 1.02 }}
@@ -720,8 +820,9 @@ const MeetingsList: React.FC = () => {
               onClick={() => setScope('me')}
               className={scope === 'me' ? 'bg-gray-100 dark:bg-gray-800/60' : ''}
             >
-              <User className="h-4 w-4 mr-1.5" />
-              My
+              <User className="h-4 w-4 hidden sm:inline mr-1.5" />
+              <span className="hidden sm:inline">My</span>
+              <span className="sm:hidden">My</span>
             </Button>
             <Button
               variant={scope === 'team' ? 'secondary' : 'ghost'}
@@ -729,8 +830,9 @@ const MeetingsList: React.FC = () => {
               onClick={() => setScope('team')}
               className={scope === 'team' ? 'bg-gray-100 dark:bg-gray-800/60' : ''}
             >
-              <Users className="h-4 w-4 mr-1.5" />
-              Team
+              <Users className="h-4 w-4 hidden sm:inline mr-1.5" />
+              <span className="hidden sm:inline">Team</span>
+              <span className="sm:hidden">Team</span>
             </Button>
           </motion.div>
 
@@ -760,26 +862,26 @@ const MeetingsList: React.FC = () => {
       </motion.div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <StatCard 
-          title="This Month" 
+      <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 w-full overflow-hidden">
+        <StatCard
+          title="This Month"
           value={stats.meetingsThisMonth.toString()}
           icon={<Calendar className="h-5 w-5" />}
           trend={stats.meetingsThisMonth > 0 ? 'up' : 'neutral'}
         />
-        <StatCard 
-          title="Avg Duration" 
+        <StatCard
+          title="Avg Duration"
           value={`${stats.avgDuration}m`}
           icon={<Clock className="h-5 w-5" />}
         />
-        <StatCard 
-          title="Open Tasks" 
+        <StatCard
+          title="Open Tasks"
           value={stats.actionItemsOpen.toString()}
           icon={<MessageSquare className="h-5 w-5" />}
           trend={stats.actionItemsOpen > 0 ? 'down' : 'neutral'}
         />
-        <StatCard 
-          title="Sentiment" 
+        <StatCard
+          title="Sentiment"
           value={sentimentLabel(stats.avgSentiment)}
           sub={stats.avgSentiment !== 0 ? `${stats.avgSentiment > 0 ? '+' : ''}${stats.avgSentiment.toFixed(2)}` : undefined}
           icon={<TrendingUp className="h-5 w-5" />}
@@ -793,6 +895,44 @@ const MeetingsList: React.FC = () => {
         />
       </div>
 
+      {/* Filter Bar */}
+      <MeetingsFilterBar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        isSearching={isSearching}
+        sortField={sortField}
+        sortDirection={sortDirection}
+        onSortFieldChange={setSortField}
+        onSortDirectionToggle={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+        datePreset={datePreset}
+        customDateRange={customDateRange}
+        onDateChange={(preset, range) => {
+          setDatePreset(preset)
+          setCustomDateRange(range)
+        }}
+        selectedRepId={selectedRepId}
+        onRepChange={setSelectedRepId}
+        scope={scope}
+        durationBucket={durationBucket}
+        onDurationChange={setDurationBucket}
+        sentimentCategory={sentimentCategory}
+        onSentimentChange={setSentimentCategory}
+        coachingCategory={coachingCategory}
+        onCoachingChange={setCoachingCategory}
+        activeFilterCount={activeFilterCount}
+        onClearAll={() => {
+          setSearchQuery('')
+          setSortField('meeting_start')
+          setSortDirection('desc')
+          setDatePreset('all')
+          setCustomDateRange(null)
+          setSelectedRepId(undefined)
+          setDurationBucket('all')
+          setSentimentCategory('all')
+          setCoachingCategory('all')
+        }}
+      />
+
       {/* Meetings Display */}
       <AnimatePresence mode="wait">
         {view === 'list' ? (
@@ -802,109 +942,132 @@ const MeetingsList: React.FC = () => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
             transition={{ duration: 0.2 }}
-            className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/30 overflow-hidden shadow-sm dark:shadow-lg dark:shadow-black/10"
+            className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/30 overflow-hidden shadow-sm dark:shadow-lg dark:shadow-black/10 w-full"
           >
-            <Table>
-              <TableHeader>
-                <TableRow className="border-gray-200/50 dark:border-gray-700/30 hover:bg-gray-50/50 dark:hover:bg-gray-800/20">
-                  <TableHead className="text-gray-500 dark:text-gray-400">Title</TableHead>
-                  <TableHead className="text-gray-500 dark:text-gray-400">Company</TableHead>
-                  <TableHead className="text-gray-500 dark:text-gray-400">Rep</TableHead>
-                  <TableHead className="text-gray-500 dark:text-gray-400">Date</TableHead>
-                  <TableHead className="text-gray-500 dark:text-gray-400">Duration</TableHead>
-                  <TableHead className="text-gray-500 dark:text-gray-400">Type</TableHead>
-                  <TableHead className="text-gray-500 dark:text-gray-400">Sentiment</TableHead>
-                  <TableHead className="text-gray-500 dark:text-gray-400">Coach</TableHead>
-                  <TableHead className="text-gray-500 dark:text-gray-400">Tasks</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {meetings.map((meeting, index) => {
-                  // Unified task count from tasks table
-                  const openTasks = meeting.tasks?.filter(t => t.status !== 'completed').length || 0
+            <div className="w-full overflow-x-auto scrollbar-visible">
+              <style>{`
+                .scrollbar-visible::-webkit-scrollbar {
+                  height: 6px;
+                }
+                .scrollbar-visible::-webkit-scrollbar-track {
+                  background: transparent;
+                }
+                .scrollbar-visible::-webkit-scrollbar-thumb {
+                  background: rgb(200, 200, 200);
+                  border-radius: 3px;
+                }
+                .scrollbar-visible::-webkit-scrollbar-thumb:hover {
+                  background: rgb(150, 150, 150);
+                }
+                .dark .scrollbar-visible::-webkit-scrollbar-thumb {
+                  background: rgb(100, 100, 100);
+                }
+                .dark .scrollbar-visible::-webkit-scrollbar-thumb:hover {
+                  background: rgb(120, 120, 120);
+                }
+              `}</style>
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-gray-200/50 dark:border-gray-700/30 hover:bg-gray-50/50 dark:hover:bg-gray-800/20">
+                    <TableHead className="text-gray-500 dark:text-gray-400">Title</TableHead>
+                    <TableHead className="text-gray-500 dark:text-gray-400 hidden sm:table-cell">Company</TableHead>
+                    <TableHead className="text-gray-500 dark:text-gray-400 hidden md:table-cell">Rep</TableHead>
+                    <TableHead className="text-gray-500 dark:text-gray-400">Date</TableHead>
+                    <TableHead className="text-gray-500 dark:text-gray-400 hidden sm:table-cell">Duration</TableHead>
+                    <TableHead className="text-gray-500 dark:text-gray-400 hidden lg:table-cell">Type</TableHead>
+                    <TableHead className="text-gray-500 dark:text-gray-400 hidden lg:table-cell">Sentiment</TableHead>
+                    <TableHead className="text-gray-500 dark:text-gray-400 hidden xl:table-cell">Coach</TableHead>
+                    <TableHead className="text-gray-500 dark:text-gray-400 hidden sm:table-cell">Tasks</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredMeetings.map((meeting, index) => {
+                    // Unified task count from tasks table
+                    const openTasks = meeting.tasks?.filter(t => t.status !== 'completed').length || 0
 
-                  return (
-                    <motion.tr
-                      key={meeting.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.05 }}
-                      className="border-gray-200/50 dark:border-gray-700/30 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors group"
-                    >
-                      <TableCell className="font-medium text-gray-900 dark:text-gray-200">
-                        <div className="flex items-center gap-2">
-                          {meeting.source_type === 'voice' && (
-                            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-500/20 rounded text-emerald-600 dark:text-emerald-400">
-                              <Mic className="h-3 w-3" />
-                            </div>
+                    return (
+                      <motion.tr
+                        key={meeting.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                        className="border-gray-200/50 dark:border-gray-700/30 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors group"
+                      >
+                        <TableCell className="font-medium text-gray-900 dark:text-gray-200 max-w-[200px] sm:max-w-xs">
+                          <div className="flex items-start gap-2">
+                            {meeting.source_type === 'voice' && (
+                              <div className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-500/20 rounded text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5">
+                                <Mic className="h-3 w-3" />
+                              </div>
+                            )}
+                            <span className="break-words line-clamp-2">{meeting.title || 'Untitled'}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-gray-700 dark:text-gray-400 hidden sm:table-cell max-w-[120px] truncate">
+                          {meeting.company?.name || '-'}
+                        </TableCell>
+                        <TableCell className="text-gray-700 dark:text-gray-400 hidden md:table-cell max-w-[100px] truncate">
+                          {meeting.owner_email?.split('@')[0]}
+                        </TableCell>
+                        <TableCell className="text-gray-700 dark:text-gray-400 whitespace-nowrap text-sm">
+                          {meeting.meeting_start
+                            ? format(new Date(meeting.meeting_start), 'dd MMM')
+                            : '-'}
+                        </TableCell>
+                        <TableCell className="text-gray-700 dark:text-gray-400 hidden sm:table-cell">
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {formatDuration(meeting.duration_minutes)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          {meeting.meeting_type ? (
+                            <Badge
+                              variant="outline"
+                              className="capitalize bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border-blue-200 dark:border-blue-500/20 backdrop-blur-sm text-xs whitespace-nowrap"
+                            >
+                              {meeting.meeting_type.replace('_', ' ')}
+                            </Badge>
+                          ) : (
+                            <span className="text-gray-400 dark:text-gray-600 text-xs">—</span>
                           )}
-                          <span>{meeting.title || 'Untitled'}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-gray-700 dark:text-gray-400">
-                        {meeting.company?.name || '-'}
-                      </TableCell>
-                      <TableCell className="text-gray-700 dark:text-gray-400">
-                        {meeting.owner_email?.split('@')[0]}
-                      </TableCell>
-                      <TableCell className="text-gray-700 dark:text-gray-400">
-                        {meeting.meeting_start
-                          ? format(new Date(meeting.meeting_start), 'dd MMM yyyy')
-                          : '-'}
-                      </TableCell>
-                      <TableCell className="text-gray-700 dark:text-gray-400">
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatDuration(meeting.duration_minutes)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {meeting.meeting_type ? (
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
                           <Badge
-                            variant="outline"
-                            className="capitalize bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border-blue-200 dark:border-blue-500/20 backdrop-blur-sm text-xs"
+                            variant={sentimentTone(meeting.sentiment_score) as any}
+                            className="backdrop-blur-sm whitespace-nowrap"
                           >
-                            {meeting.meeting_type.replace('_', ' ')}
+                            {sentimentLabel(meeting.sentiment_score)}
                           </Badge>
-                        ) : (
-                          <span className="text-gray-400 dark:text-gray-600 text-xs">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={sentimentTone(meeting.sentiment_score) as any}
-                          className="backdrop-blur-sm"
-                        >
-                          {sentimentLabel(meeting.sentiment_score)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {meeting.coach_rating !== null && (
-                          <Badge variant="secondary" className="backdrop-blur-sm">
-                            {meeting.coach_rating}/10
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {openTasks > 0 && (
-                          <span className="text-amber-600 dark:text-amber-400 font-medium">{openTasks}</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openMeeting(meeting.id)}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </motion.tr>
-                  )
-                })}
-              </TableBody>
-            </Table>
+                        </TableCell>
+                        <TableCell className="hidden xl:table-cell">
+                          {meeting.coach_rating !== null && (
+                            <Badge variant="secondary" className="backdrop-blur-sm whitespace-nowrap">
+                              {meeting.coach_rating}/10
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell text-right">
+                          {openTasks > 0 && (
+                            <span className="text-amber-600 dark:text-amber-400 font-medium">{openTasks}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openMeeting(meeting.id)}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </motion.tr>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </motion.div>
         ) : (
           <motion.div
@@ -913,9 +1076,9 @@ const MeetingsList: React.FC = () => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
-            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
+            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 w-full"
           >
-            {meetings.map((meeting, index) => {
+            {filteredMeetings.map((meeting, index) => {
               // Unified task count from tasks table
               const openTasks = meeting.tasks?.filter(t => t.status !== 'completed').length || 0
 
@@ -925,12 +1088,12 @@ const MeetingsList: React.FC = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.05 }}
-                  whileHover={{ scale: 1.02, y: -4 }}
-                  className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl p-5 border border-gray-200/50 dark:border-gray-700/30 hover:border-gray-300/50 dark:hover:border-gray-600/40 transition-all duration-300 shadow-sm dark:shadow-lg dark:shadow-black/10 cursor-pointer group"
+                  whileHover={{ y: -2 }}
+                  className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl p-3 sm:p-5 border border-gray-200/50 dark:border-gray-700/30 hover:border-gray-300/50 dark:hover:border-gray-600/40 transition-all duration-300 shadow-sm dark:shadow-lg dark:shadow-black/10 cursor-pointer group w-full"
                   onClick={() => openMeeting(meeting.id)}
                 >
                   {/* Media Thumbnail Area - Voice or Video */}
-                  <div className="relative aspect-video bg-gray-100/80 dark:bg-gray-800/40 rounded-xl mb-4 overflow-hidden border border-gray-200/30 dark:border-gray-700/20">
+                  <div className="relative aspect-video bg-gray-100/80 dark:bg-gray-800/40 rounded-xl mb-3 sm:mb-4 overflow-hidden border border-gray-200/30 dark:border-gray-700/20">
                     {meeting.source_type === 'voice' ? (
                       /* Voice Meeting - Audio Waveform Display */
                       <>
@@ -1107,23 +1270,24 @@ const MeetingsList: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl p-4 border border-gray-200/50 dark:border-gray-700/30 shadow-sm"
+          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl p-3 sm:p-4 border border-gray-200/50 dark:border-gray-700/30 shadow-sm w-full overflow-x-auto"
         >
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} of {totalCount.toLocaleString()} meetings
+          <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap flex-shrink-0">
+            Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} of {totalCount.toLocaleString()}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center sm:justify-end">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="gap-1"
+              className="gap-1 text-xs sm:text-sm px-2 sm:px-3 flex-shrink-0"
             >
-              <ChevronLeft className="h-4 w-4" />
-              Previous
+              <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Previous</span>
+              <span className="sm:hidden">Prev</span>
             </Button>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5 sm:gap-1">
               {/* Show page numbers */}
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 let pageNum: number
@@ -1143,7 +1307,7 @@ const MeetingsList: React.FC = () => {
                     size="sm"
                     onClick={() => setCurrentPage(pageNum)}
                     className={cn(
-                      'w-9 h-9',
+                      'w-7 h-7 sm:w-9 sm:h-9 text-xs sm:text-sm p-0 flex-shrink-0',
                       currentPage === pageNum && 'bg-emerald-600 hover:bg-emerald-700 text-white'
                     )}
                   >
@@ -1153,12 +1317,12 @@ const MeetingsList: React.FC = () => {
               })}
               {totalPages > 5 && currentPage < totalPages - 2 && (
                 <>
-                  <span className="text-gray-400 px-1">...</span>
+                  <span className="text-gray-400 px-0.5 sm:px-1 text-xs">...</span>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setCurrentPage(totalPages)}
-                    className="w-9 h-9"
+                    className="w-7 h-7 sm:w-9 sm:h-9 text-xs sm:text-sm p-0 flex-shrink-0"
                   >
                     {totalPages}
                   </Button>
@@ -1170,10 +1334,11 @@ const MeetingsList: React.FC = () => {
               size="sm"
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="gap-1"
+              className="gap-1 text-xs sm:text-sm px-2 sm:px-3 flex-shrink-0"
             >
-              Next
-              <ChevronRight className="h-4 w-4" />
+              <span className="hidden sm:inline">Next</span>
+              <span className="sm:hidden">Next</span>
+              <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
           </div>
         </motion.div>
@@ -1204,6 +1369,38 @@ const MeetingsList: React.FC = () => {
           >
             <RefreshCw className="mr-2 w-4 h-4" />
             Try Again
+          </Button>
+        </motion.div>
+      )}
+
+      {/* No filters results state */}
+      {filteredMeetings.length === 0 && meetings.length > 0 && !loading && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center justify-center py-16 px-4"
+        >
+          <div className="w-24 h-24 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-6">
+            <Filter className="w-12 h-12 text-gray-400 dark:text-gray-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 text-center">
+            No meetings match your filters
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6 text-center max-w-md">
+            Try adjusting your search terms, date range, or filter selection
+          </p>
+          <Button
+            onClick={() => {
+              setSearchQuery('')
+              setDurationBucket('all')
+              setSentimentCategory('all')
+              setCoachingCategory('all')
+              setDatePreset('all')
+              setCustomDateRange(null)
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            Clear All Filters
           </Button>
         </motion.div>
       )}

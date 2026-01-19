@@ -67,6 +67,8 @@ export interface RouteConfig {
   order?: number;
   /** Badge text (e.g., "New", "Beta") */
   badge?: string;
+  /** Display group for visual grouping in sidebar (1-5) */
+  displayGroup?: number;
 }
 
 // =====================================================
@@ -92,16 +94,18 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     showInNav: true,
     navSection: 'main',
     order: 2,
+    displayGroup: 1,
   },
-  // ========== Internal-Only: Dashboard (Top of Nav) ==========
+  // ========== Dashboard (Available to all users) ==========
   {
     path: '/dashboard',
-    access: 'internal',
+    access: 'any',
     label: 'Dashboard',
     icon: LayoutDashboard,
     showInNav: true,
     navSection: 'main',
-    order: -1, // Ensure this is always first
+    order: 1,
+    displayGroup: 1,
   },
   {
     path: '/meetings/intelligence',
@@ -111,6 +115,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     showInNav: true,
     navSection: 'main',
     order: 3,
+    displayGroup: 1,
   },
   {
     path: '/insights/content-topics',
@@ -119,7 +124,8 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     icon: Layers,
     showInNav: true,
     navSection: 'main',
-    order: 4,
+    order: 1,
+    displayGroup: 3,
   },
   {
     path: '/insights/team',
@@ -128,7 +134,8 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     icon: BarChart3,
     showInNav: true,
     navSection: 'main',
-    order: 5,
+    order: 4,
+    displayGroup: 1,
   },
 
   // ========== Internal-Only Main Routes ==========
@@ -139,7 +146,8 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     icon: Inbox,
     showInNav: true,
     navSection: 'main',
-    order: 9, // Before CRM - natural sales flow: Leads → CRM → Pipeline
+    order: 2,
+    displayGroup: 3,
   },
   {
     path: '/crm',
@@ -148,7 +156,8 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     icon: Building2,
     showInNav: true,
     navSection: 'main',
-    order: 10,
+    order: 3,
+    displayGroup: 3,
   },
   {
     path: '/pipeline',
@@ -157,7 +166,8 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     icon: Kanban,
     showInNav: true,
     navSection: 'main',
-    order: 11,
+    order: 4,
+    displayGroup: 3,
   },
   {
     path: '/calls',
@@ -166,7 +176,8 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     icon: PhoneCall,
     showInNav: true,
     navSection: 'main',
-    order: 11.5,
+    order: 1,
+    displayGroup: 4,
   },
   {
     path: '/voice',
@@ -175,7 +186,8 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     icon: Mic,
     showInNav: true,
     navSection: 'main',
-    order: 11.7,
+    order: 1,
+    displayGroup: 5,
     badge: 'New',
   },
   {
@@ -185,7 +197,8 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     icon: Activity,
     showInNav: true,
     navSection: 'main',
-    order: 12,
+    order: 5,
+    displayGroup: 3,
   },
   {
     path: '/insights',
@@ -194,7 +207,8 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     icon: BarChart3,
     showInNav: true,
     navSection: 'main',
-    order: 13,
+    order: 6,
+    displayGroup: 3,
   },
 
   // ========== Tools Section (Internal Only) ==========
@@ -206,6 +220,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     showInNav: true,
     navSection: 'tools',
     order: 1,
+    displayGroup: 2,
   },
   {
     path: '/projects',
@@ -215,6 +230,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     showInNav: true,
     navSection: 'tools',
     order: 2,
+    displayGroup: 2,
     badge: 'New',
   },
   // Calendar and Email routes removed from navigation - users should use Google Calendar/Gmail directly
@@ -226,7 +242,8 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     icon: Workflow,
     showInNav: true,
     navSection: 'tools',
-    order: 3,
+    order: 2,
+    displayGroup: 5,
   },
   {
     path: '/integrations',
@@ -235,7 +252,8 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     icon: Plug,
     showInNav: true,
     navSection: 'tools',
-    order: 3,
+    order: 5,
+    displayGroup: 1,
   },
   {
     path: '/copilot',
@@ -244,7 +262,8 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     icon: Bot,
     showInNav: true,
     navSection: 'tools',
-    order: 6,
+    order: 2,
+    displayGroup: 4,
   },
   {
     path: '/email-actions',
