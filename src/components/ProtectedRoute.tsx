@@ -18,6 +18,7 @@ const publicRoutes = [
   '/auth/callback',
   '/auth/sso-callback',
   '/auth/verify-email',
+  '/auth/set-password', // Waitlist invite password setup - auth handled internally
   '/debug-auth',
   '/auth/google/callback',
   '/oauth/fathom/callback',

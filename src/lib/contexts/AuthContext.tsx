@@ -235,25 +235,33 @@ const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               break;
               
             case 'SIGNED_OUT':
-              // Check if this is a password recovery flow
-              // Supabase clears the session when processing recovery tokens
-              // We should NOT show the "Successfully signed out!" toast in this case
-              const isPasswordRecovery = 
+              // Check if this is a password recovery flow or invitation flow
+              // Supabase clears the session when processing recovery/invite tokens
+              // We should NOT show the "Successfully signed out!" toast in these cases
+              const isPasswordRecovery =
                 window.location.search.includes('token_hash') ||
                 window.location.search.includes('type=recovery') ||
                 window.location.hash.includes('type=recovery') ||
                 window.location.pathname.startsWith('/auth/reset-password');
-              
-              if (!isPasswordRecovery) {
+
+              // Also check for invite flow (waitlist/org invitations)
+              const isInviteFlow =
+                window.location.search.includes('type=invite') ||
+                window.location.search.includes('waitlist_entry') ||
+                window.location.hash.includes('type=invite') ||
+                window.location.pathname.includes('/auth/set-password');
+
+              if (!isPasswordRecovery && !isInviteFlow) {
                 toast.success('Successfully signed out!');
+
+                // Only clear data on genuine sign-out, not during recovery/invite token processing
+                // During invite/recovery flows, Supabase may fire SIGNED_OUT before establishing new session
+                queryClient.clear();
+                authUtils.clearAuthStorage();
+                // Clear Sentry user context and reset analytics
+                clearSentryUser();
+                resetAnalytics();
               }
-              
-              // Clear all cached data
-              queryClient.clear();
-              authUtils.clearAuthStorage();
-              // Clear Sentry user context and reset analytics
-              clearSentryUser();
-              resetAnalytics();
               // Note: We don't log SIGNED_OUT since we won't have session data
               break;
               

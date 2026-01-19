@@ -34,11 +34,23 @@ export default function SetPassword() {
       }
 
       console.log('[SetPassword] Checking session for waitlist entry:', entryId);
+      console.log('[SetPassword] URL:', {
+        pathname: window.location.pathname,
+        search: window.location.search,
+        hash: window.location.hash.substring(0, 100) + '...',
+      });
 
       // Check for invite token in hash (from magic link)
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const tokenHash = new URLSearchParams(window.location.search).get('token_hash');
       const type = hashParams.get('type') || new URLSearchParams(window.location.search).get('type');
+
+      console.log('[SetPassword] Token parameters:', {
+        hasTokenHash: !!tokenHash,
+        type,
+        hashAccessToken: !!hashParams.get('access_token'),
+        hashRefreshToken: !!hashParams.get('refresh_token'),
+      });
 
       // If we have an invite token, verify it first to establish the session
       if ((tokenHash || hashParams.get('access_token')) && type === 'invite') {
@@ -69,6 +81,19 @@ export default function SetPassword() {
         // If no token_hash but we have access_token in hash, Supabase client should have processed it
         // Wait a moment for it to establish the session
         console.log('[SetPassword] Waiting for Supabase to process auth tokens...');
+        await new Promise(resolve => setTimeout(resolve, 1500)); // Increased from 1000ms to 1500ms for stability
+      }
+
+      // If we have type=invite but no explicit tokens, Supabase may still be processing
+      // This handles the case where tokens weren't in expected locations
+      const hasExplicitTokens = !!tokenHash || !!hashParams.get('access_token');
+
+      // Also consider it an invite flow if we have a waitlist_entry param (from AuthCallback redirect)
+      const isInviteFlow = type === 'invite' || !!entryId;
+
+      if (isInviteFlow && !hasExplicitTokens) {
+        console.log('[SetPassword] Detected invite flow without explicit tokens, waiting for session...', { type, entryId });
+        // Give Supabase client time to process any pending auth state
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
