@@ -150,7 +150,9 @@ export default function OnboardingPage() {
   // Render V2 onboarding if feature flag is set
   if (onboardingVersion === 'v2') {
     const activeOrg = getActiveOrg();
-    const domain = activeOrg?.company_domain || user?.email?.split('@')[1] || '';
+    // Only pass domain if it's from an actual organization
+    // For personal email users, let them provide their website or company info
+    const domain = activeOrg?.company_domain || '';
 
     // organizationId may be empty for personal email users
     // OnboardingV2 will create an organization after collecting company info via website URL or Q&A
