@@ -6,6 +6,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useCopilot } from '@/lib/contexts/CopilotContext';
 import { CopilotLayout } from './copilot/CopilotLayout';
+import { CopilotRightPanel } from './copilot/CopilotRightPanel';
 import { CopilotService } from '@/lib/services/copilotService';
 import { EmailActionModal, EmailActionData, EmailActionType } from './copilot/EmailActionModal';
 import { useDynamicPrompts } from '@/lib/hooks/useDynamicPrompts';
@@ -413,7 +414,7 @@ export const Copilot: React.FC<CopilotProps> = ({
   }, []);
 
   return (
-    <CopilotLayout>
+    <CopilotLayout rightPanel={<CopilotRightPanel />}>
       <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 flex flex-col min-h-0 overflow-hidden h-[calc(100dvh-var(--app-top-offset))]">
         <AssistantShell mode="page" />
 

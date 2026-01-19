@@ -38,3 +38,18 @@ Started: 2026-01-19T14:55:00.000Z
   - AssistantShell messages area already had flex-1 overflow-y-auto
   - Right panel uses w-80 (320px) with backdrop-blur-xl glassmorphic effect
 ---
+
+## 2026-01-19 18:42 - US-002
+- What was implemented: Right panel shell with three collapsible sections
+- Files changed:
+  - src/components/copilot/CopilotRightPanel.tsx - NEW: CollapsibleSection pattern with Action Items, Context, Connected sections
+  - src/components/Copilot.tsx - Added CopilotRightPanel import and wired to CopilotLayout
+- Quality gates:
+  - build:check:strict: PASS
+  - lint: PASS
+  - tests: PASS (pre-existing failures)
+- Learnings:
+  - CollapsibleSection component is reusable with defaultOpen prop
+  - Each section has icon, title, optional count badge
+  - Sections have empty state placeholders ready for content in later stories
+---
