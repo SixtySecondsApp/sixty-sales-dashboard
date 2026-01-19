@@ -3,10 +3,11 @@ import { motion } from 'framer-motion';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Mail, Lock, User, ArrowLeft, LogIn } from 'lucide-react';
+import { Mail, Lock, User, ArrowLeft, LogIn, Globe } from 'lucide-react';
 import { useAccessCode } from '@/lib/hooks/useAccessCode';
 import { AccessCodeInput } from '@/components/AccessCodeInput';
 import { incrementCodeUsage } from '@/lib/services/accessCodeService';
+import { extractDomainFromWebsite } from '@/lib/utils/domainUtils';
 import { supabase } from '@/lib/supabase/clientV2';
 
 export default function Signup() {
@@ -18,6 +19,7 @@ export default function Signup() {
     email: '',
     password: '',
     confirmPassword: '',
+    companyDomain: '',
   });
   const [existingAccountError, setExistingAccountError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -89,6 +91,12 @@ export default function Signup() {
     prefillFromWaitlist();
   }, [searchParams]);
 
+  const validateCompanyDomain = (input: string): boolean => {
+    if (!input || input.trim().length === 0) return true; // Optional field
+    const domain = extractDomainFromWebsite(input.trim());
+    return domain !== null && domain.includes('.');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -111,10 +119,18 @@ export default function Signup() {
       return;
     }
 
+    if (!validateCompanyDomain(formData.companyDomain)) {
+      toast.error('Please enter a valid company domain (e.g., acme.com)');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const fullName = `${formData.firstName.trim()} ${formData.lastName.trim()}`.trim();
+      const companyDomain = formData.companyDomain.trim()
+        ? extractDomainFromWebsite(formData.companyDomain.trim())
+        : null;
 
       const { error } = await signUp(
         formData.email,
@@ -123,6 +139,7 @@ export default function Signup() {
           full_name: fullName,
           first_name: formData.firstName.trim(),
           last_name: formData.lastName.trim(),
+          company_domain: companyDomain,
         }
       );
 
@@ -286,6 +303,26 @@ export default function Signup() {
                   disabled={isLoading}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-400">
+                Company Website <span className="text-gray-500">(Optional)</span>
+              </label>
+              <div className="relative">
+                <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  value={formData.companyDomain}
+                  onChange={(e) => setFormData({ ...formData, companyDomain: e.target.value })}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-600"
+                  placeholder="acme.com"
+                  disabled={isLoading}
+                />
+              </div>
+              <p className="text-xs text-gray-500">
+                We'll use this to customize your experience
+              </p>
             </div>
 
             <div className="space-y-2">
