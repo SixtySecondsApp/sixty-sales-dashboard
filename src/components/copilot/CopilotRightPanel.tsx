@@ -14,6 +14,15 @@ import {
   Zap,
   Database,
   Link2,
+  Building2,
+  DollarSign,
+  User,
+  Activity,
+  Mic,
+  Calendar,
+  Clock,
+  Sparkles,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useActionItemStore, type ActionItem } from '@/lib/stores/actionItemStore';
@@ -156,14 +165,204 @@ function ActionItemsSection({ items: propItems }: ActionItemsSectionProps) {
   );
 }
 
-interface ContextItem {
-  type: 'hubspot' | 'fathom' | 'calendar';
-  label: string;
-  detail: string;
+// Context data types for each integration
+export interface HubSpotContext {
+  type: 'hubspot';
+  companyName: string;
+  dealValue?: number;
+  dealName?: string;
+  contactName?: string;
+  contactRole?: string;
+  activityCount?: number;
+  hubspotUrl?: string;
 }
+
+export interface FathomContext {
+  type: 'fathom';
+  callCount: number;
+  lastCallDate?: string;
+  lastCallDuration?: string;
+  keyInsight?: string;
+  fathomUrl?: string;
+}
+
+export interface CalendarContext {
+  type: 'calendar';
+  nextMeetingTitle: string;
+  nextMeetingDate: string;
+  nextMeetingTime: string;
+  calendarUrl?: string;
+}
+
+export type ContextItem = HubSpotContext | FathomContext | CalendarContext;
 
 interface ContextSectionProps {
   items?: ContextItem[];
+}
+
+// HubSpot context card
+function HubSpotContextCard({ data }: { data: HubSpotContext }) {
+  const formattedValue = data.dealValue
+    ? new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(data.dealValue)
+    : null;
+
+  return (
+    <div
+      className={cn(
+        'p-3 rounded-xl bg-white/5 border border-white/10',
+        'hover:bg-white/[0.07] hover:border-orange-500/30',
+        'transition-all cursor-pointer group'
+      )}
+      onClick={() => data.hubspotUrl && window.open(data.hubspotUrl, '_blank')}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center">
+          <Building2 className="w-3 h-3 text-white" />
+        </div>
+        <span className="text-xs font-medium text-orange-400">HubSpot</span>
+        {data.hubspotUrl && (
+          <ExternalLink className="w-3 h-3 text-slate-500 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+        )}
+      </div>
+
+      {/* Company & Deal */}
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium text-white truncate">{data.companyName}</p>
+        {data.dealName && (
+          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <DollarSign className="w-3 h-3" />
+            <span className="truncate">{data.dealName}</span>
+            {formattedValue && (
+              <span className="text-emerald-400 font-medium ml-auto">{formattedValue}</span>
+            )}
+          </div>
+        )}
+        {data.contactName && (
+          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <User className="w-3 h-3" />
+            <span className="truncate">
+              {data.contactName}
+              {data.contactRole && <span className="text-slate-500"> · {data.contactRole}</span>}
+            </span>
+          </div>
+        )}
+        {typeof data.activityCount === 'number' && (
+          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <Activity className="w-3 h-3" />
+            <span>{data.activityCount} activities</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Fathom context card
+function FathomContextCard({ data }: { data: FathomContext }) {
+  return (
+    <div
+      className={cn(
+        'p-3 rounded-xl bg-white/5 border border-white/10',
+        'hover:bg-white/[0.07] hover:border-violet-500/30',
+        'transition-all cursor-pointer group'
+      )}
+      onClick={() => data.fathomUrl && window.open(data.fathomUrl, '_blank')}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+          <Mic className="w-3 h-3 text-white" />
+        </div>
+        <span className="text-xs font-medium text-violet-400">Fathom</span>
+        {data.fathomUrl && (
+          <ExternalLink className="w-3 h-3 text-slate-500 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+        )}
+      </div>
+
+      {/* Call info */}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5 text-xs text-slate-400">
+          <span className="text-white font-medium">{data.callCount} calls</span>
+          {data.lastCallDate && (
+            <>
+              <span className="text-slate-500">·</span>
+              <span>Last: {data.lastCallDate}</span>
+            </>
+          )}
+        </div>
+        {data.lastCallDuration && (
+          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <Clock className="w-3 h-3" />
+            <span>Duration: {data.lastCallDuration}</span>
+          </div>
+        )}
+        {data.keyInsight && (
+          <div className="mt-2 p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
+            <div className="flex items-start gap-1.5">
+              <Sparkles className="w-3 h-3 text-violet-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-violet-300/80 line-clamp-2">{data.keyInsight}</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Calendar context card
+function CalendarContextCard({ data }: { data: CalendarContext }) {
+  return (
+    <div
+      className={cn(
+        'p-3 rounded-xl bg-white/5 border border-white/10',
+        'hover:bg-white/[0.07] hover:border-emerald-500/30',
+        'transition-all cursor-pointer group'
+      )}
+      onClick={() => data.calendarUrl && window.open(data.calendarUrl, '_blank')}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+          <Calendar className="w-3 h-3 text-white" />
+        </div>
+        <span className="text-xs font-medium text-emerald-400">Calendar</span>
+        {data.calendarUrl && (
+          <ExternalLink className="w-3 h-3 text-slate-500 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+        )}
+      </div>
+
+      {/* Meeting info */}
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium text-white truncate">{data.nextMeetingTitle}</p>
+        <div className="flex items-center gap-1.5 text-xs text-slate-400">
+          <Clock className="w-3 h-3" />
+          <span className="text-emerald-400 font-medium">{data.nextMeetingDate}</span>
+          <span className="text-slate-500">at</span>
+          <span>{data.nextMeetingTime}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Render context item based on type
+function ContextItemCard({ item }: { item: ContextItem }) {
+  switch (item.type) {
+    case 'hubspot':
+      return <HubSpotContextCard data={item} />;
+    case 'fathom':
+      return <FathomContextCard data={item} />;
+    case 'calendar':
+      return <CalendarContextCard data={item} />;
+    default:
+      return null;
+  }
 }
 
 function ContextSection({ items = [] }: ContextSectionProps) {
@@ -178,16 +377,26 @@ function ContextSection({ items = [] }: ContextSectionProps) {
     >
       {hasItems ? (
         <div className="space-y-2">
-          {/* Context items will be rendered here in US-006 */}
-          <p className="text-sm text-slate-400">Context data will appear here.</p>
+          {items.map((item, index) => (
+            <ContextItemCard key={`${item.type}-${index}`} item={item} />
+          ))}
         </div>
       ) : (
         <div className="p-4 rounded-xl bg-white/5 border border-white/5">
           <div className="flex gap-2 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-white/10 to-white/5" />
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-white/10 to-white/5" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500/20 to-orange-500/5 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-orange-500/50" />
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-violet-500/5 flex items-center justify-center">
+              <Mic className="w-5 h-5 text-violet-500/50" />
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-emerald-500/50" />
+            </div>
           </div>
-          <p className="text-sm text-slate-500">Data sources will appear here.</p>
+          <p className="text-sm text-slate-500">
+            Ask about a contact or deal to see relevant data here.
+          </p>
         </div>
       )}
     </CollapsibleSection>

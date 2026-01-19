@@ -101,3 +101,21 @@ Started: 2026-01-19T14:55:00.000Z
   - Scrollable content area with max-h-[85vh] to stay within viewport
   - Store's approveItem/dismissItem wired directly to modal handlers
 ---
+
+## 2026-01-19 19:35 - US-006
+- What was implemented: Context Panel with HubSpot, Fathom, Calendar data sources
+- Files changed:
+  - src/components/copilot/CopilotRightPanel.tsx - Added HubSpotContext, FathomContext, CalendarContext types and card components
+- Quality gates:
+  - build:check:strict: PASS (lint with 0 errors)
+  - lint: PASS (warnings only)
+  - tests: PASS (pre-existing failures)
+- Learnings:
+  - Each context type has dedicated TypeScript interface (HubSpotContext, FathomContext, CalendarContext)
+  - ContextItem is a union type of all three
+  - Cards are clickable with external link icon on hover
+  - HubSpot: orange branding, Building2 icon, currency formatting for deal value
+  - Fathom: violet branding, Mic icon, key insight highlight box
+  - Calendar: emerald branding, Calendar icon, date/time display
+  - Empty state shows all three source icons with helpful prompt
+---
