@@ -78,14 +78,32 @@ export default function AuthCallback() {
         });
 
         // Check if there are session tokens in URL hash (from invitation redirect)
-        // Supabase client should auto-handle these, but let's wait a moment for it to process
-        if (window.location.hash && window.location.hash.includes('access_token')) {
-          console.log('[AuthCallback] Found access_token in URL hash, waiting for Supabase to process...');
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-
-        // First check if we already have a session (user might already be logged in)
+        // For invite flows with access_token in hash, Supabase client processes these automatically
+        // but we need to give it time and potentially retry
         let { data: { session } } = await supabase.auth.getSession();
+
+        console.log('[AuthCallback] Initial session check after getSession():', {
+          hasSession: !!session,
+          hashContent: window.location.hash.substring(0, 100)
+        });
+
+        // If no session yet but we have tokens in hash, wait and retry
+        if (!session && window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('type=invite'))) {
+          console.log('[AuthCallback] Found tokens in URL hash, waiting for Supabase client to process...');
+
+          // Wait for Supabase client to process the hash tokens
+          // This is an asynchronous process that can take time
+          await new Promise(resolve => setTimeout(resolve, 2500));
+
+          // Try to get session again
+          const retryResult = await supabase.auth.getSession();
+          session = retryResult.data.session;
+
+          console.log('[AuthCallback] Session check after wait:', {
+            hasSession: !!session,
+            userId: session?.user?.id
+          });
+        }
 
         console.log('[AuthCallback] Initial session check:', {
           hasSession: !!session,
