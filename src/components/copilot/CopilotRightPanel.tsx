@@ -533,36 +533,46 @@ interface ConnectedSectionProps {
   onAddConnector?: () => void;
 }
 
-// Integration-specific icons and colors
-const integrationConfig: Record<string, {
-  icon: React.ReactNode;
-  connectedColor: string;
-  gradient: string;
-}> = {
-  hubspot: {
-    icon: <Building2 className="w-4 h-4" />,
-    connectedColor: 'text-orange-400',
-    gradient: 'from-orange-500 to-amber-500',
-  },
-  fathom: {
-    icon: <Mic className="w-4 h-4" />,
-    connectedColor: 'text-violet-400',
-    gradient: 'from-violet-500 to-purple-500',
-  },
-  slack: {
-    icon: (
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/>
-      </svg>
-    ),
-    connectedColor: 'text-pink-400',
-    gradient: 'from-pink-500 to-rose-500',
-  },
-  calendar: {
-    icon: <Calendar className="w-4 h-4" />,
-    connectedColor: 'text-emerald-400',
-    gradient: 'from-emerald-500 to-teal-500',
-  },
+// Brand logos as SVG components for compact display
+const BrandLogos: Record<string, React.ReactNode> = {
+  hubspot: (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M18.164 7.93V5.084a2.198 2.198 0 001.267-1.984v-.066A2.198 2.198 0 0017.235.838h-.066a2.198 2.198 0 00-2.196 2.196v.066c0 .907.55 1.685 1.334 2.022v2.793a5.14 5.14 0 00-2.514 1.313l-6.639-5.17A2.59 2.59 0 007.2 3.24a2.61 2.61 0 10-.518 1.548l6.549 5.1a5.173 5.173 0 00-.94 2.98 5.2 5.2 0 00.94 2.98l-2.067 2.067a1.97 1.97 0 00-.612-.1 1.99 1.99 0 101.99 1.99c0-.222-.037-.435-.1-.636l2.045-2.045a5.17 5.17 0 002.672.745 5.193 5.193 0 10.004-10.386 5.14 5.14 0 00-2.001.447zM17.169 15.8a2.593 2.593 0 01-2.597-2.597 2.593 2.593 0 012.597-2.597 2.593 2.593 0 012.597 2.597 2.593 2.593 0 01-2.597 2.597z"/>
+    </svg>
+  ),
+  fathom: (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="12" cy="12" r="10" fillOpacity="0.2"/>
+      <path d="M12 6v12M8 9v6M16 8v8M4 11v2M20 10v4"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  ),
+  slack: (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/>
+    </svg>
+  ),
+  calendar: (
+    <svg className="w-5 h-5" viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M22 5.5H2v15a2 2 0 002 2h16a2 2 0 002-2v-15z"/>
+      <path fill="#EA4335" d="M22 5.5V4a2 2 0 00-2-2H4a2 2 0 00-2 2v1.5h20z"/>
+      <path fill="#FBBC05" d="M6 2v3M18 2v3"/>
+      <rect fill="#fff" x="5" y="9" width="4" height="3" rx="0.5"/>
+      <rect fill="#fff" x="10" y="9" width="4" height="3" rx="0.5"/>
+      <rect fill="#fff" x="15" y="9" width="4" height="3" rx="0.5"/>
+      <rect fill="#fff" x="5" y="13.5" width="4" height="3" rx="0.5"/>
+      <rect fill="#fff" x="10" y="13.5" width="4" height="3" rx="0.5"/>
+      <rect fill="#fff" x="15" y="13.5" width="4" height="3" rx="0.5"/>
+    </svg>
+  ),
+};
+
+// Brand colors for each integration
+const brandColors: Record<string, string> = {
+  hubspot: '#FF7A59',
+  fathom: '#8B5CF6',
+  slack: '#E01E5A',
+  calendar: '#4285F4',
 };
 
 function ConnectedSection({ integrations, onAddConnector }: ConnectedSectionProps) {
@@ -581,7 +591,6 @@ function ConnectedSection({ integrations, onAddConnector }: ConnectedSectionProp
     if (onAddConnector) {
       onAddConnector();
     } else {
-      // Default navigation to integrations settings
       window.location.href = '/settings/integrations';
     }
   };
@@ -593,68 +602,59 @@ function ConnectedSection({ integrations, onAddConnector }: ConnectedSectionProp
   };
 
   return (
-    <CollapsibleSection
-      title="Connected"
-      icon={<Link2 className="w-4 h-4" />}
-      iconColor="text-purple-400"
-      count={connectedCount}
-      defaultOpen={true}
-    >
-      <div className="space-y-2">
+    <div className="p-5 border-b border-white/5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold text-white text-sm flex items-center gap-2">
+          <Link2 className="w-4 h-4 text-purple-400" />
+          Connected
+          {connectedCount > 0 && (
+            <span className="text-xs text-slate-400">({connectedCount})</span>
+          )}
+        </h3>
+        <button
+          type="button"
+          onClick={handleAddConnector}
+          className="text-xs text-slate-400 hover:text-violet-400 transition-colors"
+        >
+          + Add
+        </button>
+      </div>
+
+      {/* Compact horizontal logo row */}
+      <div className="flex items-center gap-2">
         {items.map((integration) => {
-          const config = integrationConfig[integration.id];
+          const logo = BrandLogos[integration.id];
+          const color = brandColors[integration.id] || '#64748b';
 
           return (
             <button
               key={integration.id}
               type="button"
               onClick={() => handleIntegrationClick(integration)}
+              title={`${integration.name}${integration.connected ? ' (Connected)' : ' (Not connected)'}`}
               className={cn(
-                'w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left',
-                'hover:bg-white/5',
-                integration.connected && 'hover:border-emerald-500/30'
-              )}
-            >
-              <div className={cn(
-                'w-9 h-9 rounded-xl flex items-center justify-center border transition-colors',
+                'relative w-10 h-10 rounded-xl flex items-center justify-center transition-all',
+                'hover:scale-105 hover:shadow-lg',
                 integration.connected
-                  ? `bg-gradient-to-br ${config?.gradient || 'from-slate-500 to-slate-600'} border-white/20`
-                  : 'bg-white/5 border-white/10'
-              )}>
-                <span className={cn(
-                  integration.connected ? 'text-white' : 'text-slate-500'
-                )}>
-                  {config?.icon || <Link2 className="w-4 h-4" />}
-                </span>
-              </div>
-              <span className={cn(
-                'text-sm flex-1',
-                integration.connected ? 'text-slate-300' : 'text-slate-500'
-              )}>
-                {integration.name}
+                  ? 'bg-white/10 hover:bg-white/15'
+                  : 'bg-white/5 hover:bg-white/10 opacity-40 hover:opacity-70'
+              )}
+              style={{
+                boxShadow: integration.connected ? `0 4px 12px ${color}20` : undefined
+              }}
+            >
+              <span style={{ color: integration.connected ? color : '#64748b' }}>
+                {logo || <Link2 className="w-5 h-5" />}
               </span>
-              {integration.connected ? (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-emerald-400/70">Connected</span>
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50" />
-                </div>
-              ) : (
-                <span className="text-xs text-slate-500">Not connected</span>
+              {/* Connected indicator dot */}
+              {integration.connected && (
+                <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-slate-900 shadow-lg shadow-emerald-500/50" />
               )}
             </button>
           );
         })}
-
-        <button
-          type="button"
-          onClick={handleAddConnector}
-          className="w-full flex items-center justify-center gap-2 p-3 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all mt-3 border border-dashed border-white/10 hover:border-violet-500/30"
-        >
-          <span className="text-lg leading-none">+</span>
-          Add connector
-        </button>
       </div>
-    </CollapsibleSection>
+    </div>
   );
 }
 
