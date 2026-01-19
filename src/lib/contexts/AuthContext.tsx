@@ -253,14 +253,15 @@ const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
               if (!isPasswordRecovery && !isInviteFlow) {
                 toast.success('Successfully signed out!');
+
+                // Only clear data on genuine sign-out, not during recovery/invite token processing
+                // During invite/recovery flows, Supabase may fire SIGNED_OUT before establishing new session
+                queryClient.clear();
+                authUtils.clearAuthStorage();
+                // Clear Sentry user context and reset analytics
+                clearSentryUser();
+                resetAnalytics();
               }
-              
-              // Clear all cached data
-              queryClient.clear();
-              authUtils.clearAuthStorage();
-              // Clear Sentry user context and reset analytics
-              clearSentryUser();
-              resetAnalytics();
               // Note: We don't log SIGNED_OUT since we won't have session data
               break;
               
