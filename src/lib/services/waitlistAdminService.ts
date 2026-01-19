@@ -57,7 +57,8 @@ export interface WaitlistStats {
 
 /**
  * Send waitlist invitation (works for both initial send and resend)
- * Generates magic link and sends email - no RPC dependency
+ * Generates custom token and sends email
+ * User creates account only after setting password, not on link click
  */
 export async function grantAccess(
   entryId: string,
@@ -79,63 +80,44 @@ export async function grantAccess(
       return { success: false, error: 'Entry not found' };
     }
 
-    // 2. Generate magic link via Edge Function
-    // Always use production domain for redirectTo since Supabase is configured with that domain
-    // Magic links will redirect user to production where they can complete signup
-    const redirectTo = `https://app.use60.com/auth/callback?waitlist_entry=${entryId}`;
-    let magicLink: string;
+    // 2. Generate custom token via Edge Function
+    // This creates a token in the database that user must use to sign up
+    // User account is NOT created until they set their password
+    let magicToken: string;
 
     try {
-      const { data: linkData, error: linkError } = await supabase.functions.invoke('generate-magic-link', {
+      const { data: tokenData, error: tokenError } = await supabase.functions.invoke('generate-waitlist-token', {
         body: {
+          waitlist_entry_id: entryId,
           email: entry.email,
-          redirectTo,
-          data: {
-            waitlist_entry_id: entryId,
-            source: 'waitlist_invitation',
-          },
         },
       });
 
-      if (linkError) {
-        console.error('Failed to generate magic link:', linkError);
-
-        // Check if it's a "user already exists" error
-        if (linkError?.status === 409 || linkData?.userExists) {
-          return {
-            success: false,
-            error: `Failed: ${entry.email} is already registered. They can log in at https://app.use60.com/auth/login`
-          };
-        }
-
-        return { success: false, error: linkError.message || 'Failed to generate magic link' };
+      if (tokenError) {
+        console.error('Failed to generate token:', tokenError);
+        return { success: false, error: tokenError.message || 'Failed to generate invitation token' };
       }
 
-      if (!linkData?.success) {
-        console.error('Magic link generation failed:', linkData?.error);
-
-        // Check if it's a "user already exists" error
-        if (linkData?.userExists) {
-          return {
-            success: false,
-            error: `Failed: ${entry.email} is already registered. They can log in at https://app.use60.com/auth/login`
-          };
-        }
-
-        return { success: false, error: linkData?.error || 'Failed to generate magic link' };
+      if (!tokenData?.success) {
+        console.error('Token generation failed:', tokenData?.error);
+        return { success: false, error: tokenData?.error || 'Failed to generate invitation token' };
       }
 
-      magicLink = linkData.magicLink;
+      magicToken = tokenData.token;
 
-      if (!magicLink) {
-        return { success: false, error: 'Failed to generate magic link URL' };
+      if (!magicToken) {
+        return { success: false, error: 'Failed to generate token' };
       }
-    } catch (linkGenError: any) {
-      console.error('Error generating magic link:', linkGenError);
-      return { success: false, error: linkGenError.message || 'Failed to generate magic link' };
+    } catch (tokenGenError: any) {
+      console.error('Error generating token:', tokenGenError);
+      return { success: false, error: tokenGenError.message || 'Failed to generate token' };
     }
 
-    // 3. Send email via encharge-send-email
+    // 3. Build invitation link with custom token
+    // Format: https://app.use60.com/auth/set-password?token=<token>&waitlist_entry=<id>
+    const magicLink = `https://app.use60.com/auth/set-password?token=${magicToken}&waitlist_entry=${entryId}`;
+
+    // 4. Send email via encharge-send-email
     const firstName = entry.full_name?.split(' ')[0] || entry.email.split('@')[0];
     try {
       const emailResponse = await supabase.functions.invoke('encharge-send-email', {
@@ -161,7 +143,8 @@ export async function grantAccess(
         return { success: false, error: emailResponse.data?.error || 'Email sending failed' };
       }
 
-      // 4. Update status to 'released' if currently pending
+      // 5. Update status to 'released' to indicate access has been granted
+      // Status will change to 'converted' only after user completes password setup
       if (entry.status === 'pending') {
         try {
           await supabase
