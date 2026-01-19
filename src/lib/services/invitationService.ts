@@ -151,18 +151,54 @@ export async function createInvitation({
       }
     }
 
-    // Check for existing pending invitation
+    // Check for existing pending invitation - if exists, regenerate token instead of rejecting
+    // This allows admins to easily resend if user accidentally closed the tab or lost the link
     const { data: existingInvite } = await supabase
       .from('organization_invitations')
-      .select('id')
+      .select('*')
       .eq('org_id', orgId)
       .eq('email', email.toLowerCase())
       .is('accepted_at', null)
-      .gt('expires_at', new Date().toISOString())
       .maybeSingle();
 
     if (existingInvite) {
-      return { data: null, error: 'A pending invitation already exists for this email' };
+      // If still valid (not expired), regenerate token and extend expiration
+      const existingExpiry = new Date(existingInvite.expires_at);
+      const now = new Date();
+
+      // If invitation hasn't expired, reuse and regenerate token for security
+      if (existingExpiry > now) {
+        logger.log('[InvitationService] Reusing pending invitation and regenerating token:', existingInvite.id);
+
+        // Update with new token and 7-day expiration
+        const { data: updatedInvite, error: updateError } = await supabase
+          .from('organization_invitations' as any)
+          .update({
+            // Generate new hex token (64-char hex string like the schema expects)
+            token: Array.from(crypto.getRandomValues(new Uint8Array(32)))
+              .map(b => b.toString(16).padStart(2, '0'))
+              .join(''),
+            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          } as any)
+          .eq('id', existingInvite.id)
+          .select()
+          .single();
+
+        if (updateError) {
+          logger.error('[InvitationService] Error regenerating token:', updateError);
+          return { data: null, error: updateError.message };
+        }
+
+        const invitationData = updatedInvite as unknown as Invitation;
+
+        // Send invitation email with new token
+        const { data: { user } } = await supabase.auth.getUser();
+        const inviterName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'A team member';
+        await sendInvitationEmail(invitationData, inviterName);
+
+        return { data: invitationData, error: null };
+      }
+      // If expired, fall through to create new one
     }
 
     // Get current user for invited_by
@@ -444,14 +480,16 @@ export async function resendInvitation(
   try {
     logger.log('[InvitationService] Resending invitation:', invitationId);
 
-    // Update expiry date
+    // Update expiry date and regenerate token
     // Use type assertion to work around missing types for organization_invitations
     const response = await (supabase
       .from('organization_invitations') as any)
       .update({
         expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        // Generate new token for security
-        token: crypto.randomUUID(),
+        // Generate new 64-char hex token for security (matches schema)
+        token: Array.from(crypto.getRandomValues(new Uint8Array(32)))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join(''),
       })
       .eq('id', invitationId)
       .is('accepted_at', null)
