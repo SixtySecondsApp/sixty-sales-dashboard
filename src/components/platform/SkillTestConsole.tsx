@@ -8,9 +8,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Play, Loader2, TerminalSquare, AlertTriangle, ChevronDown, ChevronUp, Eye, Code, Info } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { MAPRenderer, isMAPContent, type MAPTask } from './MAPRenderer';
+import { SkillOutputRenderer } from './SkillOutputRenderer';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
@@ -838,11 +837,7 @@ export function SkillTestConsole({ skillKey, initialInput }: SkillTestConsolePro
                       onAcceptPlan={handleAcceptPlan}
                     />
                   ) : (
-                    <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-h2:text-lg prose-h2:mt-6 prose-h2:mb-3 prose-h3:text-base prose-h3:mt-4 prose-h3:mb-2 prose-h4:text-sm prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-table:text-sm prose-th:px-3 prose-th:py-2 prose-th:bg-gray-100 prose-th:dark:bg-gray-800 prose-td:px-3 prose-td:py-2 prose-td:border-gray-200 prose-td:dark:border-gray-700">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {result.output}
-                      </ReactMarkdown>
-                    </div>
+                    <SkillOutputRenderer content={result.output} />
                   )
                 ) : (
                   <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono">{result.output}</pre>

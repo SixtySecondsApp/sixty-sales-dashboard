@@ -107,7 +107,7 @@ export function SkillCard({
 
   const isSequence = skill.category === 'agent-sequence';
   const requiredCapabilities = (skill.frontmatter.requires_capabilities ||
-    []) as string[];
+    []) as Capability[];
   const hasCapabilities =
     requiredCapabilities.length === 0 ||
     requiredCapabilities.every((cap) =>
@@ -270,7 +270,7 @@ export function SkillCard({
                     ) : (
                       <XCircle className="w-3 h-3 mr-1" />
                     )}
-                    {getCapabilityLabel(cap as Capability)}
+                    {getCapabilityLabel(cap)}
                   </Badge>
                 );
               })}
@@ -441,7 +441,7 @@ export function SkillCard({
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'
                 )}
               >
-                {isAvailable ? '✓' : '×'} {getCapabilityLabel(cap as Capability)}
+                {isAvailable ? '✓' : '×'} {getCapabilityLabel(cap)}
               </Badge>
             );
           })}

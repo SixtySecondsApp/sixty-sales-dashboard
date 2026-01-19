@@ -26,6 +26,7 @@ import {
   X,
   Video,
   Building2,
+  Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -63,6 +64,16 @@ interface MeetingWithTranscript {
   companies?: { name: string } | null;
 }
 
+interface DealWithDetails {
+  id: string;
+  name: string;
+  stage: string | null;
+  value: number | null;
+  currency: string | null;
+  close_date: string | null;
+  companies?: { name: string } | null;
+}
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -81,6 +92,9 @@ interface InputField {
 
 // Field names that indicate transcript input is needed
 const TRANSCRIPT_FIELD_NAMES = ['transcript', 'transcript_text', 'meeting_transcript', 'meeting_id'];
+
+// Field names that indicate deal input is needed
+const DEAL_FIELD_NAMES = ['deal_id', 'deal', 'opportunity_id'];
 
 // =============================================================================
 // Helper Functions
@@ -453,6 +467,171 @@ function MeetingPicker({ meetings, isLoading, selectedMeeting, onSelect }: Meeti
 }
 
 // =============================================================================
+// Deal Picker Component
+// =============================================================================
+
+interface DealPickerProps {
+  deals: DealWithDetails[];
+  isLoading: boolean;
+  selectedDeal: DealWithDetails | null;
+  onSelect: (deal: DealWithDetails | null) => void;
+}
+
+function DealPicker({ deals, isLoading, selectedDeal, onSelect }: DealPickerProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
+  // Filter deals by search term (name or company name)
+  const filteredDeals = useMemo(() => {
+    if (!search.trim()) {
+      return deals.slice(0, 20);
+    }
+    const searchLower = search.toLowerCase();
+    return deals
+      .filter((deal) => {
+        const name = deal.name?.toLowerCase() || '';
+        const companyName = deal.companies?.name?.toLowerCase() || '';
+        const stage = deal.stage?.toLowerCase() || '';
+        return name.includes(searchLower) || companyName.includes(searchLower) || stage.includes(searchLower);
+      })
+      .slice(0, 20);
+  }, [deals, search]);
+
+  const formatCurrency = (value: number | null, currency: string | null) => {
+    if (value === null) return '';
+    const curr = currency || 'USD';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: curr,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const handleSelect = (deal: DealWithDetails) => {
+    onSelect(deal);
+    setOpen(false);
+    setSearch('');
+  };
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelect(null);
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs text-muted-foreground">Select deal</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between h-9 text-sm font-normal"
+          >
+            {selectedDeal ? (
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <Briefcase className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                <span className="truncate">{selectedDeal.name}</span>
+                {selectedDeal.value !== null && (
+                  <span className="text-muted-foreground truncate">
+                    ({formatCurrency(selectedDeal.value, selectedDeal.currency)})
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="text-muted-foreground">Search deals...</span>
+            )}
+            {selectedDeal ? (
+              <X
+                className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                onClick={handleClear}
+              />
+            ) : (
+              <Search className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[320px] p-0" align="start">
+          <div className="p-2 border-b">
+            <Input
+              placeholder="Search by name, company, or stage..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8"
+              autoFocus
+            />
+          </div>
+          <div className="max-h-[250px] overflow-y-auto">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : filteredDeals.length === 0 ? (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                {search ? 'No deals found' : 'No deals available'}
+              </div>
+            ) : (
+              <div className="py-1">
+                {filteredDeals.map((deal) => (
+                  <button
+                    key={deal.id}
+                    onClick={() => handleSelect(deal)}
+                    className={cn(
+                      'w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-muted/50 transition-colors',
+                      selectedDeal?.id === deal.id && 'bg-muted'
+                    )}
+                  >
+                    <Briefcase className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">
+                        {deal.name}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {deal.stage && (
+                          <span className="px-1.5 py-0.5 bg-muted rounded text-xs">
+                            {deal.stage}
+                          </span>
+                        )}
+                        {deal.value !== null && (
+                          <span>{formatCurrency(deal.value, deal.currency)}</span>
+                        )}
+                      </div>
+                      {deal.companies?.name && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground truncate">
+                          <Building2 className="h-3 w-3" />
+                          {deal.companies.name}
+                        </div>
+                      )}
+                      {deal.close_date && (
+                        <div className="text-xs text-muted-foreground">
+                          Close: {formatDate(deal.close_date)}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+// =============================================================================
 // Step Result Display
 // =============================================================================
 
@@ -563,6 +742,7 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<LeadWithPrep | null>(null);
   const [selectedMeeting, setSelectedMeeting] = useState<MeetingWithTranscript | null>(null);
+  const [selectedDeal, setSelectedDeal] = useState<DealWithDetails | null>(null);
 
   // Auth for user-scoped queries
   const { user } = useAuth();
@@ -602,6 +782,35 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
     enabled: !!user?.id,
   });
 
+  // Fetch deals for the picker
+  const { data: dealsWithDetails = [], isLoading: dealsLoading } = useQuery({
+    queryKey: ['deals-for-picker', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from('deals')
+        .select(`
+          id,
+          name,
+          stage,
+          value,
+          currency,
+          close_date,
+          companies:company_id (name)
+        `)
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        console.error('Error fetching deals:', error);
+        return [];
+      }
+      return (data || []) as DealWithDetails[];
+    },
+    enabled: !!user?.id,
+  });
+
   // Extract input fields from sequence
   const inputFields = useMemo(() => extractInputVariables(sequence), [sequence]);
 
@@ -609,6 +818,13 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
   const hasTranscriptField = useMemo(() => {
     return inputFields.some((field) =>
       TRANSCRIPT_FIELD_NAMES.some((tf) => field.name.toLowerCase().includes(tf))
+    );
+  }, [inputFields]);
+
+  // Detect if sequence needs deal input
+  const hasDealField = useMemo(() => {
+    return inputFields.some((field) =>
+      DEAL_FIELD_NAMES.some((df) => field.name.toLowerCase().includes(df))
     );
   }, [inputFields]);
 
@@ -687,6 +903,24 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
             updated[field.name] = meeting.id;
           } else if (fieldNameLower === 'summary' && meeting.summary) {
             updated[field.name] = meeting.summary;
+          }
+        }
+        return updated;
+      });
+    }
+  }, [inputFields]);
+
+  // Handle deal selection - populate deal_id fields from deal data
+  const handleDealSelect = useCallback((deal: DealWithDetails | null) => {
+    setSelectedDeal(deal);
+    if (deal) {
+      setFieldValues((prev) => {
+        const updated = { ...prev };
+        // Map deal fields to input fields (check for various deal field names)
+        for (const field of inputFields) {
+          const fieldNameLower = field.name.toLowerCase();
+          if (DEAL_FIELD_NAMES.some((df) => fieldNameLower.includes(df))) {
+            updated[field.name] = deal.id;
           }
         }
         return updated;
@@ -837,6 +1071,16 @@ export function SequenceSimulator({ sequence, className }: SequenceSimulatorProp
                 isLoading={meetingsLoading}
                 selectedMeeting={selectedMeeting}
                 onSelect={handleMeetingSelect}
+              />
+            )}
+
+            {/* Deal Picker - for sequences that need deal input */}
+            {hasDealField && (
+              <DealPicker
+                deals={dealsWithDetails}
+                isLoading={dealsLoading}
+                selectedDeal={selectedDeal}
+                onSelect={handleDealSelect}
               />
             )}
 

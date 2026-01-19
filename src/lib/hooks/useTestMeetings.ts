@@ -157,7 +157,7 @@ async function fetchMeetingsByTier(
       company_id,
       primary_contact_id,
       owner_user_id,
-      companies:company_id(id, name),
+      companies!fk_meetings_company_id(id, name),
       contacts:primary_contact_id(id, first_name, last_name, full_name)
     `) as any; // Use any to avoid deep type instantiation issues
 
@@ -296,7 +296,7 @@ export async function searchTestMeetings(
       company_id,
       primary_contact_id,
       owner_user_id,
-      companies:company_id(id, name),
+      companies!fk_meetings_company_id(id, name),
       contacts:primary_contact_id(id, first_name, last_name, full_name)
     `) as any;
 
