@@ -183,6 +183,9 @@ interface OnboardingV2State {
   isEnrichmentLoading: boolean;
   enrichmentError: string | null;
   enrichmentSource: 'website' | 'manual' | null;
+  // Polling timeout protection
+  pollingStartTime: number | null;
+  pollingAttempts: number;
 
   // Skill configurations (legacy)
   skillConfigs: SkillConfigs;
@@ -334,6 +337,9 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
   isEnrichmentLoading: false,
   enrichmentError: null,
   enrichmentSource: null,
+  // Polling timeout protection
+  pollingStartTime: null as number | null,
+  pollingAttempts: 0,
 
   // Skill state (legacy)
   skillConfigs: defaultSkillConfigs,
@@ -620,8 +626,39 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
     }
   },
 
-  // Poll enrichment status
+  // Poll enrichment status with timeout protection
   pollEnrichmentStatus: async (organizationId) => {
+    const MAX_POLLING_DURATION = 5 * 60 * 1000; // 5 minutes
+    const MAX_ATTEMPTS = 150; // 150 * 2s = 5 minutes
+    const POLL_INTERVAL = 2000; // 2 seconds
+
+    const state = get();
+
+    // Initialize polling metadata on first call
+    if (!state.pollingStartTime) {
+      set({ pollingStartTime: Date.now(), pollingAttempts: 0 });
+    }
+
+    const currentState = get();
+    const elapsedTime = Date.now() - (currentState.pollingStartTime || Date.now());
+    const attempts = currentState.pollingAttempts || 0;
+
+    // Check timeout conditions - stop if exceeded limits
+    if (elapsedTime > MAX_POLLING_DURATION || attempts > MAX_ATTEMPTS) {
+      const elapsedSeconds = Math.round(elapsedTime / 1000);
+      console.error('[pollEnrichmentStatus] Timeout reached after', elapsedSeconds, 'seconds and', attempts, 'attempts');
+      set({
+        isEnrichmentLoading: false,
+        enrichmentError: `Enrichment timed out after ${elapsedSeconds}s. Please try again or contact support.`,
+        pollingStartTime: null,
+        pollingAttempts: 0,
+      });
+      return;
+    }
+
+    // Increment attempt counter
+    set({ pollingAttempts: attempts + 1 });
+
     const poll = async () => {
       try {
         const response = await supabase.functions.invoke('deep-enrich-organization', {
@@ -644,6 +681,8 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
             skillConfigs: generatedSkills,
             isEnrichmentLoading: false,
             currentStep: 'enrichment_result',
+            pollingStartTime: null, // Reset polling state
+            pollingAttempts: 0,
           });
           return;
         }
@@ -652,6 +691,8 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
           set({
             isEnrichmentLoading: false,
             enrichmentError: enrichment?.error_message || 'Enrichment failed',
+            pollingStartTime: null,
+            pollingAttempts: 0,
           });
           return;
         }
@@ -661,12 +702,18 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
           set({ enrichment });
         }
 
-        // Continue polling
-        setTimeout(() => get().pollEnrichmentStatus(organizationId), 2000);
+        // Continue polling (recursive call after delay)
+        setTimeout(() => get().pollEnrichmentStatus(organizationId), POLL_INTERVAL);
 
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to get status';
-        set({ isEnrichmentLoading: false, enrichmentError: message });
+        const message = error instanceof Error ? error.message : 'Failed to get enrichment status';
+        console.error('[pollEnrichmentStatus] Error:', message);
+        set({
+          isEnrichmentLoading: false,
+          enrichmentError: message,
+          pollingStartTime: null,
+          pollingAttempts: 0,
+        });
       }
     };
 

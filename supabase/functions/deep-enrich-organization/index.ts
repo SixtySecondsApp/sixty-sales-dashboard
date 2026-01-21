@@ -1180,6 +1180,49 @@ async function getEnrichmentStatus(
       return { success: true, status: 'not_started' };
     }
 
+    // Timeout detection: If enrichment has been running for > 5 minutes, mark as failed
+    // This prevents infinite polling if the backend gets stuck
+    const MAX_ENRICHMENT_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+    const isActivelyRunning = enrichment.status === 'scraping' || enrichment.status === 'analyzing';
+
+    if (isActivelyRunning && enrichment.created_at) {
+      const createdAtTime = new Date(enrichment.created_at).getTime();
+      const now = Date.now();
+      const elapsed = now - createdAtTime;
+
+      if (elapsed > MAX_ENRICHMENT_DURATION) {
+        console.error(
+          '[getEnrichmentStatus] Timeout detected: enrichment running for',
+          Math.round(elapsed / 1000),
+          'seconds. Marking as failed.'
+        );
+
+        // Update the enrichment record to mark as failed
+        const { error: updateError } = await supabase
+          .from('organization_enrichment')
+          .update({
+            status: 'failed',
+            error_message: 'Enrichment timed out after 5 minutes',
+          })
+          .eq('id', enrichment.id);
+
+        if (updateError) {
+          console.error('[getEnrichmentStatus] Failed to update enrichment status:', updateError);
+        }
+
+        // Return failed status to frontend
+        return {
+          success: true,
+          status: 'failed',
+          enrichment: {
+            ...enrichment,
+            status: 'failed',
+            error_message: 'Enrichment timed out after 5 minutes',
+          },
+        };
+      }
+    }
+
     // If completed, also fetch skills
     let skills = null;
     if (enrichment.status === 'completed') {

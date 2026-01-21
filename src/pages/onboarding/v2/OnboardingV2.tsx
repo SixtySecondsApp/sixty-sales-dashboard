@@ -88,11 +88,23 @@ export function OnboardingV2({ organizationId, domain, userEmail }: OnboardingV2
       return;
     }
 
-    // For continuing onboarding, use the URL step if provided
+    // For continuing onboarding, validate the URL step is appropriate
     const urlStep = searchParams.get('step') as OnboardingV2Step | null;
     if (urlStep && VALID_STEPS.includes(urlStep)) {
+      // CRITICAL: Validate that enrichment_loading is only accessed with proper setup
+      // If user tries to jump directly to enrichment_loading without a domain/org, redirect
+      if (urlStep === 'enrichment_loading' && !domain && !organizationId) {
+        console.warn('[OnboardingV2] Cannot start enrichment without domain/organizationId. Redirecting to website_input');
+        setStep('website_input');
+        return;
+      }
+
       console.log('[OnboardingV2] Resuming from URL step:', urlStep);
       setStep(urlStep);
+    } else {
+      // No URL step specified, default to website_input for safety
+      console.log('[OnboardingV2] No URL step specified. Starting at website_input');
+      setStep('website_input');
     }
   }, []); // Only run on mount - fresh start decision happens once
 
