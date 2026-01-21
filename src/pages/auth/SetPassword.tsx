@@ -159,20 +159,20 @@ export default function SetPassword() {
       const userId = signUpData.user.id;
       console.log('[SetPassword] User created in Supabase Auth:', userId);
 
-      // 2. Create user profile with status: 'active'
+      // 2. Create or update user profile with status: 'active'
       const { error: profileError } = await supabase
         .from('profiles')
-        .insert({
+        .upsert({
           id: userId,
           email: userEmail,
           status: 'active',
         });
 
       if (profileError) {
-        console.error('[SetPassword] Error creating profile:', profileError);
+        console.error('[SetPassword] Error creating/updating profile:', profileError);
         toast.warning('Account created but profile setup incomplete. Please log in.');
       } else {
-        console.log('[SetPassword] Profile created successfully');
+        console.log('[SetPassword] Profile created/updated successfully');
       }
 
       // 3. Update waitlist entry to 'converted' and link user

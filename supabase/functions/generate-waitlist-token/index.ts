@@ -43,15 +43,6 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  // Verify authentication (service role or authenticated user)
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader) {
-    return new Response(
-      JSON.stringify({ success: false, error: 'Unauthorized: missing authorization header' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
   try {
     const request: GenerateTokenRequest = await req.json();
 
@@ -71,11 +62,15 @@ serve(async (req) => {
       );
     }
 
-    // Create admin client
+    // Create admin client with explicit service role configuration
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
+        detectSessionInUrl: false,
+      },
+      db: {
+        schema: 'public',
       },
     });
 
@@ -85,6 +80,35 @@ serve(async (req) => {
     // Calculate expiry (24 hours from now)
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
+
+    // First verify the waitlist entry exists before inserting token
+    const { data: entryExists, error: entryCheckError } = await supabaseAdmin
+      .from('meetings_waitlist')
+      .select('id')
+      .eq('id', request.waitlist_entry_id)
+      .maybeSingle();
+
+    if (entryCheckError) {
+      console.error('Error checking waitlist entry:', entryCheckError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Failed to verify waitlist entry',
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!entryExists) {
+      console.error('Waitlist entry not found:', request.waitlist_entry_id);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Waitlist entry not found',
+        }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Insert token into database
     const { data, error } = await supabaseAdmin
@@ -99,7 +123,11 @@ serve(async (req) => {
       .single();
 
     if (error) {
-      console.error('Failed to create token:', error);
+      console.error('Failed to create token:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+      });
       return new Response(
         JSON.stringify({
           success: false,
@@ -120,7 +148,10 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
-    console.error('Error generating token:', error);
+    console.error('Error generating token:', {
+      message: error.message,
+      stack: error.stack,
+    });
     return new Response(
       JSON.stringify({
         success: false,

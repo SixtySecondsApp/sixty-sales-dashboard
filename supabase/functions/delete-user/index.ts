@@ -70,7 +70,7 @@ serve(async (req) => {
     // Get user email before deletion for cleanup
     const { data: userProfile } = await supabaseAdmin
       .from('profiles')
-      .select('email')
+      .select('email, first_name, last_name')
       .eq('id', userId)
       .single()
 
@@ -89,21 +89,28 @@ serve(async (req) => {
         .eq('email', userProfile.email.toLowerCase())
     }
 
-    // Delete from profiles (this will cascade to related records if foreign keys are set up)
+    // Anonymize the profile: clear personal data but keep name visible for audit trail in meetings/tasks
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
-      .delete()
+      .update({
+        email: `deleted_${userId}@deleted.local`,
+        avatar_url: null,
+        bio: null,
+        clerk_user_id: null,
+        auth_provider: 'deleted',
+        updated_at: new Date().toISOString()
+      })
       .eq('id', userId)
 
     if (profileError) {
-      console.error('Error deleting profile:', profileError)
+      console.error('Error anonymizing profile:', profileError)
       return new Response(
         JSON.stringify({ error: `Failed to delete profile: ${profileError.message}` }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Try to delete from auth.users (may fail if user doesn't exist there, which is okay)
+    // Delete from auth.users to revoke access (user can sign up again with same email)
     try {
       await supabaseAdmin.auth.admin.deleteUser(userId)
     } catch (authError: any) {

@@ -124,24 +124,24 @@ export function useUsers() {
 
       // Transform data to match expected User interface
       const usersData = (profiles || []).map((profile) => {
-        const email = profile.email || `user_${profile.id.slice(0, 8)}@private.local`;
-        return {
-          id: profile.id,
-          email,
-          first_name: profile.first_name || null,
-          last_name: profile.last_name || null,
-          stage: profile.stage || 'Trainee', // Use actual stage from profile
-          avatar_url: profile.avatar_url,
-          is_admin: profile.is_admin || false,
-          is_internal: internalEmails.has(email.toLowerCase()),
-          created_at: profile.created_at || profile.updated_at || new Date().toISOString(),
-          last_sign_in_at: null,
-          targets: targetsMap.get(profile.id) || [],
-          full_name: profile.first_name && profile.last_name
-            ? `${profile.first_name} ${profile.last_name}`
-            : null
-        };
-      });
+          const email = profile.email || `user_${profile.id.slice(0, 8)}@private.local`;
+          return {
+            id: profile.id,
+            email,
+            first_name: profile.first_name || null,
+            last_name: profile.last_name || null,
+            stage: profile.stage || 'Trainee', // Use actual stage from profile
+            avatar_url: profile.avatar_url,
+            is_admin: profile.is_admin || false,
+            is_internal: internalEmails.has(email.toLowerCase()),
+            created_at: profile.created_at || profile.updated_at || new Date().toISOString(),
+            last_sign_in_at: null,
+            targets: targetsMap.get(profile.id) || [],
+            full_name: profile.first_name && profile.last_name
+              ? `${profile.first_name} ${profile.last_name}`
+              : null
+          };
+        });
 
       setUsers(usersData);
     } catch (error: any) {
@@ -335,8 +335,8 @@ export function useUsers() {
           throw new Error('Unauthorized: Admin access required to delete users');
         }
 
-        // Fallback: Direct deletion from profiles table
-        // Note: This won't delete from auth.users, but will remove the profile
+        // Fallback: Anonymize the user from profiles table
+        // Note: This won't delete from auth.users, but will anonymize the profile
         const targetUser = users.find(u => u.id === targetUserId);
         if (targetUser?.email) {
           // Deactivate in internal_users if exists
@@ -346,10 +346,17 @@ export function useUsers() {
             .eq('email', targetUser.email.toLowerCase());
         }
 
-        // Delete from profiles
+        // Anonymize profile: clear personal data but keep name for audit trail
         const { error: deleteError } = await supabase
           .from('profiles')
-          .delete()
+          .update({
+            email: `deleted_${targetUserId}@deleted.local`,
+            avatar_url: null,
+            bio: null,
+            clerk_user_id: null,
+            auth_provider: 'deleted',
+            updated_at: new Date().toISOString()
+          })
           .eq('id', targetUserId);
 
         if (deleteError) {
