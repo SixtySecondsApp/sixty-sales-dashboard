@@ -6,7 +6,7 @@ import {
   Sparkles, Zap, Target, FileText, Users, Calendar, Clock,
   AlertCircle, TrendingUp, MessageSquare, Link2, Play,
   ChevronRight, MoreHorizontal, Archive, Star, RefreshCw,
-  Loader2, BellOff
+  Loader2, BellOff, Circle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNotifications } from '@/lib/hooks/useNotifications';
@@ -35,18 +35,26 @@ const TABS: Tab[] = [
 
 // Map DB categories/entity_types to UI tabs
 function getNotificationTab(notification: Notification): TabId {
-  const { category, entity_type, metadata } = notification;
+  const { category, entity_type, metadata, title, message } = notification;
+  const lowerTitle = title?.toLowerCase() || '';
+  const lowerMessage = message?.toLowerCase() || '';
 
-  // AI tab: meeting debriefs, AI-generated content, insights
+  // AI tab: meeting debriefs, AI-generated content, insights, workflows
   if (
+    category === 'workflow' ||
     entity_type === 'meeting_debrief' ||
     entity_type === 'ai_insight' ||
     entity_type === 'ai_draft' ||
     entity_type === 'ai_suggestion' ||
+    entity_type === 'workflow' ||
     metadata?.ai_generated ||
     metadata?.type === 'ai-complete' ||
     metadata?.type === 'ai-suggestion' ||
-    metadata?.type === 'ai-insight'
+    metadata?.type === 'ai-insight' ||
+    metadata?.type === 'workflow' ||
+    lowerTitle.includes('ai ') ||
+    lowerTitle.includes('workflow') ||
+    lowerTitle.includes('automation')
   ) {
     return 'ai';
   }
@@ -58,28 +66,41 @@ function getNotificationTab(notification: Notification): TabId {
     entity_type === 'task_due' ||
     entity_type === 'task_overdue' ||
     metadata?.type === 'task-due' ||
-    metadata?.type === 'task-overdue'
+    metadata?.type === 'task-overdue' ||
+    lowerTitle.includes('task') ||
+    lowerMessage.includes('task')
   ) {
     return 'tasks';
   }
 
-  // Content tab: drafts, meeting notes, content suggestions
+  // Content tab: drafts, meeting notes, content suggestions, meetings, deals
   if (
+    category === 'meeting' ||
+    category === 'deal' ||
     entity_type === 'content' ||
     entity_type === 'draft' ||
     entity_type === 'meeting_note' ||
+    entity_type === 'meeting' ||
+    entity_type === 'deal' ||
     metadata?.type === 'content-scheduled' ||
-    metadata?.type === 'content-engagement'
+    metadata?.type === 'content-engagement' ||
+    lowerTitle.includes('meeting') ||
+    lowerTitle.includes('deal') ||
+    lowerTitle.includes('content')
   ) {
     return 'content';
   }
 
-  // Team tab: team-level digests, mentions
+  // Team tab: team-level digests, mentions, system notifications
   if (
     category === 'team' ||
+    category === 'system' ||
     entity_type === 'digest' ||
     entity_type === 'team_mention' ||
-    metadata?.type === 'team-mention'
+    entity_type === 'system' ||
+    metadata?.type === 'team-mention' ||
+    lowerTitle.includes('team') ||
+    lowerMessage.includes('team')
   ) {
     return 'team';
   }
@@ -157,10 +178,18 @@ export function NotificationCenter({ onClose }: NotificationCenterProps) {
     isLoading,
     error,
     markAsRead,
+    markAsUnread,
+    toggleRead,
     markAllAsRead,
     deleteNotification,
     loadMore
   } = useNotifications({ limit: 50 });
+
+  // Navigate to settings page
+  const handleSettingsClick = () => {
+    navigate('/settings/notifications');
+    onClose?.();
+  };
 
   // Group notifications by tab
   const groupedNotifications = useMemo(() => {
@@ -174,7 +203,11 @@ export function NotificationCenter({ onClose }: NotificationCenterProps) {
 
     notifications.forEach(notification => {
       const tab = getNotificationTab(notification);
-      groups[tab].push(notification);
+      // Always add to the specific tab (even if 'all')
+      if (tab !== 'all') {
+        groups[tab].push(notification);
+      }
+      // Always add to 'all' regardless of categorization
       groups.all.push(notification);
     });
 
@@ -277,6 +310,7 @@ export function NotificationCenter({ onClose }: NotificationCenterProps) {
                 </button>
               )}
               <button
+                onClick={handleSettingsClick}
                 className="p-2 rounded-xl transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-500"
                 title="Settings"
               >
@@ -418,11 +452,16 @@ export function NotificationCenter({ onClose }: NotificationCenterProps) {
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          markAsRead(notification.id);
+                                          toggleRead(notification.id, notification.read);
                                         }}
                                         className="p-1 rounded-lg transition-colors hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                                        title={notification.read ? "Mark as unread" : "Mark as read"}
                                       >
-                                        <Check className="w-3.5 h-3.5" />
+                                        {notification.read ? (
+                                          <Circle className="w-3.5 h-3.5" />
+                                        ) : (
+                                          <Check className="w-3.5 h-3.5" />
+                                        )}
                                       </button>
                                       <button
                                         onClick={(e) => {
@@ -430,6 +469,7 @@ export function NotificationCenter({ onClose }: NotificationCenterProps) {
                                           deleteNotification(notification.id);
                                         }}
                                         className="p-1 rounded-lg transition-colors hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                                        title="Delete notification"
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
                                       </button>
