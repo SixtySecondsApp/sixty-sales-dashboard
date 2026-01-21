@@ -87,31 +87,10 @@ export function OnboardingV2({ organizationId, domain, userEmail }: OnboardingV2
     checkOrgMembership();
   }, [user, navigate]);
 
-  // Validate that organizationId prop matches actual membership (prevents cached org bypass)
-  useEffect(() => {
-    if (!user || !organizationId) return;
-
-    const validateOrgId = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('organization_memberships')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('org_id', organizationId)
-          .maybeSingle();
-
-        if (error || !data) {
-          // User doesn't have membership in this org - clear it
-          console.warn('[OnboardingV2] User has no membership in org:', organizationId);
-          setOrganizationId(''); // Clear invalid org ID
-        }
-      } catch (err) {
-        console.error('[OnboardingV2] Error validating org membership:', err);
-      }
-    };
-
-    validateOrgId();
-  }, [user, organizationId, setOrganizationId]);
+  // NOTE: Removed org membership validation here because:
+  // 1. New users signing up won't have membership until after onboarding
+  // 2. localStorage is already cleared in SetPassword to prevent cached org bypass
+  // 3. This validation was breaking the onboarding flow by clearing valid organizationIds
 
   // Read step from URL on mount
   useEffect(() => {
