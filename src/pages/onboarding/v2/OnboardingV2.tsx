@@ -75,13 +75,26 @@ export function OnboardingV2({ organizationId, domain, userEmail }: OnboardingV2
   // 2. localStorage is already cleared in SetPassword to prevent cached org bypass
   // 3. This validation was breaking the onboarding flow by clearing valid organizationIds
 
-  // Read step from URL on mount
+  // Read step from URL on mount, but ensure fresh onboarding starts at website_input
   useEffect(() => {
+    // For fresh onboarding (personal email, no domain), always start at website_input
+    // regardless of URL parameter
+    const isFreshStart = userEmail && !domain && !organizationId;
+
+    if (isFreshStart) {
+      // Fresh signup - always start with website input
+      console.log('[OnboardingV2] Fresh start detected (personal email). Starting at website_input');
+      setStep('website_input');
+      return;
+    }
+
+    // For continuing onboarding, use the URL step if provided
     const urlStep = searchParams.get('step') as OnboardingV2Step | null;
     if (urlStep && VALID_STEPS.includes(urlStep)) {
+      console.log('[OnboardingV2] Resuming from URL step:', urlStep);
       setStep(urlStep);
     }
-  }, []); // Only run on mount
+  }, []); // Only run on mount - fresh start decision happens once
 
   // Sync store step changes to URL
   useEffect(() => {
