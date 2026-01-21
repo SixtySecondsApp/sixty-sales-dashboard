@@ -13,7 +13,12 @@ import {
   resendInvitation,
   type Invitation,
 } from '@/lib/services/invitationService';
-import { joinRequestService, type JoinRequest } from '@/lib/services/joinRequestService';
+import {
+  getPendingJoinRequests,
+  approveJoinRequest,
+  rejectJoinRequest,
+  type JoinRequest,
+} from '@/lib/services/joinRequestService';
 import { toast } from 'sonner';
 
 interface TeamMember {
@@ -61,42 +66,47 @@ export default function TeamMembersPage() {
     queryKey: ['join-requests', activeOrgId],
     queryFn: () => {
       if (!activeOrgId) return [];
-      return joinRequestService.getPendingJoinRequests(activeOrgId);
+      return getPendingJoinRequests(activeOrgId);
     },
     enabled: !!activeOrgId,
   });
 
   // Approve mutation
   const approveMutation = useMutation({
-    mutationFn: (requestId: string) => joinRequestService.approveJoinRequest(requestId),
+    mutationFn: (requestId: string) => {
+      if (!user?.id) throw new Error('User ID not available');
+      return approveJoinRequest(requestId, user.id);
+    },
     onSuccess: (result) => {
       if (result.success) {
-        toast.success('Join request approved');
+        toast.success('Join request approved and email sent');
         queryClient.invalidateQueries({ queryKey: ['join-requests'] });
         queryClient.invalidateQueries({ queryKey: ['organization-members'] });
       } else {
-        toast.error(result.message);
+        toast.error(result.error || 'Failed to approve request');
       }
     },
-    onError: () => {
-      toast.error('Failed to approve request');
+    onError: (error: any) => {
+      toast.error(error?.message || 'Failed to approve request');
     },
   });
 
   // Reject mutation
   const rejectMutation = useMutation({
-    mutationFn: ({ requestId, reason }: { requestId: string; reason?: string }) =>
-      joinRequestService.rejectJoinRequest(requestId, reason),
+    mutationFn: ({ requestId, reason }: { requestId: string; reason?: string }) => {
+      if (!user?.id) throw new Error('User ID not available');
+      return rejectJoinRequest(requestId, user.id, reason);
+    },
     onSuccess: (result) => {
       if (result.success) {
-        toast.success('Join request rejected');
+        toast.success('Join request rejected and email sent');
         queryClient.invalidateQueries({ queryKey: ['join-requests'] });
       } else {
-        toast.error(result.message);
+        toast.error(result.error || 'Failed to reject request');
       }
     },
-    onError: () => {
-      toast.error('Failed to reject request');
+    onError: (error: any) => {
+      toast.error(error?.message || 'Failed to reject request');
     },
   });
 

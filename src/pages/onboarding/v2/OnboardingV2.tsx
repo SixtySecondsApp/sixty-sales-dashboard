@@ -63,29 +63,12 @@ export function OnboardingV2({ organizationId, domain, userEmail }: OnboardingV2
     startEnrichment,
   } = useOnboardingV2Store();
 
-  // Skip onboarding if user already has organization membership (invited users)
-  useEffect(() => {
-    if (!user) return;
-
-    const checkOrgMembership = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('organization_memberships')
-          .select('id')
-          .eq('user_id', user.id)
-          .limit(1);
-
-        if (!error && data && data.length > 0) {
-          // User already has organization membership (invited), skip to dashboard
-          navigate('/dashboard', { replace: true });
-        }
-      } catch (err) {
-        console.error('[OnboardingV2] Error checking organization membership:', err);
-      }
-    };
-
-    checkOrgMembership();
-  }, [user, navigate]);
+  // NOTE: Removed org membership redirect check because:
+  // 1. If user is invited (has org membership), ProtectedRoute won't route them to /onboarding
+  //    via the needsOnboarding hook in useOnboardingProgress()
+  // 2. If user is on /onboarding, they should complete it - don't auto-redirect midway
+  // 3. The org membership check was causing infinite redirects between /onboarding and /dashboard
+  //    during the normal onboarding flow (when user creates org as part of setup)
 
   // NOTE: Removed org membership validation here because:
   // 1. New users signing up won't have membership until after onboarding

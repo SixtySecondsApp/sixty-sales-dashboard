@@ -190,7 +190,7 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
       try {
         const { data, error } = await supabase
           .from('organization_memberships')
-          .select('id', { count: 'exact' })
+          .select('org_id', { count: 'exact' })
           .eq('user_id', user.id);
 
         if (!error && data) {

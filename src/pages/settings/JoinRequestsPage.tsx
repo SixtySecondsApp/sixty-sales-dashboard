@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Check, X, Clock, Users } from 'lucide-react';
-import { joinRequestService } from '@/lib/services/joinRequestService';
+import { getPendingJoinRequests, approveJoinRequest, rejectJoinRequest } from '@/lib/services/joinRequestService';
 import { useOrgStore } from '@/lib/stores/orgStore';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import { toast } from 'sonner';
 
 export function JoinRequestsPage() {
   const { activeOrgId } = useOrgStore();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'pending' | 'all'>('pending');
 
@@ -16,23 +18,21 @@ export function JoinRequestsPage() {
     queryKey: ['join-requests', activeOrgId, filter],
     queryFn: () => {
       if (!activeOrgId) return [];
-      return filter === 'pending'
-        ? joinRequestService.getPendingJoinRequests(activeOrgId)
-        : joinRequestService.getJoinRequests(activeOrgId);
+      return getPendingJoinRequests(activeOrgId);
     },
     enabled: !!activeOrgId,
   });
 
   // Approve mutation
   const approveMutation = useMutation({
-    mutationFn: (requestId: string) => joinRequestService.approveJoinRequest(requestId),
+    mutationFn: (requestId: string) => approveJoinRequest(requestId, user?.id || ''),
     onSuccess: (result) => {
       if (result.success) {
         toast.success('Join request approved');
         queryClient.invalidateQueries({ queryKey: ['join-requests'] });
         queryClient.invalidateQueries({ queryKey: ['organization-members'] });
       } else {
-        toast.error(result.message);
+        toast.error(result.error);
       }
     },
     onError: () => {
@@ -43,13 +43,13 @@ export function JoinRequestsPage() {
   // Reject mutation
   const rejectMutation = useMutation({
     mutationFn: ({ requestId, reason }: { requestId: string; reason?: string }) =>
-      joinRequestService.rejectJoinRequest(requestId, reason),
+      rejectJoinRequest(requestId, user?.id || '', reason),
     onSuccess: (result) => {
       if (result.success) {
         toast.success('Join request rejected');
         queryClient.invalidateQueries({ queryKey: ['join-requests'] });
       } else {
-        toast.error(result.message);
+        toast.error(result.error);
       }
     },
     onError: () => {
