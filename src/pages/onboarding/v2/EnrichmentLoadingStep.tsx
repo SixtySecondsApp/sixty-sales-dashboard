@@ -25,20 +25,31 @@ const tasks = [
 
 export function EnrichmentLoadingStep({ domain, organizationId: propOrgId }: EnrichmentLoadingStepProps) {
   const [progress, setProgress] = useState(0);
-  const { organizationId: storeOrgId, startEnrichment, enrichment, isEnrichmentLoading, enrichmentError, setStep } = useOnboardingV2Store();
+  const { organizationId: storeOrgId, startEnrichment, enrichment, isEnrichmentLoading, enrichmentError, setStep, enrichmentSource } = useOnboardingV2Store();
 
   // Use organizationId from store (which gets updated when new org is created)
   // Fall back to prop if store is empty
   const organizationId = storeOrgId || propOrgId;
 
-  // Start enrichment on mount
+  // Start enrichment on mount (only for website-based enrichment, not manual)
+  // Manual enrichment is already started in submitManualEnrichment
   useEffect(() => {
     if (!organizationId || organizationId === '') {
       console.warn('EnrichmentLoadingStep: organizationId is empty, skipping enrichment start');
       return;
     }
-    startEnrichment(organizationId, domain);
-  }, [organizationId, domain, startEnrichment]);
+
+    // Skip if this is manual enrichment (no domain, and source is 'manual')
+    if (!domain && enrichmentSource === 'manual') {
+      console.log('EnrichmentLoadingStep: Manual enrichment already started, skipping startEnrichment');
+      return;
+    }
+
+    // Only start enrichment for website-based flow
+    if (domain) {
+      startEnrichment(organizationId, domain);
+    }
+  }, [organizationId, domain, startEnrichment, enrichmentSource]);
 
   // Simulate progress while enrichment is running
   useEffect(() => {
@@ -89,7 +100,17 @@ export function EnrichmentLoadingStep({ domain, organizationId: propOrgId }: Enr
           <h2 className="text-xl font-bold text-white mb-2">Something went wrong</h2>
           <p className="text-gray-400 mb-6">{enrichmentError}</p>
           <button
-            onClick={() => organizationId && startEnrichment(organizationId, domain)}
+            onClick={() => {
+              if (!organizationId) return;
+              // For manual enrichment, just retry polling
+              // For website enrichment, retry with the domain
+              if (enrichmentSource === 'manual' || !domain) {
+                // Just reload the page - the enrichment process is running in the background
+                location.reload();
+              } else {
+                startEnrichment(organizationId, domain, true); // force = true to retry
+              }
+            }}
             disabled={!organizationId}
             className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
