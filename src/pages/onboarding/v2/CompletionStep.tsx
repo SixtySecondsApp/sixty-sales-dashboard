@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useOnboardingV2Store, SKILLS, SkillId } from '@/lib/stores/onboardingV2Store';
-import { supabase } from '@/lib/supabase/clientV2';
+import { useOnboardingProgress } from '@/lib/hooks/useOnboardingProgress';
 
 interface NextStepItem {
   icon: typeof FileText;
@@ -37,6 +37,7 @@ const nextSteps: NextStepItem[] = [
 export function CompletionStep() {
   const navigate = useNavigate();
   const { enrichment, skillConfigs, setStep } = useOnboardingV2Store();
+  const { completeStep } = useOnboardingProgress();
   const [isNavigating, setIsNavigating] = useState(false);
 
   // Determine which skills have been configured (have non-empty data)
@@ -60,24 +61,14 @@ export function CompletionStep() {
     setIsNavigating(true);
 
     try {
-      // Mark V1 onboarding as complete in the database
-      // This ensures ProtectedRoute allows navigation to dashboard
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await supabase
-          .from('user_onboarding_progress')
-          .upsert({
-            user_id: session.user.id,
-            onboarding_step: 'complete',
-            onboarding_completed_at: new Date().toISOString(),
-          }, {
-            onConflict: 'user_id',
-          });
+      // Mark onboarding as complete using the proper hook
+      // This ensures needsOnboarding state updates before navigation
+      await completeStep('complete');
 
-        // Wait for the real-time subscription to propagate the change
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
+      // Wait a brief moment for real-time subscription to update
+      await new Promise(resolve => setTimeout(resolve, 100));
 
+      // Navigate to dashboard
       navigate('/dashboard', { replace: true });
     } catch (error) {
       console.error('Error completing onboarding:', error);
@@ -177,11 +168,31 @@ export function CompletionStep() {
         <div className="space-y-3">
           {nextSteps.map((item, i) => {
             const Icon = item.icon;
+            const handleNavigation = async (route: string) => {
+              // For dashboard, ensure onboarding is marked complete
+              if (route === '/dashboard' && !isNavigating) {
+                await handleGoToDashboard();
+              } else {
+                // For other routes (integrations), also mark complete before navigating
+                if (!isNavigating) {
+                  setIsNavigating(true);
+                  try {
+                    await completeStep('complete');
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    navigate(route, { replace: true });
+                  } finally {
+                    setIsNavigating(false);
+                  }
+                }
+              }
+            };
+
             return (
               <button
                 key={i}
-                onClick={() => navigate(item.route)}
-                className="w-full flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer text-gray-400 hover:bg-gray-800 hover:text-white"
+                onClick={() => handleNavigation(item.route)}
+                disabled={isNavigating}
+                className="w-full flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer text-gray-400 hover:bg-gray-800 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-gray-800">
                   <Icon className="w-4 h-4 text-gray-400" />
