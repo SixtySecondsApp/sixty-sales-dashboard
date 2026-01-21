@@ -76,6 +76,104 @@ export default function OnboardingPage() {
     checkAccess();
   }, [navigate]);
 
+  // Sync auth metadata (first_name, last_name) to profiles table on first onboarding load
+  useEffect(() => {
+    const syncAuthMetadataToProfile = async () => {
+      try {
+        if (!user) {
+          console.log('[Onboarding] No user, skipping sync');
+          return;
+        }
+
+        console.log('[Onboarding] Starting auth metadata sync for user:', user.id);
+
+        // Get fresh auth user data
+        const { data: { user: authUser }, error: getUserError } = await supabase.auth.getUser();
+
+        if (getUserError) {
+          console.error('[Onboarding] Error getting auth user:', getUserError);
+          return;
+        }
+
+        console.log('[Onboarding] Auth user metadata:', {
+          first_name: authUser?.user_metadata?.first_name,
+          last_name: authUser?.user_metadata?.last_name,
+        });
+
+        // If no metadata to sync, skip
+        if (!authUser?.user_metadata?.first_name && !authUser?.user_metadata?.last_name) {
+          console.log('[Onboarding] No first_name or last_name in auth metadata, skipping sync');
+          return;
+        }
+
+        // Check current profile state
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, email, first_name, last_name')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError) {
+          console.error('[Onboarding] Error fetching profile:', profileError);
+          return;
+        }
+
+        console.log('[Onboarding] Current profile state:', {
+          has_first_name: !!profile?.first_name,
+          has_last_name: !!profile?.last_name,
+          first_name: profile?.first_name,
+          last_name: profile?.last_name,
+        });
+
+        // Sync if profile is missing names and auth metadata has them
+        if (profile && (!profile.first_name || !profile.last_name)) {
+          console.log('[Onboarding] Syncing auth metadata to profile...');
+
+          let syncSuccess = false;
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            const { error: updateError, data: updatedData } = await supabase
+              .from('profiles')
+              .update({
+                first_name: authUser?.user_metadata?.first_name || profile.first_name || '',
+                last_name: authUser?.user_metadata?.last_name || profile.last_name || '',
+              })
+              .eq('id', user.id)
+              .select();
+
+            if (updateError) {
+              console.warn(`[Onboarding] Sync attempt ${attempt}/3 failed:`, updateError);
+              if (attempt < 3) {
+                await new Promise(r => setTimeout(r, 500 * attempt));
+              }
+            } else {
+              console.log('[Onboarding] ✓ Successfully synced auth metadata to profile', {
+                attempt,
+                first_name: authUser?.user_metadata?.first_name,
+                last_name: authUser?.user_metadata?.last_name,
+                result: updatedData,
+              });
+              syncSuccess = true;
+              break;
+            }
+          }
+
+          if (!syncSuccess) {
+            console.error('[Onboarding] Failed to sync after 3 attempts');
+          }
+        } else {
+          console.log('[Onboarding] Profile already has names or no metadata to sync', {
+            first_name: profile?.first_name,
+            last_name: profile?.last_name,
+          });
+        }
+      } catch (err) {
+        console.error('[Onboarding] Exception during sync:', err);
+      }
+    };
+
+    syncAuthMetadataToProfile();
+  }, [user]);
+
   useEffect(() => {
     if (!loading && user && !isCheckingEmailVerification) {
       // Handle legacy 'sync' step - map to 'complete' since we removed sync step

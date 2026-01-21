@@ -14,11 +14,14 @@
  */
 
 import { useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { useOnboardingV2Store, type OnboardingV2Step } from '@/lib/stores/onboardingV2Store';
+import { supabase } from '@/lib/supabase/clientV2';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import { WebsiteInputStep } from './WebsiteInputStep';
 import { ManualEnrichmentStep } from './ManualEnrichmentStep';
+import { PendingApprovalStep } from './PendingApprovalStep';
 import { EnrichmentLoadingStep } from './EnrichmentLoadingStep';
 import { EnrichmentResultStep } from './EnrichmentResultStep';
 import { SkillsConfigStep } from './SkillsConfigStep';
@@ -33,6 +36,7 @@ const USE_PLATFORM_SKILLS = false;
 const VALID_STEPS: OnboardingV2Step[] = [
   'website_input',
   'manual_enrichment',
+  'pending_approval',
   'enrichment_loading',
   'enrichment_result',
   'skills_config',
@@ -46,6 +50,8 @@ interface OnboardingV2Props {
 }
 
 export function OnboardingV2({ organizationId, domain, userEmail }: OnboardingV2Props) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     currentStep,
@@ -56,6 +62,56 @@ export function OnboardingV2({ organizationId, domain, userEmail }: OnboardingV2
     setStep,
     startEnrichment,
   } = useOnboardingV2Store();
+
+  // Skip onboarding if user already has organization membership (invited users)
+  useEffect(() => {
+    if (!user) return;
+
+    const checkOrgMembership = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('organization_memberships')
+          .select('id')
+          .eq('user_id', user.id)
+          .limit(1);
+
+        if (!error && data && data.length > 0) {
+          // User already has organization membership (invited), skip to dashboard
+          navigate('/dashboard', { replace: true });
+        }
+      } catch (err) {
+        console.error('[OnboardingV2] Error checking organization membership:', err);
+      }
+    };
+
+    checkOrgMembership();
+  }, [user, navigate]);
+
+  // Validate that organizationId prop matches actual membership (prevents cached org bypass)
+  useEffect(() => {
+    if (!user || !organizationId) return;
+
+    const validateOrgId = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('organization_memberships')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('org_id', organizationId)
+          .maybeSingle();
+
+        if (error || !data) {
+          // User doesn't have membership in this org - clear it
+          console.warn('[OnboardingV2] User has no membership in org:', organizationId);
+          setOrganizationId(''); // Clear invalid org ID
+        }
+      } catch (err) {
+        console.error('[OnboardingV2] Error validating org membership:', err);
+      }
+    };
+
+    validateOrgId();
+  }, [user, organizationId, setOrganizationId]);
 
   // Read step from URL on mount
   useEffect(() => {
@@ -102,6 +158,8 @@ export function OnboardingV2({ organizationId, domain, userEmail }: OnboardingV2
         return <WebsiteInputStep key="website" organizationId={organizationId} />;
       case 'manual_enrichment':
         return <ManualEnrichmentStep key="manual" organizationId={organizationId} />;
+      case 'pending_approval':
+        return <PendingApprovalStep key="pending" />;
       case 'enrichment_loading':
         return (
           <EnrichmentLoadingStep

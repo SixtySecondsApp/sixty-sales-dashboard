@@ -146,10 +146,12 @@ export const SKILLS: SkillMeta[] = [
  * 1. Corporate email: enrichment_loading → enrichment_result → skills_config → complete
  * 2. Personal email with website: website_input → enrichment_loading → enrichment_result → skills_config → complete
  * 3. Personal email, no website: website_input → manual_enrichment → enrichment_loading → enrichment_result → skills_config → complete
+ * 4. Existing org (join request): website_input → pending_approval (awaiting admin approval)
  */
 export type OnboardingV2Step =
   | 'website_input'        // Ask for website URL (personal email users)
   | 'manual_enrichment'    // Q&A fallback (no website available)
+  | 'pending_approval'     // Awaiting admin approval of join request
   | 'enrichment_loading'   // AI analyzing company
   | 'enrichment_result'    // Show what we learned
   | 'skills_config'        // Configure 5 skills
@@ -417,12 +419,18 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
 
           if (joinRequestResult.error) throw joinRequestResult.error;
 
+          // Update user profile status to pending_approval
+          await supabase
+            .from('profiles')
+            .update({ profile_status: 'pending_approval' })
+            .eq('id', session.user.id);
+
           // Store pending join request state
           set({
             organizationId: existingOrg.id,
             domain,
             enrichmentSource: 'website',
-            currentStep: 'enrichment_loading',
+            currentStep: 'pending_approval',
             // Store join request status
             pendingJoinRequest: {
               requestId: joinRequestResult.data[0].join_request_id,
@@ -432,8 +440,6 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
             },
           });
 
-          // Continue with enrichment (limited access)
-          get().startEnrichment(existingOrg.id, domain);
           return;
         }
 
