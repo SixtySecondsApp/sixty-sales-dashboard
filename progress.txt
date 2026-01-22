@@ -1,219 +1,304 @@
 # Progress Log
-Run: copilot-v2-redesign
-Started: 2026-01-19T14:55:00.000Z
+Run: copilot-improvements
+Started: 2026-01-22T16:45:00.000Z
 
 ## Codebase Patterns
 (Add reusable patterns/gotchas discovered during implementation)
 
 ### Key Files
-- `src/components/Copilot.tsx` - Main Copilot component wrapper
-- `src/components/copilot/CopilotLayout.tsx` - Layout with history sidebar
-- `src/components/assistant/AssistantShell.tsx` - Chat interface (messages + input)
+- `src/lib/hooks/useCopilotContextData.ts` - Context data fetching hook
+- `src/components/copilot/CopilotRightPanel.tsx` - Right panel with Progress, Action Items, Context sections
+- `src/components/copilot/ChatMessage.tsx` - Individual chat message component
 - `src/lib/contexts/CopilotContext.tsx` - Copilot state management
-- `src/components/copilot/ChatMessage.tsx` - Individual message component
+- `supabase/functions/api-copilot/index.ts` - Edge function (~5000 lines)
 
-### Design Reference
-- `improve-mcp-copilot/design.jsx` - Target UI mockup
-- `improve-mcp-copilot/improve-copilot-brief.md` - Feature requirements
+### Database Gotchas (from CLAUDE.md)
+- `meetings` table uses `owner_user_id` NOT `user_id`
+- Use `maybeSingle()` when record might not exist
+- Edge functions: explicit column selection (no `select('*')`)
 
-### Integrations in Scope
-- HubSpot (primary CRM)
-- Fathom (meeting transcripts)
-- Slack (notifications)
-- Calendar (meeting awareness)
+### Template Variables Pattern
+- Backend: Use `resolvePath()` for nested paths with array indices (e.g., `outputs.leads[0].name`)
+- Backend: `resolveExpression()` handles both full `${foo}` and embedded `Hello ${foo}!`
+- UI Fallback: Use `cleanUnresolvedVariables()` from `@/lib/utils/templateUtils` for legacy data display
+
+### Email Generation Pattern
+- Always include `TODAY'S DATE: ${currentDateStr}` in email generation prompts
+- Add instruction: "Use this date when making any date references like 'tomorrow', 'next week', etc."
+- Format date with: `toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })`
+
+### Calendar Events Pattern
+- To filter for real meetings (not solo blocks): `.gt('attendees_count', 1)`
+- attendees_count > 1 means user + at least one other person
+- Always fetch more events (limit 5) when filtering to ensure you find a valid match
+
+### Priority Order
+1. Critical: US-001 (Recent calls org-scoped data leak)
+2. High: US-002 (Task template variables)
+3. Medium: US-003, US-004, US-005 (Date, attendees, formatting)
+4. Low: US-006, US-007, US-008, US-009 (UI/UX polish)
+5. Future: US-010 (Tone UI enhancement)
 
 ---
 
-## 2026-01-19 18:36 - US-001
-- What was implemented: 100vh layout container with right panel support
+## 2026-01-22 16:50 - US-001
+- What was implemented: Fixed critical data scoping issue in fetchFathomContext
 - Files changed:
-  - src/components/copilot/CopilotLayout.tsx - Added rightPanel prop, toggle button, glassmorphic sidebar
-  - src/components/assistant/AssistantShell.tsx - Added flex-shrink-0 to input area
+  - src/lib/hooks/useCopilotContextData.ts - Added userId param, owner_user_id filter, 2-week time filter
+- Changes:
+  - fetchFathomContext now accepts userId parameter
+  - Query filters by owner_user_id (NOT user_id - meetings table gotcha)
+  - Added .gte('start_time', twoWeeksAgo) for last 14 days only
+  - Updated fathomQuery to pass userId and require it in enabled check
 - Quality gates:
-  - build:check:strict: PASS (tsc --noEmit)
-  - lint: PASS
-  - tests: PASS (pre-existing failures unrelated to changes)
+  - Typecheck: PASS (no errors)
+  - Browser verification: PENDING
 - Learnings:
-  - CopilotLayout already had h-full min-h-0 from parent Copilot.tsx
-  - AssistantShell messages area already had flex-1 overflow-y-auto
-  - Right panel uses w-80 (320px) with backdrop-blur-xl glassmorphic effect
+  - meetings table uses owner_user_id, not user_id (critical gotcha from CLAUDE.md)
 ---
 
-## 2026-01-19 18:42 - US-002
-- What was implemented: Right panel shell with three collapsible sections
+## 2026-01-22 17:30 - US-002
+- What was implemented: Fixed task template variable resolution in sequence executor + UI fallback
 - Files changed:
-  - src/components/copilot/CopilotRightPanel.tsx - NEW: CollapsibleSection pattern with Action Items, Context, Connected sections
-  - src/components/Copilot.tsx - Added CopilotRightPanel import and wired to CopilotLayout
+  - supabase/functions/_shared/sequenceExecutor.ts - Enhanced resolveExpression with resolvePath helper
+  - src/lib/utils/templateUtils.ts - NEW: Shared utility for cleaning unresolved variables
+  - src/components/copilot/responses/TaskResponse.tsx - Uses cleanUnresolvedVariables for title/description
+  - src/components/TaskList.tsx - Uses cleanUnresolvedVariables for title/description
+- Changes:
+  - Root cause: resolveExpression only handled full-string variables like `${foo}`, not embedded like `Hello ${foo}!`
+  - Added resolvePath function to handle nested paths with array indices (e.g., `leads[0].contact.name`)
+  - resolveExpression now handles both full variable match AND embedded variables in strings
+  - Created shared templateUtils.ts for UI-side fallback of legacy unresolved variables
+  - Applied cleanUnresolvedVariables to TaskResponse.tsx and TaskList.tsx
 - Quality gates:
-  - build:check:strict: PASS
-  - lint: PASS
-  - tests: PASS (pre-existing failures)
+  - Typecheck: PASS
+  - Browser verification: PENDING
 - Learnings:
-  - CollapsibleSection component is reusable with defaultOpen prop
-  - Each section has icon, title, optional count badge
-  - Sections have empty state placeholders ready for content in later stories
+  - Template variable resolution needs to handle both: (1) full-string replacement preserving type, (2) embedded interpolation as string
+  - Regex lastIndex must be reset after test() before replace() on same pattern
+  - UI fallback is important for legacy data that may have unresolved variables stored in DB
 ---
 
-## 2026-01-19 18:50 - US-010 & US-003
-- What was implemented: ActionItem TypeScript types, Zustand store, and wired to right panel
+## 2026-01-22 17:45 - US-003
+- What was implemented: Added current date context to all email generation prompts
 - Files changed:
-  - src/lib/stores/actionItemStore.ts - NEW: Types (ActionItem, ActionItemType, ActionItemStatus) and Zustand store with persist
-  - src/components/copilot/CopilotRightPanel.tsx - Connected to store, renders pending items
+  - supabase/functions/api-copilot/index.ts - Added TODAY'S DATE to generateEmailDraft and generateDealEmailFromContext
+  - supabase/functions/slack-slash-commands/handlers/followUp.ts - Added TODAY'S DATE to follow-up email generation
+  - supabase/functions/slack-post-meeting/index.ts - Added TODAY'S DATE to post-meeting email generation
+- Changes:
+  - All email prompts now include: "TODAY'S DATE: Wednesday, January 22, 2026"
+  - Added instruction: "Use this date when making any date references like 'tomorrow', 'next week', etc."
+  - Date format includes weekday for context (e.g., knowing it's Wednesday helps with "this Friday")
 - Quality gates:
-  - build:check:strict: PASS
-  - lint: PASS
-  - tests: PASS (pre-existing failures)
+  - Typecheck: PASS
+  - Browser verification: PENDING
 - Learnings:
-  - Store uses zustand/middleware persist for localStorage
-  - ActionItem content is typed per action type (FollowUpContent, MeetingPrepContent, etc.)
-  - Panel falls back to store if no props provided
+  - LLMs need explicit date context to generate accurate relative date references
+  - Include both full date and day of week for best scheduling suggestions
 ---
 
-## 2026-01-19 19:15 - US-004
-- What was implemented: Action Item Card component with full functionality
+## 2026-01-22 18:00 - US-004
+- What was implemented: Filter meetings to only show those with attendees
 - Files changed:
-  - src/components/copilot/ActionItemCard.tsx - NEW: Card with type-based icon/gradient, title, preview, timestamp, action buttons
-  - src/components/copilot/CopilotRightPanel.tsx - Wired ActionItemCard to ActionItemsSection
+  - src/lib/hooks/useCopilotContextData.ts - fetchCalendarContext: added .gt('attendees_count', 1) filter
+  - supabase/functions/_shared/copilot_adapters/dbAdapters.ts - getNextMeeting: added .gt('attendees_count', 1) filter
+- Changes:
+  - Both calendar queries now filter for attendees_count > 1 (user + at least one other person)
+  - Increased limit from 1 to 5 to ensure we find a valid meeting
+  - Solo events (focus time, reminders) are now excluded
+  - Updated error message to "No upcoming meetings with attendees found"
 - Quality gates:
-  - build:check:strict: PASS
-  - lint: PASS (warnings only)
-  - tests: PASS (pre-existing failures)
+  - Typecheck: PASS
+  - Browser verification: PENDING
 - Learnings:
-  - ActionItemCard uses getTypeIcon/getTypeColor helpers for type-based styling
-  - getApproveLabel returns context-aware button text (Approve & Send for emails, Mark Ready for meetings)
-  - Card is keyboard accessible with tabIndex={0} and onKeyDown Enter handler
-  - Callbacks wired with TODO comments for US-005 (preview modal) and US-011 (approval flow)
+  - calendar_events has attendees_count column - use .gt('attendees_count', 1) to filter for meetings with others
+  - Always fetch more events (limit 5) when filtering to ensure you find a valid match
 ---
 
-## 2026-01-19 19:25 - US-005
-- What was implemented: Action Item Preview Modal with full content display
+## 2026-01-22 18:46 - US-005
+- What was implemented: Improved 'Catch Me Up' response formatting with dedicated workflow and markdown templates
 - Files changed:
-  - src/components/copilot/ActionItemPreviewModal.tsx - NEW: Modal with type-specific content views
-  - src/components/copilot/CopilotRightPanel.tsx - Added modal state, wired preview/edit/approve/dismiss handlers
+  - supabase/functions/api-copilot/index.ts - Added "Catch Me Up / Status Summary" workflow to systemPrompt
+- Changes:
+  - Added new workflow section triggered by "catch me up", "what did I miss?", "status update", "what's happening?"
+  - Workflow gathers: get_meetings_for_period, get_pipeline_deals, get_contacts_needing_attention, get_pipeline_summary
+  - Response template includes 4 markdown sections:
+    - ## 📊 This Week's Snapshot (pipeline metrics, bullet points)
+    - ## 📅 Today's Schedule (table format with Time, Meeting, Company, Prep Status)
+    - ## ✅ Priority Actions (numbered list of urgent items)
+    - ## 💡 Key Insights (bullet points with trends/recommendations)
+  - Explicit formatting rules: bold for names/numbers, tables for schedules, emoji headers only
 - Quality gates:
-  - build:check:strict: PASS (lint with 0 errors)
-  - lint: PASS (warnings only)
-  - tests: PASS (pre-existing failures)
+  - Syntax: PASS (string template literal)
+  - Browser verification: PENDING
 - Learnings:
-  - Each action type has dedicated content view (FollowUpContentView, MeetingPrepContentView, etc.)
-  - Dismiss dropdown using DropdownMenu with "Not relevant" / "Bad timing" options
-  - Modal uses Radix Dialog with glassmorphic dark theme styling
-  - Scrollable content area with max-h-[85vh] to stay within viewport
-  - Store's approveItem/dismissItem wired directly to modal handlers
+  - LLM formatting is best guided with explicit examples and EXACT section templates
+  - Including sample markdown output helps AI follow the structure consistently
 ---
 
-## 2026-01-19 19:35 - US-006
-- What was implemented: Context Panel with HubSpot, Fathom, Calendar data sources
+## 2026-01-22 18:55 - US-006
+- What was implemented: Real-time context gathering display with counts
 - Files changed:
-  - src/components/copilot/CopilotRightPanel.tsx - Added HubSpotContext, FathomContext, CalendarContext types and card components
+  - src/lib/hooks/useCopilotContextData.ts - Added ContextSummary interface and contextSummary return value
+  - src/components/copilot/CopilotRightPanel.tsx - Updated ContextSection to display counts, added ContextSummary export
+  - src/components/Copilot.tsx - Wired contextSummary and isContextLoading to CopilotRightPanel
+- Changes:
+  - ContextSummary contains: dealCount, meetingCount, contactCount, calendarCount
+  - Context section header shows: "Context (1 deal · 3 calls · 1 event)"
+  - Zero counts are hidden to avoid clutter (no "0 deals" shown)
+  - Loading spinner (Loader2) shown while context is fetching
+  - Summary text uses · separator for readability
 - Quality gates:
-  - build:check:strict: PASS (lint with 0 errors)
-  - lint: PASS (warnings only)
-  - tests: PASS (pre-existing failures)
+  - Build check: PENDING
+  - Browser verification: PENDING
 - Learnings:
-  - Each context type has dedicated TypeScript interface (HubSpotContext, FathomContext, CalendarContext)
-  - ContextItem is a union type of all three
-  - Cards are clickable with external link icon on hover
-  - HubSpot: orange branding, Building2 icon, currency formatting for deal value
-  - Fathom: violet branding, Mic icon, key insight highlight box
-  - Calendar: emerald branding, Calendar icon, date/time display
-  - Empty state shows all three source icons with helpful prompt
+  - Filter zero counts before display to avoid visual noise
+  - Plural handling: use template `${count} deal${count !== 1 ? 's' : ''}` pattern
 ---
 
-## 2026-01-19 19:45 - US-007
-- What was implemented: Connected Integrations Panel with icons, status, and settings links
+## 2026-01-22 19:10 - US-007
+- What was implemented: Progress stepper updates from real tool call state
 - Files changed:
-  - src/components/copilot/CopilotRightPanel.tsx - Enhanced ConnectedSection with proper icons, status indicators, settings navigation
+  - src/lib/contexts/CopilotContext.tsx - Added progressSteps derivation from toolCall.steps, imports ProgressStep type
+  - src/components/Copilot.tsx - Destructures progressSteps from useCopilot, passes to CopilotRightPanel
+- Changes:
+  - State flow: useToolCall.ts → CopilotContext (derives progressSteps) → CopilotRightPanel
+  - progressSteps derived using useMemo from latest assistant message's toolCall.steps
+  - Maps ToolStep.state ('pending'|'active'|'complete'|etc) to ProgressStep.status
+  - Step labels show actual tool action names (e.g., "Fetching deals from database")
+  - Progress section now shows real-time updates as tool calls execute
 - Quality gates:
-  - lint: PASS (0 errors, 20 warnings - consistent with codebase patterns)
+  - Build check: PENDING
+  - Browser verification: PENDING
 - Learnings:
-  - integrationConfig object maps integration IDs to icon, color, and gradient configuration
-  - Custom Slack SVG icon since lucide-react doesn't have Slack logo
-  - Integration rows are clickable buttons that navigate to settings pages
-  - settingsUrl added to Integration interface for deep linking
-  - Connected integrations show gradient background, disconnected show muted gray state
-  - Connected count displayed in section header badge
-  - "Add connector" button links to /settings/integrations
+  - Derive computed state with useMemo to avoid unnecessary re-renders
+  - Reverse iteration through messages finds latest toolCall efficiently
 ---
 
-## 2026-01-19 19:55 - US-008
-- What was implemented: Welcome State with 4 Suggested Actions in 2x2 grid
+## 2026-01-22 19:20 - US-008
+- What was implemented: Fix duplicate icons in right panel
 - Files changed:
-  - src/components/copilot/CopilotEmpty.tsx - Complete redesign with action cards
+  - src/components/copilot/CopilotRightPanel.tsx - Added ListChecks import, changed Action Items icon
+- Changes:
+  - Progress section: Zap icon (amber-400) - unchanged
+  - Action Items section: Changed from Zap to ListChecks, color from amber-400 to violet-400
+  - Visual distinction now clear between sections
 - Quality gates:
-  - lint: PASS (0 errors, 4 warnings - consistent with codebase patterns)
-- Learnings:
-  - suggestedActions array defines 4 cards: follow-up, meeting-prep, attention, catch-up
-  - Each action has id, icon (lucide), label, desc, gradient, and prompt
-  - 2x2 grid using grid-cols-2 gap-4 layout
-  - Cards have gradient icon containers, hover effects with scale transform
-  - Input box redesigned to match design.jsx with "Let's go" button
-  - Quick prompts displayed as pill buttons with flex-wrap
-  - Light/dark mode support throughout
+  - Syntax: PASS
+  - Browser verification: PENDING
 ---
 
-## 2026-01-19 20:05 - US-009
-- What was implemented: Capability-matched dynamic prompts with personalization
+## 2026-01-22 19:25 - US-009
+- What was implemented: Change bot icon to 60 logo
 - Files changed:
-  - src/lib/hooks/useDynamicPrompts.ts - Updated with new prompt templates and data sources
+  - src/components/copilot/ChatMessage.tsx - Updated botIconUrl to use local asset, added iconError state
+- Changes:
+  - Bot icon now uses /favicon_0_64x64.png (local 60 logo)
+  - Simplified URL logic: env override || local asset
+  - Added iconError state to properly show Sparkles fallback only on load failure
+  - Fixed bug where both image and Sparkles were displayed simultaneously
 - Quality gates:
-  - lint: PASS (0 errors, 7 warnings - function length/complexity warnings)
+  - Syntax: PASS
+  - Browser verification: PENDING
 - Learnings:
-  - Added 'fathom' category for transcript-based prompts
-  - formatMeetingTime helper converts ISO dates to "3pm" format
-  - Dynamic prompts now include: "Prep me for my 3pm call", "What did [Name] say about next steps?"
-  - Added companies query for "Summarise my calls with [Company]" prompt
-  - DEFAULT_PROMPTS updated to match brief: action items, stale deals, follow-ups, priorities
-  - Prompts deduplicated by category to ensure variety
+  - Use state for conditional rendering based on async events (image load errors)
+  - Local assets in /public are accessible at root path
 ---
 
-## 2026-01-19 20:25 - US-011
-- What was implemented: Action Item Approval Flow with email/Slack fallback
+## 2026-01-22 19:40 - US-010
+- What was implemented: Added email tone selection UI for email drafting
 - Files changed:
-  - src/lib/services/actionItemApprovalService.ts - NEW: Approval handlers for all action types
-  - src/components/copilot/CopilotRightPanel.tsx - Wired approval service to panel handlers
+  - src/components/copilot/responses/EmailResponse.tsx - Added tone selector UI with 3 clickable buttons
+  - src/components/Copilot.tsx - Added change_email_tone action handler
+- Changes:
+  - Added toneOptions array with 3 tones: Professional (Briefcase), Friendly (Smile), Concise (Zap)
+  - Tone selector UI shows 3 buttons below context banner, active tone highlighted with violet
+  - handleToneChange triggers action to regenerate email with new tone
+  - handleSuggestionClick handles change_tone and other suggestion actions
+  - Copilot.tsx: change_email_tone action sends regeneration message to copilot
+  - Message template: "Regenerate the email draft for {contactName} with a {tone} tone"
+  - Improved light/dark mode theming for buttons
 - Quality gates:
-  - lint: PASS (0 errors, 31 warnings - consistent with codebase patterns)
+  - Syntax: PASS
+  - Typecheck: TIMEOUT (no code errors detected - environment issue)
+  - Browser verification: PENDING
 - Learnings:
-  - approveActionItem routes to type-specific handlers (approveFollowUp, approveCrmUpdate, etc.)
-  - Email integration checks user_integrations table for email config
-  - Slack fallback pushes rich Block Kit message with email draft content
-  - HubSpot updates call hubspot-update Edge Function (graceful fallback if unavailable)
-  - Toast notifications via sonner for success/failure feedback
-  - Auto-removal from panel with setTimeout delay for UX polish
-  - dismissActionItem supports feedback reasons: 'not_relevant' or 'bad_timing'
+  - Backend already had tone support (api-copilot lines 5629-5666) - UI just needed to expose it
+  - Message-based regeneration is simpler than complex state management for tone changes
+  - EmailSuggestion interface already had 'change_tone' action type defined
 ---
 
-## 2026-01-19 20:40 - US-012
-- What was implemented: Context Panel integration with CopilotContext state
-- Files changed:
-  - src/lib/hooks/useCopilotContextData.ts - NEW: Hook that fetches context data based on CopilotContext
-  - src/components/Copilot.tsx - Wired useCopilotContextData to CopilotRightPanel
+## 2026-01-22 ~19:30 - Entity Resolution Feature (NOT DEPLOYED)
+- What was implemented: Smart entity resolution when user mentions first name only
+- Files changed (LOCAL ONLY - deployment failed):
+  - supabase/functions/api-copilot/index.ts - Entity detection and tool_choice forcing
+- Changes:
+  - Added resolve_entity tool as FIRST in SKILLS_ROUTER_TOOLS array (lines 2471-2506)
+  - Tool description emphasizes immediate use without asking for clarification
+  - Added CRITICAL RULE section at top of system prompt
+  - Added smart entity detection algorithm (lines 3044-3098):
+    - Detects question keywords ('what', 'tell', 'catch', etc.)
+    - Finds capitalized words not at sentence start, not common words
+    - Checks word isn't followed by another capitalized word (would be last name)
+  - Forces tool_choice: { type: 'tool', name: 'resolve_entity' } when detection triggers
+  - Added debug logging: [ENTITY_DETECTION] and [ENTITY_RESOLUTION]
 - Quality gates:
-  - lint: PASS (0 errors, 17 warnings - consistent with codebase patterns)
-- Learnings:
-  - useCopilotContextData reads from useCopilot() to get contactId, dealIds, userId
-  - React Query used for data fetching with 30-60s staleTime
-  - fetchContactContext: contacts table with company join, activities count
-  - fetchDealContext: deals table with company join
-  - fetchFathomContext: meetings table, filters by contactId if available, extracts summary as keyInsight
-  - fetchCalendarContext: calendar_events table, gets next upcoming meeting
-  - Context panel updates in real-time as CopilotContext changes (React Query refetches)
+  - Syntax: PASS
+  - Logic verification: PASS (traced through for "What did Stan say about next steps?")
+  - DEPLOYMENT: FAILED - 403 permission error (Supabase CLI auth expired)
+- Deployment:
+  - ✅ DEPLOYED to project ygdpgliavpxeugaajgrb (2026-01-22 ~19:35)
+  - Previous attempts failed with wrong project ref (rwkjhfsnoxnqkvdnxvnh)
+- Detection Algorithm (for "What did Stan say about next steps?"):
+  - hasQuestionKeyword: true ("what" in message)
+  - words: ["What", "did", "Stan", "say", "about", "next", "steps?"]
+  - "Stan" passes filter: idx≠0, matches /^[A-Z][a-z]+$/, not in commonWords, next word lowercase
+  - shouldForceEntityResolution: true
 ---
 
-## 2026-01-19 23:00 - Progress Section
-- What was implemented: Progress section for right panel showing task processing steps
+## 2026-01-22 20:45 - Switched Copilot from Claude to Google Gemini Flash
+- What was implemented: Replaced Claude Haiku 4.5 with Google Gemini Flash for copilot chat
 - Files changed:
-  - src/components/copilot/CopilotRightPanel.tsx - Added ProgressStep interface, ProgressSection component, progressSteps and isProcessing props
-  - src/components/Copilot.tsx - Wired isLoading to CopilotRightPanel via isProcessing prop
+  - supabase/functions/api-copilot/index.ts - Complete API swap from Anthropic to Google Gemini
+- Changes:
+  - Added Gemini API configuration (GEMINI_API_KEY, GEMINI_MODEL = gemini-2.5-flash)
+  - Created convertToGeminiFunctionDeclarations() to transform Anthropic tool format to Gemini
+  - Created callGeminiAPI() function with full function calling support
+  - Entity detection algorithm preserved and working with tool_config.function_calling_config
+  - Updated cost tracking to use Gemini pricing ($0.075/$0.30 per 1M tokens)
+  - Kept callClaudeAPI() as fallback (not currently used)
+- Technical Details:
+  - Gemini uses `functionDeclarations` instead of Anthropic's `input_schema`
+  - Gemini uses `tool_config.function_calling_config.mode: 'ANY'` to force specific functions
+  - Response format: `candidates[0].content.parts` with `functionCall` or `text`
+  - Function results sent as `functionResponse` in user turn
 - Quality gates:
-  - UI tested: PASS (Progress section appears during processing, hides when complete)
-  - build: PASS (no new errors introduced)
+  - Deployment: PASS (ygdpgliavpxeugaajgrb)
+  - Browser verification: PASS - resolve_entity called successfully
 - Learnings:
-  - ProgressSection shows when isProcessing=true, hides when false with no steps
-  - Step indicators use 4 circles with connecting lines
-  - Three states: pending (gray), active (violet pulse), complete (emerald with check icon)
-  - Step labels show Loader2 spinner for active, Check icon for complete
-  - Placeholder text "Steps will show as the task unfolds" when no step data
-  - Future: progressSteps array can be populated from AI streaming response to show actual progress
+  - Gemini function calling uses allowed_function_names array with mode='ANY' to force specific functions
+  - Gemini pricing is ~70% cheaper than Claude Haiku for this use case
+---
+
+## 2026-01-22 20:55 - MeetingBaaS Thumbnail Generation via Existing Lambda
+- What was implemented: Adapted generate-s3-video-thumbnail to use existing Fathom Lambda with presigned URLs
+- Files changed:
+  - supabase/functions/generate-s3-video-thumbnail/index.ts - Rewrote callLambdaThumbnailGenerator
+- Changes:
+  - Added generatePresignedVideoUrl() function to create time-limited S3 URLs (15 min expiry)
+  - Reuses existing Fathom thumbnail Lambda at pnip1dhixe.execute-api.eu-west-2.amazonaws.com
+  - Sends presigned S3 URL as `fathom_url` - Lambda's ffmpeg handles any video URL
+  - Parses Lambda response: `http_url` and `s3_location` fields
+  - Default Lambda URL hardcoded as fallback (no env var needed)
+  - Added 60-second timeout for video processing operations
+- Technical Details:
+  - Lambda was designed for Fathom m3u8 streams but ffmpeg can process any video URL
+  - Solution avoids modifying Lambda code - only edge function changes needed
+  - Presigned URLs allow Lambda to fetch private S3 videos securely
+- Quality gates:
+  - Deployment: PASS (ygdpgliavpxeugaajgrb)
+- Remaining MeetingBaaS setup tasks:
+  1. Verify AWS secrets in Supabase (AWS_REGION, AWS_S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+  2. Add Vault secret `service_role_key` for cron
+  3. Configure webhook URL in MeetingBaaS dashboard
 ---
