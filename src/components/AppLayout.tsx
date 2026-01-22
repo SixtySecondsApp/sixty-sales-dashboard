@@ -81,6 +81,8 @@ import { useTrialStatus } from '@/lib/hooks/useSubscription';
 import { useOrg } from '@/lib/contexts/OrgContext';
 import { PasswordSetupModal } from '@/components/auth/PasswordSetupModal';
 import { usePasswordSetupRequired } from '@/lib/hooks/usePasswordSetupRequired';
+import { IntegrationReconnectBanner } from '@/components/IntegrationReconnectBanner';
+import { useIntegrationReconnectNeeded } from '@/lib/hooks/useIntegrationReconnectNeeded';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { userData, isImpersonating, stopImpersonating } = useUser();
@@ -108,22 +110,33 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return trialStatus.isTrialing && !trialStatus.isLoading;
   }, [trialStatus.isTrialing, trialStatus.isLoading]);
 
+  // Check if integration reconnect banner should be showing
+  const isIntegrationBannerVisible = !!integrationNeedsReconnect;
+
   // AppLayout uses top padding to make room for the fixed top bars/banners.
   // Some pages (e.g. Copilot chat) need a reliable way to compute the remaining viewport height
   // without hard-coding "4rem" and accidentally creating extra scroll space.
   const topOffsetPx = useMemo(() => {
-    // Base top bar is 64px (pt-16). Impersonation adds 44px. Trial banner adds ~17px.
-    if (isTrialBannerVisible) {
-      return isImpersonating ? 132 : 115;
-    }
-    return isImpersonating ? 108 : 64;
-  }, [isTrialBannerVisible, isImpersonating]);
+    // Base top bar is 64px (pt-16). Impersonation adds 44px. Trial banner adds ~51px. Integration banner adds ~40px.
+    let offset = 64; // Base top bar
+    if (isImpersonating) offset += 44;
+    if (isTrialBannerVisible) offset += 51;
+    if (isIntegrationBannerVisible) offset += 40;
+    return offset;
+  }, [isTrialBannerVisible, isImpersonating, isIntegrationBannerVisible]);
 
   const topPaddingClass = useMemo(() => {
-    return isTrialBannerVisible
-      ? (isImpersonating ? 'pt-[132px] lg:pt-[132px]' : 'pt-[115px] lg:pt-[115px]')
-      : (isImpersonating ? 'pt-[108px] lg:pt-[108px]' : 'pt-16 lg:pt-16');
-  }, [isTrialBannerVisible, isImpersonating]);
+    // Calculate padding based on visible banners
+    // Base: pt-16 (64px)
+    // + 44px for impersonation
+    // + 51px for trial banner
+    // + 40px for integration banner
+    let basePx = 64;
+    if (isImpersonating) basePx += 44;
+    if (isTrialBannerVisible) basePx += 51;
+    if (isIntegrationBannerVisible) basePx += 40;
+    return `pt-[${basePx}px] lg:pt-[${basePx}px]`;
+  }, [isTrialBannerVisible, isImpersonating, isIntegrationBannerVisible]);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, toggleMobileMenu] = useCycle(false, true);
   const [hasMounted, setHasMounted] = useState(false);
@@ -157,6 +170,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Check if user needs to set up their password (magic link users)
   const { needsSetup: needsPasswordSetup, completeSetup: completePasswordSetup } = usePasswordSetupRequired();
+
+  // Check if user has integration that needs reconnection
+  const { needsReconnect: integrationNeedsReconnect } = useIntegrationReconnectNeeded();
 
   // Open/close QuickAdd via global modal events
   useEventListener('modal:opened', ({ type, context }) => {
@@ -304,6 +320,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Trial Banner - shown when organization is in trial period */}
       <TrialBanner />
+
+      {/* Integration Reconnect Banner - shown when user needs to reconnect Fathom */}
+      <IntegrationReconnectBanner
+        hasTrialBannerAbove={isTrialBannerVisible}
+        hasImpersonationBannerAbove={isImpersonating}
+        isSidebarCollapsed={isCollapsed}
+      />
 
       {/* Main app content */}
       <div className="flex">

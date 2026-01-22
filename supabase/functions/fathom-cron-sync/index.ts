@@ -16,12 +16,349 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
  */
 
 // Configuration
-const MAX_CONCURRENCY = 5 // Process 5 users at a time
-const TIME_BUDGET_MS = 120_000 // 120 seconds (2 minutes) - leaves 30s buffer before 150s timeout
-const SYNC_TIMEOUT_MS = 30_000 // 30 seconds max per individual user sync
+const MAX_CONCURRENCY = 3 // Process 3 users at a time (reduced for stability)
+const TIME_BUDGET_MS = 130_000 // 130 seconds - leaves 20s buffer before 150s timeout
+const SYNC_TIMEOUT_MS = 60_000 // 60 seconds max per individual user sync (increased from 30s)
+const MEETING_BATCH_SIZE = 5 // Process 5 meetings concurrently within a user sync
+const SINGLE_MEETING_TIMEOUT_MS = 15_000 // 15 seconds per individual meeting sync
+
+/**
+ * Get valid access token - refresh if needed, mark invalid if refresh fails
+ */
+async function getValidAccessToken(
+  supabase: any,
+  integration: any
+): Promise<{ token: string | null; error?: string }> {
+  const now = new Date()
+  const expiresAt = integration.token_expires_at ? new Date(integration.token_expires_at) : new Date(0)
+  const bufferMs = 5 * 60 * 1000 // 5 minutes buffer
+
+  // Token is still valid
+  if (expiresAt.getTime() - now.getTime() > bufferMs) {
+    console.log(`[fathom-cron-sync] Token still valid for user ${integration.user_id}, expires ${expiresAt.toISOString()}`)
+    return { token: integration.access_token }
+  }
+
+  // Token expired - try to refresh
+  console.log(`[fathom-cron-sync] Token expired for user ${integration.user_id}, attempting refresh`)
+
+  const clientId = Deno.env.get('FATHOM_CLIENT_ID')
+  const clientSecret = Deno.env.get('FATHOM_CLIENT_SECRET')
+
+  if (!clientId || !clientSecret) {
+    return { token: null, error: 'Missing Fathom OAuth configuration' }
+  }
+
+  if (!integration.refresh_token) {
+    // Mark integration as needing reconnection
+    await supabase
+      .from('fathom_integrations')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', integration.id)
+    return { token: null, error: 'No refresh token - user needs to reconnect Fathom' }
+  }
+
+  try {
+    const tokenParams = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: integration.refresh_token,
+      client_id: clientId,
+      client_secret: clientSecret,
+    })
+
+    const tokenResponse = await fetch('https://fathom.video/external/v1/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenParams.toString(),
+    })
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text()
+      // Mark integration as needing reconnection
+      await supabase
+        .from('fathom_integrations')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('id', integration.id)
+      return { token: null, error: `Token refresh failed (user needs to reconnect): ${errorText}` }
+    }
+
+    const tokenData = await tokenResponse.json()
+    const expiresIn = tokenData.expires_in || 3600
+    const newTokenExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
+
+    await supabase
+      .from('fathom_integrations')
+      .update({
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token || integration.refresh_token,
+        token_expires_at: newTokenExpiresAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', integration.id)
+
+    console.log(`[fathom-cron-sync] Token refreshed for user ${integration.user_id}`)
+    return { token: tokenData.access_token }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    return { token: null, error: `Token refresh error: ${msg}` }
+  }
+}
+
+/**
+ * Fetch meetings list from Fathom API (lightweight - just IDs and dates)
+ */
+async function fetchFathomMeetingsList(
+  accessToken: string,
+  startDate?: string
+): Promise<Array<{ recording_id: string; recording_start_time: string; title: string }>> {
+  const meetings: Array<{ recording_id: string; recording_start_time: string; title: string }> = []
+  let cursor: string | undefined = undefined
+  let pageCount = 0
+  const maxPages = 20 // Safety limit
+
+  const queryParams = new URLSearchParams()
+  queryParams.set('limit', '100')
+  if (startDate) {
+    queryParams.set('created_after', startDate)
+  }
+
+  while (pageCount < maxPages) {
+    pageCount++
+    const url = cursor
+      ? `https://api.fathom.ai/external/v1/meetings?${queryParams.toString()}&cursor=${cursor}`
+      : `https://api.fathom.ai/external/v1/meetings?${queryParams.toString()}`
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Fathom API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    const items = data.items || data.meetings || data.data || []
+
+    for (const item of items) {
+      meetings.push({
+        recording_id: String(item.recording_id || item.id),
+        recording_start_time: item.recording_start_time || item.created_at,
+        title: item.title || 'Meeting',
+      })
+    }
+
+    cursor = data.next_cursor || data.cursor
+    if (!cursor) break
+  }
+
+  return meetings
+}
+
+/**
+ * Sync a single meeting by calling fathom-sync with webhook mode
+ */
+async function syncSingleMeeting(
+  serviceRoleKey: string,
+  userId: string,
+  recordingId: string,
+  timeoutMs: number
+): Promise<{ success: boolean; error?: string }> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const syncUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fathom-sync`
+    const response = await fetch(syncUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sync_type: 'webhook',
+        user_id: userId,
+        call_id: recordingId,
+      }),
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      return { success: false, error: `${response.status}: ${errorText.substring(0, 100)}` }
+    }
+
+    return { success: true }
+  } catch (error) {
+    clearTimeout(timeoutId)
+    const msg = error instanceof Error
+      ? (error.name === 'AbortError' ? 'Timed out' : error.message)
+      : 'Unknown error'
+    return { success: false, error: msg }
+  }
+}
+
+/**
+ * Delta sync: Fetch meeting list, find missing, sync in parallel
+ * This is much faster than bulk sync for users with many existing meetings
+ */
+async function syncUserDelta(
+  supabase: any,
+  serviceRoleKey: string,
+  integration: any,
+  timeoutMs: number
+): Promise<{
+  userId: string
+  success: boolean
+  syncType: 'delta'
+  meetings_synced: number
+  meetings_found: number
+  meetings_skipped: number
+  error?: string
+  startDate?: string
+}> {
+  const userId = integration.user_id as string
+  const startTime = Date.now()
+
+  try {
+    // 1. Get valid token (refresh if needed)
+    console.log(`[fathom-cron-sync] User ${userId}: Starting delta sync`)
+    const tokenResult = await getValidAccessToken(supabase, integration)
+    if (!tokenResult.token) {
+      return {
+        userId,
+        success: false,
+        syncType: 'delta',
+        meetings_synced: 0,
+        meetings_found: 0,
+        meetings_skipped: 0,
+        error: tokenResult.error || 'Failed to get valid token',
+      }
+    }
+    const accessToken = tokenResult.token
+
+    // 2. Find the most recent meeting date as baseline
+    const { data: lastMeeting } = await supabase
+      .from('meetings')
+      .select('meeting_start')
+      .eq('owner_user_id', userId)
+      .not('meeting_start', 'is', null)
+      .order('meeting_start', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    let startDate: string | undefined = undefined
+    if (lastMeeting?.meeting_start) {
+      // Start from 1 day before last meeting
+      const lastDate = new Date(lastMeeting.meeting_start)
+      startDate = new Date(lastDate.getTime() - 24 * 60 * 60 * 1000).toISOString()
+    } else {
+      // No meetings - use last 30 days
+      startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    }
+    console.log(`[fathom-cron-sync] User ${userId}: Fetching meetings since ${startDate}`)
+
+    // 3. Fetch meetings list from Fathom API
+    const fathomMeetings = await fetchFathomMeetingsList(accessToken, startDate)
+    console.log(`[fathom-cron-sync] User ${userId}: Found ${fathomMeetings.length} meetings in Fathom`)
+
+    if (fathomMeetings.length === 0) {
+      return {
+        userId,
+        success: true,
+        syncType: 'delta',
+        meetings_synced: 0,
+        meetings_found: 0,
+        meetings_skipped: 0,
+        startDate,
+      }
+    }
+
+    // 4. Get existing meeting IDs from database
+    const recordingIds = fathomMeetings.map(m => m.recording_id)
+    const { data: existingMeetings } = await supabase
+      .from('meetings')
+      .select('fathom_recording_id')
+      .eq('owner_user_id', userId)
+      .in('fathom_recording_id', recordingIds)
+
+    const existingIds = new Set((existingMeetings || []).map((m: any) => m.fathom_recording_id))
+    const missingMeetings = fathomMeetings.filter(m => !existingIds.has(m.recording_id))
+
+    console.log(`[fathom-cron-sync] User ${userId}: ${missingMeetings.length} missing meetings to sync`)
+
+    if (missingMeetings.length === 0) {
+      return {
+        userId,
+        success: true,
+        syncType: 'delta',
+        meetings_synced: 0,
+        meetings_found: fathomMeetings.length,
+        meetings_skipped: 0,
+        startDate,
+      }
+    }
+
+    // 5. Sync missing meetings in parallel batches
+    let synced = 0
+    let skipped = 0
+
+    for (let i = 0; i < missingMeetings.length; i += MEETING_BATCH_SIZE) {
+      // Check time budget
+      const elapsed = Date.now() - startTime
+      if (elapsed > timeoutMs - 5000) {
+        console.log(`[fathom-cron-sync] User ${userId}: Time budget exceeded, skipping remaining meetings`)
+        skipped = missingMeetings.length - i
+        break
+      }
+
+      const batch = missingMeetings.slice(i, i + MEETING_BATCH_SIZE)
+      console.log(`[fathom-cron-sync] User ${userId}: Syncing batch ${Math.floor(i / MEETING_BATCH_SIZE) + 1} (${batch.length} meetings)`)
+
+      // Process batch in parallel
+      const results = await Promise.all(
+        batch.map(meeting =>
+          syncSingleMeeting(serviceRoleKey, userId, meeting.recording_id, SINGLE_MEETING_TIMEOUT_MS)
+        )
+      )
+
+      synced += results.filter(r => r.success).length
+    }
+
+    console.log(`[fathom-cron-sync] User ${userId}: Delta sync complete - ${synced}/${missingMeetings.length} synced, ${skipped} skipped`)
+
+    return {
+      userId,
+      success: true,
+      syncType: 'delta',
+      meetings_synced: synced,
+      meetings_found: fathomMeetings.length,
+      meetings_skipped: skipped,
+      startDate,
+    }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    console.error(`[fathom-cron-sync] User ${userId}: Delta sync error - ${msg}`)
+    return {
+      userId,
+      success: false,
+      syncType: 'delta',
+      meetings_synced: 0,
+      meetings_found: 0,
+      meetings_skipped: 0,
+      error: msg,
+    }
+  }
+}
 
 /**
  * Process a single user sync with timeout
+ * Uses DELTA SYNC: fetches meeting list, finds missing, syncs in parallel
+ * This is much faster than bulk sync for users with many existing meetings
  */
 async function syncUserWithTimeout(
   supabase: any,
@@ -31,62 +368,38 @@ async function syncUserWithTimeout(
 ): Promise<{
   userId: string
   success: boolean
-  syncType: 'incremental' | 'manual'
+  syncType: 'delta' | 'incremental' | 'manual'
   syncResult?: any
   error?: string
+  startDate?: string
 }> {
   const userId = integration.user_id as string
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
-  try {
-    // Decide whether we need a catch-up sync
-    let syncType: 'incremental' | 'manual' = 'incremental'
-    try {
-      const { data: state } = await supabase
-        .from('fathom_sync_state')
-        .select('last_sync_completed_at')
-        .eq('user_id', userId)
-        .maybeSingle()
+  // Use delta sync - it's faster for users with many existing meetings
+  // because it only syncs missing meetings in parallel
+  const deltaResult = await syncUserDelta(supabase, serviceRoleKey, integration, timeoutMs)
 
-      const last = state?.last_sync_completed_at ? new Date(state.last_sync_completed_at) : null
-      const ageHours = last ? (Date.now() - last.getTime()) / (1000 * 60 * 60) : Infinity
-      if (!isFinite(ageHours) || ageHours > 36) {
-        syncType = 'manual'
-      }
-    } catch {
-      // If we can't read sync state, default to incremental
-    }
-
-    const syncUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fathom-sync`
-    const syncResponse = await fetch(syncUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${serviceRoleKey}`,
-        'Content-Type': 'application/json',
+  if (deltaResult.success) {
+    return {
+      userId,
+      success: true,
+      syncType: 'delta',
+      syncResult: {
+        meetings_synced: deltaResult.meetings_synced,
+        total_meetings_found: deltaResult.meetings_found,
+        meetings_skipped: deltaResult.meetings_skipped,
       },
-      body: JSON.stringify({
-        sync_type: syncType,
-        user_id: userId,
-      }),
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeoutId)
-
-    if (!syncResponse.ok) {
-      const errorText = await syncResponse.text()
-      return { userId, success: false, syncType, error: `Sync failed (${syncResponse.status}): ${errorText}` }
+      startDate: deltaResult.startDate,
     }
+  }
 
-    const syncResult = await syncResponse.json()
-    return { userId, success: true, syncType, syncResult }
-  } catch (error) {
-    clearTimeout(timeoutId)
-    const errorMessage = error instanceof Error
-      ? (error.name === 'AbortError' ? 'Sync timed out' : error.message)
-      : 'Unknown error'
-    return { userId, success: false, syncType: 'incremental', error: errorMessage }
+  // Delta sync failed - return the error
+  return {
+    userId,
+    success: false,
+    syncType: 'delta',
+    error: deltaResult.error,
+    startDate: deltaResult.startDate,
   }
 }
 
@@ -101,9 +414,10 @@ async function processBatch(
 ): Promise<Array<{
   userId: string
   success: boolean
-  syncType: 'incremental' | 'manual'
+  syncType: 'delta' | 'incremental' | 'manual'
   syncResult?: any
   error?: string
+  startDate?: string
 }>> {
   const promises = batch.map(integration =>
     syncUserWithTimeout(supabase, serviceRoleKey, integration, timeoutMs)
@@ -151,10 +465,10 @@ serve(async (req) => {
 
     const serviceRoleKey = providedToken
 
-    // Fetch all active user integrations
+    // Fetch all active user integrations (need full token data for delta sync)
     const { data: userIntegrations, error: userIntegrationsError } = await supabase
       .from('fathom_integrations')
-      .select('id, user_id, fathom_user_email, token_expires_at')
+      .select('id, user_id, fathom_user_email, token_expires_at, access_token, refresh_token')
       .eq('is_active', true)
 
     if (userIntegrationsError) {
@@ -172,9 +486,11 @@ serve(async (req) => {
       skipped: 0, // Users skipped due to time budget
       details: [] as Array<{
         id: string
-        sync_type: 'incremental' | 'manual'
+        sync_type: 'delta' | 'incremental' | 'manual'
+        start_date: string
         meetings_synced: number
         total_meetings_found: number
+        meetings_skipped?: number
         errors_count: number
         errors_sample?: Array<{ call_id: string; error: string }>
       }>,
@@ -235,8 +551,10 @@ serve(async (req) => {
           results.details.push({
             id: result.userId,
             sync_type: result.syncType,
+            start_date: result.startDate || 'default',
             meetings_synced: Number(result.syncResult.meetings_synced || 0),
             total_meetings_found: Number(result.syncResult.total_meetings_found || 0),
+            meetings_skipped: Number(result.syncResult.meetings_skipped || 0),
             errors_count: Array.isArray(result.syncResult.errors) ? result.syncResult.errors.length : 0,
             errors_sample: Array.isArray(result.syncResult.errors) ? result.syncResult.errors.slice(0, 3) : undefined,
           })
