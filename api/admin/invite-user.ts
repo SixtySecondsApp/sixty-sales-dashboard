@@ -109,12 +109,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       }),
     });
 
-    const createdJson = await createUserResp.json().catch(() => null);
+    const createdJson = await createUserResp.json().catch(() => null) as { id?: string } | null;
     if (!createUserResp.ok) {
       return res.status(400).json({ error: 'Failed to create user', details: createdJson });
     }
 
-    const newUserId = createdJson?.id as string | undefined;
+    const newUserId = createdJson?.id;
     if (!newUserId) {
       return res.status(500).json({ error: 'User created but no id returned' });
     }
