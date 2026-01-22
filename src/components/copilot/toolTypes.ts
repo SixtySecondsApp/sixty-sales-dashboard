@@ -14,7 +14,8 @@ export type ToolType =
   | 'deal_health'
   | 'meeting_analysis'
   | 'roadmap_create'
-  | 'sales_coach';
+  | 'sales_coach'
+  | 'entity_resolution'; // Smart contact/person lookup by first name
 
 export type ToolState = 
   | 'pending'

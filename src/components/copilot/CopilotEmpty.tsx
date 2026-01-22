@@ -14,14 +14,14 @@ interface CopilotEmptyProps {
   onPromptClick: (prompt: string) => void;
 }
 
-// US-008: 4 suggested actions matching brief
+// US-008: 4 suggested actions matching brief with glassmorphic icons
 const suggestedActions = [
   {
     id: 'follow-up',
     icon: Mail,
     label: 'Draft a follow-up',
     desc: 'Post-meeting emails with context',
-    gradient: 'from-violet-500 to-purple-500',
+    iconColor: 'text-violet-400',
     prompt: 'Draft a follow-up email for my recent meeting',
   },
   {
@@ -29,7 +29,7 @@ const suggestedActions = [
     icon: Calendar,
     label: 'Prep for a meeting',
     desc: 'Briefing before your next call',
-    gradient: 'from-emerald-500 to-teal-500',
+    iconColor: 'text-emerald-400',
     prompt: 'Prepare me for my next meeting',
   },
   {
@@ -37,7 +37,7 @@ const suggestedActions = [
     icon: Target,
     label: 'What needs attention?',
     desc: 'Stale deals, overdue tasks',
-    gradient: 'from-pink-500 to-rose-500',
+    iconColor: 'text-pink-400',
     prompt: 'What deals or tasks need my attention today?',
   },
   {
@@ -45,7 +45,7 @@ const suggestedActions = [
     icon: RefreshCw,
     label: 'Catch me up',
     desc: 'Summary of recent activity',
-    gradient: 'from-indigo-500 to-blue-500',
+    iconColor: 'text-blue-400',
     prompt: 'Catch me up on recent activity and what I missed',
   },
 ];
@@ -109,12 +109,15 @@ export const CopilotEmpty: React.FC<CopilotEmptyProps> = ({ onPromptClick }) => 
             >
               <div
                 className={cn(
-                  'w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center mb-4',
-                  'shadow-lg group-hover:scale-110 transition-transform',
-                  action.gradient
+                  'w-12 h-12 rounded-xl flex items-center justify-center mb-4',
+                  'bg-white/5 dark:bg-white/[0.08] backdrop-blur-xl',
+                  'border border-gray-200/50 dark:border-white/10',
+                  'group-hover:bg-white/10 dark:group-hover:bg-white/[0.12]',
+                  'group-hover:border-gray-300/50 dark:group-hover:border-white/20',
+                  'group-hover:scale-110 transition-all shadow-lg shadow-black/5'
                 )}
               >
-                <action.icon className="w-6 h-6 text-white" />
+                <action.icon className={cn('w-6 h-6', action.iconColor)} />
               </div>
               <p className="font-semibold text-gray-900 dark:text-white mb-1 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
                 {action.label}

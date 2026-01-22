@@ -114,6 +114,13 @@ const toolConfig: Record<ToolType, ToolConfig> = {
     gradient: 'from-orange-500 via-orange-600 to-orange-700',
     iconColor: 'text-orange-400',
     glowColor: 'shadow-orange-500/20'
+  },
+  entity_resolution: {
+    icon: Users,
+    label: 'Finding Contact',
+    gradient: 'from-cyan-500 via-teal-500 to-emerald-600',
+    iconColor: 'text-cyan-400',
+    glowColor: 'shadow-cyan-500/20'
   }
 };
 

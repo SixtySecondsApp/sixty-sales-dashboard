@@ -79,6 +79,13 @@ function getStepsForTool(toolType: ToolType): Omit<ToolStep, 'id'>[] {
       { label: 'Comparing periods', icon: 'bar-chart', state: 'pending' },
       { label: 'Generating insights', icon: 'lightbulb', state: 'pending' },
       { label: 'Creating recommendations', icon: 'target', state: 'pending' }
+    ],
+    entity_resolution: [
+      { label: 'Searching CRM contacts', icon: 'users', state: 'pending' },
+      { label: 'Searching recent meetings', icon: 'calendar', state: 'pending' },
+      { label: 'Searching calendar events', icon: 'calendar', state: 'pending' },
+      { label: 'Searching recent emails', icon: 'mail', state: 'pending' },
+      { label: 'Resolving best match', icon: 'activity', state: 'pending' }
     ]
   };
 
