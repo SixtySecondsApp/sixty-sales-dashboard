@@ -18,13 +18,17 @@ This document is the practical "next stage" checklist to get the **MeetingBaaS (
 | Vault `service_role_key` | ✅ Set | Added to Vault for cron authentication |
 | MeetingBaaS Webhook URL | ✅ Configured | Webhook receiving events |
 
-### Staging (`caerqjzvuerejfrdtygb`)
+### Staging (`caerqjzvuerejfrdtygb`) - ⚠️ NEEDS SECRETS
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Migrations | ⬜ Pending | Run `./scripts/deploy-migrations.sh staging` |
-| Edge Functions | ⬜ Pending | Run `./scripts/deploy-functions-staging.sh` |
-| Secrets | ⬜ Pending | Configure all secrets listed below |
+| Migrations | ✅ Applied | All 3 MeetingBaaS migrations via MCP |
+| Edge Functions | ✅ Deployed | Critical 5 functions: deploy-recording-bot, meetingbaas-webhook, process-recording, generate-s3-video-thumbnail, auto-join-scheduler |
+| `MEETINGBAAS_API_KEY` | ⬜ Pending | Dashboard → Edge Functions → Secrets |
+| `MEETINGBAAS_WEBHOOK_SECRET` | ⬜ Pending | Dashboard → Edge Functions → Secrets |
+| AWS Secrets | ⬜ Pending | REGION, BUCKET, ACCESS_KEY, SECRET_KEY |
+| Vault `service_role_key` | ⬜ Pending | Dashboard → Settings → Vault |
+| MeetingBaaS Webhook URL | ⬜ Pending | Configure `https://caerqjzvuerejfrdtygb.supabase.co/functions/v1/meetingbaas-webhook` |
 
 ---
 
