@@ -48,13 +48,13 @@ export const Copilot: React.FC<CopilotProps> = ({
   onDraftEmail,
   initialQuery
 }) => {
-  const { messages, isLoading, sendMessage, cancelRequest, context } = useCopilot();
+  const { messages, isLoading, sendMessage, cancelRequest, context, conversationId, loadConversation, startNewChat, progressSteps } = useCopilot();
   const [inputValue, setInputValue] = useState(initialQuery || '');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { prompts: suggestedPrompts } = useDynamicPrompts(3);
 
-  // US-012: Fetch context data for right panel
-  const { contextItems } = useCopilotContextData();
+  // US-012: Fetch context data for right panel (US-006: includes summary counts)
+  const { contextItems, contextSummary, isLoading: isContextLoading } = useCopilotContextData();
 
   // Email action modal state
   const [emailModal, setEmailModal] = useState<EmailModalState>({
@@ -366,6 +366,20 @@ export const Copilot: React.FC<CopilotProps> = ({
         // Handle schedule call action
         logger.log('Schedule call action');
         break;
+      // US-010: Handle email tone change - regenerate email with new tone
+      case 'change_email_tone':
+        if (action.tone && action.context) {
+          const toneLabels: Record<string, string> = {
+            professional: 'professional',
+            friendly: 'friendly and warm',
+            concise: 'concise and brief'
+          };
+          const toneDescription = toneLabels[action.tone] || action.tone;
+          const contactName = action.context.contactName || 'the contact';
+          // Send a message to regenerate the email with the new tone
+          sendMessage(`Regenerate the email draft for ${contactName} with a ${toneDescription} tone`);
+        }
+        break;
       default:
         // Handle callback function if provided
         if (typeof action.callback === 'function') {
@@ -418,7 +432,18 @@ export const Copilot: React.FC<CopilotProps> = ({
   }, []);
 
   return (
-    <CopilotLayout rightPanel={<CopilotRightPanel contextItems={contextItems} isProcessing={isLoading} />}>
+    <CopilotLayout rightPanel={
+      <CopilotRightPanel
+        contextItems={contextItems}
+        contextSummary={contextSummary}
+        isContextLoading={isContextLoading}
+        progressSteps={progressSteps}
+        isProcessing={isLoading}
+        currentConversationId={conversationId}
+        onSelectConversation={loadConversation}
+        onNewConversation={startNewChat}
+      />
+    }>
       <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 flex flex-col min-h-0 overflow-hidden h-[calc(100dvh-var(--app-top-offset))]">
         <AssistantShell mode="page" />
 

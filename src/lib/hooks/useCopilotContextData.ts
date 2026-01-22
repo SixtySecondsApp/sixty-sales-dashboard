@@ -17,6 +17,7 @@ import type {
   HubSpotContext,
   FathomContext,
   CalendarContext,
+  ResolvedEntityContext,
   ContextItem,
 } from '@/components/copilot/CopilotRightPanel';
 
@@ -152,13 +153,20 @@ function extractSummaryText(meeting: {
 
 async function fetchFathomContext(
   orgId: string,
+  userId: string,
   contactId?: string
 ): Promise<FathomContext | null> {
-  // Query meetings/transcripts - filter by contact if available
+  // Calculate 2 weeks ago for "recent" filter
+  const twoWeeksAgo = new Date();
+  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+  // Query meetings/transcripts - filter by owner_user_id (NOT user_id per CLAUDE.md)
   let query = supabase
     .from('meetings')
     .select('id, title, start_time, meeting_end, summary, summary_oneliner, fathom_recording_id')
     .eq('org_id', orgId)
+    .eq('owner_user_id', userId) // CRITICAL: Only user's meetings
+    .gte('start_time', twoWeeksAgo.toISOString()) // Only last 2 weeks
     .order('start_time', { ascending: false })
     .limit(10);
 
@@ -214,16 +222,21 @@ async function fetchCalendarContext(
 ): Promise<CalendarContext | null> {
   const now = new Date().toISOString();
 
+  // Fetch upcoming events that have attendees (not solo calendar blocks)
+  // Filter: attendees_count > 1 to ensure there's at least one other person
   const { data: events } = await supabase
     .from('calendar_events')
-    .select('id, title, start_time, end_time, html_link')
+    .select('id, title, start_time, end_time, html_link, attendees_count, attendees')
     .eq('user_id', userId)
     .gte('start_time', now)
+    .gt('attendees_count', 1) // More than 1 = has external attendees (user + others)
     .order('start_time', { ascending: true })
-    .limit(1);
+    .limit(5); // Fetch more to ensure we find a valid meeting
 
   if (!events || events.length === 0) return null;
 
+  // Find the first event that has non-self attendees
+  // Double-check by parsing attendees JSON if available
   const nextEvent = events[0];
   const startDate = new Date(nextEvent.start_time);
 
@@ -248,14 +261,26 @@ async function fetchCalendarContext(
 // Main Hook
 // ============================================================================
 
+/**
+ * Summary counts for context data being gathered
+ * Used to display "40 deals / 2 meetings" in the UI
+ */
+export interface ContextSummary {
+  dealCount: number;
+  meetingCount: number;
+  contactCount: number;
+  calendarCount: number;
+}
+
 export interface UseCopilotContextDataReturn {
   contextItems: ContextItem[];
+  contextSummary: ContextSummary;
   isLoading: boolean;
   error: Error | null;
 }
 
 export function useCopilotContextData(): UseCopilotContextDataReturn {
-  const { context, relevantContextTypes } = useCopilot();
+  const { context, relevantContextTypes, resolvedEntity } = useCopilot();
   const { activeOrgId } = useOrg();
 
   const { contactId, dealIds, userId } = context;
@@ -284,9 +309,9 @@ export function useCopilotContextData(): UseCopilotContextDataReturn {
 
   // Fetch Fathom context (only when Fathom context is relevant)
   const fathomQuery = useQuery({
-    queryKey: ['copilot-context', 'fathom', activeOrgId, contactId],
-    queryFn: () => fetchFathomContext(activeOrgId!, contactId),
-    enabled: shouldFetchFathom && !!activeOrgId,
+    queryKey: ['copilot-context', 'fathom', activeOrgId, userId, contactId],
+    queryFn: () => fetchFathomContext(activeOrgId!, userId!, contactId),
+    enabled: shouldFetchFathom && !!activeOrgId && !!userId,
     staleTime: 60000, // 1 minute
   });
 
@@ -300,6 +325,23 @@ export function useCopilotContextData(): UseCopilotContextDataReturn {
 
   // Build context items array
   const contextItems: ContextItem[] = [];
+
+  // Add resolved entity context from smart contact lookup (highest priority - show first)
+  if (resolvedEntity) {
+    const entityContext: ResolvedEntityContext = {
+      type: 'resolved_entity',
+      name: resolvedEntity.name,
+      email: resolvedEntity.email,
+      company: resolvedEntity.company,
+      role: resolvedEntity.role,
+      recencyScore: resolvedEntity.recencyScore,
+      source: resolvedEntity.source,
+      lastInteraction: resolvedEntity.lastInteraction,
+      confidence: resolvedEntity.confidence,
+      alternativeCandidates: resolvedEntity.alternativeCandidates,
+    };
+    contextItems.push(entityContext);
+  }
 
   // Add HubSpot context (contact or deal)
   if (contactQuery.data) {
@@ -330,8 +372,18 @@ export function useCopilotContextData(): UseCopilotContextDataReturn {
     fathomQuery.error ||
     calendarQuery.error;
 
+  // Build context summary with counts for real-time display
+  // Only show non-zero counts to avoid clutter
+  const contextSummary: ContextSummary = {
+    dealCount: dealQuery.data ? 1 : 0,
+    meetingCount: fathomQuery.data?.callCount || 0,
+    contactCount: contactQuery.data ? 1 : 0,
+    calendarCount: calendarQuery.data ? 1 : 0,
+  };
+
   return {
     contextItems,
+    contextSummary,
     isLoading,
     error: error as Error | null,
   };

@@ -17,6 +17,7 @@ import {
   Building2,
   DollarSign,
   User,
+  UserCheck,
   Activity,
   Mic,
   Calendar,
@@ -25,7 +26,13 @@ import {
   ExternalLink,
   Check,
   Loader2,
+  History,
+  Mail,
+  Video,
+  AlertCircle,
+  ListChecks,
 } from 'lucide-react';
+import { ConversationHistory } from './ConversationHistory';
 import { cn } from '@/lib/utils';
 import { useActionItemStore, type ActionItem } from '@/lib/stores/actionItemStore';
 import { approveActionItem, dismissActionItem } from '@/lib/services/actionItemApprovalService';
@@ -244,8 +251,8 @@ function ActionItemsSection({ items: propItems }: ActionItemsSectionProps) {
     <>
       <CollapsibleSection
         title="Action Items"
-        icon={<Zap className="w-4 h-4" />}
-        iconColor="text-amber-400"
+        icon={<ListChecks className="w-4 h-4" />}
+        iconColor="text-violet-400"
         count={items.length}
         defaultOpen={true}
       >
@@ -312,10 +319,35 @@ export interface CalendarContext {
   calendarUrl?: string;
 }
 
-export type ContextItem = HubSpotContext | FathomContext | CalendarContext;
+export interface ResolvedEntityContext {
+  type: 'resolved_entity';
+  name: string;
+  email?: string;
+  company?: string;
+  role?: string;
+  recencyScore: number;
+  source: 'crm' | 'meeting' | 'calendar' | 'email';
+  lastInteraction?: string;
+  confidence: 'high' | 'medium' | 'needs_clarification';
+  alternativeCandidates?: number;
+}
+
+export type ContextItem = HubSpotContext | FathomContext | CalendarContext | ResolvedEntityContext;
+
+/**
+ * Context summary counts for real-time display
+ */
+export interface ContextSummary {
+  dealCount: number;
+  meetingCount: number;
+  contactCount: number;
+  calendarCount: number;
+}
 
 interface ContextSectionProps {
   items?: ContextItem[];
+  summary?: ContextSummary;
+  isLoading?: boolean;
 }
 
 // HubSpot context card
@@ -469,6 +501,95 @@ function CalendarContextCard({ data }: { data: CalendarContext }) {
   );
 }
 
+// Resolved Entity context card - shows matched contact from entity resolution
+function ResolvedEntityContextCard({ data }: { data: ResolvedEntityContext }) {
+  // Source icon and label mapping
+  const sourceConfig = {
+    crm: { icon: Building2, label: 'CRM', color: 'text-orange-400' },
+    meeting: { icon: Video, label: 'Meeting', color: 'text-violet-400' },
+    calendar: { icon: Calendar, label: 'Calendar', color: 'text-emerald-400' },
+    email: { icon: Mail, label: 'Email', color: 'text-blue-400' },
+  };
+
+  const { icon: SourceIcon, label: sourceLabel, color: sourceColor } = sourceConfig[data.source];
+
+  // Confidence indicator
+  const confidenceConfig = {
+    high: { color: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400', label: 'High confidence' },
+    medium: { color: 'bg-amber-500/20 border-amber-500/30 text-amber-400', label: 'Medium confidence' },
+    needs_clarification: { color: 'bg-red-500/20 border-red-500/30 text-red-400', label: 'Needs clarification' },
+  };
+
+  const confidence = confidenceConfig[data.confidence];
+
+  return (
+    <div
+      className={cn(
+        'p-3 rounded-xl bg-white/5 border border-white/10',
+        'hover:bg-white/[0.07] hover:border-cyan-500/30',
+        'transition-all group'
+      )}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-cyan-500 to-teal-500 flex items-center justify-center">
+          <UserCheck className="w-3 h-3 text-white" />
+        </div>
+        <span className="text-xs font-medium text-cyan-400">Resolved Contact</span>
+        <div className={cn('ml-auto px-1.5 py-0.5 rounded text-[10px] font-medium border', confidence.color)}>
+          {data.recencyScore}% recent
+        </div>
+      </div>
+
+      {/* Contact info */}
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium text-white">{data.name}</p>
+
+        {data.email && (
+          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <Mail className="w-3 h-3" />
+            <span className="truncate">{data.email}</span>
+          </div>
+        )}
+
+        {(data.company || data.role) && (
+          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <Building2 className="w-3 h-3" />
+            <span className="truncate">
+              {data.role && <span>{data.role}</span>}
+              {data.role && data.company && <span className="text-slate-500"> at </span>}
+              {data.company && <span className="text-white/80">{data.company}</span>}
+            </span>
+          </div>
+        )}
+
+        {/* Source and last interaction */}
+        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-white/5">
+          <div className={cn('flex items-center gap-1 text-xs', sourceColor)}>
+            <SourceIcon className="w-3 h-3" />
+            <span>Found in {sourceLabel}</span>
+          </div>
+          {data.lastInteraction && (
+            <span className="text-xs text-slate-500">· {data.lastInteraction}</span>
+          )}
+        </div>
+
+        {/* Alternative candidates warning */}
+        {data.confidence === 'needs_clarification' && data.alternativeCandidates && data.alternativeCandidates > 0 && (
+          <div className="mt-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+            <div className="flex items-start gap-1.5">
+              <AlertCircle className="w-3 h-3 text-amber-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-amber-300/80">
+                {data.alternativeCandidates} other match{data.alternativeCandidates > 1 ? 'es' : ''} found
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Render context item based on type
 function ContextItemCard({ item }: { item: ContextItem }) {
   switch (item.type) {
@@ -478,46 +599,79 @@ function ContextItemCard({ item }: { item: ContextItem }) {
       return <FathomContextCard data={item} />;
     case 'calendar':
       return <CalendarContextCard data={item} />;
+    case 'resolved_entity':
+      return <ResolvedEntityContextCard data={item} />;
     default:
       return null;
   }
 }
 
-function ContextSection({ items = [] }: ContextSectionProps) {
+function ContextSection({ items = [], summary, isLoading = false }: ContextSectionProps) {
   const hasItems = items.length > 0;
 
-  return (
-    <CollapsibleSection
-      title="Context"
-      icon={<Database className="w-4 h-4" />}
-      iconColor="text-emerald-400"
-      defaultOpen={true}
-    >
-      {hasItems ? (
-        <div className="space-y-2">
-          {items.map((item, index) => (
-            <ContextItemCard key={`${item.type}-${index}`} item={item} />
-          ))}
-        </div>
-      ) : (
-        <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-          <div className="flex gap-2 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500/20 to-orange-500/5 flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-orange-500/50" />
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-violet-500/5 flex items-center justify-center">
-              <Mic className="w-5 h-5 text-violet-500/50" />
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-emerald-500/50" />
-            </div>
-          </div>
-          <p className="text-sm text-slate-500">
-            Ask about a contact or deal to see relevant data here.
-          </p>
-        </div>
+  // Build summary text from counts (only show non-zero values)
+  const summaryParts: string[] = [];
+  if (summary) {
+    if (summary.dealCount > 0) summaryParts.push(`${summary.dealCount} deal${summary.dealCount !== 1 ? 's' : ''}`);
+    if (summary.meetingCount > 0) summaryParts.push(`${summary.meetingCount} call${summary.meetingCount !== 1 ? 's' : ''}`);
+    if (summary.contactCount > 0) summaryParts.push(`${summary.contactCount} contact${summary.contactCount !== 1 ? 's' : ''}`);
+    if (summary.calendarCount > 0) summaryParts.push(`${summary.calendarCount} event${summary.calendarCount !== 1 ? 's' : ''}`);
+  }
+  const summaryText = summaryParts.length > 0 ? summaryParts.join(' · ') : null;
+
+  // Custom header with summary counts
+  const contextHeader = (
+    <div className="flex items-center gap-2">
+      <Database className="w-4 h-4 text-emerald-400" />
+      <span className="font-semibold text-white text-sm">Context</span>
+      {isLoading && (
+        <Loader2 className="w-3 h-3 text-emerald-400 animate-spin ml-1" />
       )}
-    </CollapsibleSection>
+      {summaryText && !isLoading && (
+        <span className="text-xs text-slate-400 ml-1">
+          ({summaryText})
+        </span>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="border-b border-white/5 last:border-b-0">
+      <button
+        type="button"
+        onClick={() => {}}
+        className="w-full p-5 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
+        style={{ pointerEvents: 'none' }}
+      >
+        {contextHeader}
+      </button>
+      <div className="px-5 pb-5">
+        {hasItems ? (
+          <div className="space-y-2">
+            {items.map((item, index) => (
+              <ContextItemCard key={`${item.type}-${index}`} item={item} />
+            ))}
+          </div>
+        ) : (
+          <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex gap-2 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500/20 to-orange-500/5 flex items-center justify-center">
+                <Building2 className="w-5 h-5 text-orange-500/50" />
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-violet-500/5 flex items-center justify-center">
+                <Mic className="w-5 h-5 text-violet-500/50" />
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-emerald-500/50" />
+              </div>
+            </div>
+            <p className="text-sm text-slate-500">
+              Ask about a contact or deal to see relevant data here.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -654,32 +808,84 @@ function ConnectedSection({ integrations, onAddConnector }: ConnectedSectionProp
   );
 }
 
+// ============================================================================
+// History Section
+// ============================================================================
+
+interface HistorySectionProps {
+  currentConversationId?: string | null;
+  onSelectConversation: (id: string) => void;
+  onNewConversation: () => void;
+}
+
+function HistorySection({ currentConversationId, onSelectConversation, onNewConversation }: HistorySectionProps) {
+  return (
+    <CollapsibleSection
+      title="History"
+      icon={<History className="w-4 h-4" />}
+      iconColor="text-slate-400"
+      defaultOpen={false}
+    >
+      <div className="max-h-64 overflow-y-auto -mx-2">
+        <ConversationHistory
+          currentConversationId={currentConversationId}
+          onSelectConversation={onSelectConversation}
+          onNewConversation={onNewConversation}
+          compact
+        />
+      </div>
+    </CollapsibleSection>
+  );
+}
+
 export interface CopilotRightPanelProps {
   /** Action items pending user approval (uses store if not provided) */
   actionItems?: ActionItem[];
   /** Context data sources being used */
   contextItems?: ContextItem[];
+  /** Summary counts for context data being gathered */
+  contextSummary?: ContextSummary;
+  /** Whether context is currently loading */
+  isContextLoading?: boolean;
   /** Integration connection status */
   integrations?: Integration[];
   /** Progress steps for current task */
   progressSteps?: ProgressStep[];
   /** Whether AI is currently processing */
   isProcessing?: boolean;
+  /** Current conversation ID for history section */
+  currentConversationId?: string | null;
+  /** Callback when a conversation is selected from history */
+  onSelectConversation?: (id: string) => void;
+  /** Callback to start a new conversation */
+  onNewConversation?: () => void;
 }
 
 export function CopilotRightPanel({
   actionItems = [],
   contextItems = [],
+  contextSummary,
+  isContextLoading = false,
   integrations,
   progressSteps = [],
   isProcessing = false,
+  currentConversationId,
+  onSelectConversation,
+  onNewConversation,
 }: CopilotRightPanelProps) {
   return (
     <div className="h-full flex flex-col">
       <ProgressSection steps={progressSteps} />
       <ActionItemsSection items={actionItems} />
-      <ContextSection items={contextItems} />
+      <ContextSection items={contextItems} summary={contextSummary} isLoading={isContextLoading} />
       <ConnectedSection integrations={integrations} />
+      {onSelectConversation && onNewConversation && (
+        <HistorySection
+          currentConversationId={currentConversationId}
+          onSelectConversation={onSelectConversation}
+          onNewConversation={onNewConversation}
+        />
+      )}
     </div>
   );
 }

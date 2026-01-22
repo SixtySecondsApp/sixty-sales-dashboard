@@ -62,6 +62,22 @@ interface AgentModeState {
 // Context types that can be fetched for the right panel
 export type ContextDataType = 'hubspot' | 'fathom' | 'calendar';
 
+// Resolved entity data from resolve_entity tool - smart contact lookup
+export interface ResolvedEntityData {
+  name: string;
+  email?: string;
+  company?: string;
+  role?: string;
+  recencyScore: number;
+  source: 'crm' | 'meeting' | 'calendar' | 'email';
+  lastInteraction?: string;
+  confidence: 'high' | 'medium' | 'needs_clarification';
+  alternativeCandidates?: number;
+}
+
+// Import ProgressStep type from CopilotRightPanel (US-007)
+import type { ProgressStep } from '@/components/copilot/CopilotRightPanel';
+
 interface CopilotContextValue {
   // Core state
   isOpen: boolean;
@@ -77,8 +93,14 @@ interface CopilotContextValue {
   conversationId?: string;
   loadConversation: (conversationId: string) => Promise<void>;
 
+  // Progress steps for right panel (US-007)
+  progressSteps: ProgressStep[];
+
   // Context panel data control
   relevantContextTypes: ContextDataType[];
+
+  // Resolved entity from smart contact lookup
+  resolvedEntity: ResolvedEntityData | null;
 
   // Agent mode
   agentMode: AgentModeState;
@@ -117,6 +139,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
   });
   const [pendingQuery, setPendingQuery] = useState<{ query: string; startNewChat: boolean } | null>(null);
   const [relevantContextTypes, setRelevantContextTypes] = useState<ContextDataType[]>([]);
+  const [resolvedEntity, setResolvedEntity] = useState<ResolvedEntityData | null>(null);
 
   // =============================================================================
   // Agent Mode State
@@ -216,6 +239,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
 
     // Clear context panel data
     setRelevantContextTypes([]);
+    setResolvedEntity(null);
 
     // Reset agent state if in agent mode
     if (agentModeEnabled) {
@@ -330,6 +354,8 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
   const createToolCallFromTelemetry = useCallback((executions: ToolExecutionDetail[]): ToolCall => {
     // Map capability to tool type
     const capabilityToToolType = (capability?: string, toolName?: string): ToolType => {
+      // Entity resolution tool - smart contact lookup
+      if (toolName === 'resolve_entity') return 'entity_resolution';
       if (capability === 'crm') return 'pipeline_data';
       if (capability === 'calendar') return 'calendar_search';
       if (capability === 'email') {
@@ -353,6 +379,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         email: 'Email',
         meetings: 'Meetings',
         messaging: 'Messaging',
+        entity_resolution: 'Finding Contact',
       };
       return labels[capability || ''] || 'Tool';
     };
@@ -780,6 +807,45 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         if (response.tool_executions && response.tool_executions.length > 0) {
           realToolCall = createToolCallFromTelemetry(response.tool_executions);
           logger.log('🔧 Created tool call from telemetry:', { toolCall: realToolCall, executions: response.tool_executions });
+
+          // Check for resolve_entity tool results to update context panel
+          const entityResolution = response.tool_executions.find(
+            (exec: ToolExecutionDetail) => exec.toolName === 'resolve_entity' && exec.success
+          );
+          if (entityResolution?.result) {
+            const result = entityResolution.result;
+            // Only update if we have a resolved match (not needs_clarification)
+            if (result.status === 'resolved' && result.match) {
+              const match = result.match;
+              setResolvedEntity({
+                name: match.name,
+                email: match.email,
+                company: match.company,
+                role: match.role,
+                recencyScore: match.recencyScore || 0,
+                source: match.source || 'crm',
+                lastInteraction: match.lastInteraction,
+                confidence: 'high',
+                alternativeCandidates: 0,
+              });
+              logger.log('🎯 Resolved entity for context panel:', match.name);
+            } else if (result.status === 'needs_clarification' && result.candidates?.length > 0) {
+              // Show the top candidate but mark as needs clarification
+              const topCandidate = result.candidates[0];
+              setResolvedEntity({
+                name: topCandidate.name,
+                email: topCandidate.email,
+                company: topCandidate.company,
+                role: topCandidate.role,
+                recencyScore: topCandidate.recencyScore || 0,
+                source: topCandidate.source || 'crm',
+                lastInteraction: topCandidate.lastInteraction,
+                confidence: 'needs_clarification',
+                alternativeCandidates: result.candidates.length - 1,
+              });
+              logger.log('⚠️ Entity needs clarification, showing top candidate:', topCandidate.name);
+            }
+          }
         }
 
         // Update AI message with actual response
@@ -810,10 +876,17 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
           };
         });
       } catch (error) {
-        logger.error('Error sending message to Copilot:', error);
+        logger.error('❌ Error sending message to Copilot:', error);
 
         const rawMessage =
           error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error';
+
+        // Enhanced debugging in development
+        if (import.meta.env.DEV) {
+          console.error('[Copilot Debug] Full error:', error);
+          console.error('[Copilot Debug] Raw message:', rawMessage);
+          console.error('[Copilot Debug] Error type:', error?.constructor?.name);
+        }
 
         // Categorize errors for better user feedback
         const errorCategories = {
@@ -855,10 +928,15 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         };
 
         // Helpful dev-only toast so we don't silently fail with a generic message during local dev.
-        if (import.meta.env.DEV && errorCategories.cors.test(rawMessage)) {
-          toast.error(
-            'Copilot request blocked (likely CORS / Edge Function preflight). Re-deploy with verify_jwt=false for api-copilot and allow localhost:5175.'
-          );
+        if (import.meta.env.DEV) {
+          if (errorCategories.cors.test(rawMessage)) {
+            toast.error(
+              'Copilot request blocked (likely CORS / Edge Function preflight). Re-deploy with verify_jwt=false for api-copilot and allow localhost:5175.'
+            );
+          } else {
+            // Show the actual error in dev mode for debugging
+            toast.error(`[DEV] Copilot error: ${rawMessage.slice(0, 150)}`);
+          }
         }
 
         // Update the existing assistant message with error and remove tool call
@@ -882,7 +960,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         });
       }
     },
-    [context, state.conversationId, state.isLoading, detectToolType, createToolCall, agentModeEnabled, agent]
+    [context, state.conversationId, state.isLoading, detectToolType, createToolCall, detectRelevantContextTypes, agentModeEnabled, agent]
   );
 
   // Handle pending queries from openCopilot
@@ -945,6 +1023,27 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
   const activeMessages = agentModeEnabled ? agent.messages : state.messages;
   const activeIsLoading = agentModeEnabled ? agent.isProcessing : state.isLoading;
 
+  // US-007: Derive progress steps from the latest message's toolCall
+  // This shows real-time progress in the right panel Progress section
+  const progressSteps: ProgressStep[] = React.useMemo(() => {
+    // Find the latest assistant message with a toolCall
+    for (let i = activeMessages.length - 1; i >= 0; i--) {
+      const msg = activeMessages[i];
+      if (msg.role === 'assistant' && msg.toolCall?.steps?.length) {
+        return msg.toolCall.steps.map((step, idx) => ({
+          id: idx + 1,
+          label: step.label,
+          status: step.state === 'complete'
+            ? 'complete' as const
+            : step.state === 'active'
+              ? 'active' as const
+              : 'pending' as const
+        }));
+      }
+    }
+    return [];
+  }, [activeMessages]);
+
   const value: CopilotContextValue = {
     // Core state
     isOpen,
@@ -960,8 +1059,14 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     conversationId: state.conversationId,
     loadConversation,
 
+    // Progress steps for right panel (US-007)
+    progressSteps,
+
     // Context panel data control
     relevantContextTypes,
+
+    // Resolved entity from smart contact lookup
+    resolvedEntity,
 
     // Agent mode
     agentMode,
