@@ -9,8 +9,12 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { hmacSha256Hex } from '../lib/signing';
-import { withOtel } from '../lib/withOtel';
+import * as crypto from 'node:crypto';
+
+// Inline signing function - Vercel doesn't bundle shared modules properly
+function hmacSha256Hex(secret: string, payload: string): string {
+  return crypto.createHmac('sha256', secret).update(payload, 'utf8').digest('hex');
+}
 
 function getHeader(req: VercelRequest, name: string): string | null {
   const v = (req.headers as any)[name.toLowerCase()];
@@ -166,4 +170,4 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-export default withOtel('api.webhooks.fathom', handler);
+export default handler;
