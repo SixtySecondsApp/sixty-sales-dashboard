@@ -21,23 +21,63 @@ interface SequenceStep {
   requires_approval?: boolean; // For write actions that need approval
 }
 
-function resolveExpression(expr: unknown, state: Record<string, unknown>): unknown {
-  if (typeof expr !== 'string') return expr;
-
-  const match = expr.match(/^\$\{(.+)\}$/);
-  if (!match) return expr;
-
+/**
+ * Resolve a single variable path like "outputs.lead_data.leads[0].contact.name"
+ * Returns the resolved value or undefined if path not found
+ */
+function resolvePath(path: string, state: Record<string, unknown>): unknown {
   // Normalize array indices: foo[0].bar -> foo.0.bar
-  const normalized = match[1].replace(/\[(\d+)\]/g, '.$1');
+  const normalized = path.replace(/\[(\d+)\]/g, '.$1');
   const parts = normalized.split('.').filter(Boolean);
 
-  let value: any = state;
+  let value: unknown = state;
   for (const key of parts) {
     if (value === null || value === undefined) return undefined;
     if (typeof value !== 'object') return undefined;
-    value = (value as any)[key];
+    value = (value as Record<string, unknown>)[key];
   }
   return value;
+}
+
+/**
+ * Resolve template expressions in a string
+ * Supports both:
+ * - Full variable: "${outputs.foo}" -> returns the actual value (can be object/array)
+ * - Embedded variables: "Hello ${outputs.name}!" -> returns interpolated string
+ */
+function resolveExpression(expr: unknown, state: Record<string, unknown>): unknown {
+  if (typeof expr !== 'string') return expr;
+
+  // Check for full variable match (entire string is one variable)
+  const fullMatch = expr.match(/^\$\{(.+)\}$/);
+  if (fullMatch) {
+    // Return the actual value (preserves type: object, array, number, etc.)
+    return resolvePath(fullMatch[1], state);
+  }
+
+  // Check for embedded variables in string
+  const varPattern = /\$\{([^}]+)\}/g;
+  if (!varPattern.test(expr)) {
+    return expr; // No variables to interpolate
+  }
+
+  // Reset regex lastIndex after test()
+  varPattern.lastIndex = 0;
+
+  // Interpolate all embedded variables
+  const result = expr.replace(varPattern, (_match, path) => {
+    const value = resolvePath(path, state);
+    if (value === undefined || value === null) {
+      return ''; // Replace unresolved variables with empty string
+    }
+    if (typeof value === 'object') {
+      // For objects/arrays in embedded context, stringify them
+      return JSON.stringify(value);
+    }
+    return String(value);
+  });
+
+  return result;
 }
 
 function buildStepInput(step: SequenceStep, state: Record<string, unknown>): Record<string, unknown> {

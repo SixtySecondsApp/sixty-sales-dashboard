@@ -2,8 +2,8 @@
 
 /**
  * Copilot API Edge Function
- * 
- * Provides AI Copilot functionality with Claude Sonnet 4:
+ *
+ * Provides AI Copilot functionality with Google Gemini Flash:
  * - POST /api-copilot/chat - Main chat endpoint
  * - POST /api-copilot/actions/draft-email - Email draft endpoint
  * - GET /api-copilot/conversations/:id - Fetch conversation history
@@ -26,8 +26,16 @@ import { logAICostEvent, extractAnthropicUsage } from '../_shared/costTracking.t
 import { executeAction } from '../_shared/copilot_adapters/executeAction.ts'
 import type { ExecuteActionName } from '../_shared/copilot_adapters/types.ts'
 
+// Gemini API configuration (replacing Claude for copilot chat)
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') ?? Deno.env.get('GOOGLE_GEMINI_API_KEY') ?? ''
+const GEMINI_MODEL = Deno.env.get('GEMINI_FLASH_MODEL') ?? Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash'
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
+
+// Legacy Anthropic config (kept for reference/fallback)
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
-const ANTHROPIC_VERSION = '2023-06-01' // API version for tool calling
+const ANTHROPIC_VERSION = '2023-06-01'
+const ANTHROPIC_VERSION_TOOLS = '2024-04-04'
+
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID') || ''
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') || ''
 
@@ -659,12 +667,12 @@ async function handleChat(
       // Continue with empty context if buildContext fails
     }
 
-    // Call Claude API with tool support (skip if performance query)
-    const claudeStartTime = Date.now()
+    // Call Gemini API with function calling support (skip if performance query)
+    const geminiStartTime = Date.now()
     if (!shouldSkipClaude) {
-      console.log('[CLAUDE] Calling Claude API (not a performance query)')
+      console.log('[GEMINI] Calling Gemini API (not a performance query)')
       try {
-        aiResponse = await callClaudeAPI(
+        aiResponse = await callGeminiAPI(
           body.message,
           formattedMessages,
           context,
@@ -673,8 +681,8 @@ async function handleChat(
           body.context?.orgId ? String(body.context.orgId) : null,
           analyticsData // Pass analytics data to track tool usage
         )
-        analyticsData.claude_api_time_ms = Date.now() - claudeStartTime
-        console.log('[CLAUDE] Claude API response received:', {
+        analyticsData.claude_api_time_ms = Date.now() - geminiStartTime // Keep field name for analytics compatibility
+        console.log('[GEMINI] Gemini API response received:', {
           contentLength: aiResponse.content?.length || 0,
           hasRecommendations: !!aiResponse.recommendations?.length,
           toolsUsed: aiResponse.tools_used || []
@@ -684,12 +692,12 @@ async function handleChat(
       if (aiResponse.usage) {
         analyticsData.input_tokens = aiResponse.usage.input_tokens || 0
         analyticsData.output_tokens = aiResponse.usage.output_tokens || 0
-        // Estimate cost: Haiku 4.5 pricing (approximate)
-        // Input: $0.25 per 1M tokens, Output: $1.25 per 1M tokens
-        const inputCost = (analyticsData.input_tokens / 1_000_000) * 0.25
-        const outputCost = (analyticsData.output_tokens / 1_000_000) * 1.25
+        // Estimate cost: Gemini Flash pricing (approximate)
+        // Input: $0.075 per 1M tokens, Output: $0.30 per 1M tokens
+        const inputCost = (analyticsData.input_tokens / 1_000_000) * 0.075
+        const outputCost = (analyticsData.output_tokens / 1_000_000) * 0.30
         analyticsData.estimated_cost_cents = (inputCost + outputCost) * 100
-        
+
         // Log cost event for tracking
         try {
           // Get user's org_id
@@ -700,15 +708,15 @@ async function handleChat(
             .order('created_at', { ascending: true })
             .limit(1)
             .single()
-          
+
           if (membership?.org_id && aiResponse.usage.input_tokens && aiResponse.usage.output_tokens) {
             // Use the cost tracking helper function
             await logAICostEvent(
               client,
               userId,
               membership.org_id,
-              'anthropic',
-              'claude-haiku-4-5', // Copilot uses Haiku 4.5
+              'google',
+              GEMINI_MODEL, // Copilot uses Gemini Flash
               aiResponse.usage.input_tokens,
               aiResponse.usage.output_tokens,
               'copilot',
@@ -1243,7 +1251,7 @@ async function handleTestSkill(
 
     const message = messageParts.join('\n')
 
-    const aiResponse = await callClaudeAPI(message, [], '', client, userId, null)
+    const aiResponse = await callGeminiAPI(message, [], '', client, userId, null)
 
     // Post-process output to strip AI preamble/narration
     const cleanedOutput = stripSkillTestPreamble(aiResponse.content)
@@ -1593,7 +1601,20 @@ ${context.lastMeeting.actionItems?.length > 0 ? `- Pending Action Items:\n${cont
     ? `Recent Activity:\n${context.recentActivities.map((a: any) => `- ${a.type}: ${a.notes || 'N/A'} on ${new Date(a.date).toLocaleDateString()}`).join('\n')}\n`
     : ''
 
+  // Get current date for accurate date references in email
+  const today = new Date()
+  const dateOptions: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }
+  const currentDateStr = today.toLocaleDateString('en-US', dateOptions)
+
   const prompt = `You are drafting a professional follow-up email to progress a sales deal.
+
+TODAY'S DATE: ${currentDateStr}
+Use this date when making any date references like "tomorrow", "next week", "this Friday", etc.
 
 Deal: ${context.deal.name} (${context.deal.value ? `$${context.deal.value}` : 'Value TBD'})
 Contact: ${context.contact.name} at ${context.contact.company}
@@ -2407,6 +2428,43 @@ const AVAILABLE_TOOLS = [
         limit: { type: 'number', default: 10, description: 'Maximum number of messages to return (max 20)' }
       }
     }
+  },
+  // Entity Resolution Tool - Smart contact/person lookup by first name
+  {
+    name: 'resolve_entity',
+    description: `Intelligently resolve a person mentioned by first name (or partial name) to a specific contact by searching across ALL data sources in parallel. Use this FIRST when the user mentions someone by name without full context.
+
+WHEN TO USE:
+- User asks about "Stan" or "John" without providing email or ID
+- User references someone from a recent conversation/meeting
+- Any ambiguous person reference that needs resolution
+
+SEARCHES (in parallel):
+1. CRM contacts - first_name, last_name matches
+2. Recent meetings - attendee names and emails
+3. Calendar events - attendee names and emails
+4. Recent emails - from/to addresses matching the name
+
+RETURNS:
+- If ONE clear match (most recent interaction): Returns resolved contact with full context
+- If MULTIPLE matches: Returns candidates ranked by recency with disambiguation options
+- If NO matches: Returns helpful message suggesting more context
+
+Always use this before asking the user "which person do you mean?" - let the data answer first.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'First name or partial name to search for (e.g., "Stan", "John Smith")'
+        },
+        context_hint: {
+          type: 'string',
+          description: 'Optional context from user message to help disambiguate (e.g., "meeting yesterday", "deal", "email")'
+        }
+      },
+      required: ['name']
+    }
   }
 ]
 
@@ -2419,6 +2477,41 @@ const AVAILABLE_TOOLS = [
  * - execute_action: fetch data / perform actions through adapters
  */
 const SKILLS_ROUTER_TOOLS = [
+  // ⚠️ RESOLVE_ENTITY MUST BE FIRST - For first-name-only person references
+  {
+    name: 'resolve_entity',
+    description: `🔴 USE THIS TOOL FIRST when user mentions a person by first name only (e.g., "Stan", "John", "Sarah").
+
+DO NOT ask for clarification first. Call this tool IMMEDIATELY with the name.
+
+TRIGGERS (call this tool when user says):
+- "What did Stan say about..." → resolve_entity(name="Stan")
+- "Tell me about John's deal" → resolve_entity(name="John")
+- "Catch me up on Sarah" → resolve_entity(name="Sarah")
+- Any first-name-only reference
+
+SEARCHES (in parallel, fast):
+- CRM contacts by first_name
+- Recent meetings (attendees from last 30 days)
+- Calendar events (attendees)
+- Recent emails (from/to names)
+
+RETURNS ranked candidates by recency. If ONE clear match → proceed. If MULTIPLE close matches → ask user to confirm.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'First name or partial name to search for'
+        },
+        context_hint: {
+          type: 'string',
+          description: 'Optional context to help disambiguate'
+        }
+      },
+      required: ['name']
+    }
+  },
   {
     name: 'list_skills',
     description: 'List available compiled skills for the user’s organization (optionally filtered by category).',
@@ -2459,11 +2552,13 @@ const SKILLS_ROUTER_TOOLS = [
     name: 'execute_action',
     description: `Execute an action to fetch CRM data, meetings, emails, pipeline intelligence, or send notifications.
 
+⚠️ IMPORTANT: If you only have a FIRST NAME (e.g., "Stan", "John"), use the resolve_entity tool instead!
+
 ACTION PARAMETERS:
 
 ## Contact & Lead Lookup
-• get_contact: { email?, name?, id? } - Search contacts by email (preferred), name, or id
-• get_lead: { email?, name?, contact_id?, date_from?, date_to?, date_field? } - Get lead/prospect data including SavvyCal bookings, enrichment data, prep_summary, custom form fields, AND AI-generated insights. date_field: "created_at"|"meeting_start" (default: "created_at"). Use date_from/date_to for queries like "leads from today".
+• get_contact: { email?, full_name?, id? } - Search contacts by email (REQUIRED if available), full name (first AND last), or id. ⚠️ For FIRST-NAME-ONLY queries, use the resolve_entity tool instead!
+• get_lead: { email?, full_name?, contact_id?, date_from?, date_to?, date_field? } - Get lead/prospect data including SavvyCal bookings, enrichment data, prep_summary, custom form fields, AND AI-generated insights. date_field: "created_at"|"meeting_start" (default: "created_at"). Use date_from/date_to for queries like "leads from today". ⚠️ For FIRST-NAME-ONLY queries, use resolve_entity first!
 
 ## Deal & Pipeline
 • get_deal: { name?, id?, close_date_from?, close_date_to?, status?, stage_id?, include_health?, limit? } - Search deals with optional date range and health data. include_health=true adds health_status, risk_level, days_since_last_activity.
@@ -2601,11 +2696,494 @@ Write actions require params.confirm=true.`,
       },
       required: ['action', 'params'],
     },
-  },
+  }
 ]
 
 /**
- * Call Claude API for chat response with tool support
+ * Convert Anthropic tool format to Gemini function declaration format
+ */
+function convertToGeminiFunctionDeclarations(anthropicTools: any[]): any[] {
+  return anthropicTools.map(tool => ({
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.input_schema
+  }))
+}
+
+// Gemini function declarations (converted from SKILLS_ROUTER_TOOLS)
+const GEMINI_FUNCTION_DECLARATIONS = convertToGeminiFunctionDeclarations(SKILLS_ROUTER_TOOLS)
+
+/**
+ * Parse Gemini JSON response robustly (handles markdown fences, malformed JSON)
+ */
+function parseGeminiJSONResponse(text: string): any {
+  const jsonMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/)
+  let jsonString = jsonMatch ? jsonMatch[1] : text
+
+  if (!jsonString.trim().startsWith('{')) {
+    const objectMatch = jsonString.match(/\{[\s\S]*\}/)
+    if (objectMatch) jsonString = objectMatch[0]
+  }
+
+  jsonString = jsonString.trim()
+  const firstBrace = jsonString.indexOf('{')
+  const lastBrace = jsonString.lastIndexOf('}')
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    jsonString = jsonString.substring(firstBrace, lastBrace + 1)
+  }
+
+  try {
+    return JSON.parse(jsonString)
+  } catch (_err) {
+    // Repair pass for malformed JSON
+    let repaired = jsonString
+    let inString = false
+    let escapeNext = false
+    const out: string[] = []
+
+    for (let i = 0; i < repaired.length; i++) {
+      const ch = repaired[i]
+      if (escapeNext) { out.push(ch); escapeNext = false; continue }
+      if (ch === '\\') { out.push(ch); escapeNext = true; continue }
+      if (ch === '"') { inString = !inString; out.push(ch); continue }
+      if (inString) {
+        if (ch === '\n' || ch === '\r') out.push('\\n')
+        else if (ch === '\t') out.push('\\t')
+        else out.push(ch)
+      } else {
+        out.push(ch)
+      }
+    }
+    if (inString) out.push('"')
+    repaired = out.join('')
+    repaired = repaired.replace(/,(\s*[}\]])/g, '$1') // remove trailing commas
+    return JSON.parse(repaired)
+  }
+}
+
+/**
+ * Call Gemini API for chat response with function calling support
+ * Replaces callClaudeAPI for the copilot chat
+ */
+async function callGeminiAPI(
+  message: string,
+  history: CopilotMessage[],
+  context: string,
+  client: any,
+  userId: string,
+  orgId: string | null,
+  analyticsData?: any
+): Promise<{
+  content: string;
+  recommendations?: any[];
+  usage?: { input_tokens: number; output_tokens: number };
+  tools_used?: string[];
+  tool_iterations?: number;
+  tools_success_count?: number;
+  tools_error_count?: number;
+  tool_execution_time_ms?: number;
+  tool_executions?: ToolExecutionDetail[];
+}> {
+  if (!GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY not configured')
+  }
+
+  // Build system instruction and messages for Gemini
+  let companyName = 'your company'
+  let availableSkills: { skill_key: string; name: string; category: string }[] = []
+
+  try {
+    let resolvedOrgId = orgId
+    if (!resolvedOrgId) {
+      const { data: membership } = await client
+        .from('organization_memberships')
+        .select('org_id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      resolvedOrgId = membership?.org_id ? String(membership.org_id) : null
+    }
+
+    if (resolvedOrgId) {
+      const { data: orgCompanyName } = await client
+        .from('organization_context')
+        .select('value')
+        .eq('organization_id', resolvedOrgId)
+        .eq('context_key', 'company_name')
+        .maybeSingle()
+
+      const ctxName = orgCompanyName?.value
+      if (typeof ctxName === 'string' && ctxName.trim()) {
+        companyName = ctxName.trim()
+      } else if (ctxName && typeof ctxName === 'object' && typeof (ctxName as any).name === 'string') {
+        const nestedName = String((ctxName as any).name).trim()
+        if (nestedName) companyName = nestedName
+      } else {
+        const { data: org } = await client
+          .from('organizations')
+          .select('name')
+          .eq('id', resolvedOrgId)
+          .maybeSingle()
+        if (org?.name) companyName = String(org.name)
+      }
+
+      const { data: orgSkills } = await client.rpc('get_organization_skills_for_agent', {
+        p_org_id: resolvedOrgId,
+        p_category: null
+      })
+      if (orgSkills && Array.isArray(orgSkills)) {
+        availableSkills = orgSkills
+          .map((s: any) => {
+            const skillKey = String(s.skill_key || s.skill_id || '').trim()
+            const fm = (s.frontmatter || {}) as Record<string, unknown>
+            const nameCandidate = (typeof fm.name === 'string' && fm.name.trim())
+              ? fm.name
+              : (typeof (fm as any).title === 'string' && String((fm as any).title).trim())
+                ? String((fm as any).title)
+                : skillKey
+            return { skill_key: skillKey, name: String(nameCandidate), category: String(s.category || 'other') }
+          })
+          .filter((s: any) => Boolean(s.skill_key))
+      }
+    }
+  } catch {
+    // fail open: keep default companyName
+  }
+
+  // Format available skills/sequences for system prompt
+  const sequences = availableSkills.filter((s) => s.category === 'agent-sequence')
+  const skillsOnly = availableSkills.filter((s) => s.category !== 'agent-sequence')
+  const skillsByCategory: Record<string, string[]> = {}
+  for (const skill of skillsOnly) {
+    const cat = skill.category || 'other'
+    if (!skillsByCategory[cat]) skillsByCategory[cat] = []
+    skillsByCategory[cat].push(`${skill.skill_key} (${skill.name})`)
+  }
+  const skillsListText = Object.entries(skillsByCategory)
+    .map(([cat, skills]) => `  ${cat}: ${skills.join(', ')}`)
+    .join('\n')
+  const sequencesListText = sequences
+    .map((s) => `  - ${s.skill_key} (${s.name})`)
+    .join('\n')
+
+  const systemInstruction = `You are a sales assistant for ${companyName}. You help sales reps prepare for calls, follow up after meetings, and manage their pipeline.
+
+## ⚠️ CRITICAL RULE: First Name Resolution
+
+**BEFORE ANYTHING ELSE**: When the user mentions a person by first name only (e.g., "What did Stan say?", "Tell me about John", "catch me up on Sarah"):
+
+1. **IMMEDIATELY call the resolve_entity function** with that name - DO NOT ask for clarification first
+2. The function searches your CRM, meetings, calendar, and emails in parallel to find the right person
+3. ONLY if the function returns multiple close matches, ask the user which one they meant
+4. ONLY if the function returns zero matches, ask for more context
+
+❌ WRONG: "I'd be happy to help! Can you tell me Stan's last name or email?"
+✅ RIGHT: *calls resolve_entity with name="Stan"* then uses the result to answer
+
+## How You Work
+You have access to **skills** (single-step) and **sequences** (multi-step processes) specific to ${companyName}.
+
+### Available Sequences (multi-step)
+${sequencesListText || '  No sequences configured yet'}
+
+### Available Skills (single-step)
+${skillsListText || '  No skills configured yet'}
+
+### Your Functions
+1. list_skills - See available skills and sequences by category
+2. get_skill - Retrieve a skill/sequence document for guidance
+3. execute_action - Perform actions (query CRM, fetch meetings, search emails, etc.)
+4. resolve_entity - **CRITICAL: Use FIRST when user mentions a person by first name only**
+
+### Workflow Pattern
+1. Understand what the user needs
+2. **If user mentions a person by first name only → Use resolve_entity FIRST**
+3. Retrieve the relevant skill(s) with get_skill
+4. Follow the skill's instructions
+5. Use execute_action to gather data or perform tasks
+6. Deliver results clearly
+
+## Core Rules
+- Confirm before any CRM updates, notifications, or sends
+- Do not make up information; prefer function results
+- If data is missing, state what you couldn't find and proceed with what you have`
+
+  // Build contents array for Gemini
+  const contents: any[] = []
+
+  // Add conversation history (last 10 messages)
+  const recentHistory = history.slice(-10)
+  recentHistory.forEach(msg => {
+    contents.push({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    })
+  })
+
+  // Add runtime context if provided
+  if (context && context.trim()) {
+    contents.push({
+      role: 'user',
+      parts: [{ text: `Context:\n${context}`.trim() }]
+    })
+  }
+
+  // Add current message
+  contents.push({
+    role: 'user',
+    parts: [{ text: message }]
+  })
+
+  // Entity detection for forcing resolve_entity
+  const questionKeywords = ['what', 'tell', 'find', 'show', 'get', 'catch', 'prep', 'brief', 'update', 'about', 'with', 'from']
+  const hasQuestionKeyword = questionKeywords.some(k => message.toLowerCase().includes(k))
+  const words = message.split(/\s+/)
+  const commonWords = new Set(['The', 'This', 'That', 'These', 'Those', 'What', 'When', 'Where', 'Who', 'Why', 'How', 'Can', 'Could', 'Would', 'Should', 'Will', 'Do', 'Does', 'Did', 'Is', 'Are', 'Was', 'Were', 'Have', 'Has', 'Had', 'Been', 'Being', 'To', 'In', 'On', 'At', 'For', 'With', 'About', 'From', 'Into', 'Through', 'During', 'Before', 'After', 'Above', 'Below', 'Between', 'Under', 'Again', 'Further', 'Then', 'Once', 'Here', 'There', 'All', 'Each', 'Few', 'More', 'Most', 'Other', 'Some', 'Such', 'No', 'Nor', 'Not', 'Only', 'Own', 'Same', 'So', 'Than', 'Too', 'Very', 'Just', 'Now', 'CRM', 'API', 'URL', 'PDF', 'OK'])
+  const potentialNames = words.filter((word, idx) => {
+    if (idx === 0) return false
+    if (!/^[A-Z][a-z]+$/.test(word)) return false
+    if (commonWords.has(word)) return false
+    const nextWord = words[idx + 1]
+    if (nextWord && /^[A-Z][a-z]+$/.test(nextWord)) return false
+    return true
+  })
+  const detectedFirstName = potentialNames[0]
+  const shouldForceEntityResolution = hasQuestionKeyword && detectedFirstName && !message.includes('@')
+
+  console.log(`[GEMINI_ENTITY_DETECTION] Message: "${message}"`)
+  console.log(`[GEMINI_ENTITY_DETECTION] shouldForceEntityResolution: ${shouldForceEntityResolution}, name: ${detectedFirstName}`)
+
+  // Build Gemini request
+  const toolConfig = shouldForceEntityResolution
+    ? {
+        function_calling_config: {
+          mode: 'ANY',
+          allowed_function_names: ['resolve_entity']
+        }
+      }
+    : {
+        function_calling_config: {
+          mode: 'AUTO'
+        }
+      }
+
+  const endpoint = `${GEMINI_API_BASE}/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${GEMINI_API_KEY}`
+
+  const requestBody = {
+    contents,
+    systemInstruction: { parts: [{ text: systemInstruction }] },
+    tools: [{ functionDeclarations: GEMINI_FUNCTION_DECLARATIONS }],
+    toolConfig,
+    generationConfig: {
+      temperature: 0.7,
+      topP: 0.95,
+      maxOutputTokens: 4096
+    }
+  }
+
+  console.log(`[GEMINI_REQUEST] Model: ${GEMINI_MODEL}, toolConfig: ${JSON.stringify(toolConfig)}`)
+
+  let response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    console.error(`[GEMINI_ERROR] ${response.status}: ${errorText}`)
+    throw new Error(`Gemini API error: ${response.status} - ${errorText}`)
+  }
+
+  let data = await response.json()
+  let finalContent = ''
+  const recommendations: any[] = []
+  let accumulatedTextContent = ''
+
+  // Tool usage tracking
+  const toolsUsed: string[] = []
+  let toolIterations = 0
+  let toolsSuccessCount = 0
+  let toolsErrorCount = 0
+  const toolExecutionStartTime = Date.now()
+  const toolExecutions: ToolExecutionDetail[] = []
+
+  // Handle function calling - Gemini may request to use functions
+  let maxToolIterations = 5
+  let iteration = 0
+  const startTime = Date.now()
+  const MAX_EXECUTION_TIME = 120000
+
+  // Check if Gemini wants to call functions
+  let candidate = data.candidates?.[0]
+  let parts = candidate?.content?.parts || []
+
+  while (iteration < maxToolIterations) {
+    if (Date.now() - startTime > MAX_EXECUTION_TIME) break
+
+    // Check for function calls in the response
+    const functionCalls = parts.filter((p: any) => p.functionCall)
+    const textParts = parts.filter((p: any) => p.text)
+
+    // Accumulate text content
+    for (const tp of textParts) {
+      if (tp.text) accumulatedTextContent += tp.text + '\n\n'
+    }
+
+    if (functionCalls.length === 0) break
+
+    iteration++
+    toolIterations++
+
+    // Execute all function calls
+    const functionResponses: any[] = []
+    for (const fc of functionCalls) {
+      const functionName = fc.functionCall.name
+      const functionArgs = fc.functionCall.args || {}
+      const toolStartTime = Date.now()
+
+      console.log(`[GEMINI_FUNCTION_CALL] ${functionName}(${JSON.stringify(functionArgs)})`)
+
+      if (!toolsUsed.includes(functionName)) {
+        toolsUsed.push(functionName)
+      }
+
+      try {
+        const toolPromise = executeToolCall(functionName, functionArgs, client, userId, orgId)
+        let timeoutMs = 15000
+        if (functionName === 'execute_action') {
+          if (functionArgs?.action === 'run_sequence') {
+            timeoutMs = 60000
+          } else {
+            timeoutMs = 30000
+          }
+        }
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Function execution timeout')), timeoutMs)
+        )
+
+        const toolResult = await Promise.race([toolPromise, timeoutPromise])
+        const toolLatencyMs = Date.now() - toolStartTime
+        toolsSuccessCount++
+
+        const capability = (toolResult as any)?.capability
+        const provider = (toolResult as any)?.provider
+
+        toolExecutions.push({
+          toolName: functionName,
+          args: functionArgs,
+          result: toolResult,
+          latencyMs: toolLatencyMs,
+          success: true,
+          capability,
+          provider
+        })
+
+        functionResponses.push({
+          functionResponse: {
+            name: functionName,
+            response: toolResult
+          }
+        })
+
+        console.log(`[GEMINI_FUNCTION_RESULT] ${functionName} succeeded in ${toolLatencyMs}ms`)
+      } catch (error: any) {
+        const toolLatencyMs = Date.now() - toolStartTime
+        toolsErrorCount++
+
+        toolExecutions.push({
+          toolName: functionName,
+          args: functionArgs,
+          result: null,
+          latencyMs: toolLatencyMs,
+          success: false,
+          error: error.message || String(error)
+        })
+
+        functionResponses.push({
+          functionResponse: {
+            name: functionName,
+            response: { error: error.message || String(error) }
+          }
+        })
+
+        console.log(`[GEMINI_FUNCTION_ERROR] ${functionName} failed: ${error.message}`)
+      }
+    }
+
+    // Add model's function call and our responses to contents
+    contents.push({
+      role: 'model',
+      parts: parts
+    })
+    contents.push({
+      role: 'user',
+      parts: functionResponses
+    })
+
+    // Call Gemini again with function results
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents,
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        tools: [{ functionDeclarations: GEMINI_FUNCTION_DECLARATIONS }],
+        toolConfig: { function_calling_config: { mode: 'AUTO' } },
+        generationConfig: { temperature: 0.7, topP: 0.95, maxOutputTokens: 4096 }
+      })
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`[GEMINI_ERROR] Follow-up call failed: ${response.status}`)
+      break
+    }
+
+    data = await response.json()
+    candidate = data.candidates?.[0]
+    parts = candidate?.content?.parts || []
+  }
+
+  // Add any accumulated text content
+  if (accumulatedTextContent) {
+    finalContent += accumulatedTextContent
+  }
+
+  // Extract final text from last response
+  for (const part of parts) {
+    if (part.text) {
+      finalContent += part.text
+    }
+  }
+
+  const toolExecutionTimeMs = Date.now() - toolExecutionStartTime
+
+  // Extract usage metadata from Gemini response
+  const usageMetadata = data.usageMetadata || {}
+  const usage = {
+    input_tokens: usageMetadata.promptTokenCount || 0,
+    output_tokens: usageMetadata.candidatesTokenCount || 0
+  }
+
+  console.log(`[GEMINI_COMPLETE] tokens: ${usage.input_tokens}/${usage.output_tokens}, tools: ${toolsUsed.join(',')}`)
+
+  return {
+    content: finalContent.trim() || 'I processed your request but have no additional response.',
+    recommendations,
+    usage,
+    tools_used: toolsUsed,
+    tool_iterations: toolIterations,
+    tools_success_count: toolsSuccessCount,
+    tools_error_count: toolsErrorCount,
+    tool_execution_time_ms: toolExecutionTimeMs,
+    tool_executions: toolExecutions
+  }
+}
+
+/**
+ * Call Claude API for chat response with tool support (LEGACY - kept for fallback)
  */
 async function callClaudeAPI(
   message: string,
@@ -2720,6 +3298,18 @@ async function callClaudeAPI(
 
   const systemPrompt = `You are a sales assistant for ${companyName}. You help sales reps prepare for calls, follow up after meetings, and manage their pipeline.
 
+## ⚠️ CRITICAL RULE: First Name Resolution
+
+**BEFORE ANYTHING ELSE**: When the user mentions a person by first name only (e.g., "What did Stan say?", "Tell me about John", "catch me up on Sarah"):
+
+1. **IMMEDIATELY call the resolve_entity tool** with that name - DO NOT ask for clarification first
+2. The tool searches your CRM, meetings, calendar, and emails in parallel to find the right person
+3. ONLY if the tool returns multiple close matches, ask the user which one they meant
+4. ONLY if the tool returns zero matches, ask for more context
+
+❌ WRONG: "I'd be happy to help! Can you tell me Stan's last name or email?"
+✅ RIGHT: *calls resolve_entity with name="Stan"* then uses the result to answer
+
 ## How You Work
 You have access to **skills** (single-step) and **sequences** (multi-step processes that use many skills) specific to ${companyName}.
 
@@ -2735,13 +3325,31 @@ ${skillsListText || '  No skills configured yet'}
 1. list_skills - See available skills and sequences by category
 2. get_skill - Retrieve a skill/sequence document for guidance (use exact skill_key from lists above)
 3. execute_action - Perform actions (query CRM, fetch meetings, search emails, etc.)
+4. resolve_entity - **CRITICAL: Use FIRST when user mentions a person by first name only** (e.g., "Stan", "John"). Searches ALL data sources in parallel to find the right person - don't ask for clarification first!
 
 ### Workflow Pattern
 1. Understand what the user needs
-2. Retrieve the relevant skill(s) or sequence(s) with get_skill using the exact skill_key
-3. Follow the skill's instructions
-4. Use execute_action to gather data or perform tasks
-5. Deliver results in the user's preferred channel
+2. **If user mentions a person by first name only → Use resolve_entity FIRST**
+3. Retrieve the relevant skill(s) or sequence(s) with get_skill using the exact skill_key
+4. Follow the skill's instructions
+5. Use execute_action to gather data or perform tasks
+6. Deliver results in the user's preferred channel
+
+## Smart Entity Resolution (CRITICAL)
+
+**When the user mentions someone by first name (e.g., "What did Stan say about next steps?", "Tell me about John")**:
+
+1. **DO NOT ask for clarification first.** Instead, immediately use the resolve_entity tool with the name
+2. The tool searches ALL your data sources in parallel:
+   - CRM contacts (name matches)
+   - Recent meetings (attendee names from last 30 days)
+   - Calendar events (attendee names)
+   - Recent emails (from/to names)
+3. **If resolved to one person**: Proceed with the query using their contact_id or email
+4. **If multiple matches with similar recency**: Present the top candidates and ask user to confirm
+5. **If no matches**: Then ask user for more context (email, company, when you last spoke)
+
+This makes you much more helpful - the user doesn't need to remember full names or emails!
 
 ## Common Workflows
 
@@ -2853,6 +3461,47 @@ Prefer running the **seq-deal-slippage-guardrails** sequence:
 3. Ask for confirmation before creating the task and posting Slack update
 4. If user confirms, re-run execute_action with run_sequence { sequence_key: "seq-deal-slippage-guardrails", is_simulation: false, sequence_context: {} }
 
+### Catch Me Up / Status Summary (when user says "catch me up" / "what did I miss?" / "status update" / "what's happening?")
+Gather data from multiple sources and present a **well-formatted markdown summary**:
+
+1. **Gather Today's Context:**
+   - Use execute_action with get_meetings_for_period { period: "today" } for today's schedule
+   - Use execute_action with get_pipeline_deals { filter: "stale" } for deals needing attention
+   - Use execute_action with get_contacts_needing_attention { days_since_contact: 7 } for follow-ups due
+   - Use execute_action with get_pipeline_summary {} for current pipeline snapshot
+
+2. **Format your response with these EXACT markdown sections:**
+
+## 📊 This Week's Snapshot
+- **Pipeline Value:** $X total, $Y weighted
+- **Deals Closing Soon:** X deals worth $Y
+- **Stale Opportunities:** X deals with no recent activity
+- **Follow-ups Overdue:** X contacts need attention
+
+## 📅 Today's Schedule
+| Time | Meeting | Company | Prep Status |
+|------|---------|---------|-------------|
+| 9:00 AM | Call with **John Smith** | Acme Corp | ✅ Ready |
+| 2:30 PM | Demo for **Jane Doe** | TechStart | ⚠️ Needs prep |
+
+## ✅ Priority Actions
+1. **Follow up with Stan** at Acme Corp - last contact 10 days ago
+2. **Prepare for 2:30 PM demo** with TechStart - review their requirements
+3. **Update Globex deal** - close date is tomorrow, confirm status
+
+## 💡 Key Insights
+- Your **weighted pipeline is up 12%** from last week
+- **3 deals** moved to negotiation stage
+- Consider reaching out to dormant contacts at **BigCorp** and **MegaInc**
+
+**IMPORTANT Formatting Rules:**
+- Use **bold** for names, numbers, and key metrics
+- Use bullet points (•) for lists within sections
+- Use numbered lists (1. 2. 3.) for priority actions
+- Use tables for schedules with clear columns
+- Use emoji sparingly: 📊 📅 ✅ 💡 ⚠️ for section headers only
+- Keep each section concise - max 5-7 items per section
+
 ## Core Rules
 - Confirm before any CRM updates, notifications, or sends (execute_action write actions require params.confirm=true)
 - Do not make up information; prefer tool results
@@ -2883,6 +3532,66 @@ Prefer running the **seq-deal-slippage-guardrails** sequence:
     content: message
   })
 
+  // ============================================================================
+  // SMART ENTITY DETECTION: Force resolve_entity for first-name-only queries
+  // ============================================================================
+  // Detects standalone first names in questions about people
+  // E.g., "What did Stan say...", "Tell me about John...", "Catch me up on Sarah"
+
+  // Check if message has question/action keywords suggesting a person query
+  const questionKeywords = ['what', 'tell', 'find', 'show', 'get', 'catch', 'prep', 'brief', 'update', 'about', 'with', 'from'];
+  const hasQuestionKeyword = questionKeywords.some(k => message.toLowerCase().includes(k));
+
+  // Find capitalized words that could be first names (not at sentence start, not common words)
+  const words = message.split(/\s+/);
+  const commonWords = new Set(['The', 'This', 'That', 'These', 'Those', 'What', 'When', 'Where', 'Who', 'Why', 'How', 'Can', 'Could', 'Would', 'Should', 'Will', 'Do', 'Does', 'Did', 'Is', 'Are', 'Was', 'Were', 'Have', 'Has', 'Had', 'Been', 'Being', 'To', 'In', 'On', 'At', 'For', 'With', 'About', 'From', 'Into', 'Through', 'During', 'Before', 'After', 'Above', 'Below', 'Between', 'Under', 'Again', 'Further', 'Then', 'Once', 'Here', 'There', 'All', 'Each', 'Few', 'More', 'Most', 'Other', 'Some', 'Such', 'No', 'Nor', 'Not', 'Only', 'Own', 'Same', 'So', 'Than', 'Too', 'Very', 'Just', 'Now', 'CRM', 'API', 'URL', 'PDF', 'OK']);
+
+  // Find potential first names: capitalized words not at position 0, not common words
+  const potentialNames = words.filter((word, idx) => {
+    if (idx === 0) return false; // Skip first word (sentence start)
+    if (!/^[A-Z][a-z]+$/.test(word)) return false; // Must be capitalized word
+    if (commonWords.has(word)) return false; // Skip common words
+    // Check if followed by another capitalized word (would be last name)
+    const nextWord = words[idx + 1];
+    if (nextWord && /^[A-Z][a-z]+$/.test(nextWord)) return false; // Has last name, not first-name-only
+    return true;
+  });
+
+  const detectedFirstName = potentialNames[0];
+
+  // Determine if we should force resolve_entity tool
+  const shouldForceEntityResolution = hasQuestionKeyword &&
+    detectedFirstName &&
+    !message.includes('@'); // Not an email address
+
+  // Debug: Log entity detection details
+  console.log(`[ENTITY_DETECTION] Message: "${message}"`)
+  console.log(`[ENTITY_DETECTION] hasQuestionKeyword: ${hasQuestionKeyword}`)
+  console.log(`[ENTITY_DETECTION] potentialNames: ${JSON.stringify(potentialNames)}`)
+  console.log(`[ENTITY_DETECTION] detectedFirstName: ${detectedFirstName}`)
+  console.log(`[ENTITY_DETECTION] shouldForceEntityResolution: ${shouldForceEntityResolution}`)
+
+  // Build request body
+  const requestBody: Record<string, any> = {
+    model: 'claude-haiku-4-5', // Claude Haiku 4.5 for fast, cost-effective MCP tool execution
+    max_tokens: 4096,
+    system: systemPrompt,
+    tools: SKILLS_ROUTER_TOOLS,
+    messages
+  }
+
+  // Force resolve_entity tool when first-name-only detected
+  if (shouldForceEntityResolution) {
+    requestBody.tool_choice = { type: 'tool', name: 'resolve_entity' }
+    console.log(`[ENTITY_RESOLUTION] 🔴 FORCING resolve_entity tool for "${detectedFirstName}"`)
+  }
+
+  console.log(`[API_REQUEST] tool_choice: ${JSON.stringify(requestBody.tool_choice || 'auto')}`)
+
+  // Use newer API version when tool_choice is set (required for tool_choice support)
+  const apiVersion = requestBody.tool_choice ? ANTHROPIC_VERSION_TOOLS : ANTHROPIC_VERSION
+  console.log(`[API_REQUEST] Using API version: ${apiVersion}`)
+
   // Log request for debugging (without sensitive data)
   // Call Claude Haiku 4.5 with tools (faster and cheaper for MCP requests)
   // Full API ID: claude-haiku-4-5@20251001
@@ -2892,15 +3601,9 @@ Prefer running the **seq-deal-slippage-guardrails** sequence:
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': ANTHROPIC_VERSION
+      'anthropic-version': apiVersion
     },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5', // Claude Haiku 4.5 for fast, cost-effective MCP tool execution
-      max_tokens: 4096,
-      system: systemPrompt,
-      tools: SKILLS_ROUTER_TOOLS,
-      messages
-    })
+    body: JSON.stringify(requestBody)
   })
 
   if (!response.ok) {
@@ -3311,6 +4014,13 @@ async function executeToolCall(
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Entity Resolution Tool - Smart contact lookup by first name
+  // ---------------------------------------------------------------------------
+  if (toolName === 'resolve_entity') {
+    return await handleResolveEntity(args, client, userId, orgId)
+  }
+
   // Parse entity and operation from tool name (e.g., "meetings_create" -> entity: "meetings", operation: "create")
   const parts = toolName.split('_')
   if (parts.length < 2) {
@@ -3351,6 +4061,543 @@ async function executeToolCall(
     
     default:
       throw new Error(`Unknown entity: ${entity}`)
+  }
+}
+
+/**
+ * Entity Resolution Handler
+ *
+ * Searches multiple data sources in parallel to resolve a person by first name.
+ * Returns either a resolved contact (if one clear match) or disambiguation candidates.
+ */
+interface EntityCandidate {
+  id: string
+  type: 'contact' | 'meeting_attendee' | 'calendar_attendee' | 'email_participant'
+  first_name: string
+  last_name?: string
+  full_name: string
+  email?: string
+  company_name?: string
+  title?: string
+  source: string
+  last_interaction: string // ISO date
+  last_interaction_type: string // 'meeting' | 'email' | 'calendar' | 'crm'
+  last_interaction_description?: string
+  recency_score: number // Higher = more recent (0-100)
+  contact_id?: string // If resolved to a CRM contact
+}
+
+interface ResolveEntityResult {
+  success: boolean
+  resolved: boolean
+  message: string
+  search_summary: {
+    name_searched: string
+    sources_searched: string[]
+    total_candidates: number
+    search_steps: Array<{ source: string; status: 'complete' | 'no_results'; count: number }>
+  }
+  contact?: EntityCandidate // The resolved contact if clear winner
+  candidates?: EntityCandidate[] // Multiple candidates for disambiguation
+  disambiguation_needed?: boolean
+  disambiguation_reason?: string
+}
+
+async function handleResolveEntity(
+  args: any,
+  client: any,
+  userId: string,
+  orgId: string | null
+): Promise<ResolveEntityResult> {
+  const name = args?.name ? String(args.name).trim() : ''
+  const contextHint = args?.context_hint ? String(args.context_hint).trim() : ''
+
+  if (!name) {
+    return {
+      success: false,
+      resolved: false,
+      message: 'Name is required for entity resolution',
+      search_summary: {
+        name_searched: '',
+        sources_searched: [],
+        total_candidates: 0,
+        search_steps: []
+      }
+    }
+  }
+
+  // Parse name into first/last
+  const nameParts = name.split(/\s+/)
+  const firstName = nameParts[0]
+  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : null
+
+  console.log('[ENTITY_RESOLUTION] Starting entity resolution:', {
+    name,
+    firstName,
+    lastName,
+    userId,
+    orgId,
+    contextHint
+  })
+
+  const now = new Date()
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+  // Calculate recency score (0-100, higher = more recent)
+  const calcRecencyScore = (dateStr: string | null | undefined): number => {
+    if (!dateStr) return 0
+    const date = new Date(dateStr)
+    const daysSince = Math.max(0, (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
+    // Score: 100 for today, decays to 0 over 30 days
+    return Math.max(0, Math.round(100 - (daysSince / 30) * 100))
+  }
+
+  const candidates: EntityCandidate[] = []
+  const searchSteps: Array<{ source: string; status: 'complete' | 'no_results'; count: number }> = []
+
+  // ---------------------------------------------------------------------------
+  // 1. Search CRM Contacts (parallel)
+  // ---------------------------------------------------------------------------
+  const contactsPromise = (async () => {
+    try {
+      console.log('[ENTITY_RESOLUTION] Searching contacts with:', { firstName, lastName, userId })
+
+      let query = client
+        .from('contacts')
+        .select(`
+          id,
+          first_name,
+          last_name,
+          email,
+          title,
+          company_id,
+          companies:company_id (name),
+          updated_at,
+          created_at
+        `)
+        .eq('owner_id', userId) // CRITICAL: contacts uses owner_id, NOT user_id
+        .ilike('first_name', `${firstName}%`)
+        .order('updated_at', { ascending: false })
+        .limit(10)
+
+      if (lastName) {
+        query = query.ilike('last_name', `${lastName}%`)
+      }
+
+      const { data: contacts, error } = await query
+
+      console.log('[ENTITY_RESOLUTION] Contacts query result:', {
+        contactsFound: contacts?.length || 0,
+        error: error?.message || null,
+        firstContact: contacts?.[0] ? { id: contacts[0].id, first_name: contacts[0].first_name } : null
+      })
+
+      if (error || !contacts || contacts.length === 0) {
+        searchSteps.push({ source: 'CRM Contacts', status: 'no_results', count: 0 })
+        return
+      }
+
+      searchSteps.push({ source: 'CRM Contacts', status: 'complete', count: contacts.length })
+
+      for (const contact of contacts) {
+        const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(' ')
+        const companyName = (contact.companies as { name?: string } | null)?.name || undefined
+
+        candidates.push({
+          id: contact.id,
+          type: 'contact',
+          first_name: contact.first_name || '',
+          last_name: contact.last_name || undefined,
+          full_name: fullName || contact.email || 'Unknown',
+          email: contact.email || undefined,
+          company_name: companyName,
+          title: contact.title || undefined,
+          source: 'CRM',
+          last_interaction: contact.updated_at || contact.created_at,
+          last_interaction_type: 'crm',
+          last_interaction_description: 'CRM record updated',
+          recency_score: calcRecencyScore(contact.updated_at || contact.created_at),
+          contact_id: contact.id
+        })
+      }
+    } catch (e) {
+      searchSteps.push({ source: 'CRM Contacts', status: 'no_results', count: 0 })
+    }
+  })()
+
+  // ---------------------------------------------------------------------------
+  // 2. Search Recent Meetings (parallel) - attendee names
+  // ---------------------------------------------------------------------------
+  const meetingsPromise = (async () => {
+    try {
+      // Search meetings by attendee name - join through meeting_attendees
+      const { data: meetings, error } = await client
+        .from('meetings')
+        .select(`
+          id,
+          title,
+          start_time,
+          meeting_attendees!inner (
+            id,
+            name,
+            email,
+            contact_id
+          )
+        `)
+        .eq('owner_user_id', userId)
+        .gte('start_time', thirtyDaysAgo.toISOString())
+        .order('start_time', { ascending: false })
+        .limit(50)
+
+      if (error || !meetings || meetings.length === 0) {
+        searchSteps.push({ source: 'Recent Meetings', status: 'no_results', count: 0 })
+        return
+      }
+
+      // Filter attendees by name match
+      let matchCount = 0
+      for (const meeting of meetings) {
+        const attendees = meeting.meeting_attendees as Array<{
+          id: string
+          name?: string
+          email?: string
+          contact_id?: string
+        }>
+
+        for (const attendee of attendees) {
+          if (!attendee.name) continue
+
+          const attendeeNameLower = attendee.name.toLowerCase()
+          const searchNameLower = firstName.toLowerCase()
+
+          // Match if first name matches or full name contains the search
+          if (attendeeNameLower.startsWith(searchNameLower) ||
+              attendeeNameLower.includes(searchNameLower)) {
+
+            const nameParts = attendee.name.split(/\s+/)
+            matchCount++
+
+            candidates.push({
+              id: attendee.id,
+              type: 'meeting_attendee',
+              first_name: nameParts[0] || '',
+              last_name: nameParts.slice(1).join(' ') || undefined,
+              full_name: attendee.name,
+              email: attendee.email || undefined,
+              source: 'Meeting',
+              last_interaction: meeting.start_time,
+              last_interaction_type: 'meeting',
+              last_interaction_description: `Meeting: ${meeting.title}`,
+              recency_score: calcRecencyScore(meeting.start_time),
+              contact_id: attendee.contact_id || undefined
+            })
+          }
+        }
+      }
+
+      searchSteps.push({
+        source: 'Recent Meetings',
+        status: matchCount > 0 ? 'complete' : 'no_results',
+        count: matchCount
+      })
+    } catch (e) {
+      searchSteps.push({ source: 'Recent Meetings', status: 'no_results', count: 0 })
+    }
+  })()
+
+  // ---------------------------------------------------------------------------
+  // 3. Search Calendar Events (parallel) - attendee names
+  // ---------------------------------------------------------------------------
+  const calendarPromise = (async () => {
+    try {
+      // Search calendar events in the past 30 days or next 7 days
+      const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+
+      const { data: events, error } = await client
+        .from('calendar_events')
+        .select(`
+          id,
+          title,
+          start_time,
+          attendees
+        `)
+        .eq('user_id', userId)
+        .gte('start_time', thirtyDaysAgo.toISOString())
+        .lte('start_time', sevenDaysFromNow.toISOString())
+        .order('start_time', { ascending: false })
+        .limit(50)
+
+      if (error || !events || events.length === 0) {
+        searchSteps.push({ source: 'Calendar Events', status: 'no_results', count: 0 })
+        return
+      }
+
+      // Search attendees for name match
+      let matchCount = 0
+      for (const event of events) {
+        const attendees = event.attendees as Array<{
+          email?: string
+          displayName?: string
+          responseStatus?: string
+        }> | null
+
+        if (!attendees) continue
+
+        for (const attendee of attendees) {
+          const displayName = attendee.displayName || ''
+          const email = attendee.email || ''
+
+          // Extract name from email if no display name
+          const nameFromEmail = email.split('@')[0]?.replace(/[._-]/g, ' ') || ''
+          const searchIn = (displayName || nameFromEmail).toLowerCase()
+          const searchNameLower = firstName.toLowerCase()
+
+          if (searchIn.includes(searchNameLower)) {
+            const nameParts = (displayName || nameFromEmail).split(/\s+/)
+            matchCount++
+
+            candidates.push({
+              id: `${event.id}-${email}`,
+              type: 'calendar_attendee',
+              first_name: nameParts[0] || '',
+              last_name: nameParts.slice(1).join(' ') || undefined,
+              full_name: displayName || nameFromEmail || email,
+              email: email || undefined,
+              source: 'Calendar',
+              last_interaction: event.start_time,
+              last_interaction_type: 'calendar',
+              last_interaction_description: `Calendar: ${event.title}`,
+              recency_score: calcRecencyScore(event.start_time)
+            })
+          }
+        }
+      }
+
+      searchSteps.push({
+        source: 'Calendar Events',
+        status: matchCount > 0 ? 'complete' : 'no_results',
+        count: matchCount
+      })
+    } catch (e) {
+      searchSteps.push({ source: 'Calendar Events', status: 'no_results', count: 0 })
+    }
+  })()
+
+  // ---------------------------------------------------------------------------
+  // 4. Search Recent Emails (parallel) - from/to matching name
+  // ---------------------------------------------------------------------------
+  const emailsPromise = (async () => {
+    try {
+      // Check if user has Gmail connected
+      const { data: integration } = await client
+        .from('user_integrations')
+        .select('id, access_token')
+        .eq('user_id', userId)
+        .eq('provider', 'gmail')
+        .maybeSingle()
+
+      if (!integration?.access_token) {
+        searchSteps.push({ source: 'Recent Emails', status: 'no_results', count: 0 })
+        return
+      }
+
+      // Search emails using Gmail API - simplified search by name
+      // Note: Gmail API search is limited, we search by name keyword
+      const searchQuery = encodeURIComponent(`${firstName} newer_than:30d`)
+      const gmailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${searchQuery}&maxResults=20`
+
+      const gmailResponse = await fetch(gmailUrl, {
+        headers: {
+          'Authorization': `Bearer ${integration.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!gmailResponse.ok) {
+        searchSteps.push({ source: 'Recent Emails', status: 'no_results', count: 0 })
+        return
+      }
+
+      const gmailData = await gmailResponse.json()
+      const messageIds = (gmailData.messages || []).slice(0, 10).map((m: any) => m.id)
+
+      if (messageIds.length === 0) {
+        searchSteps.push({ source: 'Recent Emails', status: 'no_results', count: 0 })
+        return
+      }
+
+      // Fetch message details for from/to extraction
+      let matchCount = 0
+      for (const msgId of messageIds) {
+        const msgUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`
+        const msgResponse = await fetch(msgUrl, {
+          headers: { 'Authorization': `Bearer ${integration.access_token}` }
+        })
+
+        if (!msgResponse.ok) continue
+
+        const msgData = await msgResponse.json()
+        const headers = msgData.payload?.headers || []
+        const fromHeader = headers.find((h: any) => h.name === 'From')?.value || ''
+        const toHeader = headers.find((h: any) => h.name === 'To')?.value || ''
+        const subjectHeader = headers.find((h: any) => h.name === 'Subject')?.value || ''
+        const dateHeader = headers.find((h: any) => h.name === 'Date')?.value || ''
+
+        // Parse from header: "John Doe <john@example.com>" or "john@example.com"
+        const parseEmailHeader = (header: string): { name: string; email: string } | null => {
+          const match = header.match(/^(?:"?([^"<]+)"?\s*)?<?([^>]+@[^>]+)>?$/)
+          if (match) {
+            return { name: match[1]?.trim() || '', email: match[2]?.trim() || '' }
+          }
+          return null
+        }
+
+        const fromParsed = parseEmailHeader(fromHeader)
+        const toParsed = parseEmailHeader(toHeader)
+
+        // Check if name matches in from or to
+        const searchNameLower = firstName.toLowerCase()
+        const participants = [fromParsed, toParsed].filter(Boolean) as Array<{ name: string; email: string }>
+
+        for (const participant of participants) {
+          const nameLower = participant.name.toLowerCase()
+          const emailNamePart = participant.email.split('@')[0]?.toLowerCase() || ''
+
+          if (nameLower.includes(searchNameLower) || emailNamePart.includes(searchNameLower)) {
+            const nameParts = participant.name.split(/\s+/)
+            matchCount++
+
+            candidates.push({
+              id: `email-${msgId}-${participant.email}`,
+              type: 'email_participant',
+              first_name: nameParts[0] || emailNamePart,
+              last_name: nameParts.slice(1).join(' ') || undefined,
+              full_name: participant.name || participant.email,
+              email: participant.email,
+              source: 'Email',
+              last_interaction: dateHeader ? new Date(dateHeader).toISOString() : now.toISOString(),
+              last_interaction_type: 'email',
+              last_interaction_description: `Email: ${subjectHeader}`,
+              recency_score: calcRecencyScore(dateHeader ? new Date(dateHeader).toISOString() : null)
+            })
+          }
+        }
+      }
+
+      searchSteps.push({
+        source: 'Recent Emails',
+        status: matchCount > 0 ? 'complete' : 'no_results',
+        count: matchCount
+      })
+    } catch (e) {
+      searchSteps.push({ source: 'Recent Emails', status: 'no_results', count: 0 })
+    }
+  })()
+
+  // ---------------------------------------------------------------------------
+  // Wait for all searches to complete in parallel
+  // ---------------------------------------------------------------------------
+  await Promise.all([contactsPromise, meetingsPromise, calendarPromise, emailsPromise])
+
+  // ---------------------------------------------------------------------------
+  // Deduplicate and score candidates
+  // ---------------------------------------------------------------------------
+  // Group by email (if available) or by full_name to deduplicate
+  const deduped = new Map<string, EntityCandidate>()
+
+  for (const candidate of candidates) {
+    const key = candidate.email?.toLowerCase() || candidate.full_name.toLowerCase()
+    const existing = deduped.get(key)
+
+    if (!existing) {
+      deduped.set(key, candidate)
+    } else {
+      // Keep the one with higher recency score, but merge contact_id if available
+      if (candidate.recency_score > existing.recency_score) {
+        deduped.set(key, {
+          ...candidate,
+          contact_id: candidate.contact_id || existing.contact_id
+        })
+      } else if (candidate.contact_id && !existing.contact_id) {
+        existing.contact_id = candidate.contact_id
+      }
+    }
+  }
+
+  const sortedCandidates = Array.from(deduped.values())
+    .sort((a, b) => b.recency_score - a.recency_score)
+
+  const totalCandidates = sortedCandidates.length
+
+  // ---------------------------------------------------------------------------
+  // Determine resolution outcome
+  // ---------------------------------------------------------------------------
+  if (totalCandidates === 0) {
+    return {
+      success: true,
+      resolved: false,
+      message: `No matches found for "${name}". Try providing more context like their email, company, or when you last interacted.`,
+      search_summary: {
+        name_searched: name,
+        sources_searched: ['CRM Contacts', 'Recent Meetings', 'Calendar Events', 'Recent Emails'],
+        total_candidates: 0,
+        search_steps: searchSteps
+      }
+    }
+  }
+
+  if (totalCandidates === 1) {
+    // Clear single match
+    return {
+      success: true,
+      resolved: true,
+      message: `Found ${sortedCandidates[0].full_name}${sortedCandidates[0].company_name ? ` at ${sortedCandidates[0].company_name}` : ''} (${sortedCandidates[0].source})`,
+      search_summary: {
+        name_searched: name,
+        sources_searched: ['CRM Contacts', 'Recent Meetings', 'Calendar Events', 'Recent Emails'],
+        total_candidates: 1,
+        search_steps: searchSteps
+      },
+      contact: sortedCandidates[0]
+    }
+  }
+
+  // Multiple candidates - check if there's a clear winner by recency
+  const topCandidate = sortedCandidates[0]
+  const secondCandidate = sortedCandidates[1]
+  const recencyGap = topCandidate.recency_score - secondCandidate.recency_score
+
+  // If the top candidate has significantly higher recency (>20 point gap), auto-resolve
+  if (recencyGap > 20) {
+    return {
+      success: true,
+      resolved: true,
+      message: `Found ${topCandidate.full_name}${topCandidate.company_name ? ` at ${topCandidate.company_name}` : ''} - your most recent interaction (${topCandidate.last_interaction_description})`,
+      search_summary: {
+        name_searched: name,
+        sources_searched: ['CRM Contacts', 'Recent Meetings', 'Calendar Events', 'Recent Emails'],
+        total_candidates: totalCandidates,
+        search_steps: searchSteps
+      },
+      contact: topCandidate,
+      candidates: sortedCandidates.slice(0, 5) // Include top 5 for reference
+    }
+  }
+
+  // Multiple candidates with similar recency - need disambiguation
+  return {
+    success: true,
+    resolved: false,
+    message: `Found ${totalCandidates} people named "${firstName}". Which one did you mean?`,
+    search_summary: {
+      name_searched: name,
+      sources_searched: ['CRM Contacts', 'Recent Meetings', 'Calendar Events', 'Recent Emails'],
+      total_candidates: totalCandidates,
+      search_steps: searchSteps
+    },
+    disambiguation_needed: true,
+    disambiguation_reason: `Multiple contacts with similar recent activity (${topCandidate.full_name} and ${secondCandidate.full_name} both have recent interactions)`,
+    candidates: sortedCandidates.slice(0, 5) // Top 5 candidates
   }
 }
 
@@ -4954,7 +6201,21 @@ async function generateEmailDraft(
     concise: 'Be brief and to the point. Get straight to the value proposition.'
   }
 
+  // Get current date for accurate date references in email
+  const today = new Date()
+  const dateOptions: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }
+  const currentDateStr = today.toLocaleDateString('en-US', dateOptions)
+  const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' })
+
   const prompt = `You are drafting a ${tone} follow-up email for ${context.contact.name} at ${context.contact.company}.
+
+TODAY'S DATE: ${currentDateStr} (${dayOfWeek})
+Use this date when making any date references like "tomorrow", "next week", "this Friday", etc.
 
 Context: ${context.context}
 

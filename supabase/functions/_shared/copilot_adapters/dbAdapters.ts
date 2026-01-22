@@ -342,7 +342,8 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
         const includeContext = params.includeContext ?? true;
         const now = new Date();
 
-        // Get next upcoming calendar event
+        // Get next upcoming calendar event with attendees (exclude solo calendar blocks)
+        // Filter for meetings with attendees_count > 1 (user + at least one other person)
         const { data: events, error: eventsError } = await client
           .from('calendar_events')
           .select(`
@@ -352,15 +353,16 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
           .eq('user_id', userId)
           .neq('status', 'cancelled')
           .gte('start_time', now.toISOString())
+          .gt('attendees_count', 1) // More than 1 = has external attendees
           .order('start_time', { ascending: true })
-          .limit(1);
+          .limit(5); // Fetch more to ensure we find a valid meeting
 
         if (eventsError) throw eventsError;
 
         if (!events || events.length === 0) {
           return ok({
             found: false,
-            message: 'No upcoming meetings found',
+            message: 'No upcoming meetings with attendees found',
           }, this.source);
         }
 
