@@ -6,7 +6,7 @@ This document is the practical "next stage" checklist to get the **MeetingBaaS (
 
 ## Deployment Status (2026-01-22)
 
-### Production (`ygdpgliavpxeugaajgrb`)
+### Production (`ygdpgliavpxeugaajgrb`) - ✅ READY FOR TESTING
 
 | Component | Status | Notes |
 |-----------|--------|-------|
@@ -15,8 +15,8 @@ This document is the practical "next stage" checklist to get the **MeetingBaaS (
 | `MEETINGBAAS_API_KEY` | ✅ Set | |
 | `MEETINGBAAS_WEBHOOK_SECRET` | ✅ Set | |
 | AWS Secrets | ✅ Set | REGION, BUCKET, ACCESS_KEY, SECRET_KEY |
-| Vault `service_role_key` | ⬜ Pending | Required for cron to call edge function |
-| MeetingBaaS Webhook URL | ⬜ Pending | Configure in MeetingBaaS dashboard |
+| Vault `service_role_key` | ✅ Set | Added to Vault for cron authentication |
+| MeetingBaaS Webhook URL | ✅ Configured | Webhook receiving events |
 
 ### Staging (`caerqjzvuerejfrdtygb`)
 
