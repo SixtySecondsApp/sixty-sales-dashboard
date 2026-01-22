@@ -7,14 +7,21 @@
  */
 
 import { motion } from 'framer-motion';
-import { Clock, CheckCircle2 } from 'lucide-react';
+import { Clock, CheckCircle2, Loader2 } from 'lucide-react';
 import { useOnboardingV2Store } from '@/lib/stores/onboardingV2Store';
 import { supabase } from '@/lib/supabase/clientV2';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { cancelJoinRequest } from '@/lib/services/joinRequestService';
 
 export function PendingApprovalStep() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const { pendingJoinRequest, userEmail } = useOnboardingV2Store();
   const [profileEmail, setProfileEmail] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     // Fetch the user's profile email if not set
@@ -28,6 +35,54 @@ export function PendingApprovalStep() {
       fetchUserEmail();
     }
   }, [userEmail]);
+
+  const checkApprovalStatus = async () => {
+    if (!user) return;
+
+    setChecking(true);
+    try {
+      // First check if there's any pending request at all
+      const { data: pendingRequests } = await supabase
+        .from('organization_join_requests')
+        .select('status, org_id, organizations(name)')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+      if (!pendingRequests) {
+        // Request not found - may have been deleted or org was deleted
+        toast.warning('Join request not found. The organization may have been removed. Please restart onboarding.');
+        // Auto-reset profile status to allow restart
+        await supabase
+          .from('profiles')
+          .update({ profile_status: 'active' })
+          .eq('id', user.id);
+        return;
+      }
+
+      // Now check if join request was approved
+      const { data: approvedRequests } = await supabase
+        .from('organization_join_requests')
+        .select('status, org_id')
+        .eq('user_id', user.id)
+        .eq('status', 'approved')
+        .maybeSingle();
+
+      if (approvedRequests) {
+        toast.success('Approved! Redirecting to your dashboard...');
+        setTimeout(() => {
+          navigate('/dashboard', { replace: true });
+        }, 1000);
+      } else {
+        toast.info('Still waiting for admin approval. We\'ll email you when approved!');
+      }
+    } catch (error) {
+      console.error('[PendingApprovalStep] Error checking approval status:', error);
+      toast.error('Failed to check status. Please try again.');
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const displayEmail = userEmail || profileEmail;
   const orgName = pendingJoinRequest?.orgName || 'the organization';
@@ -59,7 +114,8 @@ export function PendingApprovalStep() {
         <div className="p-8">
           <div className="mb-8">
             <p className="text-gray-300 text-center leading-relaxed mb-6">
-              Your request to join <span className="font-semibold text-white">{orgName}</span> has been submitted and is awaiting approval from the organization administrator.
+              Your request to join <span className="font-semibold text-white">{orgName}</span> has been submitted.
+              An organization administrator will review and approve your request, typically within 24 hours.
             </p>
 
             <div className="space-y-4 mb-8">
@@ -89,17 +145,73 @@ export function PendingApprovalStep() {
             </div>
 
             {/* What happens next */}
-            <div className="bg-amber-900/20 border border-amber-800/50 rounded-xl p-4">
+            <div className="bg-amber-900/20 border border-amber-800/50 rounded-xl p-4 mb-6">
               <div className="flex gap-3">
                 <CheckCircle2 className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="font-medium text-amber-100 mb-1">What Happens Next</p>
                   <p className="text-sm text-amber-200/80">
-                    Once the admin approves your request, you'll receive an email with a link to activate your account and access the dashboard.
+                    Once approved (usually within 24 hours), you'll receive an email with a link to activate
+                    your account and access the dashboard. The admin can approve your request from their
+                    Team Members settings page.
                   </p>
                 </div>
               </div>
             </div>
+
+            {/* Check status button */}
+            <button
+              onClick={checkApprovalStatus}
+              disabled={checking}
+              className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 mb-4"
+            >
+              {checking ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Checking Status...
+                </>
+              ) : (
+                'Check Approval Status'
+              )}
+            </button>
+
+            {/* Cancel and restart onboarding button */}
+            <button
+              onClick={async () => {
+                if (!confirm('Are you sure you want to cancel this request and restart onboarding? This will allow you to create a new organization or request to join a different one.')) {
+                  return;
+                }
+
+                if (pendingJoinRequest?.requestId && user?.id) {
+                  const result = await cancelJoinRequest(
+                    pendingJoinRequest.requestId,
+                    user.id
+                  );
+
+                  if (result.success) {
+                    toast.success('Join request cancelled. Restarting onboarding...');
+                    // Reset store state
+                    useOnboardingV2Store.getState().reset();
+                    // Redirect to website input
+                    setTimeout(() => {
+                      navigate('/onboarding?step=website_input', { replace: true });
+                    }, 1000);
+                  } else {
+                    toast.error(result.error || 'Failed to cancel request');
+                  }
+                } else {
+                  toast.error('Unable to cancel request. Please try again.');
+                }
+              }}
+              className="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 mb-2"
+            >
+              Cancel Request & Restart Onboarding
+            </button>
+
+            {/* Helper text */}
+            <p className="text-xs text-gray-400 text-center mb-6">
+              Wrong organization? Cancel this request and start over.
+            </p>
           </div>
 
           {/* Support note */}

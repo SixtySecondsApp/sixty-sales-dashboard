@@ -9,11 +9,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Clock, LogOut, Mail } from 'lucide-react';
+import { Clock, LogOut, Mail, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
+import { cancelJoinRequest } from '@/lib/services/joinRequestService';
 
 export default function PendingApprovalPage() {
   const navigate = useNavigate();
@@ -22,6 +23,8 @@ export default function PendingApprovalPage() {
     orgName: string;
     email: string;
   } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [canceling, setCanceling] = useState(false);
 
   useEffect(() => {
     // Fetch join request details
@@ -58,6 +61,99 @@ export default function PendingApprovalPage() {
       navigate('/auth/login', { replace: true });
     } catch (err) {
       toast.error('Failed to log out');
+    }
+  };
+
+  const checkApprovalStatus = async () => {
+    if (!user) return;
+
+    setChecking(true);
+    try {
+      // First check if there's any pending request at all
+      const { data: pendingRequests } = await supabase
+        .from('organization_join_requests')
+        .select('status, org_id, organizations(name)')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+      if (!pendingRequests) {
+        // Request not found - may have been deleted or org was deleted
+        toast.warning('Join request not found. The organization may have been removed. Please restart onboarding.');
+        // Auto-reset profile status to allow restart
+        await supabase
+          .from('profiles')
+          .update({ profile_status: 'active' })
+          .eq('id', user.id);
+        setTimeout(() => {
+          navigate('/onboarding?step=website_input', { replace: true });
+        }, 2000);
+        return;
+      }
+
+      // Now check if join request was approved
+      const { data: approvedRequests } = await supabase
+        .from('organization_join_requests')
+        .select('status, org_id')
+        .eq('user_id', user.id)
+        .eq('status', 'approved')
+        .maybeSingle();
+
+      if (approvedRequests) {
+        toast.success('Approved! Redirecting to your dashboard...');
+        setTimeout(() => {
+          navigate('/dashboard', { replace: true });
+        }, 1000);
+      } else {
+        toast.info('Still waiting for admin approval. We\'ll email you when approved!');
+      }
+    } catch (error) {
+      console.error('[PendingApprovalPage] Error checking approval status:', error);
+      toast.error('Failed to check status. Please try again.');
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const handleCancelRequest = async () => {
+    if (!user?.id || !joinRequest) return;
+
+    const confirmed = window.confirm(
+      'Are you sure you want to cancel this request and restart onboarding? This will allow you to create a new organization or request to join a different one.'
+    );
+
+    if (!confirmed) return;
+
+    setCanceling(true);
+    try {
+      // Get the join request ID
+      const { data: requests } = await supabase
+        .from('organization_join_requests')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+      if (!requests?.id) {
+        toast.error('No pending request found');
+        return;
+      }
+
+      const result = await cancelJoinRequest(requests.id, user.id);
+
+      if (result.success) {
+        toast.success('Join request cancelled. Redirecting to onboarding...');
+        setTimeout(() => {
+          navigate('/onboarding?step=website_input', { replace: true });
+        }, 1000);
+      } else {
+        toast.error(result.error || 'Failed to cancel request');
+      }
+    } catch (error) {
+      console.error('[PendingApprovalPage] Error cancelling request:', error);
+      toast.error('Failed to cancel request');
+    } finally {
+      setCanceling(false);
     }
   };
 
@@ -128,11 +224,36 @@ export default function PendingApprovalPage() {
 
           <div className="space-y-3">
             <Button
-              onClick={() => navigate('/dashboard')}
-              className="w-full bg-gray-700 hover:bg-gray-600 text-white"
+              onClick={checkApprovalStatus}
+              disabled={checking}
+              className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white flex items-center justify-center gap-2"
             >
-              Return to Dashboard
+              {checking ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Checking Status...
+                </>
+              ) : (
+                'Check Approval Status'
+              )}
             </Button>
+            <Button
+              onClick={handleCancelRequest}
+              disabled={canceling}
+              className="w-full bg-gray-700 hover:bg-gray-600 text-white disabled:bg-gray-600 disabled:cursor-not-allowed"
+            >
+              {canceling ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                'Cancel Request & Restart Onboarding'
+              )}
+            </Button>
+            <p className="text-xs text-gray-400 text-center -mt-1">
+              Wrong organization? Cancel and start over
+            </p>
             <Button
               onClick={handleLogout}
               variant="outline"

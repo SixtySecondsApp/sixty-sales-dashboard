@@ -356,3 +356,42 @@ export async function getUserJoinRequests(userId: string): Promise<JoinRequest[]
     return [];
   }
 }
+
+/**
+ * Cancel a pending join request
+ * Allows user to cancel and restart onboarding
+ */
+export async function cancelJoinRequest(
+  requestId: string,
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('cancel_join_request', {
+      p_request_id: requestId,
+      p_user_id: userId,
+    });
+
+    if (error) {
+      console.error('[joinRequestService] Failed to cancel request:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to cancel join request',
+      };
+    }
+
+    if (!data?.[0]?.success) {
+      return {
+        success: false,
+        error: data?.[0]?.message || 'Failed to cancel join request',
+      };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error('[joinRequestService] Exception in cancelJoinRequest:', err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Unknown error',
+    };
+  }
+}

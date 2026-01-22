@@ -253,6 +253,10 @@ interface OnboardingV2State {
   toggleCompiledSkillEnabled: (skillKey: string, enabled: boolean) => void;
   saveCompiledSkillPreferences: (organizationId: string) => Promise<boolean>;
 
+  // Organization selection actions
+  submitJoinRequest: (orgId: string, orgName: string) => Promise<void>;
+  createNewOrganization: (orgName: string) => Promise<void>;
+
   // Reset
   reset: () => void;
 }
@@ -478,6 +482,38 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
         if (memberError) throw memberError;
 
         finalOrgId = newOrg.id;
+
+        // After creating/joining new org, cleanup old auto-created orgs
+        // This prevents users from being in multiple organizations
+        try {
+          // Get all user's memberships
+          const { data: allMemberships } = await supabase
+            .from('organization_memberships')
+            .select('org_id, role, organizations(created_by)')
+            .eq('user_id', session.user.id);
+
+          // Find auto-created orgs (where user is owner and org was auto-created by them)
+          const oldAutoOrgs = allMemberships?.filter(m =>
+            m.org_id !== newOrg.id &&  // Not the new org
+            m.role === 'owner' &&  // User created it
+            m.organizations.created_by === session.user.id
+          ) || [];
+
+          // Remove user from old auto-created orgs
+          for (const oldOrg of oldAutoOrgs) {
+            await supabase
+              .from('organization_memberships')
+              .delete()
+              .eq('org_id', oldOrg.org_id)
+              .eq('user_id', session.user.id);
+
+            console.log('[onboardingV2] Removed from old auto-org:', oldOrg.org_id);
+          }
+          // Trigger will automatically delete empty orgs
+        } catch (cleanupErr) {
+          console.error('[onboardingV2] Failed to cleanup old org:', cleanupErr);
+        }
+
         set({ organizationId: finalOrgId });
       }
 
@@ -510,8 +546,60 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('No session');
 
-      // Create organization with manual data company_name
+      // Check if organization with this name already exists
       const organizationName = manualData.company_name || 'My Organization';
+      const { data: existingOrg } = await supabase
+        .from('organizations')
+        .select('id, name')
+        .ilike('name', organizationName)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (existingOrg) {
+        // Organization exists - return it instead of creating a new one
+        // Store pending join request state to trigger confirmation dialog
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        const joinRequestResult = await supabase.rpc('create_join_request', {
+          p_org_id: existingOrg.id,
+          p_user_id: session.user.id,
+          p_user_profile: profileData
+            ? {
+                first_name: profileData.first_name,
+                last_name: profileData.last_name,
+              }
+            : null,
+        });
+
+        if (joinRequestResult.error) throw joinRequestResult.error;
+
+        // Update user profile status to pending_approval
+        await supabase
+          .from('profiles')
+          .update({ profile_status: 'pending_approval' })
+          .eq('id', session.user.id);
+
+        // Store pending join request state
+        set({
+          organizationCreationInProgress: false,
+          organizationId: existingOrg.id,
+          currentStep: 'pending_approval',
+          pendingJoinRequest: {
+            requestId: joinRequestResult.data[0].join_request_id,
+            orgId: existingOrg.id,
+            orgName: existingOrg.name,
+            status: 'pending',
+          },
+        });
+
+        return existingOrg.id;
+      }
+
+      // Create organization with manual data company_name
       const { data: newOrg, error: createError } = await supabase
         .from('organizations')
         .insert({
@@ -536,6 +624,36 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
         });
 
       if (memberError) throw memberError;
+
+      // After creating new org, cleanup old auto-created orgs
+      try {
+        // Get all user's memberships
+        const { data: allMemberships } = await supabase
+          .from('organization_memberships')
+          .select('org_id, role, organizations(created_by)')
+          .eq('user_id', userId);
+
+        // Find auto-created orgs (where user is owner and org was auto-created by them)
+        const oldAutoOrgs = allMemberships?.filter(m =>
+          m.org_id !== newOrg.id &&  // Not the new org
+          m.role === 'owner' &&  // User created it
+          m.organizations.created_by === userId
+        ) || [];
+
+        // Remove user from old auto-created orgs
+        for (const oldOrg of oldAutoOrgs) {
+          await supabase
+            .from('organization_memberships')
+            .delete()
+            .eq('org_id', oldOrg.org_id)
+            .eq('user_id', userId);
+
+          console.log('[onboardingV2] Removed from old auto-org:', oldOrg.org_id);
+        }
+        // Trigger will automatically delete empty orgs
+      } catch (cleanupErr) {
+        console.error('[onboardingV2] Failed to cleanup old org:', cleanupErr);
+      }
 
       set({
         organizationCreationInProgress: false,
@@ -970,6 +1088,83 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       const message = error instanceof Error ? error.message : 'Failed to save skill preferences';
       set({ isSaving: false, saveError: message });
       return false;
+    }
+  },
+
+  // Submit join request for existing organization
+  submitJoinRequest: async (orgId: string, orgName: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('No user found');
+
+    try {
+      // Create join request via RPC
+      const { data, error } = await supabase.rpc('create_join_request', {
+        p_org_id: orgId,
+        p_user_id: session.user.id,
+      });
+
+      if (error) throw error;
+
+      // Update profile status
+      await supabase
+        .from('profiles')
+        .update({ profile_status: 'pending_approval' })
+        .eq('id', session.user.id);
+
+      // Store pending request info
+      set({
+        pendingJoinRequest: {
+          orgId,
+          orgName,
+          requestId: data?.[0]?.request_id,
+          status: 'pending',
+        },
+        currentStep: 'pending_approval',
+      });
+    } catch (error) {
+      console.error('[onboardingV2Store] Error submitting join request:', error);
+      throw error;
+    }
+  },
+
+  // Create new organization
+  createNewOrganization: async (orgName: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('No user found');
+
+    try {
+      // Create new organization
+      const { data: org, error } = await supabase
+        .from('organizations')
+        .insert({
+          name: orgName,
+          created_by: session.user.id,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Create membership
+      await supabase
+        .from('organization_memberships')
+        .insert({
+          org_id: org.id,
+          user_id: session.user.id,
+          role: 'owner',
+        });
+
+      set({ organizationId: org.id });
+
+      // Proceed to enrichment
+      const state = get();
+      if (state.domain) {
+        await get().startEnrichment(org.id, state.domain, false);
+      }
+    } catch (error) {
+      console.error('[onboardingV2Store] Error creating organization:', error);
+      throw error;
     }
   },
 

@@ -160,10 +160,12 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
           .maybeSingle();
 
         if (!error && data) {
-          setProfileStatus(data.profile_status || 'active');
+          const status = data.profile_status || 'active';
+          console.log('[ProtectedRoute] Profile status check:', { userId: user.id, status });
+          setProfileStatus(status);
         }
       } catch (err) {
-        console.error('Error checking profile status:', err);
+        console.error('[ProtectedRoute] Error checking profile status:', err);
       } finally {
         setIsCheckingProfileStatus(false);
       }
@@ -222,6 +224,7 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
     // Check profile status for join request approval flow
     // If user is pending approval, redirect to pending approval screen
     if (isAuthenticated && profileStatus === 'pending_approval' && !isPublicRoute && !isPasswordRecovery && !isOAuthCallback && !isVerifyEmailRoute) {
+      console.log('[ProtectedRoute] User pending approval, redirecting to pending approval page', { userId: user?.id, currentPath: location.pathname });
       navigate('/auth/pending-approval', { replace: true });
       return;
     }
