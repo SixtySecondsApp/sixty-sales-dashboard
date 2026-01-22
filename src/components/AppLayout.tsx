@@ -941,7 +941,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         }
         className={cn(
         isFullHeightPage && 'h-[100dvh] overflow-hidden',
-        'flex-1 transition-[margin] duration-300 ease-in-out',
+        'flex-1 transition-[margin] duration-300 ease-in-out min-h-screen',
+        'bg-[#F8FAFC] dark:bg-gray-950',
         isCollapsed ? 'lg:ml-[96px]' : 'lg:ml-[256px]',
         'ml-0',
         topPaddingClass

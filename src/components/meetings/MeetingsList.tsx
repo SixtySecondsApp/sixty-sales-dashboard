@@ -222,7 +222,7 @@ const MeetingRowSkeleton: React.FC = () => (
 )
 
 const MeetingsListSkeleton: React.FC<{ view: 'list' | 'grid' }> = ({ view }) => (
-  <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+  <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 min-h-full bg-[#F8FAFC] dark:bg-transparent">
     {/* Header Skeleton */}
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div className="flex items-center gap-2 sm:gap-3">
@@ -703,7 +703,7 @@ const MeetingsList: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 w-full max-w-full overflow-x-hidden">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 w-full max-w-full overflow-x-hidden min-h-full bg-[#F8FAFC] dark:bg-transparent">
       {/* Recording Source Tabs */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}

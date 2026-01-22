@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, ChevronRight, Sparkles, CheckSquare, PhoneCall, Users, FileText, PoundSterling, Map } from 'lucide-react';
+import { ArrowUp, CheckSquare, PhoneCall, Users, FileText, PoundSterling, Map } from 'lucide-react';
 import { useCopilot } from '@/lib/contexts/CopilotContext';
 import { ChatMessage } from '@/components/copilot/ChatMessage';
+import { CopilotEmpty } from '@/components/copilot/CopilotEmpty';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useEventEmitter } from '@/lib/communication/EventBus';
@@ -12,12 +13,6 @@ interface AssistantShellProps {
   mode: AssistantShellMode;
   onOpenQuickAdd?: (opts: { preselectAction: string; initialData?: Record<string, unknown> }) => void;
 }
-
-const DEFAULT_SUGGESTIONS = [
-  'Prep me for my next meeting',
-  'Show me deals that need attention',
-  'What should I prioritize today?',
-];
 
 export function AssistantShell({ mode, onOpenQuickAdd }: AssistantShellProps) {
   const { messages, isLoading, sendMessage, cancelRequest } = useCopilot();
@@ -129,119 +124,89 @@ export function AssistantShell({ mode, onOpenQuickAdd }: AssistantShellProps) {
 
   return (
     <div className={cn('flex flex-col min-h-0', shellClass)}>
-      {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
-        {isEmpty ? (
-          <div className="flex gap-3">
-            <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-600/20 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-violet-400" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm text-gray-300 leading-relaxed">
-                Hey! I’m your Sales Assistant. Ask me to prep meetings, find deals/contacts/tasks, and create actions.
-              </p>
+      {/* Messages or Welcome Screen */}
+      {isEmpty ? (
+        <CopilotEmpty onPromptClick={(prompt) => sendMessage(prompt)} />
+      ) : (
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
+          {messages.map((m) => (
+            <ChatMessage key={m.id} message={m} onActionClick={handleActionClick} />
+          ))}
+          <div ref={endRef} />
+        </div>
+      )}
 
-              <div className="mt-3 space-y-2">
-                {DEFAULT_SUGGESTIONS.map((s) => (
+      {/* Input - only show when there are messages (CopilotEmpty has its own input) */}
+      {!isEmpty && (
+        <div className="flex-shrink-0 p-4 border-t border-gray-800/50">
+          {/* Quick Add chips (V2-style) */}
+          {mode === 'overlay' && (
+            <div className="mb-3">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                {quickActions.map((action) => (
                   <button
-                    key={s}
+                    key={action.id}
                     type="button"
                     disabled={isLoading}
                     onClick={() => {
-                      // Auto-run the suggestion immediately without requiring second confirmation
-                      sendMessage(s);
+                      if (onOpenQuickAdd) {
+                        onOpenQuickAdd({ preselectAction: action.id });
+                        return;
+                      }
+                      emit('modal:opened', { type: 'quick-add', context: { preselectAction: action.id } });
                     }}
-                    className={cn(
-                      'w-full text-left text-sm px-3 py-2 rounded-lg bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-all duration-200 flex items-center gap-2 group',
-                      isLoading && 'opacity-60 cursor-not-allowed'
-                    )}
+                    className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 hover:border-gray-600 transition-all duration-200 group ${
+                      isLoading ? 'opacity-60 cursor-not-allowed' : ''
+                    }`}
                   >
-                    <ChevronRight className="w-3 h-3 text-gray-600 group-hover:text-violet-400 transition-colors" />
-                    <span>{s}</span>
+                    <div className={`w-6 h-6 rounded-lg ${action.bg} flex items-center justify-center`}>
+                      <action.icon className={`w-3.5 h-3.5 ${action.color}`} />
+                    </div>
+                    <span className="text-sm text-gray-200 whitespace-nowrap">{action.label}</span>
                   </button>
                 ))}
               </div>
             </div>
-          </div>
-        ) : (
-          <>
-            {messages.map((m) => (
-              <ChatMessage key={m.id} message={m} onActionClick={handleActionClick} />
-            ))}
-          </>
-        )}
-        <div ref={endRef} />
-      </div>
+          )}
 
-      {/* Input - flex-shrink-0 ensures it's always visible at bottom */}
-      <div className="flex-shrink-0 p-4 border-t border-gray-800/50">
-        {/* Quick Add chips (V2-style) */}
-        {mode === 'overlay' && (
-          <div className="mb-3">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              {quickActions.map((action) => (
-                <button
-                  key={action.id}
-                  type="button"
-                  disabled={isLoading}
-                  onClick={() => {
-                    if (onOpenQuickAdd) {
-                      onOpenQuickAdd({ preselectAction: action.id });
-                      return;
-                    }
-                    emit('modal:opened', { type: 'quick-add', context: { preselectAction: action.id } });
-                  }}
-                  className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 hover:border-gray-600 transition-all duration-200 group ${
-                    isLoading ? 'opacity-60 cursor-not-allowed' : ''
-                  }`}
-                >
-                  <div className={`w-6 h-6 rounded-lg ${action.bg} flex items-center justify-center`}>
-                    <action.icon className={`w-3.5 h-3.5 ${action.color}`} />
-                  </div>
-                  <span className="text-sm text-gray-200 whitespace-nowrap">{action.label}</span>
-                </button>
-              ))}
+          <div className="flex items-end gap-3">
+            <div className="flex-1 relative">
+              <div className="flex items-end bg-gray-800/50 rounded-xl border border-gray-700/50 focus-within:border-violet-500/50 transition-colors">
+                <textarea
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask me to create, find, or prep anything…"
+                  rows={1}
+                  className="flex-1 bg-transparent text-white placeholder-gray-500 text-sm py-3 px-4 resize-none outline-none max-h-32"
+                  style={{ minHeight: '44px' }}
+                />
+                {/* Cancel button could live here later; for now keep UI simple */}
+              </div>
             </div>
-          </div>
-        )}
 
-        <div className="flex items-end gap-3">
-          <div className="flex-1 relative">
-            <div className="flex items-end bg-gray-800/50 rounded-xl border border-gray-700/50 focus-within:border-violet-500/50 transition-colors">
-              <textarea
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask me to create, find, or prep anything…"
-                rows={1}
-                className="flex-1 bg-transparent text-white placeholder-gray-500 text-sm py-3 px-4 resize-none outline-none max-h-32"
-                style={{ minHeight: '44px' }}
-              />
-              {/* Cancel button could live here later; for now keep UI simple */}
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={!inputValue.trim() || isLoading}
+              className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                inputValue.trim() && !isLoading
+                  ? 'bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-500/25'
+                  : 'bg-gray-800 text-gray-600 cursor-not-allowed'
+              }`}
+              aria-label="Send"
+            >
+              <ArrowUp className="w-5 h-5" />
+            </button>
+          </div>
+
+          {isLoading && (
+            <div className="mt-2 text-xs text-gray-500">
+              Working… <button className="underline" onClick={cancelRequest}>Cancel</button>
             </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={!inputValue.trim() || isLoading}
-            className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 ${
-              inputValue.trim() && !isLoading
-                ? 'bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-500/25'
-                : 'bg-gray-800 text-gray-600 cursor-not-allowed'
-            }`}
-            aria-label="Send"
-          >
-            <ArrowUp className="w-5 h-5" />
-          </button>
+          )}
         </div>
-
-        {isLoading && (
-          <div className="mt-2 text-xs text-gray-500">
-            Working… <button className="underline" onClick={cancelRequest}>Cancel</button>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
