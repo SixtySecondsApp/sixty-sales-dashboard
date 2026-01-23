@@ -59,7 +59,7 @@ Your `get_organization_skills_for_agent()` returns skill **documents** (instruct
 
 ### The Solution
 
-Two MCP tool types:
+Two MCP tool types (plus entity resolution):
 
 ```typescript
 // Tool 1: Get skill instructions (uses your existing function)
@@ -77,20 +77,41 @@ Two MCP tool types:
   }
 }
 
-// Tool 2: Execute skill actions (NEW)
+// Tool 2: Execute actions (reads + writes, plus sequences)
 {
-  name: "execute_skill_action",
-  description: "Execute an action defined by a skill",
+  name: "execute_action",
+  description: "Execute an action or sequence defined by a skill",
   inputSchema: {
     type: "object", 
     properties: {
       action: {
         type: "string",
-        enum: ["get_contact", "get_deal", "get_meetings", "search_emails", 
-               "draft_email", "update_crm", "send_notification"]
+        enum: [
+          "get_contact",
+          "get_deal",
+          "get_meetings",
+          "get_meetings_for_period",
+          "search_emails",
+          "draft_email",
+          "update_crm",
+          "send_notification",
+          "run_skill",
+          "run_sequence"
+        ]
       },
       params: { type: "object" }
     }
+  }
+}
+
+// Tool 3: Resolve ambiguous person references (first-name-only)
+{
+  name: "resolve_entity",
+  description: "Resolve a person/company mentioned by the user across CRM + meetings + calendar + email",
+  inputSchema: {
+    type: "object",
+    properties: { name: { type: "string" } },
+    required: ["name"]
   }
 }
 ```
@@ -108,12 +129,12 @@ Returns: Compiled skill document with org-specific ICP, products, etc.
     ↓
 AI reads skill, knows it needs: contact, deal, recent meetings, emails
     ↓
-AI calls: execute_skill_action({ 
+AI calls: execute_action({ 
   action: "get_contact", 
   params: { identifier: "sarah@acme.com" }
 })
     ↓
-AI calls: execute_skill_action({ 
+AI calls: execute_action({ 
   action: "get_meetings", 
   params: { contact_email: "sarah@acme.com", limit: 3 }
 })
@@ -794,10 +815,21 @@ CREATE INDEX idx_skill_tests_org ON skill_test_runs(organization_id, created_at 
 
 |Area|Before|After|
 |---|---|---|
-|**Skill exposure**|51 MCP tools|3 MCP tools (get_skill, list_skills, execute_action)|
+|**Skill exposure**|51 MCP tools|3–4 MCP tools (get_skill, list_skills, execute_action, resolve_entity)|
 |**Meeting tools**|Assumed use60 only|Fathom, Fireflies, use60 via adapters|
 |**Skill categories**|4 (sales-ai, writing, enrichment, workflows)|6 (+ data-access, output-format)|
 |**Testing**|Manual|Skill Test Console in admin UI|
 |**Token usage**|~15,000 per request|~4,000 per request|
 
 Your Platform Skills engine is the foundation. The copilot just needs the execution layer on top.
+
+---
+
+## UX/UI: progress story + clickable results (web app)
+
+To make tool calling feel autonomous (not “waiting”), the web app uses:
+
+- **Progress stepper while working**: the UI creates a placeholder step list from detected intent, then replaces it with backend tool telemetry once the response returns.
+- **Structured response panels** for high-frequency workflows (meeting prep, follow-up pack, meetings list)
+- **Standard click actions** emitted by panels:
+  - `open_contact`, `open_deal`, `open_meeting`, `open_task`, `open_external_url`

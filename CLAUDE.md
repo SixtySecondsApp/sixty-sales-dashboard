@@ -170,13 +170,59 @@ import { toast } from 'sonner';
 
 ## Copilot System
 
-The AI Copilot is powered by Google Gemini Flash with function calling.
+The AI Copilot is powered by **Google Gemini 3 Flash** with function calling.
 
 ### Key Files
 - `supabase/functions/api-copilot/index.ts` - Main edge function (~5000 lines)
 - `src/lib/contexts/CopilotContext.tsx` - State management
 - `src/components/copilot/CopilotRightPanel.tsx` - Right panel UI
 - `src/lib/hooks/useCopilotContextData.ts` - Context data fetching
+
+### Skill-first execution (not prompt-by-prompt)
+
+Copilot should behave like: **user intent → skill/sequence selection → tool execution → structured response panel**.
+
+- **Backend (edge function)**: emits `tool_executions` telemetry + (when applicable) a `structuredResponse` that the UI can render as a rich, clickable card.
+- **Frontend**: shows a “working story” while tools run (stepper/progress), then swaps in the structured panel when the response arrives.
+
+#### Deterministic (skill/sequence-driven) workflows
+
+For high-frequency flows we want consistent behavior (and consistent UX), we treat them as deterministic workflows:
+
+- **Search meetings (today/tomorrow)**: runs `execute_action(get_meetings_for_period)` and returns a `meeting_list` structured response.
+- **Prep for next meeting**: runs `execute_action(run_sequence)` with `seq-next-meeting-command-center` in simulation mode first (preview), then renders `next_meeting_command_center`.
+- **Create follow-ups**: runs `execute_action(run_sequence)` with `seq-post-meeting-followup-pack` in simulation mode first (preview), then renders `post_meeting_followup_pack`.
+
+#### Confirmation pattern (preview → confirm)
+
+When a sequence is run in `is_simulation: true`, the assistant message stores `pending_action` so a user reply like “Confirm” can execute the same sequence with `is_simulation: false`.
+
+This is the standard pattern for “create task / post Slack / send email” flows: **preview first, then confirm**.
+
+### Copilot UI contracts (critical)
+
+#### 1) Clickable actions contract (do not ad-hoc window.location)
+
+Structured response components should emit these actions via `onActionClick` (handled centrally):
+
+- **In-app**: `open_contact`, `open_deal`, `open_meeting`, `open_task`
+- **External**: `open_external_url` (always new tab)
+
+Handler: `src/components/assistant/AssistantShell.tsx`
+
+Backwards-compatible legacy aliases (`open_meeting_url`, `view_meeting`, `view_task`) exist but new work should use the standard names above.
+
+#### 2) “Working story” stepper
+
+While Copilot is processing, we show a stepper (and the right-panel progress) based on a `ToolCall.steps[]` list.
+
+- Placeholder steps are created client-side using `detectToolType()` and `createToolCall()` (`src/lib/contexts/CopilotContext.tsx`)
+- Real tool telemetry from the backend (`tool_executions`) replaces the placeholder once the response arrives
+
+Tool UI components:
+- `src/components/copilot/ToolCallIndicator.tsx`
+- `src/components/copilot/ChatMessage.tsx`
+- `src/components/copilot/CopilotRightPanel.tsx` (derives progress steps)
 
 ### Template Variables Pattern
 ```typescript

@@ -1127,6 +1127,20 @@ Each sub-agent:
 
 ---
 
+## UI Integration Notes (Copilot web app)
+
+When sequences are executed from Copilot, we aim for a consistent “skill-first” UX:
+
+- **Progress story while working**: show a stepper with named steps (e.g., “Find next meeting → Load context → Draft follow-ups”) during tool execution.
+- **Structured response panels**: prefer sequence-aware panels (preview + confirm) over free-form chat for:
+  - next meeting prep
+  - post-meeting follow-up packs
+  - meetings list (today/tomorrow)
+- **Clickable results contract** (handled centrally by the Copilot shell):
+  - `open_contact`, `open_deal`, `open_meeting`, `open_task`, `open_external_url`
+
+---
+
 ## Part 6: Implementation Checklist
 
 ### Skills Required
