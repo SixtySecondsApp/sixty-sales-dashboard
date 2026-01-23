@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown,
   ChevronRight,
@@ -32,6 +33,12 @@ import {
   AlertCircle,
   ListChecks,
 } from 'lucide-react';
+import {
+  getStepIcon,
+  getStepDurationEstimate,
+  formatDurationEstimate,
+  formatActualDuration,
+} from '@/lib/utils/toolUtils';
 import { ConversationHistory } from './ConversationHistory';
 import { cn } from '@/lib/utils';
 import { useActionItemStore, type ActionItem } from '@/lib/stores/actionItemStore';
@@ -99,57 +106,158 @@ export interface ProgressStep {
   id: number;
   label: string;
   status: 'pending' | 'active' | 'complete';
+  /** Icon name from toolUtils STEP_ICONS */
+  icon?: string;
+  /** Duration in ms (for completed steps) */
+  duration?: number;
 }
 
 interface ProgressSectionProps {
   steps: ProgressStep[];
   isProcessing: boolean;
   totalSteps?: number;
+  /** Total estimated time in ms */
+  estimatedTotalTime?: number;
 }
 
-function ProgressSection({ steps, totalSteps = 4 }: Omit<ProgressSectionProps, 'isProcessing'>) {
-  // Always show the Progress section - it displays step indicators
-  // and either progress steps or placeholder text
+// Animation variants for staggered step reveals
+const stepVariants = {
+  hidden: { opacity: 0, x: -10 },
+  visible: (i: number) => ({
+    opacity: 1,
+    x: 0,
+    transition: {
+      delay: i * 0.1,
+      duration: 0.3,
+      ease: 'easeOut'
+    }
+  })
+};
+
+const iconPulseVariants = {
+  active: {
+    scale: [1, 1.15, 1],
+    boxShadow: [
+      '0 0 0 0 rgba(139, 92, 246, 0.5)',
+      '0 0 0 6px rgba(139, 92, 246, 0)',
+      '0 0 0 0 rgba(139, 92, 246, 0)'
+    ],
+    transition: {
+      duration: 1.5,
+      repeat: Infinity,
+      ease: 'easeInOut'
+    }
+  }
+};
+
+function ProgressSection({ steps, totalSteps = 4, estimatedTotalTime }: Omit<ProgressSectionProps, 'isProcessing'>) {
+  // Calculate progress percentage
+  const completedCount = steps.filter(s => s.status === 'complete').length;
+  const activeStep = steps.find(s => s.status === 'active');
+  const progressPercent = steps.length > 0 ? (completedCount / steps.length) * 100 : 0;
+
+  // Calculate time remaining estimate
+  const remainingSteps = steps.filter(s => s.status !== 'complete');
+  const estimatedRemaining = remainingSteps.reduce((sum, step) => {
+    const iconDuration = step.icon ? getStepDurationEstimate(step.icon) : 1000;
+    return sum + iconDuration;
+  }, 0);
+
   return (
     <div className="p-5 border-b border-white/5">
-      <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
-        <Zap className="w-4 h-4 text-amber-400" />
-        Progress
-      </h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold text-white flex items-center gap-2">
+          <motion.div
+            animate={steps.some(s => s.status === 'active') ? { rotate: 360 } : {}}
+            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+          >
+            <Zap className="w-4 h-4 text-amber-400" />
+          </motion.div>
+          Progress
+        </h3>
+        {/* Time estimate */}
+        {activeStep && estimatedRemaining > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex items-center gap-1 text-xs text-violet-400"
+          >
+            <Clock className="w-3 h-3" />
+            <span>{formatDurationEstimate(estimatedRemaining)}</span>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Mini Progress Bar */}
+      {steps.length > 0 && (
+        <div className="mb-4">
+          <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-gradient-to-r from-violet-500 to-purple-500"
+              initial={{ width: '0%' }}
+              animate={{ width: `${progressPercent}%` }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Step Indicator Circles */}
       <div className="flex items-center gap-2 mb-4">
-        {Array.from({ length: totalSteps }, (_, i) => i + 1).map((stepNum) => {
+        {Array.from({ length: Math.max(totalSteps, steps.length) }, (_, i) => i + 1).map((stepNum) => {
           const progressItem = steps.find(p => p.id === stepNum);
           const status = progressItem?.status || 'pending';
 
           return (
             <React.Fragment key={stepNum}>
-              <div
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: (stepNum - 1) * 0.1, duration: 0.3 }}
                 className={cn(
                   'w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-all',
                   status === 'complete' &&
                     'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg shadow-emerald-500/25',
                   status === 'active' &&
-                    'bg-gradient-to-br from-violet-400 to-purple-600 text-white animate-pulse shadow-lg shadow-violet-500/25',
+                    'bg-gradient-to-br from-violet-400 to-purple-600 text-white shadow-lg shadow-violet-500/25',
                   status === 'pending' &&
                     'bg-white/5 text-slate-600 border border-white/10'
                 )}
               >
+                {status === 'active' && (
+                  <motion.div
+                    className="absolute inset-0 rounded-full bg-violet-500/30"
+                    animate={{
+                      scale: [1, 1.5],
+                      opacity: [0.5, 0]
+                    }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  />
+                )}
                 {status === 'complete' ? (
-                  <Check className="w-3.5 h-3.5" />
+                  <motion.div
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: 'spring', stiffness: 200 }}
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                  </motion.div>
                 ) : (
                   stepNum
                 )}
-              </div>
-              {stepNum < totalSteps && (
-                <div
+              </motion.div>
+              {stepNum < Math.max(totalSteps, steps.length) && (
+                <motion.div
                   className={cn(
-                    'flex-1 h-0.5 rounded-full transition-all',
+                    'flex-1 h-0.5 rounded-full',
                     status === 'complete'
                       ? 'bg-gradient-to-r from-emerald-400 to-emerald-600'
                       : 'bg-white/10'
                   )}
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ delay: (stepNum - 1) * 0.1 + 0.1, duration: 0.3 }}
+                  style={{ transformOrigin: 'left' }}
                 />
               )}
             </React.Fragment>
@@ -157,29 +265,79 @@ function ProgressSection({ steps, totalSteps = 4 }: Omit<ProgressSectionProps, '
         })}
       </div>
 
-      {/* Step Labels */}
+      {/* Step Labels with icons */}
       <div className="space-y-2">
-        {steps.length > 0 ? (
-          steps.map((step) => (
-            <div key={step.id} className="flex items-center gap-2">
-              {step.status === 'active' ? (
-                <Loader2 className="w-3.5 h-3.5 text-violet-400 animate-spin" />
-              ) : (
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
-              )}
-              <span
-                className={cn(
-                  'text-xs',
-                  step.status === 'active' ? 'text-violet-300' : 'text-slate-400'
-                )}
-              >
-                {step.label}
-              </span>
-            </div>
-          ))
-        ) : (
-          <p className="text-sm text-slate-500">Steps will show as the task unfolds.</p>
-        )}
+        <AnimatePresence mode="popLayout">
+          {steps.length > 0 ? (
+            steps.map((step, index) => {
+              const StepIcon = step.icon ? getStepIcon(step.icon) : Activity;
+              const estimatedDuration = step.icon ? getStepDurationEstimate(step.icon) : 1000;
+              
+              return (
+                <motion.div
+                  key={step.id}
+                  custom={index}
+                  variants={stepVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit={{ opacity: 0, x: -10 }}
+                  className="flex items-center gap-2"
+                >
+                  {/* Step Icon */}
+                  <motion.div
+                    className={cn(
+                      'w-5 h-5 rounded-full flex items-center justify-center',
+                      step.status === 'complete' && 'bg-emerald-500/20',
+                      step.status === 'active' && 'bg-violet-500/20',
+                      step.status === 'pending' && 'bg-white/5'
+                    )}
+                    variants={step.status === 'active' ? iconPulseVariants : undefined}
+                    animate={step.status === 'active' ? 'active' : undefined}
+                  >
+                    {step.status === 'active' ? (
+                      <Loader2 className="w-3 h-3 text-violet-400 animate-spin" />
+                    ) : step.status === 'complete' ? (
+                      <Check className="w-3 h-3 text-emerald-400" />
+                    ) : (
+                      <StepIcon className="w-3 h-3 text-slate-500" />
+                    )}
+                  </motion.div>
+                  
+                  {/* Label */}
+                  <span
+                    className={cn(
+                      'text-xs flex-1',
+                      step.status === 'active' ? 'text-violet-300 font-medium' : 
+                      step.status === 'complete' ? 'text-slate-400' : 'text-slate-500'
+                    )}
+                  >
+                    {step.label}
+                  </span>
+                  
+                  {/* Duration/Estimate */}
+                  {step.status === 'active' && (
+                    <span className="text-xs text-violet-400/70">
+                      {formatDurationEstimate(estimatedDuration)}
+                    </span>
+                  )}
+                  {step.status === 'complete' && step.duration && (
+                    <span className="text-xs text-slate-600">
+                      {formatActualDuration(step.duration)}
+                    </span>
+                  )}
+                </motion.div>
+              );
+            })
+          ) : (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-sm text-slate-500"
+            >
+              Steps will show as the task unfolds.
+            </motion.p>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
