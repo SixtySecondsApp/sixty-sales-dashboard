@@ -80,6 +80,36 @@ class RecordingService {
   // ===========================================================================
 
   /**
+   * Get a fresh access token, refreshing if needed
+   */
+  private async getFreshAccessToken(): Promise<string | null> {
+    // First try to get current session
+    const { data: sessionData } = await supabase.auth.getSession();
+
+    if (sessionData?.session?.access_token) {
+      // Check if token is expired or about to expire (within 60 seconds)
+      const expiresAt = sessionData.session.expires_at;
+      const now = Math.floor(Date.now() / 1000);
+
+      if (expiresAt && expiresAt > now + 60) {
+        // Token is still valid
+        return sessionData.session.access_token;
+      }
+    }
+
+    // Token is expired or missing - try to refresh
+    logger.info('[RecordingService] Token expired or missing, attempting refresh');
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+    if (refreshError) {
+      logger.error('[RecordingService] Token refresh failed:', refreshError);
+      return null;
+    }
+
+    return refreshData?.session?.access_token || null;
+  }
+
+  /**
    * Start a manual recording by deploying a bot to the meeting
    */
   async startRecording(
@@ -93,17 +123,17 @@ class RecordingService {
         return { success: false, error: "This meeting URL isn't supported" };
       }
 
-      // Call the deploy-recording-bot edge function
-      // This handles quota checking, recording creation, and bot deployment
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
+      // Get fresh access token (with auto-refresh if needed)
+      const accessToken = await this.getFreshAccessToken();
 
       if (!accessToken) {
-        return { success: false, error: 'Not authenticated' };
+        return { success: false, error: 'Session expired. Please log in again.' };
       }
 
       const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
-      const response = await fetch(`${supabaseUrl}/functions/v1/deploy-recording-bot`, {
+
+      // Make the request
+      let response = await fetch(`${supabaseUrl}/functions/v1/deploy-recording-bot`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -115,6 +145,32 @@ class RecordingService {
           calendar_event_id: params.calendarEventId,
         }),
       });
+
+      // Handle 401 with automatic retry after token refresh
+      if (response.status === 401) {
+        logger.warn('[RecordingService] Got 401, attempting token refresh and retry');
+
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+        if (refreshError || !refreshData?.session?.access_token) {
+          logger.error('[RecordingService] Token refresh failed on 401 retry:', refreshError);
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
+
+        // Retry with fresh token
+        response = await fetch(`${supabaseUrl}/functions/v1/deploy-recording-bot`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${refreshData.session.access_token}`,
+          },
+          body: JSON.stringify({
+            meeting_url: params.meetingUrl,
+            meeting_title: params.meetingTitle,
+            calendar_event_id: params.calendarEventId,
+          }),
+        });
+      }
 
       const result = await response.json();
 
@@ -148,18 +204,17 @@ class RecordingService {
    */
   async stopRecording(recordingId: string): Promise<{ success: boolean; error?: string }> {
     try {
-      // Get auth token for edge function call
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
+      // Get fresh access token (with auto-refresh if needed)
+      const accessToken = await this.getFreshAccessToken();
 
       if (!accessToken) {
-        return { success: false, error: 'Not authenticated' };
+        return { success: false, error: 'Session expired. Please log in again.' };
       }
 
       // Call the stop-recording-bot edge function
       // This handles removing the bot from MeetingBaaS and updating all relevant records
       const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
-      const response = await fetch(`${supabaseUrl}/functions/v1/stop-recording-bot`, {
+      let response = await fetch(`${supabaseUrl}/functions/v1/stop-recording-bot`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -169,6 +224,28 @@ class RecordingService {
           recording_id: recordingId,
         }),
       });
+
+      // Handle 401 with automatic retry after token refresh
+      if (response.status === 401) {
+        logger.warn('[RecordingService] Got 401 on stopRecording, attempting token refresh and retry');
+
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+        if (refreshError || !refreshData?.session?.access_token) {
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
+
+        response = await fetch(`${supabaseUrl}/functions/v1/stop-recording-bot`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${refreshData.session.access_token}`,
+          },
+          body: JSON.stringify({
+            recording_id: recordingId,
+          }),
+        });
+      }
 
       const result = await response.json();
 
@@ -309,15 +386,15 @@ class RecordingService {
     recordingId: string
   ): Promise<{ success: boolean; url?: string; expires_at?: string; error?: string }> {
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
+      // Get fresh access token (with auto-refresh if needed)
+      const accessToken = await this.getFreshAccessToken();
 
       if (!accessToken) {
-        return { success: false, error: 'Not authenticated' };
+        return { success: false, error: 'Session expired. Please log in again.' };
       }
 
       const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
-      const response = await fetch(
+      let response = await fetch(
         `${supabaseUrl}/functions/v1/get-recording-url?recording_id=${recordingId}`,
         {
           method: 'GET',
@@ -326,6 +403,27 @@ class RecordingService {
           },
         }
       );
+
+      // Handle 401 with automatic retry after token refresh
+      if (response.status === 401) {
+        logger.warn('[RecordingService] Got 401 on getRecordingUrl, attempting token refresh and retry');
+
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+        if (refreshError || !refreshData?.session?.access_token) {
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
+
+        response = await fetch(
+          `${supabaseUrl}/functions/v1/get-recording-url?recording_id=${recordingId}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${refreshData.session.access_token}`,
+            },
+          }
+        );
+      }
 
       const result = await response.json();
 
