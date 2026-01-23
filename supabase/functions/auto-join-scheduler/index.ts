@@ -59,6 +59,14 @@ interface NotetakerUserSettings {
   selected_calendar_id: string | null;
 }
 
+interface MeetingBaaSCalendar {
+  id: string;
+  user_id: string;
+  org_id: string;
+  calendar_id: string | null;
+  bot_scheduling_enabled: boolean;
+}
+
 interface CalendarEvent {
   id: string;
   user_id: string;
@@ -190,6 +198,7 @@ async function deployBotForEvent(
 /**
  * Process a single organization's upcoming events
  * Now respects per-user calendar selection and recording preferences
+ * Skips calendars with native MeetingBaaS bot scheduling enabled
  */
 async function processOrgEvents(
   supabase: SupabaseClient,
@@ -218,10 +227,39 @@ async function processOrgEvents(
     return result;
   }
 
+  // Get calendars with native MeetingBaaS bot scheduling enabled
+  // These calendars are handled by MeetingBaaS directly, so we skip them
+  const { data: nativeSchedulingCalendars, error: calError } = await supabase
+    .from('meetingbaas_calendars')
+    .select('id, user_id, org_id, calendar_id, bot_scheduling_enabled')
+    .eq('org_id', org.id)
+    .eq('bot_scheduling_enabled', true);
+
+  if (calError) {
+    console.warn(`[AutoJoin] Failed to check native scheduling calendars: ${calError.message}`);
+    // Continue anyway - better to potentially duplicate than skip
+  }
+
+  // Build a set of user_ids with native bot scheduling enabled
+  const usersWithNativeScheduling = new Set<string>(
+    (nativeSchedulingCalendars as MeetingBaaSCalendar[] || []).map(c => c.user_id)
+  );
+
+  if (usersWithNativeScheduling.size > 0) {
+    console.log(`[AutoJoin] ${usersWithNativeScheduling.size} users have native MeetingBaaS bot scheduling (will skip)`);
+  }
+
   console.log(`[AutoJoin] Found ${enabledUsers.length} users with notetaker enabled in org ${org.id}`);
 
   // Process each user's calendar events
   for (const userSettings of enabledUsers as NotetakerUserSettings[]) {
+    // Skip users with native MeetingBaaS bot scheduling enabled
+    // MeetingBaaS handles bot deployment automatically for these users
+    if (usersWithNativeScheduling.has(userSettings.user_id)) {
+      console.log(`[AutoJoin] Skipping user ${userSettings.user_id} - native MeetingBaaS bot scheduling enabled`);
+      continue;
+    }
+
     // Build query for this user's calendar events
     let eventsQuery = supabase
       .from('calendar_events')
