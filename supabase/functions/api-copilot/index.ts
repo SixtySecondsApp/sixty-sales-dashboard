@@ -622,31 +622,41 @@ async function handleChat(
     const hasHowIsMyPerformance = messageLower.includes('how is my performance')
     
     const isPerformanceQuery = hasPerformance || hasSalesCoach || hasHowAmIDoing || hasHowIsMyPerformance
-    const isMeetingPrepQuery = isNextMeetingPrepQuestion(messageLower)
     
-    console.log('[PERF-DETECT] Performance query detection:', {
+    // ---------------------------------------------------------------------------
+    // V1 Deterministic Workflow Router
+    // Maps user intent to one of the 5 V1 workflows + meetings_for_period.
+    // These bypass Gemini reasoning for consistent, reliable results.
+    // ---------------------------------------------------------------------------
+    const v1Route = routeToV1Workflow(messageLower, body.context?.temporalContext)
+    
+    // Legacy flags for backwards compatibility with existing code paths
+    const isMeetingPrepQuery = v1Route?.workflow === 'next_meeting_prep'
+    const isMeetingsForPeriodQuery = v1Route?.workflow === 'meetings_for_period'
+    const isPostMeetingFollowUpPackQuery = v1Route?.workflow === 'post_meeting_followup'
+    const isEmailZeroInboxQuery = v1Route?.workflow === 'email_zero_inbox'
+    const isPipelineFocusQuery = v1Route?.workflow === 'pipeline_focus'
+    const isCatchMeUpQuery = v1Route?.workflow === 'catch_me_up'
+    
+    console.log('[WORKFLOW-ROUTER] V1 workflow routing:', {
       message: body.message.substring(0, 100),
-      messageLower: messageLower.substring(0, 100),
-      hasPerformance,
-      hasSalesCoach,
-      hasHowAmIDoing,
-      hasHowIsMyPerformance,
+      v1Route: v1Route ? { workflow: v1Route.workflow, sequenceKey: v1Route.sequenceKey } : null,
       isPerformanceQuery,
-      isMeetingPrepQuery,
       userId,
       isAdmin: currentUser?.is_admin
     })
     
-    // If it's a deterministic workflow (performance report or next-meeting prep),
-    // skip Claude and go straight to structured response.
+    // If it's a deterministic workflow (performance report or V1 workflow),
+    // skip Gemini and go straight to structured response.
     let aiResponse: any = null
     let shouldSkipClaude = false
     
-    if (isPerformanceQuery || isMeetingPrepQuery) {
+    if (isPerformanceQuery || v1Route) {
       shouldSkipClaude = true
-      console.log('[STRUCTURED] ✅ Deterministic request detected - skipping Claude API call', {
+      console.log('[WORKFLOW-ROUTER] ✅ Deterministic request detected - skipping Gemini API call', {
         isPerformanceQuery,
-        isMeetingPrepQuery
+        v1Workflow: v1Route?.workflow || null,
+        sequenceKey: v1Route?.sequenceKey || null
       })
       // Create a mock AI response for structured response processing
       aiResponse = {
@@ -656,7 +666,7 @@ async function handleChat(
         usage: { input_tokens: 0, output_tokens: 0 }
       }
     } else {
-      console.log('[PERF-DETECT] ❌ Not a performance query - will call Claude')
+      console.log('[WORKFLOW-ROUTER] ❌ No V1 workflow matched - will call Gemini')
     }
 
     // Build context from user's CRM data
@@ -745,7 +755,7 @@ async function handleChat(
       analyticsData.status = 'error'
       analyticsData.error_type = 'claude_api_error'
       analyticsData.error_message = claudeError.message || String(claudeError)
-      analyticsData.claude_api_time_ms = Date.now() - claudeStartTime
+      analyticsData.claude_api_time_ms = Date.now() - geminiStartTime
       throw new Error(`Claude API call failed: ${claudeError.message || String(claudeError)}`)
     }
     } else {
@@ -830,15 +840,262 @@ async function handleChat(
             userId // Pass requesting user ID for permission checks
           )
         } else if (isMeetingPrepQuery) {
-          console.log('[STRUCTURED] Generating structured response for next-meeting prep...', {
+          // Standardize on the sequence-based workflow (consistent with "deals to focus on"):
+          // Run the Next Meeting Command Center sequence in simulation mode, then render the rich panel.
+          const resolvedOrgId = body.context?.orgId ? String(body.context.orgId) : null
+          console.log('[STRUCTURED] Generating structured response for next-meeting command center (sequence)...', {
             targetUserId,
-            orgId: body.context?.orgId || null
+            orgId: resolvedOrgId
           })
-          structuredResponse = await structureNextMeetingPrepResponse(
+
+          const t0 = Date.now()
+          const result = await executeAction(
+            client,
+            targetUserId,
+            resolvedOrgId,
+            'run_sequence',
+            { sequence_key: 'seq-next-meeting-command-center', is_simulation: true, sequence_context: {} }
+          )
+          const latencyMs = Date.now() - t0
+          const capability = (result as any)?.capability
+          const provider = (result as any)?.provider
+          aiResponse.tool_executions = [
+            {
+              toolName: 'execute_action',
+              args: { action: 'run_sequence', params: { sequence_key: 'seq-next-meeting-command-center', is_simulation: true, sequence_context: {} } },
+              result,
+              latencyMs,
+              success: (result as any)?.success === true,
+              capability,
+              provider,
+            },
+          ]
+
+          structuredResponse = await detectAndStructureResponse(
+            body.message,
+            '',
+            client,
+            targetUserId,
+            [],
+            userId,
+            body.context,
+            aiResponse.tool_executions
+          )
+        } else if (isPostMeetingFollowUpPackQuery) {
+          const resolvedOrgId = body.context?.orgId ? String(body.context.orgId) : null
+          console.log('[STRUCTURED] Generating structured response for post-meeting follow-up pack (sequence)...', {
+            targetUserId,
+            orgId: resolvedOrgId
+          })
+
+          const t0 = Date.now()
+          const result = await executeAction(
+            client,
+            targetUserId,
+            resolvedOrgId,
+            'run_sequence',
+            { sequence_key: 'seq-post-meeting-followup-pack', is_simulation: true, sequence_context: {} }
+          )
+          const latencyMs = Date.now() - t0
+          const capability = (result as any)?.capability
+          const provider = (result as any)?.provider
+          aiResponse.tool_executions = [
+            {
+              toolName: 'execute_action',
+              args: { action: 'run_sequence', params: { sequence_key: 'seq-post-meeting-followup-pack', is_simulation: true, sequence_context: {} } },
+              result,
+              latencyMs,
+              success: (result as any)?.success === true,
+              capability,
+              provider,
+            },
+          ]
+
+          structuredResponse = await detectAndStructureResponse(
+            body.message,
+            '',
+            client,
+            targetUserId,
+            [],
+            userId,
+            body.context,
+            aiResponse.tool_executions
+          )
+        } else if (isMeetingsForPeriodQuery) {
+          const period = getMeetingsForPeriodPeriod(messageLower)
+          const timezone = body.context?.temporalContext?.timezone
+            ? String(body.context.temporalContext.timezone)
+            : 'UTC'
+
+          console.log('[STRUCTURED] Generating structured response for meetings list...', {
+            targetUserId,
+            period,
+            timezone,
+          })
+
+          const t0 = Date.now()
+          const result = await executeAction(
             client,
             targetUserId,
             body.context?.orgId ? String(body.context.orgId) : null,
-            body.context?.temporalContext
+            'get_meetings_for_period',
+            { period, timezone, include_context: true, limit: 20 }
+          )
+          const latencyMs = Date.now() - t0
+
+          // Attach deterministic tool telemetry so the UI can show a real tool trail
+          const capability = (result as any)?.capability
+          const provider = (result as any)?.provider
+          aiResponse.tool_executions = [
+            {
+              toolName: 'execute_action',
+              args: { action: 'get_meetings_for_period', params: { period, timezone, include_context: true, limit: 20 } },
+              result,
+              latencyMs,
+              success: (result as any)?.success === true,
+              capability,
+              provider,
+            },
+          ]
+
+          structuredResponse = await detectAndStructureResponse(
+            body.message,
+            '',
+            client,
+            targetUserId,
+            [], // toolsUsed
+            userId,
+            body.context,
+            aiResponse.tool_executions
+          )
+        } else if (isEmailZeroInboxQuery) {
+          // ---------------------------------------------------------------------------
+          // Email Zero Inbox - seq-followup-zero-inbox
+          // ---------------------------------------------------------------------------
+          const resolvedOrgId = body.context?.orgId ? String(body.context.orgId) : null
+          console.log('[WORKFLOW-ROUTER] Generating structured response for email zero inbox (sequence)...', {
+            targetUserId,
+            orgId: resolvedOrgId
+          })
+
+          const t0 = Date.now()
+          const result = await executeAction(
+            client,
+            targetUserId,
+            resolvedOrgId,
+            'run_sequence',
+            { sequence_key: 'seq-followup-zero-inbox', is_simulation: true, sequence_context: {} }
+          )
+          const latencyMs = Date.now() - t0
+          const capability = (result as any)?.capability
+          const provider = (result as any)?.provider
+          aiResponse.tool_executions = [
+            {
+              toolName: 'execute_action',
+              args: { action: 'run_sequence', params: { sequence_key: 'seq-followup-zero-inbox', is_simulation: true, sequence_context: {} } },
+              result,
+              latencyMs,
+              success: (result as any)?.success === true,
+              capability,
+              provider,
+            },
+          ]
+
+          structuredResponse = await detectAndStructureResponse(
+            body.message,
+            '',
+            client,
+            targetUserId,
+            [],
+            userId,
+            body.context,
+            aiResponse.tool_executions
+          )
+        } else if (isPipelineFocusQuery) {
+          // ---------------------------------------------------------------------------
+          // Pipeline Focus - seq-pipeline-focus-tasks
+          // ---------------------------------------------------------------------------
+          const resolvedOrgId = body.context?.orgId ? String(body.context.orgId) : null
+          console.log('[WORKFLOW-ROUTER] Generating structured response for pipeline focus (sequence)...', {
+            targetUserId,
+            orgId: resolvedOrgId
+          })
+
+          const t0 = Date.now()
+          const result = await executeAction(
+            client,
+            targetUserId,
+            resolvedOrgId,
+            'run_sequence',
+            { sequence_key: 'seq-pipeline-focus-tasks', is_simulation: true, sequence_context: { period: 'this_week' } }
+          )
+          const latencyMs = Date.now() - t0
+          const capability = (result as any)?.capability
+          const provider = (result as any)?.provider
+          aiResponse.tool_executions = [
+            {
+              toolName: 'execute_action',
+              args: { action: 'run_sequence', params: { sequence_key: 'seq-pipeline-focus-tasks', is_simulation: true, sequence_context: { period: 'this_week' } } },
+              result,
+              latencyMs,
+              success: (result as any)?.success === true,
+              capability,
+              provider,
+            },
+          ]
+
+          structuredResponse = await detectAndStructureResponse(
+            body.message,
+            '',
+            client,
+            targetUserId,
+            [],
+            userId,
+            body.context,
+            aiResponse.tool_executions
+          )
+        } else if (isCatchMeUpQuery) {
+          // ---------------------------------------------------------------------------
+          // Catch Me Up - seq-catch-me-up (daily brief)
+          // ---------------------------------------------------------------------------
+          const resolvedOrgId = body.context?.orgId ? String(body.context.orgId) : null
+          console.log('[WORKFLOW-ROUTER] Generating structured response for catch me up (sequence)...', {
+            targetUserId,
+            orgId: resolvedOrgId
+          })
+
+          const t0 = Date.now()
+          const result = await executeAction(
+            client,
+            targetUserId,
+            resolvedOrgId,
+            'run_sequence',
+            { sequence_key: 'seq-catch-me-up', is_simulation: true, sequence_context: {} }
+          )
+          const latencyMs = Date.now() - t0
+          const capability = (result as any)?.capability
+          const provider = (result as any)?.provider
+          aiResponse.tool_executions = [
+            {
+              toolName: 'execute_action',
+              args: { action: 'run_sequence', params: { sequence_key: 'seq-catch-me-up', is_simulation: true, sequence_context: {} } },
+              result,
+              latencyMs,
+              success: (result as any)?.success === true,
+              capability,
+              provider,
+            },
+          ]
+
+          structuredResponse = await detectAndStructureResponse(
+            body.message,
+            '',
+            client,
+            targetUserId,
+            [],
+            userId,
+            body.context,
+            aiResponse.tool_executions
           )
         } else {
           structuredResponse = null
@@ -904,6 +1161,45 @@ async function handleChat(
     const responseContent = structuredResponse 
       ? (structuredResponse.summary || `I've analyzed ${targetUserId !== userId ? 'their' : 'your'} performance data.`)
       : (aiResponse?.content || '')
+
+    // For deterministic (skip-model) flows, persist the assistant message so:
+    // - The user can see it in History
+    // - Confirmation replies like "Confirm" can execute pending sequences (pending_action)
+    if (shouldSkipClaude) {
+      try {
+        const execs = Array.isArray(aiResponse?.tool_executions) ? aiResponse.tool_executions : []
+        let pendingAction: any = null
+
+        const lastRunSequence = execs
+          .filter((t: any) => t?.toolName === 'execute_action' && t?.args?.action === 'run_sequence')
+          .slice(-1)[0]
+
+        if (lastRunSequence?.args?.params?.sequence_key && lastRunSequence?.args?.params?.is_simulation === true) {
+          pendingAction = {
+            type: 'run_sequence',
+            sequence_key: String(lastRunSequence.args.params.sequence_key),
+            sequence_context: lastRunSequence.args.params.sequence_context || {},
+            is_simulation: false,
+            created_at: new Date().toISOString(),
+          }
+        }
+
+        await client
+          .from('copilot_messages')
+          .insert({
+            conversation_id: conversationId,
+            role: 'assistant',
+            content: responseContent,
+            metadata: {
+              recommendations: [],
+              pending_action: pendingAction || undefined,
+              structuredResponse: structuredResponse || undefined,
+            },
+          })
+      } catch {
+        // Fail open - history persistence is non-critical
+      }
+    }
     
     const responsePayload = {
       response: {
@@ -2663,7 +2959,7 @@ Write actions require params.confirm=true.`,
             contactId: { type: 'string', description: 'Contact ID (for get_meetings)' },
             period: { type: 'string', enum: ['today', 'tomorrow', 'this_week', 'next_week', 'last_week', 'this_month', 'last_month', 'this_quarter', 'next_quarter', 'last_7_days', 'last_30_days'], description: 'Time period (for meeting queries, get_booking_stats, get_pipeline_deals, get_pipeline_forecast)' },
             timezone: { type: 'string', description: 'IANA timezone (e.g., Europe/London, America/New_York) for timezone-aware date calculations (for get_meeting_count, get_next_meeting, get_meetings_for_period, get_time_breakdown). Auto-detected from user profile if not provided.' },
-            week_starts_on: { type: 'number', enum: [0, 1], description: 'Week start day: 0=Sunday, 1=Monday (default). Used for this_week/next_week/last_week calculations.' },
+            week_starts_on: { type: 'string', enum: ['0', '1'], description: 'Week start day: 0=Sunday, 1=Monday (default). Used for this_week/next_week/last_week calculations.' },
             include_context: { type: 'boolean', description: 'Include CRM context (company, deal, activities) with meeting data (for get_next_meeting, get_meetings_for_period). Default: true for get_next_meeting.' },
             filter_by: { type: 'string', enum: ['meeting_date', 'booking_date'], description: 'Filter by when meeting is scheduled or when booking was created (for get_booking_stats)' },
             source: { type: 'string', enum: ['all', 'savvycal', 'calendar', 'meetings'], description: 'Data source to query (for get_booking_stats)' },
@@ -2936,19 +3232,21 @@ ${skillsListText || '  No skills configured yet'}
   })
 
   // Entity detection for forcing resolve_entity
-  const questionKeywords = ['what', 'tell', 'find', 'show', 'get', 'catch', 'prep', 'brief', 'update', 'about', 'with', 'from']
+  const questionKeywords = ['who', 'what', 'tell', 'find', 'show', 'get', 'catch', 'prep', 'brief', 'update', 'about', 'with', 'from']
   const hasQuestionKeyword = questionKeywords.some(k => message.toLowerCase().includes(k))
   const words = message.split(/\s+/)
   const commonWords = new Set(['The', 'This', 'That', 'These', 'Those', 'What', 'When', 'Where', 'Who', 'Why', 'How', 'Can', 'Could', 'Would', 'Should', 'Will', 'Do', 'Does', 'Did', 'Is', 'Are', 'Was', 'Were', 'Have', 'Has', 'Had', 'Been', 'Being', 'To', 'In', 'On', 'At', 'For', 'With', 'About', 'From', 'Into', 'Through', 'During', 'Before', 'After', 'Above', 'Below', 'Between', 'Under', 'Again', 'Further', 'Then', 'Once', 'Here', 'There', 'All', 'Each', 'Few', 'More', 'Most', 'Other', 'Some', 'Such', 'No', 'Nor', 'Not', 'Only', 'Own', 'Same', 'So', 'Than', 'Too', 'Very', 'Just', 'Now', 'CRM', 'API', 'URL', 'PDF', 'OK'])
-  const potentialNames = words.filter((word, idx) => {
-    if (idx === 0) return false
-    if (!/^[A-Z][a-z]+$/.test(word)) return false
-    if (commonWords.has(word)) return false
-    const nextWord = words[idx + 1]
-    if (nextWord && /^[A-Z][a-z]+$/.test(nextWord)) return false
-    return true
-  })
-  const detectedFirstName = potentialNames[0]
+  const potentialNames = words.map((word, idx) => {
+    if (idx === 0) return null
+    // Strip trailing punctuation for name detection
+    const cleanWord = word.replace(/[?!.,;:'"]+$/, '')
+    if (!/^[A-Z][a-z]+$/.test(cleanWord)) return null
+    if (commonWords.has(cleanWord)) return null
+    const nextWord = words[idx + 1]?.replace(/[?!.,;:'"]+$/, '')
+    if (nextWord && /^[A-Z][a-z]+$/.test(nextWord)) return null
+    return cleanWord
+  }).filter(Boolean)
+  const detectedFirstName = potentialNames[0] as string | undefined
   const shouldForceEntityResolution = hasQuestionKeyword && detectedFirstName && !message.includes('@')
 
   console.log(`[GEMINI_ENTITY_DETECTION] Message: "${message}"`)
@@ -3018,6 +3316,11 @@ ${skillsListText || '  No skills configured yet'}
   // Check if Gemini wants to call functions
   let candidate = data.candidates?.[0]
   let parts = candidate?.content?.parts || []
+
+  // Debug: Log Gemini's initial response structure
+  console.log(`[GEMINI_DEBUG] Initial response parts count: ${parts.length}`)
+  console.log(`[GEMINI_DEBUG] Parts types: ${parts.map((p: any) => p.functionCall ? 'functionCall:' + p.functionCall.name : p.text ? 'text(' + (p.text?.substring(0, 50) || '') + ')' : 'unknown').join(', ')}`)
+  console.log(`[GEMINI_DEBUG] Full first part: ${JSON.stringify(parts[0])?.substring(0, 500)}`)
 
   while (iteration < maxToolIterations) {
     if (Date.now() - startTime > MAX_EXECUTION_TIME) break
@@ -3146,15 +3449,16 @@ ${skillsListText || '  No skills configured yet'}
     parts = candidate?.content?.parts || []
   }
 
-  // Add any accumulated text content
+  // Use accumulated text if we had iterations, otherwise extract from final parts
+  // This prevents duplication when text appears in both accumulated and final parts
   if (accumulatedTextContent) {
-    finalContent += accumulatedTextContent
-  }
-
-  // Extract final text from last response
-  for (const part of parts) {
-    if (part.text) {
-      finalContent += part.text
+    finalContent = accumulatedTextContent.trim()
+  } else {
+    // Only extract from parts if we didn't accumulate (no iterations happened)
+    for (const part of parts) {
+      if (part.text) {
+        finalContent += part.text
+      }
     }
   }
 
@@ -3167,7 +3471,7 @@ ${skillsListText || '  No skills configured yet'}
     output_tokens: usageMetadata.candidatesTokenCount || 0
   }
 
-  console.log(`[GEMINI_COMPLETE] tokens: ${usage.input_tokens}/${usage.output_tokens}, tools: ${toolsUsed.join(',')}`)
+  console.log(`[GEMINI_COMPLETE] tokens: ${usage.input_tokens}/${usage.output_tokens}, tools: ${toolsUsed.join(',')}, toolExecutions: ${toolExecutions.length}`)
 
   return {
     content: finalContent.trim() || 'I processed your request but have no additional response.',
@@ -4070,6 +4374,15 @@ async function executeToolCall(
  * Searches multiple data sources in parallel to resolve a person by first name.
  * Returns either a resolved contact (if one clear match) or disambiguation candidates.
  */
+interface RecentInteraction {
+  type: 'meeting' | 'email' | 'calendar'
+  date: string // ISO date
+  title: string
+  description?: string
+  snippet?: string // Transcript snippet or email preview
+  url?: string // Link to view more
+}
+
 interface EntityCandidate {
   id: string
   type: 'contact' | 'meeting_attendee' | 'calendar_attendee' | 'email_participant'
@@ -4079,12 +4392,15 @@ interface EntityCandidate {
   email?: string
   company_name?: string
   title?: string
+  phone?: string
   source: string
   last_interaction: string // ISO date
   last_interaction_type: string // 'meeting' | 'email' | 'calendar' | 'crm'
   last_interaction_description?: string
   recency_score: number // Higher = more recent (0-100)
   contact_id?: string // If resolved to a CRM contact
+  crm_url?: string // Link to contact in CRM
+  recent_interactions?: RecentInteraction[] // Rich context from various sources
 }
 
 interface ResolveEntityResult {
@@ -4101,6 +4417,178 @@ interface ResolveEntityResult {
   candidates?: EntityCandidate[] // Multiple candidates for disambiguation
   disambiguation_needed?: boolean
   disambiguation_reason?: string
+}
+
+/**
+ * Fetch rich context for a resolved contact
+ * Includes recent meetings with transcript snippets, emails, and calendar events
+ */
+async function fetchRichContactContext(
+  contact: EntityCandidate,
+  client: any,
+  userId: string,
+  appUrl: string = 'https://app.use60.com'
+): Promise<{ crm_url?: string; recent_interactions: RecentInteraction[] }> {
+  const recentInteractions: RecentInteraction[] = []
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  // Generate CRM URL if we have a contact_id
+  const crm_url = contact.contact_id
+    ? `${appUrl}/crm/contacts/${contact.contact_id}`
+    : undefined
+
+  // Fetch in parallel for performance
+  const promises: Promise<void>[] = []
+
+  // 1. Fetch recent meetings with this contact (by email or contact_id)
+  promises.push((async () => {
+    try {
+      // Search by contact_id in meeting_attendees
+      let meetingIds: string[] = []
+
+      if (contact.contact_id) {
+        const { data: attendees } = await client
+          .from('meeting_attendees')
+          .select('meeting_id')
+          .eq('contact_id', contact.contact_id)
+          .limit(10)
+
+        if (attendees) {
+          meetingIds = attendees.map((a: any) => a.meeting_id)
+        }
+      }
+
+      // Also search by email
+      if (contact.email && meetingIds.length < 5) {
+        const { data: emailAttendees } = await client
+          .from('meeting_attendees')
+          .select('meeting_id')
+          .eq('email', contact.email)
+          .limit(10)
+
+        if (emailAttendees) {
+          const newIds = emailAttendees.map((a: any) => a.meeting_id)
+          meetingIds = [...new Set([...meetingIds, ...newIds])]
+        }
+      }
+
+      if (meetingIds.length === 0) return
+
+      // Fetch meeting details with transcript snippets
+      const { data: meetings } = await client
+        .from('meetings')
+        .select('id, title, start_time, summary, transcript_text')
+        .eq('owner_user_id', userId)
+        .in('id', meetingIds.slice(0, 5))
+        .gte('start_time', thirtyDaysAgo)
+        .order('start_time', { ascending: false })
+        .limit(5)
+
+      if (meetings) {
+        for (const meeting of meetings) {
+          // Extract a relevant snippet from transcript (first 200 chars or summary)
+          let snippet = meeting.summary || ''
+          if (!snippet && meeting.transcript_text) {
+            snippet = meeting.transcript_text.substring(0, 200) + '...'
+          }
+
+          recentInteractions.push({
+            type: 'meeting',
+            date: meeting.start_time,
+            title: meeting.title || 'Meeting',
+            description: `Meeting with ${contact.full_name}`,
+            snippet: snippet || undefined,
+            url: `${appUrl}/meetings/${meeting.id}`
+          })
+        }
+      }
+    } catch (e) {
+      console.error('[RICH_CONTEXT] Error fetching meetings:', e)
+    }
+  })())
+
+  // 2. Fetch recent calendar events with this contact
+  promises.push((async () => {
+    try {
+      if (!contact.email) return
+
+      const { data: events } = await client
+        .from('calendar_events')
+        .select('id, title, start_time, attendees')
+        .eq('user_id', userId)
+        .gte('start_time', thirtyDaysAgo)
+        .order('start_time', { ascending: false })
+        .limit(20)
+
+      if (!events) return
+
+      // Filter events that include this contact
+      for (const event of events) {
+        const attendees = event.attendees as Array<{ email?: string; displayName?: string }> | null
+        if (!attendees) continue
+
+        const hasContact = attendees.some(a =>
+          a.email?.toLowerCase() === contact.email?.toLowerCase()
+        )
+
+        if (hasContact) {
+          recentInteractions.push({
+            type: 'calendar',
+            date: event.start_time,
+            title: event.title || 'Calendar Event',
+            description: `Scheduled event with ${contact.full_name}`,
+            url: `${appUrl}/meetings?date=${event.start_time.split('T')[0]}`
+          })
+
+          if (recentInteractions.filter(i => i.type === 'calendar').length >= 3) break
+        }
+      }
+    } catch (e) {
+      console.error('[RICH_CONTEXT] Error fetching calendar events:', e)
+    }
+  })())
+
+  // 3. Fetch recent emails with this contact (from synced emails table if exists)
+  promises.push((async () => {
+    try {
+      if (!contact.email) return
+
+      // Check for synced emails in email_messages table
+      const { data: emails } = await client
+        .from('email_messages')
+        .select('id, subject, date, snippet, thread_id')
+        .eq('user_id', userId)
+        .or(`from_email.eq.${contact.email},to_email.cs.{${contact.email}}`)
+        .gte('date', thirtyDaysAgo)
+        .order('date', { ascending: false })
+        .limit(5)
+
+      if (emails) {
+        for (const email of emails) {
+          recentInteractions.push({
+            type: 'email',
+            date: email.date,
+            title: email.subject || 'Email',
+            description: `Email with ${contact.full_name}`,
+            snippet: email.snippet || undefined
+          })
+        }
+      }
+    } catch (e) {
+      // email_messages table may not exist, that's ok
+      console.log('[RICH_CONTEXT] Skipping emails (table may not exist)')
+    }
+  })())
+
+  await Promise.all(promises)
+
+  // Sort all interactions by date (most recent first)
+  recentInteractions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+  return {
+    crm_url,
+    recent_interactions: recentInteractions.slice(0, 10) // Top 10 most recent
+  }
 }
 
 async function handleResolveEntity(
@@ -4169,6 +4657,7 @@ async function handleResolveEntity(
           first_name,
           last_name,
           email,
+          phone,
           title,
           company_id,
           companies:company_id (name),
@@ -4210,6 +4699,7 @@ async function handleResolveEntity(
           last_name: contact.last_name || undefined,
           full_name: fullName || contact.email || 'Unknown',
           email: contact.email || undefined,
+          phone: contact.phone || undefined,
           company_name: companyName,
           title: contact.title || undefined,
           source: 'CRM',
@@ -4547,18 +5037,25 @@ async function handleResolveEntity(
   }
 
   if (totalCandidates === 1) {
-    // Clear single match
+    // Clear single match - fetch rich context
+    const resolvedContact = sortedCandidates[0]
+    const richContext = await fetchRichContactContext(resolvedContact, client, userId)
+
+    // Enhance contact with rich context
+    resolvedContact.crm_url = richContext.crm_url
+    resolvedContact.recent_interactions = richContext.recent_interactions
+
     return {
       success: true,
       resolved: true,
-      message: `Found ${sortedCandidates[0].full_name}${sortedCandidates[0].company_name ? ` at ${sortedCandidates[0].company_name}` : ''} (${sortedCandidates[0].source})`,
+      message: `Found ${resolvedContact.full_name}${resolvedContact.company_name ? ` at ${resolvedContact.company_name}` : ''}${resolvedContact.title ? ` (${resolvedContact.title})` : ''} (${resolvedContact.source})`,
       search_summary: {
         name_searched: name,
         sources_searched: ['CRM Contacts', 'Recent Meetings', 'Calendar Events', 'Recent Emails'],
         total_candidates: 1,
         search_steps: searchSteps
       },
-      contact: sortedCandidates[0]
+      contact: resolvedContact
     }
   }
 
@@ -4569,10 +5066,17 @@ async function handleResolveEntity(
 
   // If the top candidate has significantly higher recency (>20 point gap), auto-resolve
   if (recencyGap > 20) {
+    // Fetch rich context for the top candidate
+    const richContext = await fetchRichContactContext(topCandidate, client, userId)
+
+    // Enhance contact with rich context
+    topCandidate.crm_url = richContext.crm_url
+    topCandidate.recent_interactions = richContext.recent_interactions
+
     return {
       success: true,
       resolved: true,
-      message: `Found ${topCandidate.full_name}${topCandidate.company_name ? ` at ${topCandidate.company_name}` : ''} - your most recent interaction (${topCandidate.last_interaction_description})`,
+      message: `Found ${topCandidate.full_name}${topCandidate.company_name ? ` at ${topCandidate.company_name}` : ''}${topCandidate.title ? ` (${topCandidate.title})` : ''} - your most recent interaction (${topCandidate.last_interaction_description})`,
       search_summary: {
         name_searched: name,
         sources_searched: ['CRM Contacts', 'Recent Meetings', 'Calendar Events', 'Recent Emails'],
@@ -4585,6 +5089,20 @@ async function handleResolveEntity(
   }
 
   // Multiple candidates with similar recency - need disambiguation
+  // Fetch rich context for top 3 candidates in parallel to provide useful info
+  const topCandidates = sortedCandidates.slice(0, 5)
+  const richContextPromises = topCandidates.slice(0, 3).map(async (candidate) => {
+    try {
+      const richContext = await fetchRichContactContext(candidate, client, userId)
+      candidate.crm_url = richContext.crm_url
+      candidate.recent_interactions = richContext.recent_interactions
+    } catch (e) {
+      console.error('[ENTITY_RESOLUTION] Error fetching rich context for candidate:', e)
+    }
+  })
+
+  await Promise.all(richContextPromises)
+
   return {
     success: true,
     resolved: false,
@@ -4597,7 +5115,7 @@ async function handleResolveEntity(
     },
     disambiguation_needed: true,
     disambiguation_reason: `Multiple contacts with similar recent activity (${topCandidate.full_name} and ${secondCandidate.full_name} both have recent interactions)`,
-    candidates: sortedCandidates.slice(0, 5) // Top 5 candidates
+    candidates: topCandidates // Top 5 candidates with rich context for top 3
   }
 }
 
@@ -6948,6 +7466,258 @@ function isNextMeetingPrepQuestion(messageLower: string): boolean {
 }
 
 /**
+ * Lightweight detection for "show/search my meetings" questions where the user
+ * primarily wants their calendar meetings list for today/tomorrow.
+ *
+ * This is designed to be deterministic (skip model) because it’s a pure data fetch
+ * + structured UI render.
+ */
+function isMeetingsForPeriodQuestion(messageLower: string): boolean {
+  if (!messageLower) return false
+
+  const mentionsMeetings =
+    messageLower.includes('meeting') ||
+    messageLower.includes('meetings') ||
+    messageLower.includes('calendar') ||
+    messageLower.includes('schedule')
+
+  const intentPhrases = [
+    'search meetings',
+    'show meetings',
+    'what meetings',
+    'my meetings',
+    'my calendar',
+    'my schedule',
+    "what's on my calendar",
+    "what's on my schedule",
+    'what do i have today',
+    'what do i have tomorrow',
+    'meetings today',
+    'meetings tomorrow',
+    'schedule today',
+    'schedule tomorrow',
+  ]
+
+  const hasIntent = intentPhrases.some((p) => messageLower.includes(p))
+  const mentionsTodayOrTomorrow = messageLower.includes('today') || messageLower.includes('tomorrow')
+
+  // If they clearly asked for meetings/schedule and anchored it to today/tomorrow, treat as deterministic.
+  if (mentionsMeetings && mentionsTodayOrTomorrow) return true
+  return mentionsMeetings && hasIntent
+}
+
+function getMeetingsForPeriodPeriod(messageLower: string): 'today' | 'tomorrow' {
+  return messageLower.includes('tomorrow') ? 'tomorrow' : 'today'
+}
+
+/**
+ * Detection for "create follow-ups" / "post-meeting follow-up pack" requests.
+ * These map cleanly onto the demo-grade `seq-post-meeting-followup-pack` sequence.
+ */
+function isPostMeetingFollowUpPackQuestion(messageLower: string): boolean {
+  if (!messageLower) return false
+
+  const phrases = [
+    'follow-up pack',
+    'follow up pack',
+    'post-meeting follow-up',
+    'post meeting follow up',
+    'post-meeting followup',
+    'post meeting followup',
+    'create follow-ups',
+    'create follow ups',
+    'write follow-up',
+    'write follow up',
+    'send follow-up',
+    'send follow up',
+    'send recap',
+    'write recap',
+    'after the meeting',
+  ]
+
+  return phrases.some((p) => messageLower.includes(p))
+}
+
+/**
+ * Detection for "catch me up" / "brief me" / "what's happening" requests.
+ * These trigger the seq-catch-me-up sequence for a time-aware daily briefing.
+ */
+function isCatchMeUpQuestion(messageLower: string): boolean {
+  if (!messageLower) return false
+
+  const phrases = [
+    'catch me up',
+    'catch up',
+    'brief me',
+    'bring me up to speed',
+    "what's happening",
+    "what's going on",
+    'what did i miss',
+    "what's new",
+    'my day',
+    'daily brief',
+    'daily briefing',
+    'morning brief',
+    'morning briefing',
+    'start my day',
+    'end of day',
+    'eod update',
+    'eod summary',
+    'wrap up my day',
+  ]
+
+  return phrases.some((p) => messageLower.includes(p))
+}
+
+/**
+ * Detection for "email follow-ups" / "check my inbox" / "unanswered emails" requests.
+ * These trigger the seq-followup-zero-inbox sequence for email triage and reply drafts.
+ */
+function isEmailZeroInboxQuestion(messageLower: string): boolean {
+  if (!messageLower) return false
+
+  const phrases = [
+    'email follow-ups',
+    'email follow ups',
+    'email followups',
+    'check my inbox',
+    'check my emails',
+    'unanswered emails',
+    'emails i need to respond',
+    'emails needing response',
+    'emails i missed',
+    'missed emails',
+    'pending emails',
+    'email backlog',
+    'zero inbox',
+    'inbox zero',
+    'clear my inbox',
+    'help with emails',
+    'help me with emails',
+    'what emails need',
+    'which emails need',
+    'emails to reply',
+    'reply to emails',
+  ]
+
+  return phrases.some((p) => messageLower.includes(p))
+}
+
+/**
+ * Detection for "what deals should I focus on" / "pipeline priorities" requests.
+ * These trigger the seq-pipeline-focus-tasks sequence for deal prioritization.
+ */
+function isPipelineFocusQuestion(messageLower: string): boolean {
+  if (!messageLower) return false
+
+  // Explicit phrases first
+  const phrases = [
+    'deals should i focus',
+    'deals to focus',
+    'pipeline focus',
+    'pipeline priorities',
+    'which deals',
+    'what deals need',
+    'prioritize deals',
+    'prioritize my deals',
+    'deal priorities',
+    'focus deals',
+    'deals needing attention',
+    'stale deals',
+    'deals at risk',
+    'deals closing soon',
+    'high priority deals',
+    'top deals',
+    'help me with deals',
+  ]
+
+  if (phrases.some((p) => messageLower.includes(p))) return true
+
+  // Composite detection: (deal/pipeline) + (focus/prioritize/attention)
+  const hasDealOrPipeline = messageLower.includes('deal') || messageLower.includes('pipeline')
+  const hasFocusIntent =
+    messageLower.includes('focus') ||
+    messageLower.includes('priorit') ||
+    messageLower.includes('attention') ||
+    messageLower.includes('should i')
+
+  return hasDealOrPipeline && hasFocusIntent
+}
+
+/**
+ * Unified V1 Workflow Router
+ * Maps user intent to one of the 5 deterministic V1 workflows.
+ * Returns null if no V1 workflow matches (falls back to Gemini reasoning).
+ */
+interface V1WorkflowRoute {
+  workflow: 'next_meeting_prep' | 'post_meeting_followup' | 'email_zero_inbox' | 'pipeline_focus' | 'catch_me_up' | 'meetings_for_period'
+  sequenceKey: string
+  sequenceContext: Record<string, any>
+}
+
+function routeToV1Workflow(messageLower: string, temporalContext?: TemporalContextPayload): V1WorkflowRoute | null {
+  // Order matters - more specific checks first
+
+  // 1. Next Meeting Prep
+  if (isNextMeetingPrepQuestion(messageLower)) {
+    return {
+      workflow: 'next_meeting_prep',
+      sequenceKey: 'seq-next-meeting-command-center',
+      sequenceContext: {},
+    }
+  }
+
+  // 2. Post-Meeting Follow-Up Pack
+  if (isPostMeetingFollowUpPackQuestion(messageLower)) {
+    return {
+      workflow: 'post_meeting_followup',
+      sequenceKey: 'seq-post-meeting-followup-pack',
+      sequenceContext: {},
+    }
+  }
+
+  // 3. Email Zero Inbox
+  if (isEmailZeroInboxQuestion(messageLower)) {
+    return {
+      workflow: 'email_zero_inbox',
+      sequenceKey: 'seq-followup-zero-inbox',
+      sequenceContext: {},
+    }
+  }
+
+  // 4. Pipeline Focus
+  if (isPipelineFocusQuestion(messageLower)) {
+    return {
+      workflow: 'pipeline_focus',
+      sequenceKey: 'seq-pipeline-focus-tasks',
+      sequenceContext: { period: 'this_week' },
+    }
+  }
+
+  // 5. Catch Me Up (daily brief)
+  if (isCatchMeUpQuestion(messageLower)) {
+    return {
+      workflow: 'catch_me_up',
+      sequenceKey: 'seq-catch-me-up',
+      sequenceContext: {},
+    }
+  }
+
+  // 6. Meetings for period (today/tomorrow) - existing deterministic route
+  if (isMeetingsForPeriodQuestion(messageLower)) {
+    const period = getMeetingsForPeriodPeriod(messageLower)
+    const timezone = temporalContext?.timezone || 'UTC'
+    return {
+      workflow: 'meetings_for_period',
+      sequenceKey: '', // Uses direct action, not sequence
+      sequenceContext: { period, timezone },
+    }
+  }
+
+  return null
+}
+
+/**
  * Detect intent from user message and structure response accordingly
  */
 async function detectAndStructureResponse(
@@ -7203,6 +7973,117 @@ async function detectAndStructureResponse(
     }
   }
   
+  // ---------------------------------------------------------------------------
+  // Meetings list (today/tomorrow) from get_meetings_for_period
+  // ---------------------------------------------------------------------------
+  if (toolExecutions && toolExecutions.length > 0) {
+    const meetingsForPeriodExec = toolExecutions
+      .filter((e: any) => e?.toolName === 'execute_action' && e?.success && e?.args?.action === 'get_meetings_for_period')
+      .slice(-1)[0] as any
+
+    const raw = meetingsForPeriodExec?.result?.data || null
+    const rawMeetings = Array.isArray(raw?.meetings) ? raw.meetings : []
+
+    if (raw && rawMeetings.length >= 0) {
+      // Best-effort user domain detection for external/internal labeling
+      let userEmailDomain: string | null = null
+      try {
+        const { data: profile } = await client
+          .from('profiles')
+          .select('email')
+          .eq('id', userId)
+          .maybeSingle()
+        const email = profile?.email ? String(profile.email) : ''
+        const domain = email.includes('@') ? email.split('@')[1] : ''
+        userEmailDomain = domain || null
+      } catch {
+        userEmailDomain = null
+      }
+
+      const period = raw?.period === 'tomorrow' ? 'tomorrow' : 'today'
+      const periodLabel = period
+
+      const meetings = rawMeetings.map((m: any) => {
+        const attendeesRaw = Array.isArray(m.attendees) ? m.attendees : []
+        const organizerEmail = m.organizer_email ? String(m.organizer_email) : null
+
+        const attendees = attendeesRaw
+          .map((a: any) => {
+            const email = a?.email ? String(a.email) : ''
+            const name = a?.name ? String(a.name) : undefined
+
+            const isOrganizer = organizerEmail ? email.toLowerCase() === organizerEmail.toLowerCase() : false
+            const isExternal = userEmailDomain
+              ? !email.toLowerCase().endsWith(`@${userEmailDomain.toLowerCase()}`)
+              : false
+
+            // Optional contact linking if available from include_context enrichment
+            const ctx = Array.isArray(m.attendeeContext) ? m.attendeeContext : []
+            const ctxMatch = ctx.find((x: any) => x?.email && String(x.email).toLowerCase() === email.toLowerCase())
+            const crmContactId = ctxMatch?.contactId ? String(ctxMatch.contactId) : undefined
+
+            return {
+              email,
+              name,
+              isExternal,
+              isOrganizer,
+              crmContactId,
+            }
+          })
+          .filter((a: any) => !!a.email)
+
+        const hasExternal = attendees.some((a: any) => a.isExternal === true)
+        const meetingType = hasExternal ? 'sales' : 'internal'
+
+        const statusRaw = m?.status ? String(m.status) : 'confirmed'
+        const status =
+          statusRaw === 'tentative' ? 'tentative' :
+          statusRaw === 'cancelled' ? 'cancelled' :
+          'confirmed'
+
+        return {
+          id: String(m.id),
+          source: 'google_calendar',
+          title: m?.title ? String(m.title) : 'Meeting',
+          startTime: String(m.startTime || m.start_time || ''),
+          endTime: String(m.endTime || m.end_time || ''),
+          durationMinutes: Number(m.durationMinutes || m.duration_minutes || 0) || 0,
+          attendees,
+          location: m?.location ? String(m.location) : undefined,
+          meetingUrl: m?.meetingUrl ? String(m.meetingUrl) : undefined,
+          meetingType,
+          status,
+        }
+      })
+
+      const totalDurationMinutes = meetings.reduce((sum: number, m: any) => sum + (Number(m.durationMinutes) || 0), 0)
+      const external = meetings.filter((m: any) => m.meetingType === 'sales').length
+      const internal = meetings.length - external
+
+      return {
+        type: 'meeting_list',
+        summary: `Here are your meetings for ${periodLabel}.`,
+        data: {
+          meetings,
+          period,
+          periodLabel,
+          totalCount: meetings.length,
+          totalDurationMinutes,
+          breakdown: {
+            internal,
+            external,
+            withDeals: 0,
+          },
+        },
+        actions: [],
+        metadata: {
+          timeGenerated: new Date().toISOString(),
+          dataSource: ['calendar'],
+        },
+      }
+    }
+  }
+
   if (isAvailabilityQuestion(messageLower)) {
     const availabilityStructured = await structureCalendarAvailabilityResponse(
       client,
@@ -9931,24 +10812,46 @@ async function structureNextMeetingPrepResponse(
     const now = temporalContext?.isoString ? new Date(temporalContext.isoString) : new Date()
     const windowEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
 
-    // Fetch next upcoming event from our locally-synced calendar_events table (org-scoped when available).
+    // Fetch next upcoming event from our locally-synced calendar_events table.
+    // Include events that match org_id OR have null org_id (personal calendar events)
+    // This ensures personal calendar events aren't filtered out when querying in org context.
+    console.log('[MEETING-PREP] Querying next meeting:', {
+      userId,
+      orgId,
+      now: now.toISOString(),
+      windowEnd: windowEnd.toISOString()
+    })
+
     let eventQuery = client
       .from('calendar_events')
       .select(
-        'id, title, start_time, end_time, location, description, meeting_url, html_link, raw_data, contact_id, deal_id, company_id'
+        'id, title, start_time, end_time, location, description, meeting_url, html_link, raw_data, contact_id, deal_id, company_id, org_id'
       )
       .eq('user_id', userId)
       .gt('start_time', now.toISOString())
       .lt('start_time', windowEnd.toISOString())
+
+    // Include events that match org_id OR have null org_id (personal calendar events)
+    if (orgId) {
+      eventQuery = eventQuery.or(`org_id.eq.${orgId},org_id.is.null`)
+    }
+
+    // Apply ordering and limit after all filters
+    eventQuery = eventQuery
       .order('start_time', { ascending: true })
       .limit(1)
       .maybeSingle()
 
-    if (orgId) {
-      eventQuery = eventQuery.eq('org_id', orgId)
-    }
-
     const { data: event, error: eventError } = await eventQuery
+
+    console.log('[MEETING-PREP] Query result:', {
+      found: !!event,
+      eventId: event?.id,
+      eventTitle: event?.title,
+      eventStart: event?.start_time,
+      eventOrgId: event?.org_id,
+      error: eventError?.message
+    })
     if (eventError) throw new Error(`Failed to load next meeting: ${eventError.message}`)
 
     if (!event) {
@@ -10004,7 +10907,7 @@ async function structureNextMeetingPrepResponse(
         .from('contacts')
         .select('id, full_name, first_name, last_name, email, company_id, title, phone')
         .eq('id', event.contact_id)
-        .eq('user_id', userId)
+        .eq('owner_id', userId)  // CRITICAL: contacts uses owner_id, NOT user_id
         .maybeSingle()
       if (orgId) contactQuery = contactQuery.eq('org_id', orgId)
 
@@ -10017,7 +10920,7 @@ async function structureNextMeetingPrepResponse(
       let inferredQuery = client
         .from('contacts')
         .select('id, full_name, first_name, last_name, email, company_id, title, phone')
-        .eq('user_id', userId)
+        .eq('owner_id', userId)  // CRITICAL: contacts uses owner_id, NOT user_id
         .ilike('email', counterpartyEmail)
         .maybeSingle()
       if (orgId) inferredQuery = inferredQuery.eq('org_id', orgId)

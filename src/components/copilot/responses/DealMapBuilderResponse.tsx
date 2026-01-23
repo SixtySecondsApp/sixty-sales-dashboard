@@ -7,6 +7,7 @@ import { useCopilot } from '@/lib/contexts/CopilotContext';
 
 interface Props {
   data: DealMapBuilderResponseType;
+  onActionClick?: (action: any) => void;
 }
 
 export function DealMapBuilderResponse({ data }: Props) {

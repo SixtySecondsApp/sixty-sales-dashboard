@@ -9,6 +9,8 @@ export type ToolType =
   | 'email_draft'
   | 'email_search'
   | 'calendar_search'
+  | 'next_meeting_prep'
+  | 'post_meeting_followup_pack'
   | 'contact_lookup'
   | 'contact_search'
   | 'deal_health'

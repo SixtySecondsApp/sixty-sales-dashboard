@@ -8,6 +8,7 @@ import { useCopilot } from '@/lib/contexts/CopilotContext';
 
 interface Props {
   data: DailyFocusPlanResponseType;
+  onActionClick?: (action: any) => void;
 }
 
 export function DailyFocusPlanResponse({ data }: Props) {

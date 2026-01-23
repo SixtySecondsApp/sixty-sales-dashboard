@@ -8,6 +8,7 @@ import { useCopilot } from '@/lib/contexts/CopilotContext';
 
 interface Props {
   data: DealSlippageGuardrailsResponseType;
+  onActionClick?: (action: any) => void;
 }
 
 export function DealSlippageGuardrailsResponse({ data }: Props) {

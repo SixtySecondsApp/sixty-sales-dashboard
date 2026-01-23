@@ -7,6 +7,7 @@ import { useCopilot } from '@/lib/contexts/CopilotContext';
 
 interface Props {
   data: DealRescuePackResponseType;
+  onActionClick?: (action: any) => void;
 }
 
 export function DealRescuePackResponse({ data }: Props) {

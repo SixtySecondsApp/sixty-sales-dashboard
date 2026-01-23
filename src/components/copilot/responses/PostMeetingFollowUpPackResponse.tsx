@@ -7,11 +7,12 @@ import { useCopilot } from '@/lib/contexts/CopilotContext';
 
 interface Props {
   data: PostMeetingFollowUpPackResponseType;
+  onActionClick?: (action: any) => void;
 }
 
 type TabKey = 'email' | 'slack' | 'tasks';
 
-export function PostMeetingFollowUpPackResponse({ data }: Props) {
+export function PostMeetingFollowUpPackResponse({ data, onActionClick }: Props) {
   const { sendMessage, isLoading } = useCopilot();
   const { meeting, contact, pack, isSimulation } = data.data;
 
@@ -93,7 +94,10 @@ export function PostMeetingFollowUpPackResponse({ data }: Props) {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => window.open(shareUrl, '_blank')}
+              onClick={() => {
+                if (onActionClick) return onActionClick({ action: 'open_external_url', data: { url: shareUrl } });
+                window.open(shareUrl, '_blank');
+              }}
               className="gap-2"
             >
               <ExternalLink className="w-4 h-4" />
@@ -165,7 +169,15 @@ export function PostMeetingFollowUpPackResponse({ data }: Props) {
             Run follow-up pack
           </Button>
         ) : (
-          <Button variant="secondary" size="sm" onClick={() => { window.location.href = '/tasks'; }} className="gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              if (onActionClick) return onActionClick({ action: 'open_task', data: {} });
+              window.location.href = '/tasks';
+            }}
+            className="gap-2"
+          >
             <ExternalLink className="w-4 h-4" />
             View tasks
           </Button>

@@ -40,6 +40,18 @@ function getStepsForTool(toolType: ToolType): Omit<ToolStep, 'id'>[] {
       { label: 'Filtering meetings', icon: 'activity', state: 'pending' },
       { label: 'Loading meeting details', icon: 'activity', state: 'pending' }
     ],
+    next_meeting_prep: [
+      { label: 'Finding your next meeting', icon: 'calendar', state: 'pending' },
+      { label: 'Loading deal + contact context', icon: 'users', state: 'pending' },
+      { label: 'Generating one-page brief', icon: 'activity', state: 'pending' },
+      { label: 'Preparing prep task preview', icon: 'check-circle', state: 'pending' }
+    ],
+    post_meeting_followup_pack: [
+      { label: 'Loading most recent recorded meeting', icon: 'calendar', state: 'pending' },
+      { label: 'Extracting decisions & next steps', icon: 'activity', state: 'pending' },
+      { label: 'Drafting buyer email + Slack update', icon: 'mail', state: 'pending' },
+      { label: 'Preparing follow-up task preview', icon: 'check-circle', state: 'pending' }
+    ],
     contact_lookup: [
       { label: 'Searching contacts', icon: 'users', state: 'pending' },
       { label: 'Loading recent activity', icon: 'activity', state: 'pending' }

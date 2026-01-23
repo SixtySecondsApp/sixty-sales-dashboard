@@ -7,6 +7,7 @@
 // ============================================================================
 
 import type { ToolCall } from '../copilot/toolTypes';
+import type { EntityDisambiguationData } from './responses/EntityDisambiguationResponse';
 
 export interface CopilotMessage {
   id: string;
@@ -16,6 +17,7 @@ export interface CopilotMessage {
   recommendations?: Recommendation[];
   toolCall?: ToolCall;
   structuredResponse?: CopilotResponse; // New structured response format
+  entityDisambiguation?: EntityDisambiguationData; // Interactive contact selection for disambiguation
 }
 
 export interface Recommendation {

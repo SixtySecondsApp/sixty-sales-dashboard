@@ -73,6 +73,20 @@ const toolConfig: Record<ToolType, ToolConfig> = {
     iconColor: 'text-emerald-400',
     glowColor: 'shadow-emerald-500/20'
   },
+  next_meeting_prep: {
+    icon: Calendar,
+    label: 'Next Meeting Prep',
+    gradient: 'from-violet-500 via-indigo-600 to-blue-700',
+    iconColor: 'text-violet-400',
+    glowColor: 'shadow-violet-500/20'
+  },
+  post_meeting_followup_pack: {
+    icon: Mail,
+    label: 'Follow-Up Pack',
+    gradient: 'from-purple-500 via-fuchsia-600 to-pink-700',
+    iconColor: 'text-purple-400',
+    glowColor: 'shadow-purple-500/20'
+  },
   contact_lookup: {
     icon: Users,
     label: 'Contact Lookup',

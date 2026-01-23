@@ -206,28 +206,28 @@ export const CopilotResponse: React.FC<CopilotResponseProps> = ({ response, onAc
       return <ActionSummaryResponse data={response as ActionSummaryResponseType} onActionClick={onActionClick} />;
 
     case 'pipeline_focus_tasks':
-      return <PipelineFocusTasksResponse data={response as PipelineFocusTasksResponseType} />;
+      return <PipelineFocusTasksResponse data={response as PipelineFocusTasksResponseType} onActionClick={onActionClick} />;
 
     case 'deal_rescue_pack':
-      return <DealRescuePackResponse data={response as DealRescuePackResponseType} />;
+      return <DealRescuePackResponse data={response as DealRescuePackResponseType} onActionClick={onActionClick} />;
 
     case 'next_meeting_command_center':
-      return <NextMeetingCommandCenterResponse data={response as NextMeetingCommandCenterResponseType} />;
+      return <NextMeetingCommandCenterResponse data={response as NextMeetingCommandCenterResponseType} onActionClick={onActionClick} />;
 
     case 'post_meeting_followup_pack':
-      return <PostMeetingFollowUpPackResponse data={response as PostMeetingFollowUpPackResponseType} />;
+      return <PostMeetingFollowUpPackResponse data={response as PostMeetingFollowUpPackResponseType} onActionClick={onActionClick} />;
 
     case 'deal_map_builder':
-      return <DealMapBuilderResponse data={response as DealMapBuilderResponseType} />;
+      return <DealMapBuilderResponse data={response as DealMapBuilderResponseType} onActionClick={onActionClick} />;
 
     case 'daily_focus_plan':
-      return <DailyFocusPlanResponse data={response as DailyFocusPlanResponseType} />;
+      return <DailyFocusPlanResponse data={response as DailyFocusPlanResponseType} onActionClick={onActionClick} />;
 
     case 'followup_zero_inbox':
-      return <FollowupZeroInboxResponse data={response as FollowupZeroInboxResponseType} />;
+      return <FollowupZeroInboxResponse data={response as FollowupZeroInboxResponseType} onActionClick={onActionClick} />;
 
     case 'deal_slippage_guardrails':
-      return <DealSlippageGuardrailsResponse data={response as DealSlippageGuardrailsResponseType} />;
+      return <DealSlippageGuardrailsResponse data={response as DealSlippageGuardrailsResponseType} onActionClick={onActionClick} />;
 
     case 'meeting_count':
       return <MeetingCountResponse data={(response as any).data as MeetingCountResponseData} onActionClick={onActionClick} />;

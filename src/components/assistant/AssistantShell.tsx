@@ -39,6 +39,55 @@ export function AssistantShell({ mode, onOpenQuickAdd }: AssistantShellProps) {
 
     if (!actionName) return;
 
+    // ---------------------------------------------------------------------------
+    // Standard Copilot action contract (Option A)
+    // ---------------------------------------------------------------------------
+    // In-app navigation
+    if (actionName === 'open_contact' && (payload?.contactId || payload?.id)) {
+      navigate(`/crm/contacts/${String(payload.contactId || payload.id)}`);
+      return;
+    }
+
+    if (actionName === 'open_deal' && (payload?.dealId || payload?.id)) {
+      navigate(`/crm/deals/${String(payload.dealId || payload.id)}`);
+      return;
+    }
+
+    if (actionName === 'open_meeting' && (payload?.meetingId || payload?.id)) {
+      navigate(`/meetings?meeting=${encodeURIComponent(String(payload.meetingId || payload.id))}`);
+      return;
+    }
+
+    if (actionName === 'open_task') {
+      // We don't have a task detail route standardized; default to tasks list.
+      navigate('/tasks');
+      return;
+    }
+
+    // External navigation
+    if (actionName === 'open_external_url' && payload?.url) {
+      window.open(String(payload.url), '_blank');
+      return;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Backwards-compatible aliases (older response components)
+    // ---------------------------------------------------------------------------
+    if (actionName === 'open_meeting_url' && payload?.url) {
+      window.open(String(payload.url), '_blank');
+      return;
+    }
+
+    if (actionName === 'view_meeting' && (payload?.meetingId || payload?.id)) {
+      navigate(`/meetings?meeting=${encodeURIComponent(String(payload.meetingId || payload.id))}`);
+      return;
+    }
+
+    if (actionName === 'view_task') {
+      navigate('/tasks');
+      return;
+    }
+
     if (actionName === 'open_contact' && payload?.contactId) {
       navigate(`/crm/contacts/${payload.contactId}`);
       return;

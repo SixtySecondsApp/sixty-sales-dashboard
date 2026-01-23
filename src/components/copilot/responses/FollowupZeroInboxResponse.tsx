@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface Props {
   data: FollowupZeroInboxResponseType;
+  onActionClick?: (action: any) => void;
 }
 
 export function FollowupZeroInboxResponse({ data }: Props) {

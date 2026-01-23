@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { PriorityCard } from './PriorityCard';
 import { ToolCallIndicator } from './ToolCallIndicator';
 import { CopilotResponse } from './CopilotResponse';
+import { EntityDisambiguationResponse } from './responses/EntityDisambiguationResponse';
 import type { CopilotMessage } from './types';
 import { useUser } from '@/lib/hooks/useUser';
 import ReactMarkdown from 'react-markdown';
@@ -86,9 +87,25 @@ export const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ message, on
               )}
             </AnimatePresence>
 
-            {/* Text Content (Legacy Format) - Fade in after tool call */}
+            {/* Entity Disambiguation - Interactive contact selection */}
             <AnimatePresence mode="wait">
-              {!message.structuredResponse && message.content && (
+              {message.entityDisambiguation && message.entityDisambiguation.candidates?.length > 0 && (
+                <motion.div
+                  key="entity-disambiguation"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                  className="bg-white dark:bg-gray-900/60 backdrop-blur-xl border border-gray-200 dark:border-gray-800/40 rounded-xl px-5 py-4 shadow-lg dark:shadow-none"
+                >
+                  <EntityDisambiguationResponse data={message.entityDisambiguation} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Text Content (Legacy Format) - Fade in after tool call, hide if disambiguation is shown */}
+            <AnimatePresence mode="wait">
+              {!message.structuredResponse && !message.entityDisambiguation && message.content && (
                 <motion.div
                   key="text-content"
                   initial={{ opacity: 0, y: 10 }}

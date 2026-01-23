@@ -7,9 +7,10 @@ import { useCopilot } from '@/lib/contexts/CopilotContext';
 
 interface Props {
   data: NextMeetingCommandCenterResponseType;
+  onActionClick?: (action: any) => void;
 }
 
-export function NextMeetingCommandCenterResponse({ data }: Props) {
+export function NextMeetingCommandCenterResponse({ data, onActionClick }: Props) {
   const { sendMessage, isLoading } = useCopilot();
   const { meeting, prepTaskPreview, isSimulation } = data.data;
 
@@ -53,7 +54,10 @@ export function NextMeetingCommandCenterResponse({ data }: Props) {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => { window.location.href = `/meetings?meeting=${encodeURIComponent(meetingId)}`; }}
+              onClick={() => {
+                if (onActionClick) return onActionClick({ action: 'open_meeting', data: { meetingId } });
+                window.location.href = `/meetings?meeting=${encodeURIComponent(meetingId)}`;
+              }}
               className="gap-2"
             >
               <ExternalLink className="w-4 h-4" />
@@ -64,7 +68,10 @@ export function NextMeetingCommandCenterResponse({ data }: Props) {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => window.open(url, '_blank')}
+              onClick={() => {
+                if (onActionClick) return onActionClick({ action: 'open_external_url', data: { url } });
+                window.open(url, '_blank');
+              }}
               className="gap-2"
             >
               <ExternalLink className="w-4 h-4" />
@@ -96,7 +103,15 @@ export function NextMeetingCommandCenterResponse({ data }: Props) {
               Create prep task
             </Button>
           ) : (
-            <Button variant="secondary" size="sm" onClick={() => { window.location.href = '/tasks'; }} className="gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                if (onActionClick) return onActionClick({ action: 'open_task', data: {} });
+                window.location.href = '/tasks';
+              }}
+              className="gap-2"
+            >
               <ExternalLink className="w-4 h-4" />
               View tasks
             </Button>

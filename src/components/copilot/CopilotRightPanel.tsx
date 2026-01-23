@@ -503,15 +503,23 @@ function CalendarContextCard({ data }: { data: CalendarContext }) {
 
 // Resolved Entity context card - shows matched contact from entity resolution
 function ResolvedEntityContextCard({ data }: { data: ResolvedEntityContext }) {
-  // Source icon and label mapping
-  const sourceConfig = {
+  // Source icon and label mapping - includes both legacy and new source types
+  const sourceConfig: Record<string, { icon: typeof Building2; label: string; color: string }> = {
+    // Legacy source types
     crm: { icon: Building2, label: 'CRM', color: 'text-orange-400' },
     meeting: { icon: Video, label: 'Meeting', color: 'text-violet-400' },
     calendar: { icon: Calendar, label: 'Calendar', color: 'text-emerald-400' },
     email: { icon: Mail, label: 'Email', color: 'text-blue-400' },
+    // New entity resolution source types
+    contact: { icon: Building2, label: 'CRM Contact', color: 'text-orange-400' },
+    meeting_attendee: { icon: Video, label: 'Meeting', color: 'text-violet-400' },
+    calendar_attendee: { icon: Calendar, label: 'Calendar', color: 'text-emerald-400' },
+    email_participant: { icon: Mail, label: 'Email', color: 'text-blue-400' },
   };
 
-  const { icon: SourceIcon, label: sourceLabel, color: sourceColor } = sourceConfig[data.source];
+  // Default fallback for unknown source types
+  const defaultSourceConfig = { icon: User, label: 'Contact', color: 'text-slate-400' };
+  const { icon: SourceIcon, label: sourceLabel, color: sourceColor } = sourceConfig[data.source] || defaultSourceConfig;
 
   // Confidence indicator
   const confidenceConfig = {

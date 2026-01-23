@@ -449,6 +449,31 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
   // Helper function to detect intent and determine tool type
   const detectToolType = useCallback((message: string): ToolType | null => {
     const lowerMessage = message.toLowerCase();
+
+    // -------------------------------------------------------------------------
+    // Skill-first intent hints (used for the "working story" stepper while waiting)
+    // -------------------------------------------------------------------------
+    // Post-meeting follow-up pack (email + Slack + tasks)
+    if (
+      lowerMessage.includes('follow-up pack') ||
+      lowerMessage.includes('follow up pack') ||
+      lowerMessage.includes('post-meeting') ||
+      lowerMessage.includes('post meeting') ||
+      lowerMessage.includes('send recap') ||
+      lowerMessage.includes('write recap') ||
+      lowerMessage.includes('create follow-ups') ||
+      lowerMessage.includes('create follow ups')
+    ) {
+      return 'post_meeting_followup_pack';
+    }
+
+    // Next meeting prep / briefing
+    if (
+      (lowerMessage.includes('next meeting') || lowerMessage.includes('my next meeting')) &&
+      (lowerMessage.includes('prep') || lowerMessage.includes('prepare') || lowerMessage.includes('brief'))
+    ) {
+      return 'next_meeting_prep';
+    }
     
     // Contact/email queries - check for email addresses or contact names
     const emailPattern = /[\w\.-]+@[\w\.-]+\.\w+/;
@@ -613,6 +638,18 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
           { label: 'Filtering meetings', icon: 'activity' },
           { label: 'Loading meeting details', icon: 'activity' }
         ],
+        next_meeting_prep: [
+          { label: 'Finding your next meeting', icon: 'calendar' },
+          { label: 'Loading deal + contact context', icon: 'users' },
+          { label: 'Generating one-page brief', icon: 'activity' },
+          { label: 'Preparing prep task preview', icon: 'check-circle' }
+        ],
+        post_meeting_followup_pack: [
+          { label: 'Loading most recent recorded meeting', icon: 'calendar' },
+          { label: 'Extracting decisions & next steps', icon: 'activity' },
+          { label: 'Drafting buyer email + Slack update', icon: 'mail' },
+          { label: 'Preparing follow-up task preview', icon: 'check-circle' }
+        ],
         contact_lookup: [
           { label: 'Searching contacts', icon: 'users' },
           { label: 'Loading recent activity', icon: 'activity' }
@@ -646,6 +683,13 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
           { label: 'Comparing periods', icon: 'bar-chart' },
           { label: 'Generating insights', icon: 'lightbulb' },
           { label: 'Creating recommendations', icon: 'target' }
+        ],
+        entity_resolution: [
+          { label: 'Searching CRM contacts', icon: 'users' },
+          { label: 'Searching recent meetings', icon: 'calendar' },
+          { label: 'Searching calendar events', icon: 'calendar' },
+          { label: 'Searching recent emails', icon: 'mail' },
+          { label: 'Resolving best match', icon: 'activity' }
         ]
       };
 
@@ -703,6 +747,10 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
 
       // Tool call will be created from real telemetry in the response
       let toolCall: ToolCall | undefined;
+      const predictedToolType = detectToolType(message);
+      if (predictedToolType) {
+        toolCall = createToolCall(predictedToolType);
+      }
 
       // Add assistant message placeholder with tool call
       const assistantMessageId = `assistant-${Date.now()}`;
@@ -812,39 +860,74 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
           const entityResolution = response.tool_executions.find(
             (exec: ToolExecutionDetail) => exec.toolName === 'resolve_entity' && exec.success
           );
+          // Store disambiguation data for interactive selection UI
+          let entityDisambiguationData: { name_searched: string; disambiguation_reason?: string; candidates: any[] } | undefined;
+
           if (entityResolution?.result) {
             const result = entityResolution.result;
-            // Only update if we have a resolved match (not needs_clarification)
-            if (result.status === 'resolved' && result.match) {
-              const match = result.match;
-              setResolvedEntity({
-                name: match.name,
-                email: match.email,
-                company: match.company,
-                role: match.role,
-                recencyScore: match.recencyScore || 0,
-                source: match.source || 'crm',
-                lastInteraction: match.lastInteraction,
-                confidence: 'high',
-                alternativeCandidates: 0,
-              });
-              logger.log('🎯 Resolved entity for context panel:', match.name);
-            } else if (result.status === 'needs_clarification' && result.candidates?.length > 0) {
-              // Show the top candidate but mark as needs clarification
+
+            // Check if disambiguation is needed:
+            // 1. Explicitly marked as needing disambiguation, OR
+            // 2. Multiple candidates exist (even if auto-resolved, user may want to select different one)
+            const hasMultipleCandidates = result.candidates?.length > 1;
+            const shouldShowDisambiguation = result.disambiguation_needed || hasMultipleCandidates;
+
+            if (shouldShowDisambiguation && result.candidates?.length > 0) {
+              // Store disambiguation data for interactive UI
+              entityDisambiguationData = {
+                name_searched: result.search_summary?.name_searched || '',
+                disambiguation_reason: result.disambiguation_reason || (hasMultipleCandidates ? `Found ${result.candidates.length} people - select the one you meant` : undefined),
+                candidates: result.candidates,
+              };
+              logger.log('🔀 Entity disambiguation UI enabled, found', result.candidates.length, 'candidates (explicit:', result.disambiguation_needed, ', multiple:', hasMultipleCandidates, ')');
+
+              // Also update context panel with top candidate
               const topCandidate = result.candidates[0];
               setResolvedEntity({
-                name: topCandidate.name,
+                name: topCandidate.full_name || topCandidate.name,
                 email: topCandidate.email,
-                company: topCandidate.company,
-                role: topCandidate.role,
-                recencyScore: topCandidate.recencyScore || 0,
-                source: topCandidate.source || 'crm',
-                lastInteraction: topCandidate.lastInteraction,
+                company: topCandidate.company_name || topCandidate.company,
+                role: topCandidate.title || topCandidate.role,
+                recencyScore: topCandidate.recency_score || topCandidate.recencyScore || 0,
+                source: topCandidate.type || topCandidate.source || 'crm',
+                lastInteraction: topCandidate.last_interaction || topCandidate.lastInteraction,
                 confidence: 'needs_clarification',
                 alternativeCandidates: result.candidates.length - 1,
               });
-              logger.log('⚠️ Entity needs clarification, showing top candidate:', topCandidate.name);
+            } else if (result.contact) {
+              // Single clear match - update context panel
+              const match = result.contact;
+              setResolvedEntity({
+                name: match.full_name || match.name,
+                email: match.email,
+                company: match.company_name || match.company,
+                role: match.title || match.role,
+                recencyScore: match.recency_score || match.recencyScore || 0,
+                source: match.type || match.source || 'crm',
+                lastInteraction: match.last_interaction || match.lastInteraction,
+                confidence: 'high',
+                alternativeCandidates: 0,
+              });
+              logger.log('🎯 Resolved entity for context panel:', match.full_name || match.name);
             }
+          }
+        }
+
+        // Recapture entityDisambiguationData from tool_executions for use in message update
+        let entityDisambiguationForMessage: { name_searched: string; disambiguation_reason?: string; candidates: any[] } | undefined;
+        if (response.tool_executions && response.tool_executions.length > 0) {
+          const entityResolution = response.tool_executions.find(
+            (exec: ToolExecutionDetail) => exec.toolName === 'resolve_entity' && exec.success
+          );
+          // Show disambiguation UI when multiple candidates exist (even if auto-resolved)
+          const hasMultipleCandidates = entityResolution?.result?.candidates?.length > 1;
+          const shouldShowDisambiguation = entityResolution?.result?.disambiguation_needed || hasMultipleCandidates;
+          if (shouldShowDisambiguation && entityResolution?.result?.candidates?.length > 0) {
+            entityDisambiguationForMessage = {
+              name_searched: entityResolution.result.search_summary?.name_searched || '',
+              disambiguation_reason: entityResolution.result.disambiguation_reason || (hasMultipleCandidates ? `Found ${entityResolution.result.candidates.length} people - select the one you meant` : undefined),
+              candidates: entityResolution.result.candidates,
+            };
           }
         }
 
@@ -860,9 +943,11 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
                 recommendations: response.response.recommendations || undefined,
                 structuredResponse: response.response.structuredResponse || undefined,
                 // Show tool call if we have telemetry, otherwise remove it
-                toolCall: realToolCall
+                toolCall: realToolCall,
+                // Include entity disambiguation data for interactive selection UI
+                entityDisambiguation: entityDisambiguationForMessage,
               };
-              
+
               return updatedMessage;
             }
             return msg;
