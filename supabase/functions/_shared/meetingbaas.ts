@@ -37,6 +37,10 @@ export interface MeetingBaaSBotConfig {
   webhook_url: string;
   reserved?: boolean;
   deduplication_key?: string;
+  // Speech-to-text configuration for MeetingBaaS transcription
+  speech_to_text?: {
+    provider: 'Default' | 'Gladia' | 'AssemblyAI';
+  };
 }
 
 export interface MeetingBaaSBotResponse {

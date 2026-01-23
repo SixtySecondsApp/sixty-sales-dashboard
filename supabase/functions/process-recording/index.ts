@@ -18,7 +18,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { S3Client, PutObjectCommand, HeadObjectCommand } from 'npm:@aws-sdk/client-s3@3';
 import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3';
-import { corsHeaders, handleCorsPreflightWithResponse } from '../_shared/corsHelper.ts';
+import { legacyCorsHeaders as corsHeaders, handleCorsPreflightRequest } from '../_shared/corsHelper.ts';
 import {
   createMeetingBaaSClient,
   extractDomain,
@@ -137,6 +137,20 @@ async function uploadRecordingToStorage(
 interface ProcessRecordingRequest {
   recording_id: string;
   bot_id?: string;
+  // Optional URLs passed from webhook - use these instead of fetching from MeetingBaaS API
+  video_url?: string;
+  audio_url?: string;
+  // Transcript data passed from transcript.ready webhook - use this instead of calling MeetingBaaS API
+  transcript?: {
+    text: string;
+    utterances: Array<{
+      speaker: number;
+      start: number;
+      end: number;
+      text: string;
+      confidence?: number;
+    }>;
+  };
 }
 
 interface TranscriptUtterance {
@@ -526,7 +540,10 @@ async function checkAndFlagForHITL(
 async function processRecording(
   supabase: SupabaseClient,
   recordingId: string,
-  botId?: string
+  botId?: string,
+  videoUrl?: string,
+  audioUrl?: string,
+  providedTranscript?: ProcessRecordingRequest['transcript']
 ): Promise<{ success: boolean; error?: string }> {
   console.log('[ProcessRecording] Starting pipeline for recording:', recordingId);
 
@@ -567,52 +584,78 @@ async function processRecording(
     const settings = recording.organizations?.recording_settings;
     const internalDomain = recording.organizations?.company_domain || null;
 
-    // Step 1: Get recording URL from MeetingBaaS
-    console.log('[ProcessRecording] Step 1: Fetching recording from MeetingBaaS...');
-    const meetingBaaSClient = createMeetingBaaSClient();
-    const { data: recordingData, error: recordingError } =
-      await meetingBaaSClient.getRecording(effectiveBotId);
+    // Step 1: Determine media URL for transcription
+    // Priority: 1) Already uploaded S3 URL, 2) Passed video/audio URL, 3) Fallback to MeetingBaaS API
+    let mediaUrlForTranscription: string | null = null;
+    let uploadResult: UploadRecordingResult = { success: false };
 
-    if (recordingError || !recordingData) {
-      throw new Error(recordingError?.message || 'Failed to get recording from MeetingBaaS');
+    // Check if S3 upload already done by webhook handler
+    if (recording.recording_s3_url) {
+      console.log('[ProcessRecording] Step 1: Using existing S3 URL for transcription');
+      mediaUrlForTranscription = recording.recording_s3_url;
+      uploadResult = {
+        success: true,
+        storageUrl: recording.recording_s3_url,
+        storagePath: recording.recording_s3_key,
+      };
+    } else if (videoUrl || audioUrl) {
+      // Use URLs passed from webhook
+      const passedUrl = videoUrl || audioUrl;
+      console.log('[ProcessRecording] Step 1: Using passed URL from webhook');
+      mediaUrlForTranscription = passedUrl!;
+
+      // Upload to S3 since webhook didn't do it
+      console.log('[ProcessRecording] Step 1.5: Uploading to storage...');
+      uploadResult = await uploadRecordingToStorage(
+        supabase,
+        passedUrl!,
+        recording.org_id,
+        recording.user_id,
+        recordingId
+      );
+    } else {
+      // Fallback: Try MeetingBaaS API (may fail for old recordings)
+      console.log('[ProcessRecording] Step 1: Fetching recording from MeetingBaaS API...');
+      const meetingBaaSClient = createMeetingBaaSClient();
+      const { data: recordingData, error: recordingError } =
+        await meetingBaaSClient.getRecording(effectiveBotId);
+
+      if (recordingError || !recordingData) {
+        throw new Error(recordingError?.message || 'Failed to get recording from MeetingBaaS');
+      }
+
+      mediaUrlForTranscription = recordingData.url;
+
+      // Upload to S3
+      console.log('[ProcessRecording] Step 1.5: Uploading to storage...');
+      uploadResult = await uploadRecordingToStorage(
+        supabase,
+        recordingData.url,
+        recording.org_id,
+        recording.user_id,
+        recordingId
+      );
     }
 
-    // Step 1.5: Upload recording to our storage
-    console.log('[ProcessRecording] Step 1.5: Uploading to storage...');
-    const uploadResult = await uploadRecordingToStorage(
-      supabase,
-      recordingData.url,
-      recording.org_id,
-      recording.user_id,
-      recordingId
-    );
+    if (!mediaUrlForTranscription) {
+      throw new Error('No media URL available for processing');
+    }
 
+    // Log upload result
     if (!uploadResult.success) {
-      console.warn('[ProcessRecording] Storage upload failed, using MeetingBaaS URL:', uploadResult.error);
-      // Don't fail the whole pipeline - we can still process with MeetingBaaS URL
+      console.warn('[ProcessRecording] Storage upload failed - will continue with original URL:', uploadResult.error);
     }
 
     // Step 2: Get transcript
     console.log('[ProcessRecording] Step 2: Getting transcript...');
     let transcript: TranscriptData;
 
-    const transcriptionProvider = settings?.default_transcription_provider || 'meetingbaas';
-
-    if (transcriptionProvider === 'gladia') {
-      // Use Gladia for transcription
-      transcript = await transcribeWithGladia(recordingData.url);
-    } else {
-      // Use MeetingBaaS transcription
-      const { data: mbTranscript, error: transcriptError } =
-        await meetingBaaSClient.getTranscript(effectiveBotId);
-
-      if (transcriptError || !mbTranscript) {
-        throw new Error(transcriptError?.message || 'Failed to get transcript');
-      }
-
+    // Use provided transcript if available (passed from transcript.ready webhook)
+    if (providedTranscript && providedTranscript.text && providedTranscript.utterances) {
+      console.log('[ProcessRecording] Using transcript provided from webhook');
       transcript = {
-        text: mbTranscript.text,
-        utterances: mbTranscript.utterances.map((u) => ({
+        text: providedTranscript.text,
+        utterances: providedTranscript.utterances.map((u) => ({
           speaker: u.speaker,
           start: u.start,
           end: u.end,
@@ -620,6 +663,12 @@ async function processRecording(
           confidence: u.confidence,
         })),
       };
+    } else {
+      // Fall back to Gladia transcription if no transcript provided
+      // (MeetingBaaS transcription API is not reliable - use Gladia instead)
+      console.log('[ProcessRecording] No transcript provided, using Gladia transcription');
+      const transcriptionUrl = uploadResult.success ? uploadResult.storageUrl! : mediaUrlForTranscription;
+      transcript = await transcribeWithGladia(transcriptionUrl);
     }
 
     // Get attendees from calendar event if available
@@ -704,8 +753,8 @@ async function processRecording(
 
     const recordingUpdate: Record<string, unknown> = {
       status: 'ready',
-      // Use our storage URL if available, fallback to MeetingBaaS URL
-      recording_s3_url: uploadResult.storageUrl || recordingData.url,
+      // Use our storage URL if available, fallback to original media URL
+      recording_s3_url: uploadResult.storageUrl || mediaUrlForTranscription,
       recording_s3_key: uploadResult.storagePath || null,
       transcript_json: transcript,
       transcript_text: transcript.text,
@@ -743,7 +792,7 @@ async function processRecording(
       duration_minutes: durationSeconds ? Math.round(durationSeconds / 60) : null,
       processing_status: 'ready',
       recording_s3_key: uploadResult.storagePath || null,
-      recording_s3_url: uploadResult.storageUrl || recordingData.url,
+      recording_s3_url: uploadResult.storageUrl || mediaUrlForTranscription,
       speakers: speakers,
       updated_at: new Date().toISOString(),
     };
@@ -921,8 +970,9 @@ async function processRecording(
 
 serve(async (req) => {
   // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return handleCorsPreflightWithResponse();
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) {
+    return preflightResponse;
   }
 
   if (req.method !== 'POST') {
@@ -963,7 +1013,14 @@ serve(async (req) => {
       );
     }
 
-    const result = await processRecording(supabase, body.recording_id, body.bot_id);
+    const result = await processRecording(
+      supabase,
+      body.recording_id,
+      body.bot_id,
+      body.video_url,
+      body.audio_url,
+      body.transcript
+    );
 
     return new Response(JSON.stringify(result), {
       status: result.success ? 200 : 500,

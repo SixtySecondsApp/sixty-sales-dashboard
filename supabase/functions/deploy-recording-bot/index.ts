@@ -278,6 +278,12 @@ serve(async (req) => {
       console.log(`[DeployBot] Service role call for user: ${userId}`);
     } else {
       // Regular user JWT call
+      const jwt = authHeader.replace('Bearer ', '');
+
+      // Log JWT info for debugging (just the header, not the full token)
+      const jwtParts = jwt.split('.');
+      console.log(`[DeployBot] JWT received - parts: ${jwtParts.length}, header length: ${jwtParts[0]?.length || 0}`);
+
       supabase = createClient(
         Deno.env.get('SUPABASE_URL')!,
         Deno.env.get('SUPABASE_ANON_KEY')!,
@@ -285,22 +291,32 @@ serve(async (req) => {
           global: {
             headers: { Authorization: authHeader },
           },
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+          },
         }
       );
 
-      // Get user info from JWT
+      // Get user info from JWT - pass token explicitly like api-copilot does
       const {
         data: { user },
         error: userError,
-      } = await supabase.auth.getUser();
+      } = await supabase.auth.getUser(jwt);
 
       if (userError || !user) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        console.error('[DeployBot] Auth error:', userError?.message, 'code:', userError?.code, 'status:', userError?.status);
+        return new Response(JSON.stringify({
+          error: 'Unauthorized',
+          details: userError?.message,
+          code: userError?.code,
+        }), {
           status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
       userId = user.id;
+      console.log(`[DeployBot] User authenticated: ${userId}`);
     }
 
     // Parse request body
@@ -471,6 +487,10 @@ serve(async (req) => {
       recording_mode: 'speaker_view',
       webhook_url: buildWebhookUrl(webhookToken),
       deduplication_key: recording.id,
+      // Enable MeetingBaaS transcription so we get transcript.ready webhook
+      speech_to_text: {
+        provider: 'Default',
+      },
     };
 
     // If scheduled, set reserved flag
