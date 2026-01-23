@@ -1,142 +1,34 @@
 /**
  * Tool Call Indicator Component
  * Visualizes tool execution with animated progress states
+ * 
+ * US-002: Enhanced with delightful animations, duration estimates, and staggered reveals
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Loader2,
-  Database,
-  Mail,
-  Calendar,
-  Users,
-  Activity,
   CheckCircle2,
-  FileText,
-  BarChart3,
-  Lightbulb,
-  Target,
-  LucideIcon
+  Clock,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import type { ToolCall, ToolStep, ToolState, ToolType } from './toolTypes';
+import type { ToolCall, ToolStep, ToolState } from './toolTypes';
+import {
+  getToolConfig,
+  getStepIcon,
+  getStepDurationEstimate,
+  formatDurationEstimate,
+  formatActualDuration,
+  calculateTotalStepDuration,
+} from '@/lib/utils/toolUtils';
 
 interface ToolCallIndicatorProps {
   toolCall: ToolCall;
-  onComplete?: (result: any) => void;
+  onComplete?: (result: unknown) => void;
   compact?: boolean;
   preview?: string[];
 }
-
-interface ToolConfig {
-  icon: LucideIcon;
-  label: string;
-  gradient: string;
-  iconColor: string;
-  glowColor: string;
-}
-
-const toolConfig: Record<ToolType, ToolConfig> = {
-  task_search: {
-    icon: Activity,
-    label: 'Task Search',
-    gradient: 'from-violet-500 via-violet-600 to-violet-700',
-    iconColor: 'text-violet-400',
-    glowColor: 'shadow-violet-500/20'
-  },
-  pipeline_data: {
-    icon: Activity,
-    label: 'Pipeline Analysis',
-    gradient: 'from-blue-500 via-blue-600 to-blue-700',
-    iconColor: 'text-blue-400',
-    glowColor: 'shadow-blue-500/20'
-  },
-  email_draft: {
-    icon: Mail,
-    label: 'Email Generation',
-    gradient: 'from-purple-500 via-purple-600 to-purple-700',
-    iconColor: 'text-purple-400',
-    glowColor: 'shadow-purple-500/20'
-  },
-  email_search: {
-    icon: Mail,
-    label: 'Email Search',
-    gradient: 'from-blue-500 via-indigo-600 to-purple-700',
-    iconColor: 'text-blue-400',
-    glowColor: 'shadow-blue-500/20'
-  },
-  calendar_search: {
-    icon: Calendar,
-    label: 'Calendar Search',
-    gradient: 'from-emerald-500 via-emerald-600 to-emerald-700',
-    iconColor: 'text-emerald-400',
-    glowColor: 'shadow-emerald-500/20'
-  },
-  next_meeting_prep: {
-    icon: Calendar,
-    label: 'Next Meeting Prep',
-    gradient: 'from-violet-500 via-indigo-600 to-blue-700',
-    iconColor: 'text-violet-400',
-    glowColor: 'shadow-violet-500/20'
-  },
-  post_meeting_followup_pack: {
-    icon: Mail,
-    label: 'Follow-Up Pack',
-    gradient: 'from-purple-500 via-fuchsia-600 to-pink-700',
-    iconColor: 'text-purple-400',
-    glowColor: 'shadow-purple-500/20'
-  },
-  contact_lookup: {
-    icon: Users,
-    label: 'Contact Lookup',
-    gradient: 'from-amber-500 via-amber-600 to-amber-700',
-    iconColor: 'text-amber-400',
-    glowColor: 'shadow-amber-500/20'
-  },
-  contact_search: {
-    icon: Users,
-    label: 'Contact Search',
-    gradient: 'from-cyan-500 via-cyan-600 to-cyan-700',
-    iconColor: 'text-cyan-400',
-    glowColor: 'shadow-cyan-500/20'
-  },
-  deal_health: {
-    icon: Activity,
-    label: 'Health Analysis',
-    gradient: 'from-rose-500 via-rose-600 to-rose-700',
-    iconColor: 'text-rose-400',
-    glowColor: 'shadow-rose-500/20'
-  },
-  meeting_analysis: {
-    icon: Calendar,
-    label: 'Meeting Analysis',
-    gradient: 'from-indigo-500 via-indigo-600 to-indigo-700',
-    iconColor: 'text-indigo-400',
-    glowColor: 'shadow-indigo-500/20'
-  },
-  roadmap_create: {
-    icon: FileText,
-    label: 'Roadmap Creation',
-    gradient: 'from-teal-500 via-teal-600 to-teal-700',
-    iconColor: 'text-teal-400',
-    glowColor: 'shadow-teal-500/20'
-  },
-  sales_coach: {
-    icon: BarChart3,
-    label: 'Sales Coach',
-    gradient: 'from-orange-500 via-orange-600 to-orange-700',
-    iconColor: 'text-orange-400',
-    glowColor: 'shadow-orange-500/20'
-  },
-  entity_resolution: {
-    icon: Users,
-    label: 'Finding Contact',
-    gradient: 'from-cyan-500 via-teal-500 to-emerald-600',
-    iconColor: 'text-cyan-400',
-    glowColor: 'shadow-cyan-500/20'
-  }
-};
 
 function getStateLabel(state: ToolState): string {
   const labels: Record<ToolState, string> = {
@@ -173,47 +65,118 @@ function getProgress(toolCall: ToolCall): number {
   return (completedSteps / totalSteps) * 100;
 }
 
-function getStepIcon(iconName: string): LucideIcon {
-  const icons: Record<string, LucideIcon> = {
-    database: Database,
-    mail: Mail,
-    calendar: Calendar,
-    users: Users,
-    activity: Activity,
-    'file-text': FileText,
-    'check-circle': CheckCircle2,
-    'bar-chart': BarChart3,
-    lightbulb: Lightbulb,
-    target: Target
-  };
-  return icons[iconName] || Activity;
-}
-
-function formatMetadata(metadata: Record<string, any>): string {
+function formatMetadata(metadata: Record<string, unknown>): string {
   return Object.entries(metadata)
     .map(([key, value]) => `${key}: ${value}`)
     .join(' • ');
 }
 
+// =============================================================================
+// Step Animation Variants
+// =============================================================================
+
+const stepVariants = {
+  hidden: { 
+    opacity: 0, 
+    x: -20,
+    scale: 0.95
+  },
+  visible: (i: number) => ({
+    opacity: 1,
+    x: 0,
+    scale: 1,
+    transition: {
+      delay: i * 0.15, // Staggered reveal
+      duration: 0.4,
+      ease: [0.25, 0.46, 0.45, 0.94] // Custom easing for smooth reveal
+    }
+  }),
+  exit: {
+    opacity: 0,
+    scale: 0.95,
+    transition: { duration: 0.2 }
+  }
+};
+
+const iconPulseVariants = {
+  pending: {
+    scale: 1,
+    opacity: 0.5
+  },
+  active: {
+    scale: [1, 1.15, 1],
+    opacity: 1,
+    boxShadow: [
+      '0 0 0 0 rgba(59, 130, 246, 0.5)',
+      '0 0 0 10px rgba(59, 130, 246, 0)',
+      '0 0 0 0 rgba(59, 130, 246, 0)'
+    ],
+    transition: {
+      duration: 1.5,
+      repeat: Infinity,
+      ease: 'easeInOut'
+    }
+  },
+  complete: {
+    scale: [1.2, 1],
+    opacity: 1,
+    transition: {
+      type: 'spring',
+      stiffness: 300,
+      damping: 15
+    }
+  }
+};
+
+// =============================================================================
 // Individual Step Component
-function ToolStepComponent({ step, isLast }: { step: ToolStep; isLast: boolean }) {
+// =============================================================================
+
+interface ToolStepComponentProps {
+  step: ToolStep;
+  index: number;
+  isLast: boolean;
+  totalSteps: number;
+}
+
+function ToolStepComponent({ step, index, isLast }: ToolStepComponentProps) {
   const StepIcon = getStepIcon(step.icon);
+  const estimatedDuration = getStepDurationEstimate(step.icon);
   const capabilityLabel = step.capability
     ? step.capability.charAt(0).toUpperCase() + step.capability.slice(1)
     : null;
 
+  // Determine animation state
+  const animationState = step.state === 'complete' ? 'complete' 
+    : (step.state === 'active' ? 'active' : 'pending');
+
   return (
     <motion.div
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
+      custom={index}
+      variants={stepVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
       className="flex items-start gap-3 relative"
     >
-      {/* Connecting Line */}
+      {/* Connecting Line with gradient for completed sections */}
       {!isLast && (
-        <div className="absolute left-[11px] top-6 w-0.5 h-full bg-gradient-to-b from-gray-300 dark:from-gray-700/50 to-transparent" />
+        <motion.div 
+          className="absolute left-[11px] top-6 w-0.5 h-[calc(100%+4px)]"
+          initial={{ scaleY: 0 }}
+          animate={{ scaleY: 1 }}
+          transition={{ delay: index * 0.15 + 0.2, duration: 0.3 }}
+          style={{ transformOrigin: 'top' }}
+        >
+          <div className={`h-full w-full ${
+            step.state === 'complete'
+              ? 'bg-gradient-to-b from-emerald-400 to-emerald-400/30'
+              : 'bg-gradient-to-b from-gray-300 dark:from-gray-700/50 to-transparent'
+          }`} />
+        </motion.div>
       )}
 
-      {/* Icon */}
+      {/* Icon Container */}
       <div className="relative z-10">
         <motion.div
           className={`w-6 h-6 rounded-full flex items-center justify-center ${
@@ -223,26 +186,17 @@ function ToolStepComponent({ step, isLast }: { step: ToolStep; isLast: boolean }
               ? 'bg-blue-500 shadow-lg shadow-blue-500/30'
               : 'bg-gray-200 dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600/50'
           }`}
-          animate={
-            step.state === 'active'
-              ? { 
-                  scale: [1, 1.15, 1],
-                  boxShadow: [
-                    '0 0 0 0 rgba(59, 130, 246, 0.5)',
-                    '0 0 0 8px rgba(59, 130, 246, 0)',
-                    '0 0 0 0 rgba(59, 130, 246, 0)'
-                  ]
-                }
-              : {}
-          }
-          transition={{ 
-            duration: 1.5, 
-            repeat: step.state === 'active' ? Infinity : 0,
-            ease: "easeInOut"
-          }}
+          variants={iconPulseVariants}
+          animate={animationState}
         >
           {step.state === 'complete' ? (
-            <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+            <motion.div
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 12 }}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+            </motion.div>
           ) : step.state === 'active' ? (
             <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
           ) : (
@@ -251,10 +205,10 @@ function ToolStepComponent({ step, isLast }: { step: ToolStep; isLast: boolean }
         </motion.div>
       </div>
 
-      {/* Label */}
+      {/* Label and Metadata */}
       <div className="flex-1 pt-0.5 pb-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <div
+          <motion.div
             className={`text-sm transition-colors duration-200 ${
               step.state === 'complete'
                 ? 'text-gray-700 dark:text-gray-300'
@@ -262,14 +216,19 @@ function ToolStepComponent({ step, isLast }: { step: ToolStep; isLast: boolean }
                 ? 'text-gray-900 dark:text-gray-100 font-medium'
                 : 'text-gray-500 dark:text-gray-400'
             }`}
+            animate={{
+              opacity: step.state === 'pending' ? 0.7 : 1
+            }}
           >
             {step.label}
-          </div>
+          </motion.div>
+          
           {capabilityLabel && (
             <Badge variant="outline" className="text-xs h-5 px-1.5">
               {capabilityLabel}
             </Badge>
           )}
+          
           {step.provider && step.provider !== 'db' && (
             <Badge variant="outline" className="text-xs h-5 px-1.5">
               {step.provider === 'hubspot' ? 'HubSpot' :
@@ -282,52 +241,92 @@ function ToolStepComponent({ step, isLast }: { step: ToolStep; isLast: boolean }
                step.provider}
             </Badge>
           )}
+
+          {/* Duration estimate for active step */}
+          {step.state === 'active' && (
+            <motion.div
+              initial={{ opacity: 0, x: -5 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex items-center gap-1 text-xs text-blue-400"
+            >
+              <Clock className="w-3 h-3" />
+              <span>{formatDurationEstimate(estimatedDuration)}</span>
+            </motion.div>
+          )}
         </div>
 
-        {/* Metadata */}
-        {step.metadata && step.state === 'complete' && Object.keys(step.metadata).length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            className="text-xs text-emerald-600 dark:text-emerald-400/80 mt-1 flex items-center gap-1"
-          >
-            <CheckCircle2 className="w-3 h-3" />
-            <span>{formatMetadata(step.metadata)}</span>
-          </motion.div>
-        )}
+        {/* Completed metadata */}
+        <AnimatePresence>
+          {step.metadata && step.state === 'complete' && Object.keys(step.metadata).length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="text-xs text-emerald-600 dark:text-emerald-400/80 mt-1 flex items-center gap-1"
+            >
+              <CheckCircle2 className="w-3 h-3" />
+              <span>{formatMetadata(step.metadata)}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Duration */}
+        {/* Actual duration for completed steps */}
         {step.duration && step.state === 'complete' && (
-          <div className="text-xs text-gray-500 dark:text-gray-600 mt-0.5">{Math.round(step.duration)}ms</div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-xs text-gray-500 dark:text-gray-600 mt-0.5"
+          >
+            {formatActualDuration(step.duration)}
+          </motion.div>
         )}
       </div>
     </motion.div>
   );
 }
 
+// =============================================================================
 // Main Tool Call Indicator Component
+// =============================================================================
+
 export function ToolCallIndicator({
   toolCall,
-  onComplete,
   compact = false,
   preview
 }: ToolCallIndicatorProps) {
-  const config = toolConfig[toolCall.tool];
+  const config = getToolConfig(toolCall.tool);
   const Icon = config.icon;
   const isComplete = toolCall.state === 'complete';
+
+  // Calculate total estimated time remaining
+  const { estimatedTimeRemaining, totalEstimatedTime } = useMemo(() => {
+    const completedSteps = toolCall.steps.filter(s => s.state === 'complete');
+    const remainingSteps = toolCall.steps.filter(s => s.state !== 'complete');
+    
+    const totalEstimated = calculateTotalStepDuration(toolCall.steps);
+    const completedDuration = completedSteps.reduce((sum, s) => sum + (s.duration || getStepDurationEstimate(s.icon)), 0);
+    const remaining = Math.max(0, totalEstimated - completedDuration);
+    
+    return { 
+      estimatedTimeRemaining: remaining,
+      totalEstimatedTime: totalEstimated
+    };
+  }, [toolCall.steps]);
 
   // Compact mode for multiple tool calls
   if (compact) {
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0, scale: 0.95, y: 5 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
         className="inline-flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-gray-900/70 backdrop-blur-sm border border-gray-200 dark:border-gray-800/50 rounded-xl shadow-sm dark:shadow-none"
       >
         <motion.div
           animate={isComplete ? {} : { rotate: 360 }}
           transition={{ duration: 2, repeat: isComplete ? 0 : Infinity, ease: 'linear' }}
-          className={`${config.iconColor}`}
+          className={config.iconColor}
         >
           <Icon className="w-4 h-4" />
         </motion.div>
@@ -342,7 +341,7 @@ export function ToolCallIndicator({
       initial={{ opacity: 0, y: 10, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
       className="my-2"
     >
       <div className="bg-white dark:bg-gray-900/70 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 rounded-2xl p-5 shadow-lg dark:shadow-xl dark:shadow-black/20 overflow-hidden relative">
@@ -368,7 +367,7 @@ export function ToolCallIndicator({
             animate={isComplete ? {} : { 
               scale: [1, 1.05, 1],
             }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
           >
             {/* Shimmer effect */}
             {!isComplete && (
@@ -407,8 +406,19 @@ export function ToolCallIndicator({
             <div className="text-xs text-gray-600 dark:text-gray-500 mt-0.5 flex items-center gap-2">
               {isComplete ? (
                 <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 200 }}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  </motion.div>
                   <span className="text-emerald-600 dark:text-emerald-400">Complete</span>
+                  {toolCall.endTime && toolCall.startTime && (
+                    <span className="text-gray-500">
+                      • {formatActualDuration(toolCall.endTime - toolCall.startTime)}
+                    </span>
+                  )}
                 </>
               ) : (
                 <>
@@ -419,6 +429,13 @@ export function ToolCallIndicator({
                     <Loader2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                   </motion.div>
                   <span>{getStateLabel(toolCall.state)}</span>
+                  {/* Estimated time remaining */}
+                  {estimatedTimeRemaining > 0 && (
+                    <span className="text-blue-400 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {formatDurationEstimate(estimatedTimeRemaining)} remaining
+                    </span>
+                  )}
                 </>
               )}
             </div>
@@ -437,16 +454,20 @@ export function ToolCallIndicator({
           )}
         </div>
 
-        {/* Progress Steps */}
+        {/* Progress Steps with staggered animation */}
         {toolCall.steps && toolCall.steps.length > 0 && (
           <div className="space-y-1 mb-4 relative z-10">
-            {toolCall.steps.map((step, index) => (
-              <ToolStepComponent
-                key={step.id}
-                step={step}
-                isLast={index === toolCall.steps.length - 1}
-              />
-            ))}
+            <AnimatePresence mode="popLayout">
+              {toolCall.steps.map((step, index) => (
+                <ToolStepComponent
+                  key={step.id}
+                  step={step}
+                  index={index}
+                  isLast={index === toolCall.steps.length - 1}
+                  totalSteps={toolCall.steps.length}
+                />
+              ))}
+            </AnimatePresence>
           </div>
         )}
 
@@ -478,6 +499,11 @@ export function ToolCallIndicator({
                 />
               </motion.div>
             </div>
+            {/* Total estimated time */}
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-600 flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              <span>Est. total: {formatDurationEstimate(totalEstimatedTime)}</span>
+            </div>
           </div>
         )}
 
@@ -489,21 +515,29 @@ export function ToolCallIndicator({
             className="mt-5 pt-5 border-t border-gray-200 dark:border-gray-800/50 relative z-10"
           >
             <div className="text-xs text-gray-600 dark:text-gray-500 mb-3 font-medium flex items-center gap-2">
-              <Activity className="w-3.5 h-3.5" />
+              <motion.div
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              >
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              </motion.div>
               <span>Live Preview</span>
             </div>
             <div className="space-y-2">
-              {preview.map((item, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="text-sm text-gray-700 dark:text-gray-400 pl-4 py-2 border-l-2 border-blue-500/30 bg-blue-50 dark:bg-blue-500/5 rounded-r-lg backdrop-blur-sm"
-                >
-                  {item}
-                </motion.div>
-              ))}
+              <AnimatePresence mode="popLayout">
+                {preview.map((item, i) => (
+                  <motion.div
+                    key={`preview-${i}`}
+                    initial={{ opacity: 0, x: -10, height: 0 }}
+                    animate={{ opacity: 1, x: 0, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ delay: i * 0.1, duration: 0.3 }}
+                    className="text-sm text-gray-700 dark:text-gray-400 pl-4 py-2 border-l-2 border-blue-500/30 bg-blue-50 dark:bg-blue-500/5 rounded-r-lg backdrop-blur-sm"
+                  >
+                    {item}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
               {toolCall.state !== 'complete' && (
                 <motion.div
                   animate={{ opacity: [0.4, 1, 0.4] }}
@@ -522,7 +556,10 @@ export function ToolCallIndicator({
   );
 }
 
-// Streaming Tool Call Component
+// =============================================================================
+// Exports
+// =============================================================================
+
 export function StreamingToolCall({
   toolCall,
   preview
@@ -533,7 +570,6 @@ export function StreamingToolCall({
   return <ToolCallIndicator toolCall={toolCall} preview={preview} />;
 }
 
-// Compact Tool Call Indicator (for multiple tool calls)
 export function CompactToolCallIndicator({ toolCall }: { toolCall: ToolCall }) {
   return <ToolCallIndicator toolCall={toolCall} compact={true} />;
 }
