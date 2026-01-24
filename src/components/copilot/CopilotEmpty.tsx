@@ -165,7 +165,7 @@ export const CopilotEmpty: React.FC<CopilotEmptyProps> = ({ onPromptClick }) => 
                   'px-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all flex-shrink-0',
                   'w-full sm:w-auto',
                   inputValue.trim()
-                    ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:from-violet-400 hover:to-purple-500'
+                    ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white dark:text-white shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:from-violet-400 hover:to-purple-500'
                     : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-slate-600'
                 )}
               >

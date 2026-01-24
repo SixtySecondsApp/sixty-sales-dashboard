@@ -273,8 +273,8 @@ function ToolStepComponent({ step, index, isLast }: ToolStepComponentProps) {
             </Badge>
           )}
 
-          {/* Duration estimate for active step */}
-          {step.state === 'active' && (
+          {/* Duration estimate for active step - only show if >= 1 second */}
+          {step.state === 'active' && estimatedDuration >= 1000 && (
             <motion.div
               initial={{ opacity: 0, x: -5 }}
               animate={{ opacity: 1, x: 0 }}
@@ -362,7 +362,7 @@ export function ToolCallIndicator({
         >
           <Icon className="w-4 h-4" />
         </motion.div>
-        <span className="text-sm text-gray-900 dark:text-gray-300 font-medium">{config.label}</span>
+        <span className="text-sm text-gray-900 dark:text-gray-300 font-medium">{toolCall.customLabel || config.label}</span>
         {!isComplete && <Loader2 className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 animate-spin" />}
       </motion.div>
     );
@@ -421,7 +421,7 @@ export function ToolCallIndicator({
 
           <div className="flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="text-base font-semibold text-gray-900 dark:text-gray-100">{config.label}</div>
+              <div className="text-base font-semibold text-gray-900 dark:text-gray-100">{toolCall.customLabel || config.label}</div>
               {toolCall.provider && toolCall.provider !== 'db' && (
                 <Badge variant="outline" className="text-xs h-5">
                   {toolCall.provider === 'hubspot' ? 'HubSpot' :
@@ -477,8 +477,8 @@ export function ToolCallIndicator({
                     <Loader2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                   </motion.div>
                   <span>{getStateLabel(toolCall.state)}</span>
-                  {/* Estimated time remaining */}
-                  {estimatedTimeRemaining > 0 && (
+                  {/* Estimated time remaining - only show if >= 1 second */}
+                  {estimatedTimeRemaining >= 1000 && (
                     <span className="text-blue-400 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {formatDurationEstimate(estimatedTimeRemaining)} remaining
@@ -576,11 +576,13 @@ export function ToolCallIndicator({
                 />
               </motion.div>
             </div>
-            {/* Total estimated time */}
-            <div className="mt-1 text-xs text-gray-500 dark:text-gray-600 flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              <span>Est. total: {formatDurationEstimate(totalEstimatedTime)}</span>
-            </div>
+            {/* Total estimated time - only show if >= 1 second */}
+            {totalEstimatedTime >= 1000 && (
+              <div className="mt-1 text-xs text-gray-500 dark:text-gray-600 flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                <span>Est. total: {formatDurationEstimate(totalEstimatedTime)}</span>
+              </div>
+            )}
           </div>
         )}
 

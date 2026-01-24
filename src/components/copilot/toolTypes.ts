@@ -17,7 +17,8 @@ export type ToolType =
   | 'meeting_analysis'
   | 'roadmap_create'
   | 'sales_coach'
-  | 'entity_resolution'; // Smart contact/person lookup by first name
+  | 'entity_resolution' // Smart contact/person lookup by first name
+  | 'general_query'; // Fallback for all other queries - ensures loading animation for every message
 
 export type ToolState = 
   | 'pending'
@@ -51,5 +52,7 @@ export interface ToolCall {
   error?: string;
   capability?: string;
   provider?: string;
+  /** AI-generated contextual label based on user query */
+  customLabel?: string;
 }
 

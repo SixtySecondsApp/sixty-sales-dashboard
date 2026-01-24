@@ -135,21 +135,6 @@ const stepVariants = {
   })
 };
 
-const iconPulseVariants = {
-  active: {
-    scale: [1, 1.15, 1],
-    boxShadow: [
-      '0 0 0 0 rgba(139, 92, 246, 0.5)',
-      '0 0 0 6px rgba(139, 92, 246, 0)',
-      '0 0 0 0 rgba(139, 92, 246, 0)'
-    ],
-    transition: {
-      duration: 1.5,
-      repeat: Infinity,
-      ease: 'easeInOut'
-    }
-  }
-};
 
 function ProgressSection({ steps, totalSteps = 4, estimatedTotalTime }: Omit<ProgressSectionProps, 'isProcessing'>) {
   // Calculate progress percentage
@@ -168,12 +153,7 @@ function ProgressSection({ steps, totalSteps = 4, estimatedTotalTime }: Omit<Pro
     <div className="p-4 sm:p-5 border-b border-white/5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-white flex items-center gap-2">
-          <motion.div
-            animate={steps.some(s => s.status === 'active') ? { rotate: 360 } : {}}
-            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-          >
-            <Zap className="w-4 h-4 text-amber-400" />
-          </motion.div>
+          <Zap className="w-4 h-4 text-amber-400" />
           Progress
         </h3>
         {/* Time estimate */}
@@ -225,16 +205,6 @@ function ProgressSection({ steps, totalSteps = 4, estimatedTotalTime }: Omit<Pro
                     'bg-white/5 text-slate-600 border border-white/10'
                 )}
               >
-                {status === 'active' && (
-                  <motion.div
-                    className="absolute inset-0 rounded-full bg-violet-500/30"
-                    animate={{
-                      scale: [1, 1.5],
-                      opacity: [0.5, 0]
-                    }}
-                    transition={{ duration: 1, repeat: Infinity }}
-                  />
-                )}
                 {status === 'complete' ? (
                   <motion.div
                     initial={{ scale: 0, rotate: -180 }}
@@ -285,24 +255,22 @@ function ProgressSection({ steps, totalSteps = 4, estimatedTotalTime }: Omit<Pro
                   className="flex items-center gap-2"
                 >
                   {/* Step Icon */}
-                  <motion.div
+                  <div
                     className={cn(
                       'w-5 h-5 rounded-full flex items-center justify-center',
                       step.status === 'complete' && 'bg-emerald-500/20',
                       step.status === 'active' && 'bg-violet-500/20',
                       step.status === 'pending' && 'bg-white/5'
                     )}
-                    variants={step.status === 'active' ? iconPulseVariants : undefined}
-                    animate={step.status === 'active' ? 'active' : undefined}
                   >
                     {step.status === 'active' ? (
-                      <Loader2 className="w-3 h-3 text-violet-400 animate-spin" />
+                      <StepIcon className="w-3 h-3 text-violet-400" />
                     ) : step.status === 'complete' ? (
                       <Check className="w-3 h-3 text-emerald-400" />
                     ) : (
                       <StepIcon className="w-3 h-3 text-slate-500" />
                     )}
-                  </motion.div>
+                  </div>
                   
                   {/* Label */}
                   <span

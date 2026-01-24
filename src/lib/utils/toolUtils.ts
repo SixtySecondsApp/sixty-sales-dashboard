@@ -150,6 +150,14 @@ export const TOOL_CONFIGS: Record<ToolType, ToolIconConfig> = {
     iconColor: 'text-cyan-400',
     glowColor: 'shadow-cyan-500/20',
     estimatedDurationMs: 3000
+  },
+  general_query: {
+    icon: Sparkles,
+    label: 'Processing',
+    gradient: 'from-blue-500 via-indigo-500 to-violet-600',
+    iconColor: 'text-blue-400',
+    glowColor: 'shadow-blue-500/20',
+    estimatedDurationMs: 3000
   }
 };
 
@@ -212,13 +220,15 @@ export function getStepDurationEstimate(iconName: string): number {
 }
 
 /**
- * Format duration for display (e.g., "~2s", "~500ms")
+ * Format duration for display (e.g., "~2s", "~3s")
+ * Returns empty string for durations under 1 second (not useful to show)
  */
 export function formatDurationEstimate(ms: number): string {
   if (ms >= 1000) {
     return `~${Math.round(ms / 1000)}s`;
   }
-  return `~${ms}ms`;
+  // Don't show estimates under 1 second - they're not meaningful
+  return '';
 }
 
 /**
