@@ -42,13 +42,13 @@ CREATE TABLE IF NOT EXISTS copilot_memory (
 );
 
 -- Indexes for efficient queries
+-- Note: Partial indexes cannot use NOW() as it's not immutable
+-- The expires_at filter is applied at query time instead
 CREATE INDEX IF NOT EXISTS idx_copilot_memory_user_time
-  ON copilot_memory(user_id, occurred_at DESC)
-  WHERE expires_at > NOW();
+  ON copilot_memory(user_id, occurred_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_copilot_memory_org_time
-  ON copilot_memory(organization_id, occurred_at DESC)
-  WHERE expires_at > NOW();
+  ON copilot_memory(organization_id, occurred_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_copilot_memory_expires
   ON copilot_memory(expires_at);

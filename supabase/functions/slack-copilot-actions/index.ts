@@ -200,8 +200,81 @@ async function processAction(
 }
 
 // ============================================================================
-// Handle Pipeline Actions
+// Handle Pipeline Actions (with HITL Preview → Confirm pattern)
 // ============================================================================
+
+/**
+ * Generate a unique pending action ID for tracking confirmation state.
+ */
+function generatePendingActionId(): string {
+  return `slack_pending_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+}
+
+/**
+ * Store a pending action for later confirmation.
+ * This is the Slack equivalent of the in-app pending_action pattern.
+ */
+async function storePendingAction(
+  supabase: any,
+  pendingActionId: string,
+  data: {
+    userId: string;
+    orgId: string;
+    channelId: string;
+    threadTs?: string;
+    sequenceKey: string;
+    sequenceContext: Record<string, unknown>;
+    preview: string;
+    expiresAt: string;
+  }
+): Promise<void> {
+  await supabase
+    .from('slack_pending_actions')
+    .upsert({
+      id: pendingActionId,
+      user_id: data.userId,
+      org_id: data.orgId,
+      channel_id: data.channelId,
+      thread_ts: data.threadTs,
+      sequence_key: data.sequenceKey,
+      sequence_context: data.sequenceContext,
+      preview: data.preview,
+      status: 'pending',
+      expires_at: data.expiresAt,
+      created_at: new Date().toISOString(),
+    });
+}
+
+/**
+ * Get a pending action by ID.
+ */
+async function getPendingAction(
+  supabase: any,
+  pendingActionId: string
+): Promise<any | null> {
+  const { data } = await supabase
+    .from('slack_pending_actions')
+    .select('*')
+    .eq('id', pendingActionId)
+    .eq('status', 'pending')
+    .maybeSingle();
+
+  return data;
+}
+
+/**
+ * Mark a pending action as completed or cancelled.
+ */
+async function updatePendingAction(
+  supabase: any,
+  pendingActionId: string,
+  status: 'confirmed' | 'cancelled'
+): Promise<void> {
+  await supabase
+    .from('slack_pending_actions')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', pendingActionId);
+}
 
 async function handlePipelineAction(
   supabase: any,
@@ -211,58 +284,150 @@ async function handlePipelineAction(
 ): Promise<void> {
   const { dealId, contactId, sequenceKey } = value;
 
+  if (!sequenceKey) {
+    await sendSlackMessage(
+      slackAuth.access_token,
+      interaction.channel.id,
+      '❌ No action configured for this button.',
+      interaction.message?.ts
+    );
+    return;
+  }
+
   // Acknowledge the action
   await sendSlackMessage(
     slackAuth.access_token,
     interaction.channel.id,
-    '🔄 Working on it...',
+    '🔍 Preparing preview...',
     interaction.message?.ts
   );
 
   try {
-    // Call copilot to run the sequence
-    const prompt = sequenceKey === 'seq-deal-rescue-pack'
-      ? `Run deal rescue analysis for deal ${dealId}`
-      : sequenceKey === 'seq-post-meeting-followup-pack'
-      ? `Draft a follow-up email for contact ${contactId}`
-      : sequenceKey === 'seq-next-meeting-command-center'
-      ? `Prep me for the next meeting with ${contactId}`
-      : 'Help me with this deal';
+    // Build sequence context
+    const sequenceContext: Record<string, unknown> = {};
+    if (dealId) sequenceContext.deal_id = dealId;
+    if (contactId) sequenceContext.contact_id = contactId;
 
-    const { data, error } = await supabase.functions.invoke('api-copilot/chat', {
+    // Step 1: Run sequence in SIMULATION mode to get preview
+    const { data: previewResult, error: previewError } = await supabase.functions.invoke('api-copilot/chat', {
       body: {
-        message: prompt,
+        message: `Run ${sequenceKey} in preview mode`,
         context: {
           userId: slackAuth.user_id,
           orgId: slackAuth.organization_id,
           dealId,
           contactId,
-          source: 'slack',
+          source: 'slack_proactive',
+          forceSequence: sequenceKey,
+          isSimulation: true, // Preview mode
         },
       },
     });
 
-    if (error) throw error;
+    if (previewError) throw previewError;
 
-    // Send the result back to Slack
-    const response = data?.response?.content || data?.summary || 'Done! Check the app for details.';
-    
-    await sendSlackMessage(
+    // Extract preview content from the response
+    const preview = previewResult?.response?.content
+      || previewResult?.structuredResponse?.data?.preview
+      || previewResult?.summary
+      || 'Preview not available. Click Confirm to proceed.';
+
+    // Generate pending action ID
+    const pendingActionId = generatePendingActionId();
+
+    // Store the pending action for confirmation
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // 30 min expiry
+    await storePendingAction(supabase, pendingActionId, {
+      userId: slackAuth.user_id,
+      orgId: slackAuth.organization_id,
+      channelId: interaction.channel.id,
+      threadTs: interaction.message?.ts,
+      sequenceKey,
+      sequenceContext,
+      preview: preview.substring(0, 3000),
+      expiresAt,
+    });
+
+    // Build action description
+    const actionDescription = sequenceKey === 'seq-deal-rescue-pack'
+      ? 'Deal Rescue Analysis'
+      : sequenceKey === 'seq-post-meeting-followup-pack'
+      ? 'Send Follow-up Email'
+      : sequenceKey === 'seq-next-meeting-command-center'
+      ? 'Meeting Prep Brief'
+      : 'Execute Action';
+
+    // Step 2: Send preview with Confirm/Cancel buttons
+    await sendSlackBlocks(
       slackAuth.access_token,
       interaction.channel.id,
-      response.substring(0, 3000), // Slack message limit
+      [
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: `📋 Preview: ${actionDescription}`,
+            emoji: true,
+          },
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: preview.substring(0, 2900),
+          },
+        },
+        { type: 'divider' },
+        {
+          type: 'context',
+          elements: [
+            {
+              type: 'mrkdwn',
+              text: '⚠️ _Review the above preview before confirming. This action cannot be undone._',
+            },
+          ],
+        },
+        {
+          type: 'actions',
+          elements: [
+            {
+              type: 'button',
+              text: {
+                type: 'plain_text',
+                text: '✅ Confirm',
+                emoji: true,
+              },
+              style: 'primary',
+              action_id: 'confirm_action',
+              value: JSON.stringify({ pendingActionId, sequenceKey }),
+            },
+            {
+              type: 'button',
+              text: {
+                type: 'plain_text',
+                text: '❌ Cancel',
+                emoji: true,
+              },
+              style: 'danger',
+              action_id: 'cancel_action',
+              value: JSON.stringify({ pendingActionId, sequenceKey }),
+            },
+          ],
+        },
+      ],
+      `Preview: ${actionDescription}`,
       interaction.message?.ts
     );
 
-    // Log engagement
+    // Log engagement event for preview shown
     await supabase.rpc('log_copilot_engagement', {
       p_org_id: slackAuth.organization_id,
       p_user_id: slackAuth.user_id,
-      p_event_type: 'action_taken',
+      p_event_type: 'preview_shown',
       p_trigger_type: 'proactive',
       p_channel: 'slack',
       p_sequence_key: sequenceKey,
-      p_metadata: { dealId, contactId },
+      p_metadata: { dealId, contactId, pendingActionId },
     });
 
   } catch (err) {
@@ -340,7 +505,7 @@ async function handleTaskAction(
 }
 
 // ============================================================================
-// Handle HITL Confirmation
+// Handle HITL Confirmation (with full sequence execution)
 // ============================================================================
 
 async function handleHitlConfirm(
@@ -349,6 +514,23 @@ async function handleHitlConfirm(
   interaction: SlackInteraction,
   value: { pendingActionId?: string; sequenceKey?: string }
 ): Promise<void> {
+  const { pendingActionId, sequenceKey } = value;
+
+  // Look up the pending action
+  let pendingAction = null;
+  if (pendingActionId) {
+    pendingAction = await getPendingAction(supabase, pendingActionId);
+    if (!pendingAction) {
+      await sendSlackMessage(
+        slackAuth.access_token,
+        interaction.channel.id,
+        '⚠️ This action has expired or was already processed. Please try again.',
+        interaction.message?.ts
+      );
+      return;
+    }
+  }
+
   await sendSlackMessage(
     slackAuth.access_token,
     interaction.channel.id,
@@ -357,14 +539,17 @@ async function handleHitlConfirm(
   );
 
   try {
-    // Call copilot with confirmation
+    // Execute the sequence for real (is_simulation: false)
     const { data, error } = await supabase.functions.invoke('api-copilot/chat', {
       body: {
-        message: 'Confirm',
+        message: `Execute ${pendingAction?.sequence_key || sequenceKey}`,
         context: {
           userId: slackAuth.user_id,
           orgId: slackAuth.organization_id,
-          pendingActionId: value.pendingActionId,
+          source: 'slack_proactive',
+          forceSequence: pendingAction?.sequence_key || sequenceKey,
+          isSimulation: false, // Execute for real
+          sequenceContext: pendingAction?.sequence_context || {},
           isConfirmation: true,
         },
       },
@@ -372,7 +557,17 @@ async function handleHitlConfirm(
 
     if (error) throw error;
 
-    const response = data?.response?.content || '✅ Action completed!';
+    // Mark the pending action as confirmed
+    if (pendingActionId) {
+      await updatePendingAction(supabase, pendingActionId, 'confirmed');
+    }
+
+    // Extract result and format response
+    const response = data?.response?.content
+      || data?.structuredResponse?.data?.result
+      || data?.summary
+      || '✅ Action completed successfully!';
+
     await sendSlackMessage(
       slackAuth.access_token,
       interaction.channel.id,
@@ -387,11 +582,21 @@ async function handleHitlConfirm(
       p_event_type: 'confirmation_given',
       p_trigger_type: 'proactive',
       p_channel: 'slack',
-      p_sequence_key: value.sequenceKey,
+      p_sequence_key: pendingAction?.sequence_key || sequenceKey,
+      p_metadata: {
+        pendingActionId,
+        sequenceContext: pendingAction?.sequence_context,
+      },
     });
 
   } catch (err) {
     console.error('[SlackActions] HITL confirm failed:', err);
+    await sendSlackMessage(
+      slackAuth.access_token,
+      interaction.channel.id,
+      '❌ Failed to execute action. Please try again in the app.',
+      interaction.message?.ts
+    );
   }
 }
 
@@ -399,12 +604,19 @@ async function handleHitlCancel(
   supabase: any,
   slackAuth: any,
   interaction: SlackInteraction,
-  value: any
+  value: { pendingActionId?: string; sequenceKey?: string }
 ): Promise<void> {
+  const { pendingActionId, sequenceKey } = value;
+
+  // Mark the pending action as cancelled
+  if (pendingActionId) {
+    await updatePendingAction(supabase, pendingActionId, 'cancelled');
+  }
+
   await sendSlackMessage(
     slackAuth.access_token,
     interaction.channel.id,
-    '❌ Action cancelled.',
+    '❌ Action cancelled. No changes were made.',
     interaction.message?.ts
   );
 
@@ -415,7 +627,8 @@ async function handleHitlCancel(
     p_event_type: 'confirmation_denied',
     p_trigger_type: 'proactive',
     p_channel: 'slack',
-    p_sequence_key: value?.sequenceKey,
+    p_sequence_key: sequenceKey,
+    p_metadata: { pendingActionId },
   });
 }
 
@@ -512,6 +725,42 @@ async function sendSlackMessage(
     return result.ok === true;
   } catch (err) {
     console.error('[SlackActions] Failed to send message:', err);
+    return false;
+  }
+}
+
+/**
+ * Send a Slack message with Block Kit blocks (for rich formatting).
+ */
+async function sendSlackBlocks(
+  accessToken: string,
+  channel: string,
+  blocks: any[],
+  fallbackText: string,
+  threadTs?: string
+): Promise<boolean> {
+  try {
+    const response = await fetch('https://slack.com/api/chat.postMessage', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        channel,
+        blocks,
+        text: fallbackText, // Fallback for notifications
+        thread_ts: threadTs,
+      }),
+    });
+
+    const result = await response.json();
+    if (!result.ok) {
+      console.error('[SlackActions] Block message failed:', result.error);
+    }
+    return result.ok === true;
+  } catch (err) {
+    console.error('[SlackActions] Failed to send block message:', err);
     return false;
   }
 }
