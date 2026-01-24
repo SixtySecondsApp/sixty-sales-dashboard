@@ -153,6 +153,41 @@ export function AssistantShell({ mode, onOpenQuickAdd }: AssistantShellProps) {
       sendMessage(String(payload.prompt));
       return;
     }
+
+    // Email actions - most are handled in-component (EmailResponse)
+    // Only handle actions that need shell-level access
+    
+    // change_email_tone is handled directly in EmailResponse component via API
+    // Do NOT call sendMessage - just return to prevent bubbling
+    if (actionName === 'change_email_tone') {
+      // Handled in EmailResponse component
+      return;
+    }
+
+    // shorten is handled in EmailResponse component
+    if (actionName === 'shorten') {
+      return;
+    }
+
+    // add_calendar_link is handled in EmailResponse component
+    if (actionName === 'add_calendar_link') {
+      return;
+    }
+
+    // copy_email is handled in EmailResponse component
+    if (actionName === 'copy_email') {
+      return;
+    }
+
+    // send_email is handled in EmailResponse component
+    if (actionName === 'send_email') {
+      return;
+    }
+
+    // edit_in_gmail is handled in EmailResponse component
+    if (actionName === 'edit_in_gmail') {
+      return;
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

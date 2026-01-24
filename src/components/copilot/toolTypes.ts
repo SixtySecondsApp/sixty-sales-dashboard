@@ -26,7 +26,8 @@ export type ToolState =
   | 'processing'
   | 'completing'
   | 'complete'
-  | 'active';
+  | 'active'
+  | 'error';
 
 export interface ToolStep {
   id: string;

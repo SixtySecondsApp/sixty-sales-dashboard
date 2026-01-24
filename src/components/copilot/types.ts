@@ -412,6 +412,8 @@ export interface DailyBriefDeal {
   closeDate?: string;
   healthStatus?: 'healthy' | 'at_risk' | 'stale';
   company?: string;
+  contactName?: string;
+  contactEmail?: string;
 }
 
 export interface DailyBriefContact {

@@ -11,6 +11,8 @@ import {
   Loader2,
   CheckCircle2,
   Clock,
+  AlertCircle,
+  XCircle,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { ToolCall, ToolStep, ToolState } from './toolTypes';
@@ -38,13 +40,15 @@ function getStateLabel(state: ToolState): string {
     processing: 'Analyzing...',
     completing: 'Finalizing...',
     complete: 'Complete',
-    active: 'Active...'
+    active: 'Active...',
+    error: 'Failed'
   };
   return labels[state] || 'Processing...';
 }
 
 function getProgress(toolCall: ToolCall): number {
   if (toolCall.state === 'complete') return 100;
+  if (toolCall.state === 'error') return 100; // Show full bar in error state
 
   const completedSteps = toolCall.steps.filter(s => s.state === 'complete').length;
   const totalSteps = toolCall.steps.length;
@@ -57,7 +61,8 @@ function getProgress(toolCall: ToolCall): number {
       processing: 70,
       completing: 90,
       complete: 100,
-      active: 50
+      active: 50,
+      error: 100
     };
     return stateProgress[toolCall.state] || 0;
   }
@@ -125,6 +130,19 @@ const iconPulseVariants = {
       stiffness: 300,
       damping: 15
     }
+  },
+  error: {
+    scale: [1, 1.1, 1],
+    opacity: 1,
+    boxShadow: [
+      '0 0 0 0 rgba(239, 68, 68, 0.5)',
+      '0 0 0 8px rgba(239, 68, 68, 0)',
+      '0 0 0 0 rgba(239, 68, 68, 0)'
+    ],
+    transition: {
+      duration: 0.6,
+      ease: 'easeOut'
+    }
   }
 };
 
@@ -148,6 +166,7 @@ function ToolStepComponent({ step, index, isLast }: ToolStepComponentProps) {
 
   // Determine animation state
   const animationState = step.state === 'complete' ? 'complete' 
+    : step.state === 'error' ? 'error'
     : (step.state === 'active' ? 'active' : 'pending');
 
   return (
@@ -182,6 +201,8 @@ function ToolStepComponent({ step, index, isLast }: ToolStepComponentProps) {
           className={`w-6 h-6 rounded-full flex items-center justify-center ${
             step.state === 'complete'
               ? 'bg-emerald-500 shadow-lg shadow-emerald-500/30'
+              : step.state === 'error'
+              ? 'bg-red-500 shadow-lg shadow-red-500/30'
               : step.state === 'active'
               ? 'bg-blue-500 shadow-lg shadow-blue-500/30'
               : 'bg-gray-200 dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600/50'
@@ -196,6 +217,14 @@ function ToolStepComponent({ step, index, isLast }: ToolStepComponentProps) {
               transition={{ type: 'spring', stiffness: 200, damping: 12 }}
             >
               <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+            </motion.div>
+          ) : step.state === 'error' ? (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 200 }}
+            >
+              <XCircle className="w-3.5 h-3.5 text-white" />
             </motion.div>
           ) : step.state === 'active' ? (
             <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
@@ -212,6 +241,8 @@ function ToolStepComponent({ step, index, isLast }: ToolStepComponentProps) {
             className={`text-sm transition-colors duration-200 ${
               step.state === 'complete'
                 ? 'text-gray-700 dark:text-gray-300'
+                : step.state === 'error'
+                ? 'text-red-500 dark:text-red-400'
                 : step.state === 'active'
                 ? 'text-gray-900 dark:text-gray-100 font-medium'
                 : 'text-gray-500 dark:text-gray-400'
@@ -297,6 +328,7 @@ export function ToolCallIndicator({
   const config = getToolConfig(toolCall.tool);
   const Icon = config.icon;
   const isComplete = toolCall.state === 'complete';
+  const isError = toolCall.state === 'error';
 
   // Calculate total estimated time remaining
   const { estimatedTimeRemaining, totalEstimatedTime } = useMemo(() => {
@@ -420,6 +452,22 @@ export function ToolCallIndicator({
                     </span>
                   )}
                 </>
+              ) : isError ? (
+                <>
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 200 }}
+                  >
+                    <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+                  </motion.div>
+                  <span className="text-red-500">Failed</span>
+                  {toolCall.endTime && toolCall.startTime && (
+                    <span className="text-gray-500">
+                      • {formatActualDuration(toolCall.endTime - toolCall.startTime)}
+                    </span>
+                  )}
+                </>
               ) : (
                 <>
                   <motion.div
@@ -452,6 +500,18 @@ export function ToolCallIndicator({
               </div>
             </motion.div>
           )}
+
+          {isError && (
+            <motion.div
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+            >
+              <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center">
+                <XCircle className="w-6 h-6 text-red-400" />
+              </div>
+            </motion.div>
+          )}
         </div>
 
         {/* Progress Steps with staggered animation */}
@@ -471,8 +531,25 @@ export function ToolCallIndicator({
           </div>
         )}
 
+        {/* Error Message Display */}
+        {isError && toolCall.error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl relative z-10"
+          >
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <div className="text-sm font-medium text-red-400">Something went wrong</div>
+                <div className="text-xs text-red-300/80 mt-1">{toolCall.error}</div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Progress Bar */}
-        {!isComplete && (
+        {!isComplete && !isError && (
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-gray-600 dark:text-gray-500 font-medium">Progress</span>
