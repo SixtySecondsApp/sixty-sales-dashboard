@@ -34,6 +34,7 @@ export const AgentSequencesPage = lazyWithRetry(() => import('@/pages/platform/A
 export const AgentSequenceBuilderPage = lazyWithRetry(() => import('@/pages/platform/AgentSequenceBuilderPage'));
 export const CopilotTestPage = lazyWithRetry(() => import('@/pages/platform/CopilotTestPage'));
 export const CopilotLabPage = lazyWithRetry(() => import('@/pages/platform/CopilotLabPage'));
+export const AgentPerformanceDashboard = lazyWithRetry(() => import('@/pages/platform/AgentPerformanceDashboard'));
 export const NotetakerBranding = lazyWithRetry(() => import('@/pages/platform/NotetakerBranding'));
 
 // Admin Configuration

@@ -40,9 +40,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Skeleton } from '@/packages/shared/components/ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/lib/supabase/clientV2';
-import { useActiveOrganization } from '@/lib/hooks/useActiveOrganization';
+import { useOrg } from '@/lib/contexts/OrgContext';
 
 // ============================================================================
 // Types
@@ -81,7 +81,8 @@ interface DailyTrend {
 // ============================================================================
 
 export default function AgentPerformanceDashboard() {
-  const { organizationId } = useActiveOrganization();
+  const { activeOrg } = useOrg();
+  const organizationId = activeOrg?.id;
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
 
