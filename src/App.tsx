@@ -84,9 +84,11 @@ import {
   // Settings
   SettingsPage, Preferences, Profile, AISettings, TaskSyncSettings, CoachingPreferences,
   AccountSettings, AppearanceSettings, AIPersonalizationPage, AIIntelligencePage, SalesCoachingPage,
-  APIKeysPage, EmailSyncPage, TaskSyncPage, MeetingSyncPage, TeamMembersPage,
+  APIKeysPage, EmailSyncPage, TaskSyncPage, TeamMembersPage,
   CallTypeSettings, PipelineAutomationSettings, FollowUpSettings, OrganizationSettingsPage,
-  LogoSettings, SlackSettings, JustCallSettings, HubSpotSettings, BullhornSettings, OrgBranding, OrgBilling,
+  LogoSettings, SlackSettings, JustCallSettings, HubSpotSettings, BullhornSettings,
+  GoogleWorkspaceIntegrationPage, FathomIntegrationPage, FirefliesIntegrationPage,
+  OrgBranding, OrgBilling,
   // Insights
   Insights, Heatmap, SalesFunnel, TeamAnalytics, ContentTopics,
   // Misc
@@ -518,7 +520,6 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/settings/api-keys" element={<AppLayout><APIKeysPage /></AppLayout>} />
                 <Route path="/settings/email-sync" element={<AppLayout><EmailSyncPage /></AppLayout>} />
                 <Route path="/settings/task-sync" element={<AppLayout><TaskSyncPage /></AppLayout>} />
-                <Route path="/settings/meeting-sync" element={<AppLayout><MeetingSyncPage /></AppLayout>} />
                 <Route path="/settings/team-members" element={<OrgAdminRouteGuard><AppLayout><TeamMembersPage /></AppLayout></OrgAdminRouteGuard>} />
                 <Route path="/settings/organization" element={<OrgAdminRouteGuard><AppLayout><OrganizationSettingsPage /></AppLayout></OrgAdminRouteGuard>} />
                 <Route path="/settings/branding" element={<OrgAdminRouteGuard><AppLayout><OrgBranding /></AppLayout></OrgAdminRouteGuard>} />
@@ -532,6 +533,14 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* Bullhorn Settings - visible only when Bullhorn is connected (enforced inside page) */}
                 <Route path="/settings/integrations/bullhorn" element={<AppLayout><BullhornSettings /></AppLayout>} />
                 <Route path="/settings/bullhorn" element={<Navigate to="/settings/integrations/bullhorn" replace />} />
+                {/* Google Workspace Settings - visible only when Google is connected (enforced inside page) */}
+                <Route path="/settings/integrations/google-workspace" element={<AppLayout><GoogleWorkspaceIntegrationPage /></AppLayout>} />
+                {/* Fathom Settings - visible only when Fathom is connected (enforced inside page) */}
+                <Route path="/settings/integrations/fathom" element={<AppLayout><FathomIntegrationPage /></AppLayout>} />
+                {/* Fireflies Settings - visible only when Fireflies is connected (enforced inside page) */}
+                <Route path="/settings/integrations/fireflies" element={<AppLayout><FirefliesIntegrationPage /></AppLayout>} />
+                {/* 60 Notetaker Settings - redirect to existing recordings settings page */}
+                <Route path="/settings/integrations/60-notetaker" element={<Navigate to="/meetings/recordings/settings" replace />} />
                 <Route path="/settings/ai" element={<AppLayout><AISettings /></AppLayout>} />
                 <Route path="/settings/extraction-rules" element={<Navigate to="/settings/task-sync" replace />} />
                 <Route path="/settings/task-sync" element={<AppLayout><TaskSyncSettings /></AppLayout>} />

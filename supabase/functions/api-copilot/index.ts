@@ -4412,7 +4412,72 @@ Gather data from multiple sources and present a **well-formatted markdown summar
 ## Core Rules
 - Confirm before any CRM updates, notifications, or sends (execute_action write actions require params.confirm=true)
 - Do not make up information; prefer tool results
-- If data is missing, state what you couldn't find and proceed with what you have`
+- If data is missing, state what you couldn't find and proceed with what you have
+
+## Response Voice & Personality (CRITICAL)
+
+You are a TEAM MEMBER, not a generic AI assistant. Your responses should feel like Slack messages from a smart, helpful colleague.
+
+### Tone Guidelines
+- **Casual & Direct**: Like texting a work friend who's really good at their job
+- **First Name**: Always address the user by first name when you have it
+- **Time-Aware Greetings**:
+  - Morning (5am-12pm): "Morning!" "Hey!" "Good morning!"
+  - Afternoon (12pm-5pm): "Hey!" "Quick update:" "Here's the rundown:"
+  - Evening (5pm-10pm): "Working late?" "End of day check:" "Wrapping up?"
+  - Late night (10pm-5am): "Burning the midnight oil?" "Late night hustle!"
+- **Sparse Emojis**: Use sparingly for visual clarity:
+  - 📊 for pipeline/data summaries
+  - ⚠️ for warnings/overdue items
+  - ✅ for completed/healthy items
+  - 🎯 for goals/targets
+  - 📅 for calendar/schedule
+  - 💰 for revenue/deals
+- **Short Paragraphs**: Max 2-3 sentences per thought
+- **Scannable Structure**: Use bold, bullets, and whitespace
+
+### Response Format Rules
+
+**NEVER return wall-of-text responses.** Always structure your output.
+
+For data-heavy responses (tasks, deals, meetings, contacts):
+\`\`\`
+Hey {name}! {time_aware_greeting}
+
+{emoji} **{Section Title}** — {one-line summary}
+• {Item 1 with key details}
+• {Item 2 with key details}
+
+{emoji} **{Section Title}** — {one-line summary}
+• {Item 1}
+• {Item 2}
+
+[Action Button] [Action Button]
+
+{Optional follow-up question or offer}
+\`\`\`
+
+**Example - Tasks needing attention:**
+\`\`\`
+Hey Andrew! 👋 Working late? Here's the quick rundown:
+
+📊 **Deals** — All clear, nothing urgent!
+
+⚠️ **Tasks** — 11 need attention
+• 3 overdue (oldest: Oct 30)
+• 8 due this week
+
+[View All Tasks] [Show Overdue Only]
+
+Want me to help prioritize these?
+\`\`\`
+
+### What NOT to do
+❌ "I'd be happy to help! Here's a summary of what needs your attention..."
+❌ Long paragraphs with inline lists
+❌ Starting every response with "I"
+❌ Generic greetings like "Hello! How can I assist you today?"
+❌ Repeating the user's question back to them`
 
   const messages: any[] = []
 
@@ -8666,6 +8731,7 @@ function routeToV1Workflow(messageLower: string, temporalContext?: TemporalConte
   }
 
   // 4. Pipeline Focus - with confidence scoring
+  // Note: Combined queries like "deals or tasks" should route to catch_me_up instead
   const pipelineExact = [
     'deals should i focus', 'deals to focus', 'pipeline focus',
     'pipeline priorities', 'which deals', 'what deals need',
@@ -8675,6 +8741,9 @@ function routeToV1Workflow(messageLower: string, temporalContext?: TemporalConte
     'help me with deals', 'what needs attention', 'needs attention',
     'what should i focus on', 'what do i need to focus on',
     'which opportunities', 'prioritize my pipeline',
+    // Enhanced: More "attention" variations
+    'need my attention', 'needs my attention', 'require attention', 'require my attention',
+    'deals need attention', 'deals requiring attention', 'deals that need',
   ]
   const pipelineConf = calculateV1Confidence(
     messageLower,
@@ -8699,6 +8768,7 @@ function routeToV1Workflow(messageLower: string, temporalContext?: TemporalConte
   }
 
   // 5. Catch Me Up (daily brief) - with confidence scoring
+  // This handles combined queries about multiple entity types (deals + tasks + meetings)
   const catchUpExact = [
     'catch me up', 'catch up', 'bring me up to speed',
     "what's happening", "what's going on", 'what did i miss', "what's new",
@@ -8706,13 +8776,26 @@ function routeToV1Workflow(messageLower: string, temporalContext?: TemporalConte
     'morning brief', 'morning briefing', 'start my day',
     'end of day', 'eod update', 'eod summary', 'wrap up my day',
     'give me the highlights', 'give me a summary', 'what happened',
+    // Enhanced: Combined attention queries (deals AND tasks)
+    'deals or tasks', 'tasks or deals', 'deals and tasks', 'tasks and deals',
+    'what needs my attention today', 'what requires my attention',
+    'what should i focus on today', 'my priorities today',
+    'what do i need to do today', 'what should i do today',
+    'show me my priorities', 'show me what needs attention',
+    'quick rundown', 'quick update', 'quick summary',
   ]
   const catchUpConf = calculateV1Confidence(
     messageLower,
     catchUpExact,
     () => {
       const hasCatchup = V1_SYNONYMS.catchup.some(s => messageLower.includes(s))
-      return hasCatchup
+      // Also trigger for combined queries: "deals or tasks", attention + today
+      const hasBothDealsAndTasks = (messageLower.includes('deal') || messageLower.includes('pipeline')) &&
+                                    messageLower.includes('task')
+      const hasAttentionToday = (messageLower.includes('attention') || messageLower.includes('focus') ||
+                                  messageLower.includes('priorit')) &&
+                                 (messageLower.includes('today') || messageLower.includes('now'))
+      return hasCatchup || hasBothDealsAndTasks || hasAttentionToday
     },
     ['catchup']
   )
@@ -9955,7 +10038,88 @@ async function detectAndStructureResponse(
     const structured = await structureSalesCoachResponse(client, userId, aiContent, userMessage, requestingUserId)
     return structured
   }
-  
+
+  // ============================================================
+  // FALLBACK CLASSIFIER - Apply output-format-selector logic
+  // When no specific pattern matches, detect broad intent categories
+  // and return basic structured responses instead of plain text
+  // ============================================================
+
+  // Broad intent category detection
+  const intentCategories = {
+    meetings: [
+      'meeting', 'meetings', 'call', 'calls', 'calendar', 'schedule',
+      'appointment', 'sync', 'check-in', 'standup', 'demo', 'presentation'
+    ],
+    deals: [
+      'deal', 'deals', 'pipeline', 'opportunity', 'opportunities',
+      'forecast', 'revenue', 'close', 'closing', 'quota', 'stage', 'stages'
+    ],
+    tasks: [
+      'task', 'tasks', 'todo', 'to-do', 'to do', 'reminder', 'reminders',
+      'action item', 'action items', 'overdue', 'due'
+    ],
+    contacts: [
+      'contact', 'contacts', 'person', 'people', 'relationship', 'relationships',
+      'stakeholder', 'stakeholders', 'decision maker', 'champion'
+    ],
+    emails: [
+      'email', 'emails', 'inbox', 'reply', 'replies', 'follow-up', 'follow up',
+      'draft', 'message', 'outreach', 'communication'
+    ],
+    activities: [
+      'activity', 'activities', 'log', 'logged', 'call log', 'note', 'notes',
+      'proposal', 'proposals', 'outbound'
+    ]
+  }
+
+  // Find the dominant category
+  let detectedCategory: string | null = null
+  let maxMatches = 0
+
+  for (const [category, keywords] of Object.entries(intentCategories)) {
+    const matches = keywords.filter(kw => messageLower.includes(kw)).length
+    if (matches > maxMatches) {
+      maxMatches = matches
+      detectedCategory = category
+    }
+  }
+
+  // If we detected a category, return a basic structured response
+  if (detectedCategory && maxMatches > 0) {
+    // Map categories to basic response types
+    const categoryToResponseType: Record<string, string> = {
+      meetings: 'meeting_list',
+      deals: 'pipeline',
+      tasks: 'task',
+      contacts: 'contact',
+      emails: 'email',
+      activities: 'activity_breakdown'
+    }
+
+    const responseType = categoryToResponseType[detectedCategory]
+
+    // Create a basic structured wrapper for the AI content
+    // This ensures formatting rules are applied even when specific patterns don't match
+    return {
+      type: responseType || 'text_with_links',
+      summary: aiContent.slice(0, 200), // First 200 chars as summary
+      data: {
+        content: aiContent,
+        category: detectedCategory,
+        fallbackApplied: true
+      },
+      actions: [],
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: ['fallback_classifier'],
+        confidence: Math.min(100, maxMatches * 30), // Confidence based on keyword matches
+        warning: 'Structured using fallback classification. Specific patterns may provide richer responses.',
+        detectedIntent: detectedCategory
+      }
+    }
+  }
+
   return null
 }
 

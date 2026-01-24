@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   Calendar,
@@ -34,6 +34,7 @@ import { SlackConfigModal } from '@/components/integrations/SlackConfigModal';
 import { JustCallConfigModal } from '@/components/integrations/JustCallConfigModal';
 import { HubSpotConfigModal } from '@/components/integrations/HubSpotConfigModal';
 import { NotetakerConfigModal } from '@/components/integrations/NotetakerConfigModal';
+import { FirefliesConfigModal } from '@/components/integrations/FirefliesConfigModal';
 
 // Hooks and stores
 import { useGoogleIntegration } from '@/lib/stores/integrationStore';
@@ -43,6 +44,7 @@ import { useJustCallIntegration } from '@/lib/hooks/useJustCallIntegration';
 import { useSavvyCalIntegration } from '@/lib/hooks/useSavvyCalIntegration';
 import { useHubSpotIntegration } from '@/lib/hooks/useHubSpotIntegration';
 import { useNotetakerIntegration } from '@/lib/hooks/useNotetakerIntegration';
+import { useFirefliesIntegration } from '@/lib/hooks/useFirefliesIntegration';
 import { getIntegrationDomain, getLogoS3Url, useIntegrationLogo } from '@/lib/hooks/useIntegrationLogo';
 import { useUser } from '@/lib/hooks/useUser';
 import { IntegrationVoteState, useIntegrationUpvotes } from '@/lib/hooks/useIntegrationUpvotes';
@@ -360,6 +362,21 @@ const builtIntegrations: IntegrationConfig[] = [
     fallbackIcon: <img src={DEFAULT_SIXTY_ICON_URL} alt="60" className="w-6 h-6 rounded" />,
     isBuilt: true,
   },
+  {
+    id: 'fireflies',
+    name: 'Fireflies.ai',
+    description: 'AI meeting notes & transcription.',
+    permissions: [
+      { title: 'Access recordings', description: 'View and sync meeting recordings.' },
+      { title: 'Read transcripts', description: 'Access meeting transcripts and notes.' },
+      { title: 'View insights', description: 'Import AI-generated meeting insights.' },
+    ],
+    brandColor: 'yellow',
+    iconBgColor: 'bg-yellow-50 dark:bg-yellow-900/20',
+    iconBorderColor: 'border-yellow-100 dark:border-yellow-800/40',
+    fallbackIcon: <Video className="w-6 h-6 text-yellow-500" />,
+    isBuilt: true,
+  },
 ];
 
 // =====================================================
@@ -374,7 +391,7 @@ const integrationCategories: IntegrationCategory[] = [
     tooltip: 'Syncs meeting transcripts and AI insights directly to contact records. Automatically links meetings to deals and creates follow-up tasks based on action items discussed.',
     icon: <Video className="w-5 h-5" />,
     integrations: [
-      { id: 'fireflies', name: 'Fireflies.ai', description: 'AI meeting notes & transcription.', fallbackIcon: <Video className="w-6 h-6 text-yellow-500" /> },
+      // Fireflies is now a built integration (moved to builtIntegrations array)
       { id: 'otter', name: 'Otter.ai', description: 'Real-time transcription.', fallbackIcon: <Video className="w-6 h-6 text-blue-500" /> },
       { id: 'granola', name: 'Granola', description: 'AI note-taking assistant.', fallbackIcon: <Video className="w-6 h-6 text-amber-600" /> },
       { id: 'gong', name: 'Gong', description: 'Revenue intelligence platform.', fallbackIcon: <Video className="w-6 h-6 text-purple-500" /> },
@@ -564,6 +581,7 @@ const suggestedIntegrations: IntegrationCategory[] = [
 // =====================================================
 
 export default function Integrations() {
+  const navigate = useNavigate();
   const hubspotEnabled = isHubSpotIntegrationEnabled();
   const [searchParams] = useSearchParams();
   useUser(); // ensures auth/user is initialized (needed for upvotes under Clerk)
@@ -610,6 +628,11 @@ export default function Integrations() {
     needsCalendar: notetakerNeedsCalendar,
     status: notetakerStatus,
   } = useNotetakerIntegration();
+
+  const {
+    isConnected: firefliesConnected,
+    loading: firefliesLoading,
+  } = useFirefliesIntegration();
 
   // Modal states
   const [activeConnectModal, setActiveConnectModal] = useState<string | null>(null);
@@ -684,6 +707,8 @@ export default function Integrations() {
         if (!notetakerOrgEnabled) return 'inactive';
         if (notetakerNeedsCalendar) return 'syncing'; // Shows "needs setup" state
         return notetakerConnected ? 'active' : 'inactive';
+      case 'fireflies':
+        return firefliesConnected ? 'active' : 'inactive';
       default:
         return 'coming_soon';
     }
@@ -696,11 +721,30 @@ export default function Integrations() {
     const status = getIntegrationStatus(integrationId);
 
     if (status === 'active' || status === 'syncing') {
+      // Meeting recorders navigate to dedicated settings pages when connected
+      if (integrationId === 'fathom') {
+        navigate('/settings/integrations/fathom');
+        return;
+      }
+      if (integrationId === 'fireflies') {
+        navigate('/settings/integrations/fireflies');
+        return;
+      }
+      if (integrationId === '60-notetaker') {
+        navigate('/meetings/recordings/settings');
+        return;
+      }
+      // Other integrations use config modals
       setActiveConfigModal(integrationId);
     } else {
       // JustCall is API-key based (no OAuth flow) so go straight to config.
       if (integrationId === 'justcall') {
         setActiveConfigModal('justcall');
+        return;
+      }
+      // Fireflies is API-key based - go straight to config modal for initial connection
+      if (integrationId === 'fireflies') {
+        setActiveConfigModal('fireflies');
         return;
       }
       // 60 Notetaker goes straight to config modal (handles its own enable flow)
@@ -777,8 +821,9 @@ export default function Integrations() {
       savvycal: savvycalLoading,
       hubspot: hubspotLoading,
       '60-notetaker': notetakerLoading,
+      fireflies: firefliesLoading,
     }),
-    [googleLoading, fathomLoading, slackLoading, justcallLoading, savvycalLoading, hubspotLoading, notetakerLoading]
+    [googleLoading, fathomLoading, slackLoading, justcallLoading, savvycalLoading, hubspotLoading, notetakerLoading, firefliesLoading]
   );
 
   // Preload cached S3 logo URLs on page load to prevent any visible swap/flicker.
@@ -948,6 +993,10 @@ export default function Integrations() {
       />
       <NotetakerConfigModal
         open={activeConfigModal === '60-notetaker'}
+        onOpenChange={(open) => !open && setActiveConfigModal(null)}
+      />
+      <FirefliesConfigModal
+        open={activeConfigModal === 'fireflies'}
         onOpenChange={(open) => !open && setActiveConfigModal(null)}
       />
     </div>

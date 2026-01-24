@@ -151,7 +151,6 @@ export const SalesCoachingPage = lazyWithRetry(() => import('@/pages/settings/Sa
 export const APIKeysPage = lazyWithRetry(() => import('@/pages/settings/APIKeysPage'));
 export const EmailSyncPage = lazyWithRetry(() => import('@/pages/settings/EmailSyncPage'));
 export const TaskSyncPage = lazyWithRetry(() => import('@/pages/settings/TaskSyncPage'));
-export const MeetingSyncPage = lazyWithRetry(() => import('@/pages/settings/MeetingSyncPage'));
 export const TeamMembersPage = lazyWithRetry(() => import('@/pages/settings/TeamMembersPage'));
 export const CallTypeSettings = lazyWithRetry(() => import('@/pages/settings/CallTypeSettings'));
 export const PipelineAutomationSettings = lazyWithRetry(() => import('@/pages/settings/PipelineAutomationSettings'));
@@ -162,6 +161,10 @@ export const SlackSettings = lazyWithRetry(() => import('@/pages/settings/SlackS
 export const JustCallSettings = lazyWithRetry(() => import('@/pages/settings/JustCallSettings'));
 export const HubSpotSettings = lazyWithRetry(() => import('@/pages/settings/HubSpotSettings'));
 export const BullhornSettings = lazyWithRetry(() => import('@/pages/settings/BullhornSettings'));
+// Integration settings pages (dedicated settings for each integration)
+export const GoogleWorkspaceIntegrationPage = lazyWithRetry(() => import('@/pages/settings/integrations/GoogleWorkspaceIntegrationPage'));
+export const FathomIntegrationPage = lazyWithRetry(() => import('@/pages/settings/integrations/FathomIntegrationPage'));
+export const FirefliesIntegrationPage = lazyWithRetry(() => import('@/pages/settings/integrations/FirefliesIntegrationPage'));
 
 // Org Settings (moved from /org routes)
 export const OrgBranding = lazyWithRetry(() => import('@/pages/org/OrgBranding'));
