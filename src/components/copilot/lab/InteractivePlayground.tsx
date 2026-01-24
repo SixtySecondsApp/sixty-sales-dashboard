@@ -24,6 +24,12 @@ import {
   FileText,
   Sparkles,
   RefreshCw,
+  DollarSign,
+  Zap,
+  Save,
+  FolderOpen,
+  Trash2,
+  Bug,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -67,6 +73,43 @@ interface PlaygroundResult {
   steps: ExecutionStep[];
   totalTime: number;
   toolExecutions?: any[];
+  // LAB-001: Cost and token metrics
+  tokenUsage?: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  };
+  estimatedCost?: number;
+  workflowType?: string;
+  confidence?: string;
+}
+
+// LAB-002: Saved query interface
+interface SavedQuery {
+  id: string;
+  name: string;
+  query: string;
+  description?: string;
+  tags?: string[];
+  createdAt: string;
+}
+
+// LAB-002: Saved queries storage key
+const SAVED_QUERIES_KEY = 'copilot-lab-saved-queries';
+
+// LAB-002: Load saved queries from localStorage
+function loadSavedQueries(): SavedQuery[] {
+  try {
+    const stored = localStorage.getItem(SAVED_QUERIES_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+// LAB-002: Save queries to localStorage
+function saveSavedQueries(queries: SavedQuery[]) {
+  localStorage.setItem(SAVED_QUERIES_KEY, JSON.stringify(queries.slice(0, 50))); // Limit to 50
 }
 
 interface InteractivePlaygroundProps {
@@ -450,6 +493,14 @@ export function InteractivePlayground({
   const [result, setResult] = useState<PlaygroundResult | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set());
   const [outputView, setOutputView] = useState<'rendered' | 'json' | 'raw'>('rendered');
+  
+  // LAB-002: Saved queries state
+  const [savedQueries, setSavedQueries] = useState<SavedQuery[]>(() => loadSavedQueries());
+  const [showSavedQueries, setShowSavedQueries] = useState(false);
+  const [saveQueryName, setSaveQueryName] = useState('');
+  
+  // LAB-003: Debug mode state
+  const [debugMode, setDebugMode] = useState(false);
 
   // Run the query
   const handleRun = useCallback(async () => {
@@ -474,6 +525,7 @@ export function InteractivePlayground({
       setResult({ success: true, response: '', steps, totalTime: 0 });
 
       // Call the copilot API - use /chat endpoint path
+      // LAB-003: Include debug flag for verbose logging
       const { data, error } = await supabase.functions.invoke('api-copilot/chat', {
         body: {
           message: query,
@@ -482,6 +534,7 @@ export function InteractivePlayground({
             isPlaygroundTest: true,
             dataMode,
           },
+          debug: debugMode, // LAB-003: Enable verbose response
         },
       });
 
@@ -585,6 +638,17 @@ export function InteractivePlayground({
       console.log('[Playground] Final responseText:', responseText);
       console.log('[Playground] Final structuredData:', structuredData);
 
+      // LAB-001: Extract cost and token metrics from response
+      const analytics = data?.analytics || data?.response?.analytics || {};
+      const tokenUsage = analytics.token_usage || data?.token_usage || {
+        inputTokens: analytics.input_tokens || 0,
+        outputTokens: analytics.output_tokens || 0,
+        totalTokens: (analytics.input_tokens || 0) + (analytics.output_tokens || 0),
+      };
+      
+      // Estimate cost based on Gemini Flash pricing (~$0.075/1M input, $0.30/1M output)
+      const estimatedCost = (tokenUsage.inputTokens * 0.000000075) + (tokenUsage.outputTokens * 0.0000003);
+      
       const finalResult: PlaygroundResult = {
         success: true,
         response: responseText,
@@ -592,6 +656,11 @@ export function InteractivePlayground({
         steps,
         totalTime,
         toolExecutions,
+        // LAB-001: Cost and latency metrics
+        tokenUsage,
+        estimatedCost,
+        workflowType: analytics.workflow_type || data?.workflow_type,
+        confidence: analytics.confidence || data?.confidence,
       };
 
       setResult(finalResult);
@@ -703,11 +772,103 @@ export function InteractivePlayground({
         </div>
       </div>
 
+      {/* LAB-003: Debug Mode Toggle */}
+      <div className="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-200 dark:border-gray-700/50">
+        <div className="flex items-center gap-2">
+          <Bug className="w-4 h-4 text-gray-500" />
+          <span className="text-sm text-gray-600 dark:text-gray-400">Debug Mode</span>
+        </div>
+        <Button
+          variant={debugMode ? "default" : "outline"}
+          size="sm"
+          onClick={() => setDebugMode(!debugMode)}
+          className="gap-2"
+        >
+          {debugMode ? 'Enabled' : 'Disabled'}
+        </Button>
+      </div>
+
       {/* Query Input */}
       <div className="space-y-3">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Test Query
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Test Query
+          </label>
+          {/* LAB-002: Save/Load Queries */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowSavedQueries(!showSavedQueries)}
+              className="gap-1 text-xs"
+            >
+              <FolderOpen className="w-3 h-3" />
+              Saved ({savedQueries.length})
+            </Button>
+            {query.trim() && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const name = prompt('Enter a name for this query:');
+                  if (name) {
+                    const newQuery: SavedQuery = {
+                      id: Date.now().toString(),
+                      name,
+                      query: query.trim(),
+                      createdAt: new Date().toISOString(),
+                    };
+                    const updated = [newQuery, ...savedQueries];
+                    setSavedQueries(updated);
+                    saveSavedQueries(updated);
+                    toast.success('Query saved');
+                  }
+                }}
+                className="gap-1 text-xs"
+              >
+                <Save className="w-3 h-3" />
+                Save
+              </Button>
+            )}
+          </div>
+        </div>
+        
+        {/* LAB-002: Saved Queries Dropdown */}
+        {showSavedQueries && savedQueries.length > 0 && (
+          <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 max-h-48 overflow-y-auto">
+            <div className="space-y-2">
+              {savedQueries.map((sq) => (
+                <div
+                  key={sq.id}
+                  className="flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded cursor-pointer"
+                  onClick={() => {
+                    setQuery(sq.query);
+                    setShowSavedQueries(false);
+                  }}
+                >
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{sq.name}</p>
+                    <p className="text-xs text-gray-500 truncate max-w-[300px]">{sq.query}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const updated = savedQueries.filter((q) => q.id !== sq.id);
+                      setSavedQueries(updated);
+                      saveSavedQueries(updated);
+                      toast.success('Query deleted');
+                    }}
+                  >
+                    <Trash2 className="w-3 h-3 text-gray-400 hover:text-red-500" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
         <div className="relative">
           <Textarea
             value={query}
@@ -739,25 +900,71 @@ export function InteractivePlayground({
       {/* Execution Trace */}
       {result && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
               <Clock className="w-5 h-5" />
               Execution Trace
-              <Badge variant="outline" className="ml-2">
+            </h3>
+            {/* LAB-001: Cost/Latency Display */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Latency Badge */}
+              <Badge variant="outline" className="gap-1">
+                <Zap className="w-3 h-3" />
                 {(result.totalTime / 1000).toFixed(2)}s
               </Badge>
-            </h3>
-            {result.success ? (
-              <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                <CheckCircle2 className="w-3 h-3 mr-1" />
-                Success
-              </Badge>
-            ) : (
-              <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                <XCircle className="w-3 h-3 mr-1" />
-                Failed
-              </Badge>
-            )}
+              
+              {/* Token Usage Badge */}
+              {result.tokenUsage && result.tokenUsage.totalTokens > 0 && (
+                <Badge variant="outline" className="gap-1 text-blue-600 dark:text-blue-400">
+                  {result.tokenUsage.totalTokens.toLocaleString()} tokens
+                </Badge>
+              )}
+              
+              {/* Cost Badge */}
+              {result.estimatedCost !== undefined && result.estimatedCost > 0 && (
+                <Badge variant="outline" className="gap-1 text-emerald-600 dark:text-emerald-400">
+                  <DollarSign className="w-3 h-3" />
+                  {result.estimatedCost < 0.01 
+                    ? '<$0.01' 
+                    : `$${result.estimatedCost.toFixed(4)}`}
+                </Badge>
+              )}
+              
+              {/* Workflow Type Badge */}
+              {result.workflowType && (
+                <Badge variant="secondary" className="gap-1">
+                  {result.workflowType}
+                </Badge>
+              )}
+              
+              {/* Confidence Badge */}
+              {result.confidence && (
+                <Badge 
+                  variant="secondary" 
+                  className={cn(
+                    'gap-1',
+                    result.confidence === 'high' && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30',
+                    result.confidence === 'medium' && 'bg-amber-100 text-amber-700 dark:bg-amber-900/30',
+                    result.confidence === 'low' && 'bg-gray-100 text-gray-700 dark:bg-gray-900/30'
+                  )}
+                >
+                  {result.confidence} confidence
+                </Badge>
+              )}
+              
+              {/* Status Badge */}
+              {result.success ? (
+                <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                  Success
+                </Badge>
+              ) : (
+                <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                  <XCircle className="w-3 h-3 mr-1" />
+                  Failed
+                </Badge>
+              )}
+            </div>
           </div>
 
           <div className="bg-white dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700/50 rounded-xl overflow-hidden">
