@@ -170,7 +170,8 @@
       "feature": "proactive-agent",
       "title": "Create meeting prep auto-trigger",
       "type": "backend",
-      "status": "pending",
+      "status": "complete",
+      "completedAt": "2026-01-24T16:15:00Z",
       "priority": 6,
       "description": "Auto-run meeting prep 2 hours before meetings with no prep",
       "acceptance": [
@@ -190,7 +191,8 @@
       "feature": "proactive-agent",
       "title": "Create task analysis and auto-completion",
       "type": "backend",
-      "status": "pending",
+      "status": "complete",
+      "completedAt": "2026-01-24T16:15:00Z",
       "priority": 7,
       "description": "Analyze overdue tasks, offer to complete or reschedule",
       "acceptance": [
@@ -210,7 +212,8 @@
       "feature": "proactive-agent",
       "title": "Add Slack interactive actions for agent",
       "type": "backend",
-      "status": "pending",
+      "status": "complete",
+      "completedAt": "2026-01-24T16:20:00Z",
       "priority": 8,
       "description": "Handle Slack button clicks and replies for proactive messages",
       "acceptance": [
@@ -251,7 +254,8 @@
       "feature": "engagement-tracking",
       "title": "Add value tracking to sequences",
       "type": "backend",
-      "status": "pending",
+      "status": "complete",
+      "completedAt": "2026-01-24T16:10:00Z",
       "priority": 10,
       "description": "Track value delivered by each sequence execution",
       "acceptance": [
@@ -271,7 +275,8 @@
       "feature": "engagement-tracking",
       "title": "Create agent performance dashboard",
       "type": "frontend",
-      "status": "pending",
+      "status": "complete",
+      "completedAt": "2026-01-24T16:25:00Z",
       "priority": 11,
       "description": "Dashboard showing agent engagement and value metrics",
       "acceptance": [
@@ -371,7 +376,8 @@
       "feature": "re-enrichment",
       "title": "Detect and handle enrichment changes",
       "type": "backend",
-      "status": "pending",
+      "status": "complete",
+      "completedAt": "2026-01-24T16:30:00Z",
       "priority": 8,
       "dependencies": { "stories": ["ENRICH-001", "AGENT-001"] },
       "description": "Compare new enrichment with old and regenerate persona if significant",
@@ -391,7 +397,9 @@
       "feature": "re-enrichment",
       "title": "Add manual re-enrich button in settings",
       "type": "frontend",
-      "status": "pending",
+      "status": "complete",
+      "completedAt": "2026-01-24T16:00:00Z",
+      "notes": "Already implemented in AIIntelligencePage.tsx with 'Re-analyze Company' button and last_enriched_at display",
       "priority": 9,
       "description": "Allow users to manually trigger re-enrichment",
       "acceptance": [
@@ -472,7 +480,8 @@
       "feature": "lab-core",
       "title": "Create Prompt Library component",
       "type": "full-stack",
-      "status": "pending",
+      "status": "complete",
+      "completedAt": "2026-01-24T16:35:00Z",
       "priority": 13,
       "description": "Save prompts with expected outputs for regression testing",
       "acceptance": [
@@ -493,7 +502,8 @@
       "feature": "lab-core",
       "title": "Create Response Grading UI",
       "type": "full-stack",
-      "status": "pending",
+      "status": "complete",
+      "completedAt": "2026-01-24T16:40:00Z",
       "priority": 14,
       "description": "Rate AI responses on quality dimensions",
       "acceptance": [
@@ -514,7 +524,8 @@
       "feature": "lab-core",
       "title": "Create Result Comparison view",
       "type": "frontend",
-      "status": "pending",
+      "status": "complete",
+      "completedAt": "2026-01-24T16:45:00Z",
       "priority": 15,
       "description": "Compare two query results side-by-side",
       "acceptance": [
@@ -531,8 +542,8 @@
   ],
   "execution": {
     "totalStories": 24,
-    "completedStories": 14,
-    "lastUpdated": "2026-01-24T16:00:00Z",
+    "completedStories": 24,
+    "lastUpdated": "2026-01-24T16:45:00Z",
     "phases": [
       {
         "name": "Specialized Team Member",
