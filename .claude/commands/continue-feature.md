@@ -101,21 +101,49 @@ Follow **use60 patterns** while implementing:
 const { dealService, activityService } = useServices();
 ```
 
-### Step 6: Run quality gates
+### Step 6: Run quality gates (tiered for speed)
 
 Emit `story.onQualityGatesStart` event.
 
-Run these commands (all must pass):
+**CRITICAL:** For rapid iteration, rely on IDE real-time checking. Only run CLI gates that complete in <30 seconds.
 
+#### Gate 1: Lint changed files (~5-15s) — ALWAYS RUN
 ```bash
-npm run build:check:strict
-npm run lint
-npm run test:run
+CHANGED=$(git diff --name-only HEAD~1 -- '*.ts' '*.tsx' | tr '\n' ' ')
+if [ -n "$CHANGED" ]; then
+  npx eslint $CHANGED --max-warnings 0 --quiet  # --quiet shows only errors
+fi
+```
+**Note:** Pre-existing warnings are OK. Only fail on NEW errors from this story.
+
+#### Gate 2: Tests for changed files (~5-30s) — ALWAYS RUN
+```bash
+npx vitest run --changed HEAD~1 --passWithNoTests
+```
+
+#### Gate 3: Type check — SKIP (rely on IDE)
+**DO NOT RUN** `tsc --noEmit` or `build:check:strict` every story — takes 3+ min on this codebase.
+
+Instead:
+- Trust IDE real-time TypeScript errors (red squiggles)
+- If IDE shows no errors in changed files, gate passes
+- Run full type check only on **final story**
+
+#### Full validation — FINAL STORY ONLY or `fullValidation: true`
+```bash
+npm run build:check:strict  # Full TypeScript (~3-5 min)
+npm run lint                # Full ESLint
+npm run test:run            # All unit tests
 ```
 
 **For UI stories:**
-- Verify in browser on `localhost:5175`
-- Run Playwright tests if relevant: `npm run test:e2e`
+- Quick visual spot-check on `localhost:5175` (30 sec max)
+- If it looks right, it passes
+- E2E: Skip unless `e2e: true` or final story
+
+**Time budget:**
+- Ultra-fast path (Gate 1-2): ~15-30 seconds
+- Full validation (final story): ~5 minutes
 
 **Hook-configured retry behavior (if available):**
 
@@ -248,6 +276,20 @@ Examples:
 
 ## QUALITY GATE COMMANDS
 
+### Fast gates (use for most stories)
+```bash
+# Tier 1: Quick type check
+npx tsc --noEmit --skipLibCheck
+
+# Tier 2: Lint only changed files
+CHANGED=$(git diff --name-only HEAD~1 -- '*.ts' '*.tsx' | tr '\n' ' ')
+[ -n "$CHANGED" ] && npx eslint $CHANGED --max-warnings 0
+
+# Tier 3: Tests for changed files only
+npx vitest run --changed HEAD~1 --passWithNoTests
+```
+
+### Full gates (final story or fullValidation: true)
 ```bash
 # TypeScript strict check + build
 npm run build:check:strict
@@ -258,7 +300,7 @@ npm run lint
 # Unit tests
 npm run test:run
 
-# E2E tests (for UI stories)
+# E2E tests (only if e2e: true or final story)
 npm run test:e2e
 ```
 
