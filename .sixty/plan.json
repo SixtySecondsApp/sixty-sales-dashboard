@@ -1,0 +1,456 @@
+{
+  "project": {
+    "name": "Copilot Excellence Phase 2",
+    "description": "Improve Copilot from 7.5/10 to 9/10 - Claude Cowork level quality",
+    "createdAt": "2026-01-24T14:00:00Z",
+    "previousPhase": "copilot-excellence-upgrade"
+  },
+  "stack": {
+    "framework": "react-vite",
+    "database": "supabase",
+    "auth": "supabase-auth",
+    "styling": "tailwind",
+    "ai": "google-gemini"
+  },
+  "features": [
+    {
+      "id": "action-contract",
+      "name": "Action Contract Compliance",
+      "status": "pending",
+      "priority": 1,
+      "description": "Fix all 13 response components that violate the action contract"
+    },
+    {
+      "id": "integration",
+      "name": "UI Integration",
+      "status": "pending",
+      "priority": 2,
+      "description": "Wire Action Items Store and ExecutionTelemetry to the live UI"
+    },
+    {
+      "id": "reliability",
+      "name": "Reliability Improvements",
+      "status": "pending",
+      "priority": 3,
+      "description": "Add retry, fallback, and timeout handling to sequence execution"
+    },
+    {
+      "id": "testing",
+      "name": "Test Coverage",
+      "status": "pending",
+      "priority": 4,
+      "description": "Write E2E tests for V1 workflows and integration tests"
+    },
+    {
+      "id": "excellence",
+      "name": "Excellence Features",
+      "status": "pending",
+      "priority": 5,
+      "description": "Pattern matching improvements, mobile polish, HITL integration"
+    }
+  ],
+  "stories": [
+    {
+      "id": "ACT-001",
+      "feature": "action-contract",
+      "title": "Fix DealRescuePackResponse action contract violations",
+      "type": "fix",
+      "status": "complete",
+      "completedAt": "2026-01-24T13:49:00Z",
+      "priority": 1,
+      "dependencies": { "stories": [], "files": [], "schema": [] },
+      "blocks": [],
+      "parallelWith": ["ACT-002", "ACT-003", "ACT-004"],
+      "acceptance": [
+        "Remove direct window.location calls on lines 69 and 138",
+        "Use onActionClick with fallback pattern",
+        "Verify View deal and View tasks buttons work"
+      ],
+      "estimatedMinutes": 10,
+      "files": ["src/components/copilot/responses/DealRescuePackResponse.tsx"]
+    },
+    {
+      "id": "ACT-002",
+      "feature": "action-contract",
+      "title": "Fix DealMapBuilderResponse action contract violations",
+      "type": "fix",
+      "status": "complete",
+      "completedAt": "2026-01-24T13:49:00Z",
+      "priority": 1,
+      "dependencies": { "stories": [], "files": [], "schema": [] },
+      "blocks": [],
+      "parallelWith": ["ACT-001", "ACT-003", "ACT-004"],
+      "acceptance": [
+        "Remove direct window.location calls on lines 73 and 134",
+        "Use onActionClick with fallback pattern",
+        "Verify all navigation buttons work"
+      ],
+      "estimatedMinutes": 10,
+      "files": ["src/components/copilot/responses/DealMapBuilderResponse.tsx"]
+    },
+    {
+      "id": "ACT-003",
+      "feature": "action-contract",
+      "title": "Fix PipelineFocusTasksResponse action contract violations",
+      "type": "fix",
+      "status": "complete",
+      "completedAt": "2026-01-24T13:47:00Z",
+      "notes": "Already compliant - onActionClick was already destructured",
+      "priority": 1,
+      "dependencies": { "stories": [], "files": [], "schema": [] },
+      "blocks": [],
+      "parallelWith": ["ACT-001", "ACT-002", "ACT-004"],
+      "acceptance": [
+        "Remove direct window.location calls on lines 105 and 174",
+        "Use onActionClick with fallback pattern",
+        "Verify deal and task navigation works"
+      ],
+      "estimatedMinutes": 10,
+      "files": ["src/components/copilot/responses/PipelineFocusTasksResponse.tsx"]
+    },
+    {
+      "id": "ACT-004",
+      "feature": "action-contract",
+      "title": "Fix NextMeetingCommandCenterResponse action contract violations",
+      "type": "fix",
+      "status": "complete",
+      "completedAt": "2026-01-24T13:47:00Z",
+      "notes": "Already compliant - onActionClick was already destructured",
+      "priority": 1,
+      "dependencies": { "stories": [], "files": [], "schema": [] },
+      "blocks": [],
+      "parallelWith": ["ACT-001", "ACT-002", "ACT-003"],
+      "acceptance": [
+        "Remove direct window.location calls on lines 107 and 314",
+        "Use onActionClick with fallback pattern",
+        "Verify meeting and task navigation works"
+      ],
+      "estimatedMinutes": 10,
+      "files": ["src/components/copilot/responses/NextMeetingCommandCenterResponse.tsx"]
+    },
+    {
+      "id": "ACT-005",
+      "feature": "action-contract",
+      "title": "Fix remaining 5 response component violations",
+      "type": "fix",
+      "status": "complete",
+      "completedAt": "2026-01-24T13:50:00Z",
+      "notes": "Fixed ActionSummaryResponse and DealDetailsView. CompanyIntelligence, TaskResponse, EntityDisambiguation already compliant.",
+      "priority": 2,
+      "dependencies": { "stories": [], "files": [], "schema": [] },
+      "blocks": [],
+      "parallelWith": [],
+      "acceptance": [
+        "Fix ActionSummaryResponse.tsx line 61",
+        "Fix DealDetailsView.tsx line 402",
+        "Fix CompanyIntelligenceResponse if needed",
+        "Fix TaskResponse if needed",
+        "Fix EntityDisambiguationResponse if needed",
+        "All components use onActionClick pattern"
+      ],
+      "estimatedMinutes": 25,
+      "files": [
+        "src/components/copilot/responses/ActionSummaryResponse.tsx",
+        "src/components/copilot/responses/DealDetailsView.tsx",
+        "src/components/copilot/responses/CompanyIntelligenceResponse.tsx",
+        "src/components/copilot/responses/TaskResponse.tsx",
+        "src/components/copilot/responses/EntityDisambiguationResponse.tsx"
+      ]
+    },
+    {
+      "id": "INT-001",
+      "feature": "integration",
+      "title": "Wire Action Items Store to CopilotRightPanel",
+      "type": "frontend",
+      "status": "complete",
+      "completedAt": "2026-01-24T13:51:00Z",
+      "notes": "Already implemented - useActionItemStore imported and wired at lines 44, 354-363",
+      "priority": 3,
+      "dependencies": { "stories": ["ACT-005"], "files": ["src/lib/stores/actionItemsStore.ts"], "schema": [] },
+      "blocks": ["INT-002"],
+      "parallelWith": [],
+      "acceptance": [
+        "Import useActionItemsStore in CopilotRightPanel",
+        "Display pending action items count badge",
+        "Show list of pending items with confirm/reject buttons",
+        "Items update when user confirms or rejects"
+      ],
+      "estimatedMinutes": 25,
+      "files": [
+        "src/components/copilot/CopilotRightPanel.tsx"
+      ]
+    },
+    {
+      "id": "INT-002",
+      "feature": "integration",
+      "title": "Connect sequence responses to Action Items Store",
+      "type": "frontend",
+      "status": "complete",
+      "completedAt": "2026-01-24T14:20:00Z",
+      "notes": "Added useActionItemsStore integration in CopilotContext.tsx: imports store and helper, adds items on isSimulation=true responses, confirms items when isSimulation=false, clears expired items on mount via useEffect",
+      "priority": 4,
+      "dependencies": { "stories": ["INT-001"], "files": [], "schema": [] },
+      "blocks": [],
+      "parallelWith": [],
+      "acceptance": [
+        "When sequence returns preview, add to Action Items Store",
+        "When user confirms, update item status to confirmed",
+        "When user rejects, update item status to rejected",
+        "Clear expired items on app load"
+      ],
+      "estimatedMinutes": 30,
+      "files": [
+        "src/lib/contexts/CopilotContext.tsx",
+        "src/components/copilot/ChatMessage.tsx"
+      ]
+    },
+    {
+      "id": "INT-003",
+      "feature": "integration",
+      "title": "Integrate ExecutionTelemetry into CopilotRightPanel",
+      "type": "frontend",
+      "status": "complete",
+      "completedAt": "2026-01-24T13:55:00Z",
+      "notes": "Added ExecutionTelemetry import, telemetryEvents prop, compact toggle state, and conditional rendering with expand/collapse button",
+      "priority": 5,
+      "dependencies": { "stories": ["INT-001"], "files": ["src/components/copilot/ExecutionTelemetry.tsx"], "schema": [] },
+      "blocks": [],
+      "parallelWith": ["INT-002"],
+      "acceptance": [
+        "Import ExecutionTelemetry component",
+        "Display telemetry during tool execution",
+        "Show compact summary after completion",
+        "Toggle between compact and expanded view"
+      ],
+      "estimatedMinutes": 20,
+      "files": [
+        "src/components/copilot/CopilotRightPanel.tsx"
+      ]
+    },
+    {
+      "id": "REL-001",
+      "feature": "reliability",
+      "title": "Add retry mechanism to sequenceExecutor",
+      "type": "backend",
+      "status": "complete",
+      "completedAt": "2026-01-24T14:00:00Z",
+      "notes": "Added max_retries config, exponential backoff (100ms base), transient error detection, retry_attempts logging to step_results",
+      "priority": 6,
+      "dependencies": { "stories": [], "files": ["supabase/functions/_shared/sequenceExecutor.ts"], "schema": [] },
+      "blocks": ["REL-002"],
+      "parallelWith": [],
+      "acceptance": [
+        "Add retry_count and max_retries to step config",
+        "Implement exponential backoff (100ms, 200ms, 400ms)",
+        "Only retry on transient errors (network, timeout)",
+        "Log retry attempts to step_results",
+        "Persist retry state to sequence_executions"
+      ],
+      "estimatedMinutes": 30,
+      "files": [
+        "supabase/functions/_shared/sequenceExecutor.ts"
+      ]
+    },
+    {
+      "id": "REL-002",
+      "feature": "reliability",
+      "title": "Implement fallback to Gemini when V1 router fails",
+      "type": "backend",
+      "status": "complete",
+      "completedAt": "2026-01-24T14:05:00Z",
+      "notes": "Wrapped V1 structured response in try-catch, on failure calls Gemini, logs fallback event with v1_fallback_triggered analytics, graceful error if both fail",
+      "priority": 7,
+      "dependencies": { "stories": ["REL-001"], "files": [], "schema": [] },
+      "blocks": [],
+      "parallelWith": [],
+      "acceptance": [
+        "Wrap V1 sequence execution in try-catch",
+        "On failure, fall back to Gemini LLM path",
+        "Log fallback event for monitoring",
+        "Return graceful error message if both fail"
+      ],
+      "estimatedMinutes": 25,
+      "files": [
+        "supabase/functions/api-copilot/index.ts"
+      ]
+    },
+    {
+      "id": "REL-003",
+      "feature": "reliability",
+      "title": "Add timeout handling for long-running steps",
+      "type": "backend",
+      "status": "complete",
+      "completedAt": "2026-01-24T14:00:00Z",
+      "notes": "Added timeout_ms config (default 30000), AbortController-based timeout, timed_out flag and timeout_ms in step_results",
+      "priority": 8,
+      "dependencies": { "stories": [], "files": [], "schema": [] },
+      "blocks": [],
+      "parallelWith": ["REL-001"],
+      "acceptance": [
+        "Add step_timeout_ms config option (default 30000)",
+        "Implement AbortController for fetch calls",
+        "Mark step as failed on timeout",
+        "Include timeout info in error_details"
+      ],
+      "estimatedMinutes": 25,
+      "files": [
+        "supabase/functions/_shared/sequenceExecutor.ts"
+      ]
+    },
+    {
+      "id": "TEST-001",
+      "feature": "testing",
+      "title": "Create golden path test fixtures",
+      "type": "test",
+      "status": "complete",
+      "completedAt": "2026-01-24T14:10:00Z",
+      "notes": "Created meetings.json, deals.json, contacts.json, sequences.json with TypeScript index.ts for typed access and mock Supabase helper",
+      "priority": 9,
+      "dependencies": { "stories": ["REL-002"], "files": [], "schema": [] },
+      "blocks": ["TEST-002", "TEST-003"],
+      "parallelWith": [],
+      "acceptance": [
+        "Create fixtures for meetings, deals, contacts",
+        "Create mock sequence execution results",
+        "Create mock Gemini responses",
+        "Document fixture usage in tests/README.md"
+      ],
+      "estimatedMinutes": 25,
+      "files": [
+        "tests/fixtures/copilot/meetings.json",
+        "tests/fixtures/copilot/deals.json",
+        "tests/fixtures/copilot/contacts.json",
+        "tests/fixtures/copilot/sequences.json"
+      ]
+    },
+    {
+      "id": "TEST-002",
+      "feature": "testing",
+      "title": "Write E2E tests for V1 workflows",
+      "type": "test",
+      "status": "complete",
+      "completedAt": "2026-01-24T14:15:00Z",
+      "notes": "Created next-meeting.spec.ts, catch-me-up.spec.ts, pipeline-focus.spec.ts with tests for preview, confirm, cancel flows",
+      "priority": 10,
+      "dependencies": { "stories": ["TEST-001"], "files": [], "schema": [] },
+      "blocks": [],
+      "parallelWith": ["TEST-003"],
+      "acceptance": [
+        "Test next-meeting-prep workflow end-to-end",
+        "Test catch-me-up workflow end-to-end",
+        "Test pipeline-focus workflow end-to-end",
+        "Test confirm and cancel flows",
+        "Tests pass in CI"
+      ],
+      "estimatedMinutes": 45,
+      "files": [
+        "tests/e2e/copilot/next-meeting.spec.ts",
+        "tests/e2e/copilot/catch-me-up.spec.ts",
+        "tests/e2e/copilot/pipeline-focus.spec.ts"
+      ]
+    },
+    {
+      "id": "TEST-003",
+      "feature": "testing",
+      "title": "Write sequence execution integration tests",
+      "type": "test",
+      "status": "complete",
+      "completedAt": "2026-01-24T14:15:00Z",
+      "notes": "Created comprehensive sequenceExecutor.test.ts with 15+ tests covering basic execution, error recovery, retry mechanism, timeout handling, input mapping",
+      "priority": 10,
+      "dependencies": { "stories": ["TEST-001"], "files": [], "schema": [] },
+      "blocks": [],
+      "parallelWith": ["TEST-002"],
+      "acceptance": [
+        "Test sequenceExecutor with mock supabase",
+        "Test error recovery flows (stop, continue, fallback)",
+        "Test retry mechanism",
+        "Test timeout handling",
+        "Tests pass in CI"
+      ],
+      "estimatedMinutes": 40,
+      "files": [
+        "supabase/functions/_shared/__tests__/sequenceExecutor.test.ts"
+      ]
+    },
+    {
+      "id": "EXC-001",
+      "feature": "excellence",
+      "title": "Improve V1 router pattern matching",
+      "type": "backend",
+      "status": "complete",
+      "completedAt": "2026-01-24T14:20:00Z",
+      "notes": "Added calculateV1Confidence with synonym support, confidence scoring (high/medium/low), only routes when confidence >= medium, logs confidence scores for monitoring",
+      "priority": 11,
+      "dependencies": { "stories": ["REL-002"], "files": [], "schema": [] },
+      "blocks": [],
+      "parallelWith": [],
+      "acceptance": [
+        "Add synonym support for key phrases",
+        "Add confidence scoring (high/medium/low)",
+        "Only route if confidence >= medium",
+        "Log confidence scores for monitoring"
+      ],
+      "estimatedMinutes": 30,
+      "files": [
+        "supabase/functions/api-copilot/index.ts"
+      ]
+    },
+    {
+      "id": "EXC-002",
+      "feature": "excellence",
+      "title": "Mobile responsiveness audit and fixes",
+      "type": "frontend",
+      "status": "complete",
+      "completedAt": "2026-01-24T14:25:00Z",
+      "notes": "Fixed right panel to use 85vw max on mobile, action cards grid to 1-col on tiny screens, responsive padding/spacing throughout CopilotRightPanel",
+      "priority": 12,
+      "dependencies": { "stories": ["INT-003"], "files": [], "schema": [] },
+      "blocks": [],
+      "parallelWith": [],
+      "acceptance": [
+        "Audit CopilotLayout on mobile viewports",
+        "Fix any horizontal scroll issues",
+        "Ensure action cards stack properly",
+        "Test on iOS Safari and Android Chrome"
+      ],
+      "estimatedMinutes": 25,
+      "files": [
+        "src/components/copilot/CopilotLayout.tsx",
+        "src/components/copilot/CopilotEmpty.tsx",
+        "src/components/copilot/CopilotRightPanel.tsx"
+      ]
+    },
+    {
+      "id": "EXC-003",
+      "feature": "excellence",
+      "title": "Update documentation with accurate counts",
+      "type": "docs",
+      "status": "complete",
+      "completedAt": "2026-01-24T14:30:00Z",
+      "notes": "Verified 48 response components is correct (not 46). Updated api-copilot/CLAUDE.md key functions table with accurate line numbers and file size (~14,200 lines).",
+      "priority": 13,
+      "dependencies": { "stories": ["ACT-005"], "files": [], "schema": [] },
+      "blocks": [],
+      "parallelWith": [],
+      "acceptance": [
+        "Update response count from 48 to 46 in all docs",
+        "Fix SEQUENCE_RESPONSE_MAP reference in api-copilot/CLAUDE.md",
+        "Verify all line number references are accurate"
+      ],
+      "estimatedMinutes": 15,
+      "files": [
+        "CLAUDE.md",
+        "src/components/copilot/CLAUDE.md",
+        "src/components/copilot/responses/CLAUDE.md",
+        "supabase/functions/api-copilot/CLAUDE.md"
+      ]
+    }
+  ],
+  "execution": {
+    "totalStories": 17,
+    "completedStories": 17,
+    "currentFeature": "integration",
+    "lastUpdated": "2026-01-24T14:30:00Z"
+  }
+}
