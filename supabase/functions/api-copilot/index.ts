@@ -25,6 +25,7 @@ import {
 import { logAICostEvent, extractAnthropicUsage } from '../_shared/costTracking.ts'
 import { executeAction } from '../_shared/copilot_adapters/executeAction.ts'
 import type { ExecuteActionName } from '../_shared/copilot_adapters/types.ts'
+import { getOrCompilePersona, type CompiledPersona } from '../_shared/salesCopilotPersona.ts'
 
 // Gemini API configuration (replacing Claude for copilot chat)
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') ?? Deno.env.get('GOOGLE_GEMINI_API_KEY') ?? ''
@@ -300,6 +301,8 @@ serve(async (req) => {
       return await handleChat(client, req, user_id)
     } else if (req.method === 'POST' && endpoint === 'actions' && resourceId === 'draft-email') {
       return await handleDraftEmail(client, req, user_id)
+    } else if (req.method === 'POST' && endpoint === 'actions' && resourceId === 'regenerate-email-tone') {
+      return await handleRegenerateEmailTone(client, req, user_id)
     } else if (req.method === 'POST' && endpoint === 'actions' && resourceId === 'test-skill') {
       return await handleTestSkill(client, req, user_id)
     } else if (req.method === 'POST' && endpoint === 'actions' && resourceId === 'generate-deal-email') {
@@ -663,6 +666,53 @@ async function handleChat(
       isAdmin: currentUser?.is_admin,
       escalationDecision: escalationDecision.decision
     })
+    
+    // ---------------------------------------------------------------------------
+    // PROACTIVE-001: Clarifying Questions Flow
+    // If no clear V1 route and request seems ambiguous, offer clarification options
+    // ---------------------------------------------------------------------------
+    const sequencesForClarify = availableSkills.filter(s => s.category === 'agent-sequence')
+    const clarifyResult = detectAmbiguousRequest(messageLower, body.message, sequencesForClarify)
+    
+    if (clarifyResult.needsClarification && !v1Route && !isPerformanceQuery) {
+      console.log('[CLARIFY] Detected ambiguous request, offering options:', {
+        entityName: clarifyResult.entityName,
+        entityType: clarifyResult.entityType,
+        optionCount: clarifyResult.options.length,
+      })
+      
+      // Return clarifying question response
+      return new Response(JSON.stringify({
+        response: {
+          type: 'text',
+          content: clarifyResult.prompt,
+          recommendations: clarifyResult.options.map(opt => ({
+            title: opt.action,
+            description: opt.description,
+            action: 'quick_reply',
+            metadata: { 
+              sequenceKey: opt.sequenceKey,
+              skillKey: opt.skillKey,
+              optionId: opt.id,
+            },
+          })),
+          structuredResponse: {
+            type: 'clarifying_question',
+            entityName: clarifyResult.entityName,
+            entityType: clarifyResult.entityType,
+            options: clarifyResult.options,
+          },
+        },
+        conversationId: conversationId,
+        analytics: {
+          clarification_triggered: true,
+          entity_name: clarifyResult.entityName,
+          entity_type: clarifyResult.entityType,
+        },
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
     
     // If it's a deterministic workflow (performance report or V1 workflow),
     // skip Gemini and go straight to structured response.
@@ -1140,8 +1190,59 @@ async function handleChat(
           summary: structuredResponse?.summary?.substring(0, 100)
         })
       } catch (error) {
-        console.error('[STRUCTURED] ❌ Error generating structured response:', error)
-        structuredResponse = null
+        // REL-002: Fall back to Gemini when V1 workflow fails
+        console.error('[STRUCTURED] ❌ V1 workflow error, falling back to Gemini:', error)
+
+        // Log fallback event for monitoring
+        console.log('[FALLBACK] ⚠️ V1 → Gemini fallback triggered', {
+          v1Workflow: v1Route?.workflow || (isPerformanceQuery ? 'performance_query' : 'unknown'),
+          sequenceKey: v1Route?.sequenceKey || null,
+          error: error instanceof Error ? error.message : String(error),
+        })
+
+        // Track fallback in analytics
+        analyticsData.v1_fallback_triggered = true
+        analyticsData.v1_fallback_reason = error instanceof Error ? error.message : String(error)
+
+        // Reset to call Gemini
+        shouldSkipClaude = false
+
+        try {
+          console.log('[FALLBACK] Calling Gemini API after V1 failure...')
+          const geminiStartTime = Date.now()
+          aiResponse = await callGeminiAPI(
+            body.message,
+            formattedMessages,
+            context,
+            client,
+            userId,
+            body.context?.orgId ? String(body.context.orgId) : null,
+            analyticsData
+          )
+          analyticsData.claude_api_time_ms = Date.now() - geminiStartTime
+          console.log('[FALLBACK] ✅ Gemini API response received after fallback:', {
+            contentLength: aiResponse.content?.length || 0,
+            hasRecommendations: !!aiResponse.recommendations?.length,
+          })
+
+          // Generate structured response from Gemini output
+          structuredResponse = await detectAndStructureResponse(
+            body.message,
+            aiResponse.content,
+            client,
+            targetUserId,
+            aiResponse.tools_used || [],
+            userId,
+            body.context,
+            aiResponse.tool_executions || []
+          )
+        } catch (fallbackError) {
+          // Both V1 and Gemini failed - return graceful error
+          console.error('[FALLBACK] ❌ Both V1 and Gemini failed:', fallbackError)
+          analyticsData.gemini_fallback_failed = true
+          analyticsData.gemini_fallback_error = fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+          structuredResponse = null
+        }
       }
     } else {
       console.log('[STRUCTURED] Using normal detection (not a performance query)')
@@ -1165,18 +1266,28 @@ async function handleChat(
 
     // Return response in the format expected by the frontend
     // If we have a structured response, prioritize it over text content
-    // IMPORTANT: If we skipped Claude and have no structured response, something went wrong
+    // REL-002: If both V1 and Gemini fallback failed, return graceful error
     if (shouldSkipClaude && !structuredResponse) {
-      console.error('[RESPONSE] ❌ ERROR: Skipped Claude but no structured response generated!', {
+      const fallbackTriggered = (analyticsData as any).v1_fallback_triggered === true
+      const geminiAlsoFailed = (analyticsData as any).gemini_fallback_failed === true
+
+      console.error('[RESPONSE] ❌ ERROR: Failed to generate response', {
         targetUserId,
         userId,
-        message: body.message
+        message: body.message,
+        fallbackTriggered,
+        geminiAlsoFailed,
       })
-      // Fallback: return error message
+
+      // Graceful error message based on what failed
+      const errorMessage = geminiAlsoFailed
+        ? 'I\'m having trouble processing that request right now. Please try again in a moment.'
+        : 'I encountered an error generating that response. Please try again.'
+
       return new Response(JSON.stringify({
         response: {
           type: 'text',
-          content: 'I encountered an error generating that response. Please try again.',
+          content: errorMessage,
           recommendations: [],
           structuredResponse: undefined
         },
@@ -1411,6 +1522,14 @@ async function handleDraftEmail(
       .order('created_at', { ascending: false })
       .limit(3)
 
+    // Fetch user's writing style from AI personalization settings
+    const { data: writingStyle } = await client
+      .from('user_writing_styles')
+      .select('name, tone_description, examples, style_metadata')
+      .eq('user_id', userId)
+      .eq('is_default', true)
+      .maybeSingle()
+
     // Build email context
     const emailContext = {
       contact: {
@@ -1423,8 +1542,8 @@ async function handleDraftEmail(
       context: body.context || 'Follow-up email'
     }
 
-    // Generate email with Claude
-    const emailDraft = await generateEmailDraft(emailContext, body.tone)
+    // Generate email with Claude using user's writing style
+    const emailDraft = await generateEmailDraft(emailContext, body.tone, writingStyle)
 
     return new Response(JSON.stringify({
       subject: emailDraft.subject,
@@ -1436,6 +1555,213 @@ async function handleDraftEmail(
 
   } catch (error) {
     return createErrorResponse('Failed to draft email', 500, 'EMAIL_DRAFT_ERROR')
+  }
+}
+
+/**
+ * Handle email tone regeneration
+ * POST /api-copilot/actions/regenerate-email-tone
+ * 
+ * Takes an existing email and regenerates it with a different tone,
+ * using the user's writing style as the base and adjusting from there.
+ */
+async function handleRegenerateEmailTone(
+  client: any,
+  req: Request,
+  userId: string
+): Promise<Response> {
+  try {
+    const body = await req.json()
+    const { currentEmail, newTone, context } = body
+    
+    if (!currentEmail?.body || !newTone) {
+      return createErrorResponse('currentEmail and newTone are required', 400, 'INVALID_REQUEST')
+    }
+    
+    console.log('[REGENERATE-TONE] Starting tone adjustment:', { newTone, hasContext: !!context })
+    
+    // Fetch user's writing style and profile
+    const [{ data: writingStyle }, { data: userProfile }] = await Promise.all([
+      client
+        .from('user_writing_styles')
+        .select('name, tone_description, examples, style_metadata')
+        .eq('user_id', userId)
+        .eq('is_default', true)
+        .maybeSingle(),
+      client
+        .from('profiles')
+        .select('first_name, last_name, email')
+        .eq('id', userId)
+        .maybeSingle()
+    ])
+    
+    const userName = userProfile 
+      ? `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() || userProfile.email?.split('@')[0] || 'Your Name'
+      : 'Your Name'
+    
+    // Build style instruction from user's writing style
+    let baseStyleInstruction = 'The user writes in a balanced, professional style.'
+    if (writingStyle) {
+      const styleParts: string[] = []
+      styleParts.push(`USER'S BASE WRITING STYLE:`)
+      styleParts.push(`- Style: ${writingStyle.name}`)
+      styleParts.push(`- Natural tone: ${writingStyle.tone_description}`)
+      
+      const meta = writingStyle.style_metadata as any
+      if (meta?.tone_characteristics) {
+        styleParts.push(`- Characteristics: ${meta.tone_characteristics}`)
+      }
+      if (meta?.vocabulary_profile) {
+        styleParts.push(`- Vocabulary: ${meta.vocabulary_profile}`)
+      }
+      if (meta?.greeting_style) {
+        styleParts.push(`- Greeting style: ${meta.greeting_style}`)
+      }
+      if (meta?.signoff_style) {
+        styleParts.push(`- Sign-off style: ${meta.signoff_style}`)
+      }
+      
+      baseStyleInstruction = styleParts.join('\n')
+    }
+    
+    // Tone adjustment instructions
+    const toneAdjustments: Record<string, string> = {
+      professional: `Make this email MORE FORMAL than the user's natural style:
+- Use more business-appropriate language
+- Be more structured and polished
+- Keep greetings and sign-offs professional
+- Maintain the same key points but with elevated formality`,
+      
+      friendly: `Make this email MORE CASUAL AND WARM than the user's natural style:
+- Add more warmth and personality
+- Use slightly more relaxed language
+- Keep it personable and approachable
+- Maintain the same key points but with a friendlier touch`,
+      
+      concise: `Make this email SHORTER AND MORE DIRECT than the user's natural style:
+- Cut any unnecessary words or pleasantries
+- Get straight to the point
+- Keep only essential information
+- Make it scannable and action-oriented`
+    }
+    
+    const toneInstruction = toneAdjustments[newTone] || toneAdjustments.professional
+
+    // Build context section if available
+    let contextSection = ''
+    if (context) {
+      const contextParts: string[] = []
+      if (context.contactName) {
+        contextParts.push(`Recipient: ${context.contactName}`)
+      }
+      if (context.lastInteraction) {
+        contextParts.push(`Last interaction: ${context.lastInteraction}`)
+      }
+      if (context.dealValue) {
+        contextParts.push(`Deal value: $${context.dealValue}`)
+      }
+      if (context.keyPoints && context.keyPoints.length > 0) {
+        contextParts.push(`Key points to maintain:\n${context.keyPoints.map((p: string) => `- ${p}`).join('\n')}`)
+      }
+      if (contextParts.length > 0) {
+        contextSection = `\nORIGINAL CONTEXT (preserve this information):\n${contextParts.join('\n')}\n`
+      }
+    }
+
+    const prompt = `Adjust the tone of this email while keeping the same meaning, context, and key points.
+
+${baseStyleInstruction}
+
+TONE ADJUSTMENT REQUIRED:
+${toneInstruction}
+${contextSection}
+CURRENT EMAIL TO ADJUST:
+Subject: ${currentEmail.subject}
+---
+${currentEmail.body}
+---
+
+SENDER NAME: ${userName}
+RECIPIENT: ${context?.contactName || 'the recipient'}
+
+CRITICAL REQUIREMENTS:
+1. Keep ALL the same information, meeting references, action items, and key points
+2. Only adjust the tone/style as requested - DO NOT remove content
+3. Keep the greeting style appropriate for the new tone
+4. Sign off with "${userName}" (never use placeholders like "[Your Name]")
+5. If the email mentions specific dates, names, or action items - KEEP THEM ALL
+6. The adjusted email should be roughly the same length (unless "concise" is requested)
+
+Return ONLY a JSON object:
+{"subject": "adjusted subject", "body": "adjusted email body with proper greeting and sign-off"}`
+
+    // Call Gemini
+    if (!GEMINI_API_KEY) {
+      return createErrorResponse('AI service not configured', 500, 'AI_NOT_CONFIGURED')
+    }
+    
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.5,
+            maxOutputTokens: 1000,
+            responseMimeType: 'application/json'
+          }
+        })
+      }
+    )
+
+    if (!geminiResponse.ok) {
+      console.error('[REGENERATE-TONE] Gemini API error:', geminiResponse.status)
+      return createErrorResponse('Failed to regenerate email', 500, 'AI_ERROR')
+    }
+
+    const geminiData = await geminiResponse.json()
+    const responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    
+    try {
+      const emailJson = JSON.parse(responseText)
+      if (emailJson.subject && emailJson.body) {
+        console.log('[REGENERATE-TONE] ✅ Successfully regenerated email with', newTone, 'tone')
+        return new Response(JSON.stringify({
+          subject: emailJson.subject,
+          body: emailJson.body,
+          tone: newTone
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+    } catch (parseError) {
+      // Try to extract JSON
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        try {
+          const emailJson = JSON.parse(jsonMatch[0])
+          if (emailJson.subject && emailJson.body) {
+            return new Response(JSON.stringify({
+              subject: emailJson.subject,
+              body: emailJson.body,
+              tone: newTone
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+          }
+        } catch (e) {
+          // Fall through to error
+        }
+      }
+    }
+    
+    return createErrorResponse('Failed to parse regenerated email', 500, 'PARSE_ERROR')
+    
+  } catch (error) {
+    console.error('[REGENERATE-TONE] Error:', error)
+    return createErrorResponse('Failed to regenerate email tone', 500, 'REGENERATE_ERROR')
   }
 }
 
@@ -1908,6 +2234,14 @@ async function handleGenerateDealEmail(
       console.log('[GENERATE-DEAL-EMAIL] Activities found', { count: activities?.length || 0 })
     }
 
+    // Fetch user's writing style from AI personalization settings
+    const { data: writingStyle } = await client
+      .from('user_writing_styles')
+      .select('name, tone_description, examples, style_metadata')
+      .eq('user_id', userId)
+      .eq('is_default', true)
+      .maybeSingle()
+
     // Build context for email generation
     const emailContext = {
       deal: {
@@ -1927,11 +2261,12 @@ async function handleGenerateDealEmail(
         transcript: lastMeeting.transcript_text || lastMeeting.summary, // Use summary as fallback
         actionItems: lastMeeting.meeting_action_items?.filter((ai: any) => !ai.completed) || []
       } : null,
-      recentActivities: activities || []
+      recentActivities: activities || [],
+      writingStyle: writingStyle || null
     }
 
-    // Generate email using Claude with meeting context
-    console.log('[GENERATE-DEAL-EMAIL] Generating email with Claude...')
+    // Generate email using Claude with meeting context and user's writing style
+    console.log('[GENERATE-DEAL-EMAIL] Generating email with Claude...', { hasWritingStyle: !!writingStyle })
     const emailDraft = await generateDealEmailFromContext(emailContext)
     console.log('[GENERATE-DEAL-EMAIL] ✅ Email generated successfully', { 
       hasSubject: !!emailDraft.subject, 
@@ -1982,6 +2317,40 @@ ${context.lastMeeting.actionItems?.length > 0 ? `- Pending Action Items:\n${cont
     ? `Recent Activity:\n${context.recentActivities.map((a: any) => `- ${a.type}: ${a.notes || 'N/A'} on ${new Date(a.date).toLocaleDateString()}`).join('\n')}\n`
     : ''
 
+  // Build personalized style instruction if user has a writing style configured
+  let styleInstruction = 'Be professional but warm and personable.'
+  const writingStyle = context.writingStyle
+  if (writingStyle) {
+    const styleParts: string[] = []
+    styleParts.push(`\n## USER'S PERSONAL WRITING STYLE - MATCH THIS EXACTLY`)
+    styleParts.push(`Style: ${writingStyle.name}`)
+    styleParts.push(`Tone: ${writingStyle.tone_description}`)
+    
+    const meta = writingStyle.style_metadata
+    if (meta?.tone_characteristics) {
+      styleParts.push(`Characteristics: ${meta.tone_characteristics}`)
+    }
+    if (meta?.vocabulary_profile) {
+      styleParts.push(`Vocabulary: ${meta.vocabulary_profile}`)
+    }
+    if (meta?.greeting_style) {
+      styleParts.push(`Greetings: ${meta.greeting_style}`)
+    }
+    if (meta?.signoff_style) {
+      styleParts.push(`Sign-offs: ${meta.signoff_style}`)
+    }
+    
+    if (writingStyle.examples && writingStyle.examples.length > 0) {
+      const snippets = writingStyle.examples.slice(0, 2).map((ex: string) => 
+        ex.length > 150 ? ex.substring(0, 150) + '...' : ex
+      )
+      styleParts.push(`\nExample snippets of their writing:\n${snippets.map((s: string) => `"${s}"`).join('\n')}`)
+    }
+    
+    styleParts.push(`\n**CRITICAL: The email must sound like this user wrote it. Match their vocabulary, tone, greeting style, and sign-off patterns exactly.**`)
+    styleInstruction = styleParts.join('\n')
+  }
+
   // Get current date for accurate date references in email
   const today = new Date()
   const dateOptions: Intl.DateTimeFormatOptions = {
@@ -1992,7 +2361,7 @@ ${context.lastMeeting.actionItems?.length > 0 ? `- Pending Action Items:\n${cont
   }
   const currentDateStr = today.toLocaleDateString('en-US', dateOptions)
 
-  const prompt = `You are drafting a professional follow-up email to progress a sales deal.
+  const prompt = `You are drafting a follow-up email to progress a sales deal.
 
 TODAY'S DATE: ${currentDateStr}
 Use this date when making any date references like "tomorrow", "next week", "this Friday", etc.
@@ -2005,16 +2374,17 @@ ${meetingContext}
 
 ${recentActivityContext}
 
+${styleInstruction}
+
 IMPORTANT INSTRUCTIONS:
 1. Use the meeting transcript and action items to understand what was discussed
 2. Reference specific points from the conversation to show you were listening
 3. Address any pending action items from the meeting
 4. Propose next steps to move the deal forward
-5. Be professional but warm and personable
-6. Keep it concise (2-3 paragraphs max)
-7. Focus on value and next steps, not just checking in
+5. Keep it concise (2-3 paragraphs max)
+6. Focus on value and next steps, not just checking in
 
-Generate a professional email with:
+Generate an email with:
 1. A clear, compelling subject line that references the meeting or next steps
 2. A well-structured email body that references the conversation and proposes concrete next steps
 3. A suggested send time
@@ -2177,16 +2547,94 @@ async function buildContext(client: any, userId: string, context?: ChatRequest['
       if (org?.company_bio) {
         contextParts.push(`Company bio: ${org.company_bio}`)
       }
+      
+      // -------------------------------------------------------------------------
+      // PERS-001: Add organization enrichment data to context
+      // -------------------------------------------------------------------------
+      const { data: enrichment } = await client
+        .from('organization_enrichment')
+        .select('products, competitors, pain_points, target_market, buying_signals, value_propositions')
+        .eq('organization_id', resolvedOrgId)
+        .eq('status', 'completed')
+        .maybeSingle()
+      
+      if (enrichment) {
+        contextParts.push(`\n## Company Intelligence (from enrichment)`)
+        
+        // Products (top 3)
+        if (enrichment.products && Array.isArray(enrichment.products) && enrichment.products.length > 0) {
+          const productNames = enrichment.products.slice(0, 3).map((p: any) => p.name || p).join(', ')
+          contextParts.push(`Products: ${productNames}`)
+        }
+        
+        // Competitors (top 3)
+        if (enrichment.competitors && Array.isArray(enrichment.competitors) && enrichment.competitors.length > 0) {
+          const competitorNames = enrichment.competitors.slice(0, 3).map((c: any) => c.name || c).join(', ')
+          contextParts.push(`Competitors: ${competitorNames}`)
+        }
+        
+        // Pain points
+        if (enrichment.pain_points && Array.isArray(enrichment.pain_points) && enrichment.pain_points.length > 0) {
+          contextParts.push(`Customer pain points: ${enrichment.pain_points.slice(0, 3).join(', ')}`)
+        }
+        
+        // Target market
+        if (enrichment.target_market) {
+          contextParts.push(`Target market: ${enrichment.target_market}`)
+        }
+        
+        // Buying signals (for proactive suggestions)
+        if (enrichment.buying_signals && Array.isArray(enrichment.buying_signals) && enrichment.buying_signals.length > 0) {
+          contextParts.push(`Buying signals to watch for: ${enrichment.buying_signals.slice(0, 3).join(', ')}`)
+        }
+        
+        // Value propositions
+        if (enrichment.value_propositions && Array.isArray(enrichment.value_propositions) && enrichment.value_propositions.length > 0) {
+          contextParts.push(`Key differentiators: ${enrichment.value_propositions.slice(0, 2).join(', ')}`)
+        }
+      }
+      
+      // -------------------------------------------------------------------------
+      // PERS-002: Add AI preferences to context
+      // -------------------------------------------------------------------------
+      const { data: orgAiPrefs } = await client
+        .from('org_ai_preferences')
+        .select('brand_voice, blocked_phrases, preferred_tone')
+        .eq('organization_id', resolvedOrgId)
+        .maybeSingle()
+      
+      if (orgAiPrefs) {
+        contextParts.push(`\n## Organization AI Preferences`)
+        if (orgAiPrefs.brand_voice) {
+          contextParts.push(`Brand voice: ${orgAiPrefs.brand_voice}`)
+        }
+        if (orgAiPrefs.preferred_tone) {
+          contextParts.push(`Preferred tone: ${orgAiPrefs.preferred_tone}`)
+        }
+        if (orgAiPrefs.blocked_phrases && Array.isArray(orgAiPrefs.blocked_phrases) && orgAiPrefs.blocked_phrases.length > 0) {
+          contextParts.push(`NEVER use these phrases: ${orgAiPrefs.blocked_phrases.join(', ')}`)
+        }
+      }
     }
 
+    // PERS-003: Load user profile with working hours
     const { data: profile } = await client
       .from('profiles')
-      .select('bio')
+      .select('bio, working_hours_start, working_hours_end, timezone')
       .eq('id', userId)
       .maybeSingle()
 
     if (profile?.bio) {
       contextParts.push(`User bio: ${profile.bio}`)
+    }
+    
+    // -------------------------------------------------------------------------
+    // PERS-003: Add working hours awareness
+    // -------------------------------------------------------------------------
+    if (profile?.working_hours_start && profile?.working_hours_end) {
+      contextParts.push(`\n## User Working Hours`)
+      contextParts.push(`Working hours: ${profile.working_hours_start} - ${profile.working_hours_end}${profile.timezone ? ` (${profile.timezone})` : ''}`)
+      contextParts.push(`If current time is outside working hours, suggest scheduling actions for the next work day.`)
     }
     
     // ---------------------------------------------------------------------------
@@ -3726,7 +4174,30 @@ async function callClaudeAPI(
     .map((s) => `  - ${s.skill_key} (${s.name})`)
     .join('\n')
 
-  const systemPrompt = `You are a sales assistant for ${companyName}. You help sales reps prepare for calls, follow up after meetings, and manage their pipeline.
+  // AGENT-002: Load specialized team member persona
+  let compiledPersona: CompiledPersona | null = null
+  let personaSection = ''
+  
+  // Only try to load persona if we have an org
+  if (orgId) {
+    try {
+      compiledPersona = await getOrCompilePersona(client, orgId, userId)
+      if (compiledPersona?.persona) {
+        personaSection = `\n## YOUR PERSONA (Team Member Identity)\n\n${compiledPersona.persona}\n\n---\n`
+        console.log('[PERSONA] ✅ Loaded specialized persona', {
+          hasEnrichment: compiledPersona.hasEnrichment,
+          hasSkillContext: compiledPersona.hasSkillContext,
+          version: compiledPersona.version,
+        })
+      }
+    } catch (personaError) {
+      // Fail open - continue with generic prompt
+      console.error('[PERSONA] ⚠️ Failed to load persona, using generic:', personaError)
+    }
+  }
+
+  // Build system prompt - inject persona at the top if available
+  const systemPrompt = `${personaSection}You are a sales assistant for ${companyName}. You help sales reps prepare for calls, follow up after meetings, and manage their pipeline.
 
 ## ⚠️ CRITICAL RULE: First Name Resolution
 
@@ -6830,19 +7301,63 @@ function optimizeTranscriptText(
 
 /**
  * Generate email draft using Claude (utility function for email generation)
+ * Now supports user's personal writing style from AI personalization settings
  */
 async function generateEmailDraft(
   context: any,
-  tone: 'professional' | 'friendly' | 'concise'
+  tone: 'professional' | 'friendly' | 'concise',
+  writingStyle?: {
+    name: string;
+    tone_description: string;
+    examples?: string[];
+    style_metadata?: any;
+  } | null
 ): Promise<{ subject: string; body: string; suggestedSendTime: string }> {
   if (!ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY not configured')
   }
 
-  const toneInstructions = {
+  // Default tone instructions as fallback
+  const defaultToneInstructions = {
     professional: 'Use a professional, business-appropriate tone. Be respectful and formal.',
     friendly: 'Use a warm, friendly tone. Be personable and conversational.',
     concise: 'Be brief and to the point. Get straight to the value proposition.'
+  }
+
+  // Build personalized style instruction if user has a writing style configured
+  let styleInstruction = ''
+  if (writingStyle) {
+    const styleParts: string[] = []
+    styleParts.push(`\n## USER'S PERSONAL WRITING STYLE`)
+    styleParts.push(`Style: ${writingStyle.name}`)
+    styleParts.push(`Tone: ${writingStyle.tone_description}`)
+    
+    const meta = writingStyle.style_metadata
+    if (meta?.tone_characteristics) {
+      styleParts.push(`Characteristics: ${meta.tone_characteristics}`)
+    }
+    if (meta?.vocabulary_profile) {
+      styleParts.push(`Vocabulary: ${meta.vocabulary_profile}`)
+    }
+    if (meta?.greeting_style) {
+      styleParts.push(`Greetings: ${meta.greeting_style}`)
+    }
+    if (meta?.signoff_style) {
+      styleParts.push(`Sign-offs: ${meta.signoff_style}`)
+    }
+    
+    if (writingStyle.examples && writingStyle.examples.length > 0) {
+      const snippets = writingStyle.examples.slice(0, 2).map(ex => 
+        ex.length > 150 ? ex.substring(0, 150) + '...' : ex
+      )
+      styleParts.push(`\nExample snippets of their writing:\n${snippets.map(s => `"${s}"`).join('\n')}`)
+    }
+    
+    styleParts.push(`\n**CRITICAL: Match this user's writing style exactly. Use their vocabulary, tone, greeting style, and sign-off patterns. Make it sound like THEY wrote it.**`)
+    styleInstruction = styleParts.join('\n')
+  } else {
+    // Fallback to generic tone
+    styleInstruction = defaultToneInstructions[tone]
   }
 
   // Get current date for accurate date references in email
@@ -6856,7 +7371,7 @@ async function generateEmailDraft(
   const currentDateStr = today.toLocaleDateString('en-US', dateOptions)
   const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' })
 
-  const prompt = `You are drafting a ${tone} follow-up email for ${context.contact.name} at ${context.contact.company}.
+  const prompt = `You are drafting a follow-up email for ${context.contact.name} at ${context.contact.company}.
 
 TODAY'S DATE: ${currentDateStr} (${dayOfWeek})
 Use this date when making any date references like "tomorrow", "next week", "this Friday", etc.
@@ -6867,11 +7382,11 @@ ${context.recentActivities.length > 0 ? `Recent activities:\n${context.recentAct
 
 ${context.deals.length > 0 ? `Related deals:\n${context.deals.map((d: any) => `- ${d.name}: $${d.value} (${d.deal_stages?.name || 'Unknown'})`).join('\n')}\n` : ''}
 
-${toneInstructions[tone]}
+${styleInstruction}
 
-Generate a professional email with:
+Generate an email with:
 1. A clear, compelling subject line
-2. A well-structured email body (3-5 paragraphs)
+2. A well-structured email body (2-4 paragraphs)
 3. A suggested send time (e.g., "Tomorrow 9 AM EST" or "Monday morning")
 
 Return your response as JSON in this exact format:
@@ -7931,76 +8446,502 @@ function analyzeEscalationCriteria(
  * Unified V1 Workflow Router
  * Maps user intent to one of the 5 deterministic V1 workflows.
  * Returns null if no V1 workflow matches (falls back to Gemini reasoning).
+ *
+ * EXC-001: Enhanced with confidence scoring and synonym support.
+ * Only routes to V1 workflows when confidence >= MEDIUM_THRESHOLD.
  */
 interface V1WorkflowRoute {
   workflow: 'next_meeting_prep' | 'post_meeting_followup' | 'email_zero_inbox' | 'pipeline_focus' | 'catch_me_up' | 'meetings_for_period'
   sequenceKey: string
   sequenceContext: Record<string, any>
+  confidence?: 'high' | 'medium' | 'low'
+  matchedPatterns?: string[]
+}
+
+// EXC-001: Confidence scoring thresholds
+const V1_CONFIDENCE_THRESHOLDS = {
+  HIGH: 0.9,    // Exact phrase match or multiple strong indicators
+  MEDIUM: 0.6,  // Strong composite match
+  LOW: 0.3,     // Partial match - not sufficient for routing
+} as const
+
+// EXC-001: Synonym mappings for better intent detection
+const V1_SYNONYMS = {
+  meeting: ['meeting', 'call', 'session', 'appointment', 'sync', 'standup', 'catch-up'],
+  prepare: ['prep', 'prepare', 'brief', 'brief me', 'get ready', 'prepare me', 'help me prepare'],
+  next: ['next', 'upcoming', 'scheduled', "today's", "tomorrow's"],
+  focus: ['focus', 'prioritize', 'priority', 'attention', 'important', 'urgent', 'critical'],
+  deal: ['deal', 'deals', 'pipeline', 'opportunity', 'opportunities', 'prospect', 'prospects'],
+  catchup: ['catch me up', 'catch up', 'brief me', 'bring me up to speed', 'what did i miss', "what's new", "what's happening"],
+  email: ['email', 'emails', 'inbox', 'messages', 'mail'],
+  followup: ['follow-up', 'follow up', 'followup', 'recap', 'after the meeting', 'post-meeting', 'debrief'],
+}
+
+/**
+ * Calculate confidence score for V1 workflow match
+ * Returns score 0-1 and list of matched patterns
+ */
+function calculateV1Confidence(
+  messageLower: string,
+  exactPhrases: string[],
+  compositeCheck: () => boolean,
+  synonymGroups: (keyof typeof V1_SYNONYMS)[]
+): { score: number; matchedPatterns: string[]; confidence: 'high' | 'medium' | 'low' } {
+  const matchedPatterns: string[] = []
+  let score = 0
+
+  // Check exact phrase matches (highest confidence boost)
+  for (const phrase of exactPhrases) {
+    if (messageLower.includes(phrase)) {
+      matchedPatterns.push(`exact:"${phrase}"`)
+      score += 0.5
+    }
+  }
+
+  // Check synonym matches
+  for (const group of synonymGroups) {
+    const synonyms = V1_SYNONYMS[group]
+    for (const synonym of synonyms) {
+      if (messageLower.includes(synonym)) {
+        matchedPatterns.push(`synonym:${group}:"${synonym}"`)
+        score += 0.15
+        break // Only count one match per synonym group
+      }
+    }
+  }
+
+  // Composite check bonus
+  if (compositeCheck()) {
+    matchedPatterns.push('composite')
+    score += 0.2
+  }
+
+  // Cap score at 1.0
+  score = Math.min(score, 1.0)
+
+  // Determine confidence level
+  let confidence: 'high' | 'medium' | 'low'
+  if (score >= V1_CONFIDENCE_THRESHOLDS.HIGH) {
+    confidence = 'high'
+  } else if (score >= V1_CONFIDENCE_THRESHOLDS.MEDIUM) {
+    confidence = 'medium'
+  } else {
+    confidence = 'low'
+  }
+
+  return { score, matchedPatterns, confidence }
 }
 
 function routeToV1Workflow(messageLower: string, temporalContext?: TemporalContextPayload): V1WorkflowRoute | null {
+  // EXC-001: Enhanced routing with confidence scoring
   // Order matters - more specific checks first
-  
+
   console.log('[V1-ROUTER] Checking message:', messageLower.substring(0, 100))
 
-  // 1. Next Meeting Prep
-  if (isNextMeetingPrepQuestion(messageLower)) {
-    return {
+  // Track all workflow matches with confidence
+  const candidates: Array<V1WorkflowRoute & { score: number }> = []
+
+  // 1. Next Meeting Prep - with confidence scoring
+  const nextMeetingExact = [
+    'prep me for my next meeting',
+    'brief me on my next meeting',
+    'prepare me for my next meeting',
+    'get me ready for my next meeting',
+    'help me prepare for my next call',
+  ]
+  const nextMeetingConf = calculateV1Confidence(
+    messageLower,
+    nextMeetingExact,
+    () => {
+      const hasNext = V1_SYNONYMS.next.some(s => messageLower.includes(s))
+      const hasMeeting = V1_SYNONYMS.meeting.some(s => messageLower.includes(s))
+      const hasPrep = V1_SYNONYMS.prepare.some(s => messageLower.includes(s))
+      return hasNext && hasMeeting && hasPrep
+    },
+    ['meeting', 'prepare', 'next']
+  )
+
+  if (nextMeetingConf.confidence !== 'low') {
+    candidates.push({
       workflow: 'next_meeting_prep',
       sequenceKey: 'seq-next-meeting-command-center',
       sequenceContext: {},
-    }
+      confidence: nextMeetingConf.confidence,
+      matchedPatterns: nextMeetingConf.matchedPatterns,
+      score: nextMeetingConf.score,
+    })
   }
 
-  // 2. Post-Meeting Follow-Up Pack
-  if (isPostMeetingFollowUpPackQuestion(messageLower)) {
-    return {
+  // 2. Post-Meeting Follow-Up Pack - with confidence scoring
+  const followUpExact = [
+    'follow-up pack', 'follow up pack', 'followup pack',
+    'post-meeting follow-up', 'post meeting follow up',
+    'create follow-ups', 'create follow ups',
+    'write follow-up', 'send follow-up', 'send recap', 'write recap',
+    'after the meeting', 'post-meeting followup', 'debrief',
+  ]
+  const followUpConf = calculateV1Confidence(
+    messageLower,
+    followUpExact,
+    () => {
+      const hasFollowup = V1_SYNONYMS.followup.some(s => messageLower.includes(s))
+      const hasMeeting = V1_SYNONYMS.meeting.some(s => messageLower.includes(s))
+      return hasFollowup && hasMeeting
+    },
+    ['followup', 'meeting']
+  )
+
+  if (followUpConf.confidence !== 'low') {
+    candidates.push({
       workflow: 'post_meeting_followup',
       sequenceKey: 'seq-post-meeting-followup-pack',
       sequenceContext: {},
-    }
+      confidence: followUpConf.confidence,
+      matchedPatterns: followUpConf.matchedPatterns,
+      score: followUpConf.score,
+    })
   }
 
-  // 3. Email Zero Inbox
-  if (isEmailZeroInboxQuestion(messageLower)) {
-    return {
+  // 3. Email Zero Inbox - with confidence scoring
+  const emailExact = [
+    'email follow-ups', 'email follow ups', 'email followups',
+    'check my inbox', 'check my emails', 'unanswered emails',
+    'emails i need to respond', 'emails needing response',
+    'emails i missed', 'missed emails', 'pending emails', 'email backlog',
+    'zero inbox', 'inbox zero', 'clear my inbox',
+    'help with emails', 'help me with emails',
+    'what emails need', 'which emails need', 'emails to reply', 'reply to emails',
+  ]
+  const emailConf = calculateV1Confidence(
+    messageLower,
+    emailExact,
+    () => {
+      const hasEmail = V1_SYNONYMS.email.some(s => messageLower.includes(s))
+      const hasAction = messageLower.includes('respond') || messageLower.includes('reply') ||
+                        messageLower.includes('check') || messageLower.includes('clear') ||
+                        messageLower.includes('help')
+      return hasEmail && hasAction
+    },
+    ['email']
+  )
+
+  if (emailConf.confidence !== 'low') {
+    candidates.push({
       workflow: 'email_zero_inbox',
       sequenceKey: 'seq-followup-zero-inbox',
       sequenceContext: {},
-    }
+      confidence: emailConf.confidence,
+      matchedPatterns: emailConf.matchedPatterns,
+      score: emailConf.score,
+    })
   }
 
-  // 4. Pipeline Focus
-  if (isPipelineFocusQuestion(messageLower)) {
-    return {
+  // 4. Pipeline Focus - with confidence scoring
+  const pipelineExact = [
+    'deals should i focus', 'deals to focus', 'pipeline focus',
+    'pipeline priorities', 'which deals', 'what deals need',
+    'prioritize deals', 'prioritize my deals', 'deal priorities',
+    'focus deals', 'deals needing attention', 'stale deals',
+    'deals at risk', 'deals closing soon', 'high priority deals', 'top deals',
+    'help me with deals', 'what needs attention', 'needs attention',
+    'what should i focus on', 'what do i need to focus on',
+    'which opportunities', 'prioritize my pipeline',
+  ]
+  const pipelineConf = calculateV1Confidence(
+    messageLower,
+    pipelineExact,
+    () => {
+      const hasDeal = V1_SYNONYMS.deal.some(s => messageLower.includes(s))
+      const hasFocus = V1_SYNONYMS.focus.some(s => messageLower.includes(s))
+      return hasDeal && hasFocus
+    },
+    ['deal', 'focus']
+  )
+
+  if (pipelineConf.confidence !== 'low') {
+    candidates.push({
       workflow: 'pipeline_focus',
       sequenceKey: 'seq-pipeline-focus-tasks',
       sequenceContext: { period: 'this_week' },
-    }
+      confidence: pipelineConf.confidence,
+      matchedPatterns: pipelineConf.matchedPatterns,
+      score: pipelineConf.score,
+    })
   }
 
-  // 5. Catch Me Up (daily brief)
-  if (isCatchMeUpQuestion(messageLower)) {
-    console.log('[V1-ROUTER] ✅ Matched: catch_me_up')
-    return {
+  // 5. Catch Me Up (daily brief) - with confidence scoring
+  const catchUpExact = [
+    'catch me up', 'catch up', 'bring me up to speed',
+    "what's happening", "what's going on", 'what did i miss', "what's new",
+    'my day', 'daily brief', 'daily briefing',
+    'morning brief', 'morning briefing', 'start my day',
+    'end of day', 'eod update', 'eod summary', 'wrap up my day',
+    'give me the highlights', 'give me a summary', 'what happened',
+  ]
+  const catchUpConf = calculateV1Confidence(
+    messageLower,
+    catchUpExact,
+    () => {
+      const hasCatchup = V1_SYNONYMS.catchup.some(s => messageLower.includes(s))
+      return hasCatchup
+    },
+    ['catchup']
+  )
+
+  if (catchUpConf.confidence !== 'low') {
+    candidates.push({
       workflow: 'catch_me_up',
       sequenceKey: 'seq-catch-me-up',
       sequenceContext: {},
-    }
+      confidence: catchUpConf.confidence,
+      matchedPatterns: catchUpConf.matchedPatterns,
+      score: catchUpConf.score,
+    })
   }
 
-  // 6. Meetings for period (today/tomorrow) - existing deterministic route
+  // 6. Meetings for period (today/tomorrow) - using existing detection
   if (isMeetingsForPeriodQuestion(messageLower)) {
     const period = getMeetingsForPeriodPeriod(messageLower)
     const timezone = temporalContext?.timezone || 'UTC'
-    return {
+    candidates.push({
       workflow: 'meetings_for_period',
       sequenceKey: '', // Uses direct action, not sequence
       sequenceContext: { period, timezone },
+      confidence: 'high', // Existing logic is reliable
+      matchedPatterns: ['legacy:isMeetingsForPeriodQuestion'],
+      score: 0.9,
+    })
+  }
+
+  // EXC-001: Select best candidate based on confidence score
+  if (candidates.length === 0) {
+    console.log('[V1-ROUTER] ❌ No V1 workflow matched - will call Gemini')
+    return null
+  }
+
+  // Sort by score descending, pick highest
+  candidates.sort((a, b) => b.score - a.score)
+  const bestMatch = candidates[0]
+
+  // Only route if confidence is at least medium
+  if (bestMatch.confidence === 'low') {
+    console.log('[V1-ROUTER] ⚠️ Best match has low confidence, falling back to Gemini', {
+      workflow: bestMatch.workflow,
+      score: bestMatch.score,
+      matchedPatterns: bestMatch.matchedPatterns,
+    })
+    return null
+  }
+
+  console.log('[V1-ROUTER] ✅ Matched workflow with confidence:', {
+    workflow: bestMatch.workflow,
+    confidence: bestMatch.confidence,
+    score: bestMatch.score.toFixed(2),
+    matchedPatterns: bestMatch.matchedPatterns,
+    alternativeCandidates: candidates.slice(1).map(c => ({
+      workflow: c.workflow,
+      score: c.score.toFixed(2),
+    })),
+  })
+
+  // Return without score property (internal tracking only)
+  const { score: _score, ...result } = bestMatch
+  return result
+}
+
+// ============================================================================
+// PROACTIVE-001: Clarifying Questions Flow
+// ============================================================================
+
+interface ClarifyingOption {
+  id: number
+  action: string
+  description: string
+  sequenceKey?: string
+  skillKey?: string
+}
+
+interface ClarifyingQuestionsResult {
+  needsClarification: boolean
+  entityName?: string
+  entityType?: 'deal' | 'contact' | 'company' | 'meeting'
+  options: ClarifyingOption[]
+  prompt?: string
+}
+
+/**
+ * Detects when a user request is ambiguous and needs clarification.
+ * Returns options for the user to choose from.
+ * 
+ * Triggers:
+ * - "Help me with X" where X is a deal/contact/company name
+ * - Short requests that could mean multiple things
+ * - Entity references without clear action intent
+ */
+function detectAmbiguousRequest(
+  messageLower: string,
+  originalMessage: string,
+  availableSequences: { skill_key: string; name: string }[]
+): ClarifyingQuestionsResult {
+  const result: ClarifyingQuestionsResult = {
+    needsClarification: false,
+    options: [],
+  }
+
+  // Pattern 1: "Help me with [entity]" or "I need help with [entity]"
+  const helpPatterns = [
+    /(?:help|assist|work on|look at|check on|update me on)\s+(?:me\s+)?(?:with\s+)?(?:the\s+)?([a-z0-9\s]+?)(?:\s+deal|\s+contact|\s+company)?$/i,
+    /(?:what about|how about|tell me about)\s+(?:the\s+)?([a-z0-9\s]+)$/i,
+    /^([a-z0-9\s]+)(?:\s+deal|\s+contact)?\s*\??$/i, // Just a name like "Acme?" or "John deal?"
+  ]
+
+  for (const pattern of helpPatterns) {
+    const match = originalMessage.match(pattern)
+    if (match && match[1]) {
+      const entityName = match[1].trim()
+      
+      // Skip if it's clearly a specific request
+      if (entityName.length < 2 || entityName.length > 50) continue
+      
+      // Skip if it already contains action words
+      const actionWords = ['prep', 'prepare', 'brief', 'follow', 'email', 'call', 'schedule', 'create', 'update', 'delete']
+      if (actionWords.some(w => messageLower.includes(w))) continue
+      
+      result.needsClarification = true
+      result.entityName = entityName
+      
+      // Determine entity type from context
+      if (messageLower.includes('deal')) {
+        result.entityType = 'deal'
+      } else if (messageLower.includes('contact') || messageLower.includes('person')) {
+        result.entityType = 'contact'
+      } else if (messageLower.includes('company') || messageLower.includes('account')) {
+        result.entityType = 'company'
+      }
+      
+      // Generate contextual options based on entity type and available sequences
+      result.options = generateClarifyingOptions(entityName, result.entityType, availableSequences)
+      
+      result.prompt = generateClarifyingPrompt(entityName, result.entityType, result.options)
+      
+      break
     }
   }
 
-  return null
+  // Pattern 2: Single word or very short requests (under 15 chars, no clear action)
+  if (!result.needsClarification && messageLower.length < 15 && !messageLower.includes(' ')) {
+    // Could be a name lookup - don't trigger clarification for these, 
+    // let resolve_entity handle it
+  }
+
+  return result
+}
+
+function generateClarifyingOptions(
+  entityName: string,
+  entityType: 'deal' | 'contact' | 'company' | 'meeting' | undefined,
+  availableSequences: { skill_key: string; name: string }[]
+): ClarifyingOption[] {
+  const options: ClarifyingOption[] = []
+  
+  if (entityType === 'deal' || !entityType) {
+    // Deal-focused options
+    options.push({
+      id: 1,
+      action: 'Review deal health',
+      description: `Check the status and health of the ${entityName} deal`,
+      sequenceKey: 'seq-deal-rescue-pack',
+    })
+    options.push({
+      id: 2,
+      action: 'Draft a follow-up email',
+      description: `Write a follow-up email for the ${entityName} opportunity`,
+      sequenceKey: 'seq-post-meeting-followup-pack',
+    })
+  }
+  
+  if (entityType === 'contact' || !entityType) {
+    // Contact-focused options
+    options.push({
+      id: options.length + 1,
+      action: 'Prep for a meeting',
+      description: `Get briefed before meeting with ${entityName}`,
+      sequenceKey: 'seq-next-meeting-command-center',
+    })
+    options.push({
+      id: options.length + 1,
+      action: 'Research this contact',
+      description: `Get background and talking points for ${entityName}`,
+      skillKey: 'lead-research',
+    })
+  }
+  
+  if (entityType === 'company' || !entityType) {
+    // Company-focused options
+    options.push({
+      id: options.length + 1,
+      action: 'Analyze this company',
+      description: `Deep research on ${entityName}`,
+      skillKey: 'company-analysis',
+    })
+    options.push({
+      id: options.length + 1,
+      action: 'Check competitor positioning',
+      description: `How we compare to/position against ${entityName}`,
+      skillKey: 'competitor-intel',
+    })
+  }
+  
+  // Re-number options sequentially
+  return options.slice(0, 4).map((opt, idx) => ({ ...opt, id: idx + 1 }))
+}
+
+function generateClarifyingPrompt(
+  entityName: string,
+  entityType: 'deal' | 'contact' | 'company' | 'meeting' | undefined,
+  options: ClarifyingOption[]
+): string {
+  const typeLabel = entityType || 'entity'
+  
+  let prompt = `I can help with **${entityName}**! What would you like to do?\n\n`
+  
+  for (const opt of options) {
+    prompt += `${opt.id}. **${opt.action}** — ${opt.description}\n`
+  }
+  
+  prompt += `\nJust reply with the number or tell me more about what you need.`
+  
+  return prompt
+}
+
+/**
+ * Check if a message is a clarification response (e.g., "1", "option 2", "the first one")
+ */
+function isClarificationResponse(messageLower: string): { isResponse: boolean; selectedOption?: number } {
+  // Direct number responses
+  const numberMatch = messageLower.match(/^([1-4])$/)
+  if (numberMatch) {
+    return { isResponse: true, selectedOption: parseInt(numberMatch[1], 10) }
+  }
+  
+  // "option X" or "number X"
+  const optionMatch = messageLower.match(/(?:option|number|choice)\s*([1-4])/i)
+  if (optionMatch) {
+    return { isResponse: true, selectedOption: parseInt(optionMatch[1], 10) }
+  }
+  
+  // "the first/second/third/fourth one"
+  const ordinalMap: Record<string, number> = {
+    first: 1, second: 2, third: 3, fourth: 4,
+    '1st': 1, '2nd': 2, '3rd': 3, '4th': 4,
+  }
+  for (const [word, num] of Object.entries(ordinalMap)) {
+    if (messageLower.includes(word)) {
+      return { isResponse: true, selectedOption: num }
+    }
+  }
+  
+  return { isResponse: false }
 }
 
 /**
@@ -8020,6 +8961,22 @@ async function detectAndStructureResponse(
   
   // Store original message for limit extraction
   const originalMessage = userMessage
+
+  // ---------------------------------------------------------------------------
+  // OUTPUT FORMAT SELECTOR SKILL (platform_skills: output-format-selector)
+  // ---------------------------------------------------------------------------
+  // When keyword-based detection is insufficient, consult the output-format-selector
+  // skill for optimal response type selection. The skill provides:
+  // - Decision matrix mapping intent patterns to response types
+  // - Time-awareness rules (morning/afternoon/evening briefings)
+  // - Preview mode rules for write operations
+  // - Sequence-to-response-type mappings
+  //
+  // To use: await executeSkillByKey('output-format-selector', { 
+  //   userMessage, availableData: [...], timeOfDay 
+  // })
+  // Returns: { recommended_type, confidence, reasoning, required_data, preview_mode }
+  // ---------------------------------------------------------------------------
 
   // ---------------------------------------------------------------------------
   // Sequence-aware structured responses (demo-grade panels)
@@ -8376,6 +9333,8 @@ async function detectAndStructureResponse(
           closeDate: d.expected_close_date || d.close_date || null,
           healthStatus: d.health_status || (d.days_stale > 7 ? 'stale' : 'healthy'),
           company: d.company_name || d.company || null,
+          contactName: d.contact_name || null,
+          contactEmail: d.contact_email || null,
         }))
         
         // Map contacts to expected format with rich action context
@@ -9226,13 +10185,7 @@ async function structureEmailDraftResponse(
     if (hasLastMeetingReference) {
       console.log('[EMAIL-DRAFT] Fetching last meeting with transcript for user:', userId)
 
-      // Only look at meetings from the last 14 days
-      const fourteenDaysAgo = new Date()
-      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
-      const dateFilter = fourteenDaysAgo.toISOString()
-
-      console.log('[EMAIL-DRAFT] Looking for meetings after:', dateFilter)
-
+      // First try: Look for meetings with transcript/summary (no date filter - get most recent)
       const { data: meetings, error: meetingError } = await client
         .from('meetings')
         .select(`
@@ -9241,16 +10194,39 @@ async function structureEmailDraftResponse(
           meeting_attendees(name, email, is_external)
         `)
         .eq('owner_user_id', userId)
-        .gte('meeting_start', dateFilter)
         .or('transcript_text.not.is.null,summary.not.is.null')
         .order('meeting_start', { ascending: false })
-        .limit(1)
+        .limit(5)
 
       if (meetingError) {
         console.error('[EMAIL-DRAFT] Error fetching last meeting:', meetingError)
       } else if (meetings && meetings.length > 0) {
-        lastMeeting = meetings[0]
-        console.log('[EMAIL-DRAFT] Found last meeting:', lastMeeting.title, '- Has summary:', !!lastMeeting.summary, '- Has transcript:', !!lastMeeting.transcript_text)
+        // Pick the first meeting that actually has content
+        lastMeeting = meetings.find((m: any) => m.transcript_text || m.summary) || meetings[0]
+        console.log('[EMAIL-DRAFT] Found last meeting:', lastMeeting.title, '- Has summary:', !!lastMeeting.summary, '- Has transcript:', !!lastMeeting.transcript_text, '- Date:', lastMeeting.meeting_start)
+      } else {
+        // Fallback: Get ANY recent meeting even without transcript/summary
+        console.log('[EMAIL-DRAFT] No meetings with content, trying any recent meeting...')
+        const { data: anyMeetings } = await client
+          .from('meetings')
+          .select(`
+            id, title, summary, transcript_text, meeting_start,
+            meeting_action_items(id, title, completed),
+            meeting_attendees(name, email, is_external)
+          `)
+          .eq('owner_user_id', userId)
+          .order('meeting_start', { ascending: false })
+          .limit(1)
+        
+        if (anyMeetings && anyMeetings.length > 0) {
+          lastMeeting = anyMeetings[0]
+          console.log('[EMAIL-DRAFT] Using most recent meeting (no content):', lastMeeting.title)
+        }
+      }
+      
+      // Process attendees if we found a meeting
+      if (lastMeeting) {
+        console.log('[EMAIL-DRAFT] Processing meeting:', lastMeeting?.title, '- Has summary:', !!lastMeeting?.summary, '- Has transcript:', !!lastMeeting?.transcript_text)
         console.log('[EMAIL-DRAFT] Meeting attendees:', JSON.stringify(lastMeeting.meeting_attendees))
 
         // For "last meeting" requests, ALWAYS use meeting attendee as recipient (overwrite any previous)
@@ -9442,40 +10418,243 @@ async function structureEmailDraftResponse(
       return points.length > 0 ? points : ['Discuss next steps', 'Review key decisions']
     }
 
+    // Fetch user's writing style for personalized email generation
+    const { data: writingStyle } = await client
+      .from('user_writing_styles')
+      .select('name, tone_description, examples, style_metadata')
+      .eq('user_id', userId)
+      .eq('is_default', true)
+      .maybeSingle()
+    
+    // Fetch user's name for email signature
+    const { data: userProfile } = await client
+      .from('profiles')
+      .select('first_name, last_name, email')
+      .eq('id', userId)
+      .maybeSingle()
+    
+    const userName = userProfile 
+      ? `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() || userProfile.email?.split('@')[0] || 'Your Name'
+      : 'Your Name'
+    
+    console.log('[EMAIL-DRAFT] User writing style found:', !!writingStyle, writingStyle?.name)
+    console.log('[EMAIL-DRAFT] User name for signature:', userName)
+
     // Generate email based on meeting context if available
-    if ((isFollowUp || hasLastMeetingReference) && lastMeeting) {
-      // Use actual meeting content for the email
+    if ((isFollowUp || hasLastMeetingReference) && lastMeeting && (lastMeeting.summary || lastMeeting.transcript_text)) {
+      // USE AI to generate a proper email based on meeting content and user's writing style
+      console.log('[EMAIL-DRAFT] Generating AI email from meeting transcript/summary')
+      
       const meetingTitle = lastMeeting.title || 'our recent conversation'
       const meetingDate = lastMeeting.meeting_start
         ? new Date(lastMeeting.meeting_start).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
         : 'recently'
 
-      subject = `Following up on ${meetingTitle}`
       keyPoints = extractMeetingKeyPoints(lastMeeting)
-
-      // Build contextual body from meeting content
-      let discussionPoints = ''
-      if (keyPoints.length > 0 && (lastMeeting.summary || lastMeeting.meeting_action_items?.length > 0)) {
-        discussionPoints = `\n\nKey points from our discussion:\n${keyPoints.map(p => `• ${p}`).join('\n')}`
-      }
-
-      // Check for action items to mention
-      let actionItemsSection = ''
+      
+      // Get uncompleted action items
       const uncompletedActions = lastMeeting.meeting_action_items?.filter((a: any) => !a.completed) || []
-      if (uncompletedActions.length > 0) {
-        actionItemsSection = `\n\nAs discussed, here are the action items we agreed on:\n${uncompletedActions.slice(0, 4).map((a: any) => `• ${a.title}`).join('\n')}`
+      
+      // Build style instruction from user's writing style
+      let styleInstruction = 'Write in a professional but warm and personable tone.'
+      if (writingStyle) {
+        const styleParts: string[] = []
+        styleParts.push(`\n## USER'S PERSONAL WRITING STYLE - YOU MUST MATCH THIS EXACTLY`)
+        styleParts.push(`Style: ${writingStyle.name}`)
+        styleParts.push(`Tone: ${writingStyle.tone_description}`)
+        
+        const meta = writingStyle.style_metadata as any
+        if (meta?.tone_characteristics) {
+          styleParts.push(`Characteristics: ${meta.tone_characteristics}`)
+        }
+        if (meta?.vocabulary_profile) {
+          styleParts.push(`Vocabulary: ${meta.vocabulary_profile}`)
+        }
+        if (meta?.greeting_style) {
+          styleParts.push(`Greeting style: Use "${meta.greeting_style}" style greetings`)
+        }
+        if (meta?.signoff_style) {
+          styleParts.push(`Sign-off style: Use "${meta.signoff_style}" style sign-offs`)
+        }
+        
+        if (writingStyle.examples && Array.isArray(writingStyle.examples) && writingStyle.examples.length > 0) {
+          const snippets = (writingStyle.examples as string[]).slice(0, 2).map((ex: string) => 
+            ex.length > 200 ? ex.substring(0, 200) + '...' : ex
+          )
+          styleParts.push(`\nEXAMPLES OF HOW THIS USER WRITES:\n${snippets.map((s: string) => `"${s}"`).join('\n')}`)
+        }
+        
+        styleParts.push(`\n**CRITICAL: The email MUST sound like this user wrote it. Copy their vocabulary, greeting style, sign-off patterns, and overall tone exactly.**`)
+        styleInstruction = styleParts.join('\n')
       }
 
-      body = `Hi ${recipientName || '[Name]'},
+      // Get current date for accurate date references
+      const today = new Date()
+      const currentDateStr = today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+
+      // Prepare meeting content - prefer transcript but use summary as fallback
+      let meetingContent = ''
+      if (lastMeeting.transcript_text) {
+        // Truncate transcript if too long (keep first 3000 chars for context)
+        const transcript = lastMeeting.transcript_text.length > 3000 
+          ? lastMeeting.transcript_text.substring(0, 3000) + '... [transcript truncated]'
+          : lastMeeting.transcript_text
+        meetingContent = `MEETING TRANSCRIPT:\n${transcript}`
+      } else if (lastMeeting.summary) {
+        let summaryText = lastMeeting.summary
+        if (typeof summaryText === 'object' && summaryText.markdown_formatted) {
+          summaryText = summaryText.markdown_formatted
+        } else if (typeof summaryText === 'string' && summaryText.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(summaryText)
+            summaryText = parsed.markdown_formatted || parsed.summary || summaryText
+          } catch (e) {
+            // Use as-is
+          }
+        }
+        meetingContent = `MEETING SUMMARY:\n${summaryText}`
+      }
+
+      // Adjust tone based on user's base style
+      let toneAdjustment = ''
+      if (tone === 'friendly') {
+        toneAdjustment = `\nTONE ADJUSTMENT: Make this email slightly MORE casual and warm than the user's normal style. Add a friendly touch while keeping their voice.`
+      } else if (tone === 'concise') {
+        toneAdjustment = `\nTONE ADJUSTMENT: Make this email MORE brief and direct than the user's normal style. Cut any fluff, keep only essentials.`
+      } else if (tone === 'professional') {
+        toneAdjustment = `\nTONE ADJUSTMENT: Make this email slightly MORE formal than the user's normal style. Keep it polished and business-appropriate.`
+      }
+
+      const prompt = `You are writing a follow-up email after a meeting. Generate a personalized, context-aware email.
+
+TODAY'S DATE: ${currentDateStr}
+
+SENDER NAME: ${userName}
+RECIPIENT: ${recipientName || 'the attendee'}
+RECIPIENT EMAIL: ${contactEmail || 'unknown'}
+MEETING TITLE: ${meetingTitle}
+MEETING DATE: ${meetingDate}
+
+${meetingContent}
+
+${uncompletedActions.length > 0 ? `AGREED ACTION ITEMS:\n${uncompletedActions.map((a: any) => `- ${a.title}`).join('\n')}` : ''}
+
+${styleInstruction}
+${toneAdjustment}
+
+INSTRUCTIONS:
+1. Write a follow-up email that references SPECIFIC things discussed in the meeting
+2. Mention any action items or next steps that were agreed upon
+3. Be concise (2-3 paragraphs max)
+4. Sound natural and human - NOT like a template
+5. Include specific details from the conversation to show you were paying attention
+6. Propose a clear next step
+7. Sign off with the sender's actual name: "${userName}"
+
+Return ONLY a JSON object in this exact format (no markdown, no code blocks):
+{"subject": "Your subject line here", "body": "Full email body here"}
+
+The body MUST include proper greeting and sign off with "${userName}" (not "[Your Name]" or placeholders).`
+
+      try {
+        // Use Gemini for email generation
+        if (GEMINI_API_KEY) {
+          console.log('[EMAIL-DRAFT] Calling Gemini to generate personalized email...')
+          const geminiResponse = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig: {
+                  temperature: 0.7,
+                  maxOutputTokens: 1000,
+                  responseMimeType: 'application/json'
+                }
+              })
+            }
+          )
+
+          if (geminiResponse.ok) {
+            const geminiData = await geminiResponse.json()
+            const responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || ''
+            console.log('[EMAIL-DRAFT] Gemini response received, length:', responseText.length)
+            
+            try {
+              const emailJson = JSON.parse(responseText)
+              if (emailJson.subject && emailJson.body) {
+                subject = emailJson.subject
+                body = emailJson.body
+                console.log('[EMAIL-DRAFT] ✅ AI-generated email parsed successfully')
+              }
+            } catch (parseError) {
+              console.error('[EMAIL-DRAFT] Failed to parse Gemini response:', parseError)
+              // Try to extract JSON from response
+              const jsonMatch = responseText.match(/\{[\s\S]*\}/)
+              if (jsonMatch) {
+                try {
+                  const emailJson = JSON.parse(jsonMatch[0])
+                  if (emailJson.subject && emailJson.body) {
+                    subject = emailJson.subject
+                    body = emailJson.body
+                    console.log('[EMAIL-DRAFT] ✅ AI-generated email extracted from response')
+                  }
+                } catch (e) {
+                  console.error('[EMAIL-DRAFT] Could not extract JSON from response')
+                }
+              }
+            }
+          } else {
+            console.error('[EMAIL-DRAFT] Gemini API error:', geminiResponse.status)
+          }
+        }
+      } catch (aiError) {
+        console.error('[EMAIL-DRAFT] AI email generation failed:', aiError)
+      }
+
+      // Fallback if AI generation failed
+      if (!body || body.includes('[Add key')) {
+        console.log('[EMAIL-DRAFT] Using fallback template with meeting context')
+        let discussionPoints = ''
+        if (keyPoints.length > 0) {
+          discussionPoints = `\n\nKey points from our discussion:\n${keyPoints.map(p => `• ${p}`).join('\n')}`
+        }
+
+        let actionItemsSection = ''
+        if (uncompletedActions.length > 0) {
+          actionItemsSection = `\n\nAs discussed, here are the action items we agreed on:\n${uncompletedActions.slice(0, 4).map((a: any) => `• ${a.title}`).join('\n')}`
+        }
+
+        subject = `Following up on ${meetingTitle}`
+        body = `Hi ${recipientName || '[Name]'},
 
 Thank you for taking the time to meet with me on ${meetingDate}. I wanted to follow up on our conversation about ${meetingTitle.replace(/^Meeting with /i, '').replace(/^Call with /i, '')}.${discussionPoints}${actionItemsSection}
 
 Please let me know if you have any questions or if there's anything else I can help with.
 
 Best regards`
+      }
 
-      console.log('[EMAIL-DRAFT] Generated email from meeting context:', { meetingTitle, keyPointsCount: keyPoints.length, hasActionItems: uncompletedActions.length > 0 })
+      console.log('[EMAIL-DRAFT] Generated email from meeting context:', { meetingTitle, keyPointsCount: keyPoints.length, hasActionItems: uncompletedActions.length > 0, usedAI: !body.includes('Best regards') || body.length > 500 })
     } else if (isFollowUp && isMeetingRelated) {
+      // No meeting found - try harder to find ANY recent meeting
+      console.log('[EMAIL-DRAFT] No meeting with content found, trying broader search...')
+      
+      const { data: anyMeetings } = await client
+        .from('meetings')
+        .select('id, title, summary, transcript_text, meeting_start')
+        .eq('owner_user_id', userId)
+        .order('meeting_start', { ascending: false })
+        .limit(5)
+      
+      console.log('[EMAIL-DRAFT] Broader search found meetings:', anyMeetings?.length || 0)
+      if (anyMeetings) {
+        anyMeetings.forEach((m: any) => {
+          console.log('[EMAIL-DRAFT] - Meeting:', m.title, 'has_summary:', !!m.summary, 'has_transcript:', !!m.transcript_text)
+        })
+      }
+
       // Fallback if no meeting found but user mentioned meeting
       subject = `Following up on our recent conversation`
       keyPoints = ['Thank them for their time', 'Recap key discussion points', 'Outline next steps']
@@ -9483,9 +10662,7 @@ Best regards`
 
 Thank you for taking the time to speak with me recently. I wanted to follow up on our conversation and ensure we're aligned on the next steps.
 
-[Add key discussion points from the meeting]
-
-Please let me know if you have any questions or if there's anything else I can help with.
+I'd love to hear your thoughts on what we discussed. Please let me know if you have any questions or if there's anything else I can help with.
 
 Best regards`
     } else if (isFollowUp && isProposalRelated) {
