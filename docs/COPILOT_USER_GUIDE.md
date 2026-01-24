@@ -2,7 +2,16 @@
 
 ## Overview
 
-The AI Copilot is your intelligent sales assistant that helps you manage your pipeline, contacts, and deals. It uses Claude Sonnet 4 to provide actionable insights and can perform actions directly in your CRM.
+The AI Copilot is your intelligent sales assistant that helps you manage your pipeline, contacts, and deals. It uses Google Gemini Flash to provide actionable insights and can perform actions directly in your CRM.
+
+## AI Model
+
+The Copilot is powered by **Google Gemini Flash** with function calling capabilities. It has access to 4 core tools:
+
+1. **list_skills** - Lists available skills for your organization
+2. **get_skill** - Retrieves a specific skill document
+3. **execute_action** - Executes CRM actions and runs skills/sequences
+4. **resolve_entity** - Resolves ambiguous person references (e.g., first-name-only)
 
 ## Getting Started
 

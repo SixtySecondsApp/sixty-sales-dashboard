@@ -2,6 +2,67 @@
 
 Sales intelligence platform that helps teams prepare for meetings and act on insights afterwards. Features meeting AI integration, pipeline tracking, smart task automation, and relationship health scoring.
 
+---
+
+## Product Vision: Proactive AI Sales Teammate
+
+> **See full PRD**: [`docs/PRD_PROACTIVE_AI_TEAMMATE.md`](docs/PRD_PROACTIVE_AI_TEAMMATE.md)
+
+### The Goal
+
+Transform the 60 Copilot from a reactive AI assistant into a **proactive AI sales teammate** — a dedicated team member who knows your company inside-out, acts autonomously to help senior sales reps be more successful, and communicates regularly via Slack.
+
+### Core Principles
+
+1. **Team Member, Not Chatbot** — Addresses users by name, references their deals, speaks like a colleague
+2. **Company-Specific Knowledge** — Products, competitors, pain points, brand voice (from onboarding)
+3. **Proactive, Not Just Reactive** — Daily pipeline analysis, pre-meeting prep, task reminders via Slack
+4. **HITL for External Actions** — Preview → Confirm pattern for emails, tasks, Slack posts
+5. **Superpowers via Skills & Sequences** — Meeting prep in 30s, deal rescue plans, follow-up drafts
+6. **Clarifying Questions** — When ambiguous, ask for clarification before executing
+
+### The Transformation
+
+```
+BEFORE (Generic AI):
+  User: "Help me with my meeting"
+  AI:   "I'd be happy to help! What meeting would you like assistance with?"
+
+AFTER (Your Team Member):
+  [Slack, 2 hours before meeting]
+  🤖: "Hey Sarah! Your TechCorp meeting is in 2 hours.
+       I've prepared a brief with talking points.
+       They're evaluating us against WidgetCo — I have positioning ready.
+       [View Brief] [Add Notes]
+       Good luck! 🎯"
+```
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Specialized Persona** | After onboarding, copilot knows company inside-out |
+| **Proactive Slack** | Daily pipeline summary, pre-meeting briefs, task reminders |
+| **Clarifying Questions** | Detects ambiguity, offers options, then executes |
+| **HITL Confirmation** | Preview external actions before executing |
+| **Engagement Tracking** | Measure value delivered, optimize outreach |
+| **Copilot Lab** | World-class testing platform for skills/sequences |
+
+### Active Development
+
+**Execution Plan**: `.sixty/plan-copilot-lab-specialized.json` (24 stories across 7 phases)
+
+| Phase | Focus | Status |
+|-------|-------|--------|
+| 1 | Specialized Team Member Persona | Pending |
+| 2 | Proactive Agent Workflows | Pending |
+| 3 | Engagement Tracking | Pending |
+| 4 | Enhanced Personalization | Pending |
+| 5 | Periodic Re-Enrichment | Pending |
+| 6-7 | Copilot Lab Improvements | Pending |
+
+---
+
 ## URLs & Ports
 
 | Environment | Main App | Landing Pages |
@@ -170,13 +231,73 @@ import { toast } from 'sonner';
 
 ## Copilot System
 
-The AI Copilot is powered by **Google Gemini 3 Flash** with function calling.
+> **Full PRD**: [`docs/PRD_PROACTIVE_AI_TEAMMATE.md`](docs/PRD_PROACTIVE_AI_TEAMMATE.md)
+
+The AI Copilot is powered by **Google Gemini Flash** with function calling. The goal is to transform it into a **proactive AI sales teammate** that acts like a dedicated team member.
+
+### Architecture Overview
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  PROACTIVE AI SALES TEAMMATE                                   │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  REACTIVE MODE (User Asks)                                     │
+│  └── User message → Skill/Sequence → HITL → Response          │
+│                                                                │
+│  PROACTIVE MODE (Agent Initiates)                              │
+│  └── Cron analysis → Opportunity → Execute → Slack notify     │
+│                                                                │
+│  CLARIFYING MODE (Ambiguous Request)                           │
+│  └── Detect ambiguity → Offer options → Execute selection     │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### 4-Tool Architecture
+The copilot exposes exactly 4 tools to the AI model:
+
+| Tool | Purpose |
+|------|---------|
+| `list_skills` | Lists available skills for the organization |
+| `get_skill` | Retrieves a compiled skill document |
+| `execute_action` | Executes CRM actions and runs skills/sequences |
+| `resolve_entity` | Resolves ambiguous person references (first-name-only) |
 
 ### Key Files
-- `supabase/functions/api-copilot/index.ts` - Main edge function (~5000 lines)
+- `supabase/functions/api-copilot/index.ts` - Main edge function (~14,000 lines)
+- `supabase/functions/_shared/salesCopilotPersona.ts` - Persona compilation (planned)
+- `supabase/functions/proactive-pipeline-analysis/` - Daily analysis cron (planned)
 - `src/lib/contexts/CopilotContext.tsx` - State management
 - `src/components/copilot/CopilotRightPanel.tsx` - Right panel UI
-- `src/lib/hooks/useCopilotContextData.ts` - Context data fetching
+- `src/components/copilot/responses/` - 48 structured response components
+
+### Specialized Persona (from Onboarding)
+
+After onboarding, a specialized persona is compiled from enrichment data:
+
+```
+You are {rep_name}'s dedicated sales analyst at {company_name}.
+Think of yourself as their brilliant junior colleague who has superpowers.
+
+COMPANY KNOWLEDGE:
+- Products: {products}
+- Competitors: {competitors}
+- Pain points: {pain_points}
+- Brand voice: {brand_tone}
+
+HITL (always confirm external actions):
+- Preview emails → wait for Confirm → then send
+```
+
+### Proactive Workflows (Slack-First)
+
+| Workflow | Trigger | Action |
+|----------|---------|--------|
+| Pipeline Analysis | Daily 9am | Analyze → Slack summary |
+| Pre-Meeting Prep | 2hrs before | Auto-prep → Slack brief |
+| Task Reminders | Daily | Find overdue → Slack with actions |
+| Deal Stall Alert | 7+ days inactive | Alert → Offer follow-up |
 
 ### Skill-first execution (not prompt-by-prompt)
 
