@@ -268,6 +268,13 @@ export function DailyBriefResponse({ data, onActionClick }: Props) {
                       </>
                     )}
                   </div>
+                  {(deal.contactName || deal.contactEmail) && (
+                    <div className="mt-1 text-xs text-gray-400">
+                      {deal.contactName && <span>{deal.contactName}</span>}
+                      {deal.contactName && deal.contactEmail && <span> • </span>}
+                      {deal.contactEmail && <span className="text-blue-400">{deal.contactEmail}</span>}
+                    </div>
+                  )}
                   {deal.daysStale && deal.daysStale > 0 && (
                     <div className="mt-1 text-xs text-amber-400">
                       {deal.daysStale} day{deal.daysStale !== 1 ? 's' : ''} since last activity
@@ -334,51 +341,63 @@ export function DailyBriefResponse({ data, onActionClick }: Props) {
                   <ExternalLink className="w-3.5 h-3.5 text-gray-500 shrink-0" />
                 </div>
                 {/* Action buttons */}
-                <div className="flex gap-2 mt-3">
+                <div className="flex flex-wrap gap-2 mt-3">
                   <Button
+                    type="button"
                     variant="secondary"
                     size="sm"
                     className="text-xs gap-1.5"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onActionClick?.({ 
-                        action: 'send_message', 
-                        data: { 
-                          prompt: `Draft a re-engagement email for ${contact.name}${contact.company ? ` at ${contact.company}` : ''}. Keep it warm and friendly, checking in on how things are going.`
-                        } 
-                      });
+                      e.preventDefault();
+                      if (onActionClick) {
+                        onActionClick({ 
+                          action: 'send_message', 
+                          data: { 
+                            prompt: `Draft a re-engagement email for ${contact.name}${contact.company ? ` at ${contact.company}` : ''}. Use my personal writing style and tone of voice. Keep it warm and friendly, checking in on how things are going and seeing if there's anything I can help with.`
+                          } 
+                        });
+                      }
                     }}
                   >
                     Draft Email
                   </Button>
                   <Button
+                    type="button"
                     variant="ghost"
                     size="sm"
                     className="text-xs gap-1.5"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onActionClick?.({ 
-                        action: 'send_message', 
-                        data: { 
-                          prompt: `Create a follow-up task for ${contact.name}${contact.company ? ` at ${contact.company}` : ''}`
-                        } 
-                      });
+                      e.preventDefault();
+                      if (onActionClick) {
+                        onActionClick({ 
+                          action: 'send_message', 
+                          data: { 
+                            prompt: `Create a follow-up task for ${contact.name}${contact.company ? ` at ${contact.company}` : ''}`
+                          } 
+                        });
+                      }
                     }}
                   >
                     Create Task
                   </Button>
                   <Button
+                    type="button"
                     variant="ghost"
                     size="sm"
                     className="text-xs gap-1.5"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onActionClick?.({ 
-                        action: 'send_message', 
-                        data: { 
-                          prompt: `What do I need to know about ${contact.name}${contact.company ? ` at ${contact.company}` : ''}? Give me context on our relationship and any recent interactions.`
-                        } 
-                      });
+                      e.preventDefault();
+                      if (onActionClick) {
+                        onActionClick({ 
+                          action: 'send_message', 
+                          data: { 
+                            prompt: `What do I need to know about ${contact.name}${contact.company ? ` at ${contact.company}` : ''}? Give me context on our relationship and any recent interactions.`
+                          } 
+                        });
+                      }
                     }}
                   >
                     Get Context
