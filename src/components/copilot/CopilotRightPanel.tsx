@@ -42,6 +42,7 @@ import {
 import { ConversationHistory } from './ConversationHistory';
 import { cn } from '@/lib/utils';
 import { useActionItemStore, type ActionItem } from '@/lib/stores/actionItemStore';
+import { ExecutionTelemetry, type TelemetryEvent } from './ExecutionTelemetry';
 import { approveActionItem, dismissActionItem } from '@/lib/services/actionItemApprovalService';
 import { useAuthUser } from '@/lib/hooks/useAuthUser';
 import { ActionItemCard } from './ActionItemCard';
@@ -71,7 +72,7 @@ function CollapsibleSection({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full p-5 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
+        className="w-full p-4 sm:p-5 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
       >
         <div className="flex items-center gap-2">
           <span className={iconColor}>{icon}</span>
@@ -90,7 +91,7 @@ function CollapsibleSection({
       </button>
 
       {isOpen && (
-        <div className="px-5 pb-5">
+        <div className="px-4 pb-4 sm:px-5 sm:pb-5">
           {children}
         </div>
       )}
@@ -164,7 +165,7 @@ function ProgressSection({ steps, totalSteps = 4, estimatedTotalTime }: Omit<Pro
   }, 0);
 
   return (
-    <div className="p-5 border-b border-white/5">
+    <div className="p-4 sm:p-5 border-b border-white/5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-white flex items-center gap-2">
           <motion.div
@@ -202,8 +203,8 @@ function ProgressSection({ steps, totalSteps = 4, estimatedTotalTime }: Omit<Pro
         </div>
       )}
 
-      {/* Step Indicator Circles */}
-      <div className="flex items-center gap-2 mb-4">
+      {/* Step Indicator Circles - responsive sizing */}
+      <div className="flex items-center gap-1.5 sm:gap-2 mb-4 overflow-x-auto">
         {Array.from({ length: Math.max(totalSteps, steps.length) }, (_, i) => i + 1).map((stepNum) => {
           const progressItem = steps.find(p => p.id === stepNum);
           const status = progressItem?.status || 'pending';
@@ -215,7 +216,7 @@ function ProgressSection({ steps, totalSteps = 4, estimatedTotalTime }: Omit<Pro
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: (stepNum - 1) * 0.1, duration: 0.3 }}
                 className={cn(
-                  'w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-all',
+                  'w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-medium transition-all flex-shrink-0',
                   status === 'complete' &&
                     'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg shadow-emerald-500/25',
                   status === 'active' &&
@@ -806,12 +807,12 @@ function ContextSection({ items = [], summary, isLoading = false }: ContextSecti
       <button
         type="button"
         onClick={() => {}}
-        className="w-full p-5 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
+        className="w-full p-4 sm:p-5 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
         style={{ pointerEvents: 'none' }}
       >
         {contextHeader}
       </button>
-      <div className="px-5 pb-5">
+      <div className="px-4 pb-4 sm:px-5 sm:pb-5">
         {hasItems ? (
           <div className="space-y-2">
             {items.map((item, index) => (
@@ -920,7 +921,7 @@ function ConnectedSection({ integrations, onAddConnector }: ConnectedSectionProp
   };
 
   return (
-    <div className="p-5 border-b border-white/5">
+    <div className="p-4 sm:p-5 border-b border-white/5">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-white text-sm flex items-center gap-2">
           <Link2 className="w-4 h-4 text-purple-400" />
@@ -938,8 +939,8 @@ function ConnectedSection({ integrations, onAddConnector }: ConnectedSectionProp
         </button>
       </div>
 
-      {/* Compact horizontal logo row */}
-      <div className="flex items-center gap-3">
+      {/* Compact horizontal logo row - responsive gap */}
+      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
         {items.map((integration) => {
           const logoFn = BrandLogos[integration.id];
           const color = brandColors[integration.id] || '#64748b';
@@ -951,7 +952,7 @@ function ConnectedSection({ integrations, onAddConnector }: ConnectedSectionProp
               onClick={() => handleIntegrationClick(integration)}
               title={`${integration.name}${integration.connected ? ' (Connected)' : ' (Click to connect)'}`}
               className={cn(
-                'relative w-11 h-11 rounded-xl flex items-center justify-center transition-all',
+                'relative w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center transition-all',
                 'hover:scale-110',
                 integration.connected
                   ? 'bg-white/10 hover:bg-white/15'
@@ -1025,6 +1026,8 @@ export interface CopilotRightPanelProps {
   onSelectConversation?: (id: string) => void;
   /** Callback to start a new conversation */
   onNewConversation?: () => void;
+  /** Tool execution telemetry events for INT-003 */
+  telemetryEvents?: TelemetryEvent[];
 }
 
 export function CopilotRightPanel({
@@ -1038,10 +1041,42 @@ export function CopilotRightPanel({
   currentConversationId,
   onSelectConversation,
   onNewConversation,
+  telemetryEvents = [],
 }: CopilotRightPanelProps) {
+  // INT-003: Track compact/expanded telemetry view
+  const [telemetryCompact, setTelemetryCompact] = useState(true);
+  const hasTelemetry = telemetryEvents.length > 0;
+  const isAllComplete = hasTelemetry && telemetryEvents.every(e => e.status === 'success' || e.status === 'failed');
+
   return (
     <div className="h-full flex flex-col">
       <ProgressSection steps={progressSteps} />
+
+      {/* INT-003: Execution Telemetry - show during processing or after completion */}
+      {hasTelemetry && (
+        <div className="p-4 sm:p-5 border-b border-white/5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-white text-sm flex items-center gap-2">
+              <Activity className="w-4 h-4 text-blue-400" />
+              Tool Execution
+            </h3>
+            {isAllComplete && (
+              <button
+                type="button"
+                onClick={() => setTelemetryCompact(!telemetryCompact)}
+                className="text-xs text-slate-400 hover:text-violet-400 transition-colors"
+              >
+                {telemetryCompact ? 'Expand' : 'Collapse'}
+              </button>
+            )}
+          </div>
+          <ExecutionTelemetry
+            events={telemetryEvents}
+            compact={isAllComplete && telemetryCompact}
+          />
+        </div>
+      )}
+
       <ActionItemsSection items={actionItems} />
       <ContextSection items={contextItems} summary={contextSummary} isLoading={isContextLoading} />
       <ConnectedSection integrations={integrations} />

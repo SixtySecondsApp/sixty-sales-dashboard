@@ -71,14 +71,14 @@ export const CopilotLayout: React.FC<CopilotLayoutProps> = ({ children, rightPan
               'absolute lg:relative z-10 right-0 h-full transition-all duration-300 ease-in-out',
               'bg-white/[0.02] dark:bg-gray-900/50 backdrop-blur-xl',
               'border-l border-gray-200 dark:border-white/5',
-              // Width and visibility
+              // Width and visibility - responsive widths for mobile
               showRightPanel
-                ? 'w-80 opacity-100'
+                ? 'w-[85vw] sm:w-80 max-w-80 opacity-100'
                 : 'w-0 opacity-0 overflow-hidden lg:w-0'
             )}
           >
-            {/* Inner container with fixed width to prevent content reflow */}
-            <div className="w-80 h-full overflow-y-auto">
+            {/* Inner container - use full width on mobile, fixed on larger screens */}
+            <div className="w-full sm:w-80 h-full overflow-y-auto overflow-x-hidden">
               {rightPanel}
             </div>
           </div>

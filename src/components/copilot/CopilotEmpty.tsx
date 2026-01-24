@@ -79,20 +79,20 @@ export const CopilotEmpty: React.FC<CopilotEmptyProps> = ({ onPromptClick }) => 
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-0 w-full px-4 py-8">
+    <div className="flex flex-col items-center justify-center h-full min-h-0 w-full px-3 sm:px-4 py-6 sm:py-8 overflow-y-auto">
       <div className="w-full max-w-3xl mx-auto flex flex-col items-center">
         {/* Welcome Section */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 bg-gradient-to-r from-gray-900 dark:from-white via-gray-900 dark:via-white to-gray-500 dark:to-slate-400 bg-clip-text text-transparent">
+        <div className="text-center mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2 bg-gradient-to-r from-gray-900 dark:from-white via-gray-900 dark:via-white to-gray-500 dark:to-slate-400 bg-clip-text text-transparent">
             Let&apos;s close more deals today
           </h1>
-          <p className="text-gray-600 dark:text-slate-400 text-base">
+          <p className="text-gray-600 dark:text-slate-400 text-sm sm:text-base">
             Your AI sales copilot is ready to help
           </p>
         </div>
 
-        {/* US-008: 2x2 Action Cards Grid */}
-        <div className="w-full max-w-2xl grid grid-cols-2 gap-4 mb-8">
+        {/* US-008: 2x2 Action Cards Grid - responsive: 1 col on tiny, 2 cols on sm+ */}
+        <div className="w-full max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-8">
           {suggestedActions.map((action) => (
             <button
               key={action.id}
@@ -140,7 +140,7 @@ export const CopilotEmpty: React.FC<CopilotEmptyProps> = ({ onPromptClick }) => 
               'focus-within:border-violet-500/50 transition-all'
             )}
           >
-            <div className="flex items-end gap-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 sm:gap-4">
               <div className="flex-1">
                 <textarea
                   ref={textareaRef}
@@ -162,7 +162,8 @@ export const CopilotEmpty: React.FC<CopilotEmptyProps> = ({ onPromptClick }) => 
                 onClick={handleSend}
                 disabled={!inputValue.trim()}
                 className={cn(
-                  'px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all flex-shrink-0',
+                  'px-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all flex-shrink-0',
+                  'w-full sm:w-auto',
                   inputValue.trim()
                     ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:from-violet-400 hover:to-purple-500'
                     : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-slate-600'
