@@ -638,12 +638,30 @@ async function handleChat(
     const isPipelineFocusQuery = v1Route?.workflow === 'pipeline_focus'
     const isCatchMeUpQuery = v1Route?.workflow === 'catch_me_up'
     
+    // ---------------------------------------------------------------------------
+    // Hybrid Escalation Rules (US-015)
+    // Determine if request should escalate to agent-first (plan→execute) mode
+    // Simple queries stay chat-first; complex queries trigger planning
+    // ---------------------------------------------------------------------------
+    const escalationDecision = analyzeEscalationCriteria(body.message, messageLower, body.context)
+    analyticsData.escalation_decision = escalationDecision.decision
+    analyticsData.escalation_reasons = escalationDecision.reasons.join(',')
+    
+    console.log('[ESCALATION] Hybrid escalation analysis:', {
+      message: body.message.substring(0, 100),
+      decision: escalationDecision.decision,
+      reasons: escalationDecision.reasons,
+      isAgent: escalationDecision.decision === 'agent',
+      v1Route: v1Route?.workflow || null
+    })
+    
     console.log('[WORKFLOW-ROUTER] V1 workflow routing:', {
       message: body.message.substring(0, 100),
       v1Route: v1Route ? { workflow: v1Route.workflow, sequenceKey: v1Route.sequenceKey } : null,
       isPerformanceQuery,
       userId,
-      isAdmin: currentUser?.is_admin
+      isAdmin: currentUser?.is_admin,
+      escalationDecision: escalationDecision.decision
     })
     
     // If it's a deterministic workflow (performance report or V1 workflow),
@@ -653,6 +671,12 @@ async function handleChat(
     
     if (isPerformanceQuery || v1Route) {
       shouldSkipClaude = true
+      
+      // Track workflow telemetry
+      analyticsData.workflow_type = v1Route?.workflow || (isPerformanceQuery ? 'performance_query' : 'unknown')
+      analyticsData.workflow_sequence_key = v1Route?.sequenceKey || null
+      analyticsData.is_deterministic_workflow = true
+      
       console.log('[WORKFLOW-ROUTER] ✅ Deterministic request detected - skipping Gemini API call', {
         isPerformanceQuery,
         v1Workflow: v1Route?.workflow || null,
@@ -725,7 +749,7 @@ async function handleChat(
               client,
               userId,
               membership.org_id,
-              'google',
+              'gemini',
               GEMINI_MODEL, // Copilot uses Gemini Flash
               aiResponse.usage.input_tokens,
               aiResponse.usage.output_tokens,
@@ -769,9 +793,9 @@ async function handleChat(
       // Store lightweight execution metadata for follow-up confirmations (e.g., "Yes, create it")
       let pendingAction: any = null
       try {
-        // IMPORTANT: tool executions are tracked in `toolExecutions` (computed server-side),
+        // IMPORTANT: tool executions are tracked in `aiResponse.tool_executions` (computed server-side),
         // not on the Claude response object.
-        const execs = Array.isArray(toolExecutions) ? toolExecutions : []
+        const execs = Array.isArray(aiResponse.tool_executions) ? aiResponse.tool_executions : []
         const lastRunSequence = execs
           .filter((t: any) => t?.toolName === 'execute_action' && t?.args?.action === 'run_sequence')
           .slice(-1)[0]
@@ -1073,6 +1097,16 @@ async function handleChat(
             { sequence_key: 'seq-catch-me-up', is_simulation: true, sequence_context: {} }
           )
           const latencyMs = Date.now() - t0
+          
+          // Log detailed result for debugging
+          console.log('[WORKFLOW-ROUTER] seq-catch-me-up result:', {
+            success: (result as any)?.success,
+            hasData: !!(result as any)?.data,
+            error: (result as any)?.error,
+            dataKeys: (result as any)?.data ? Object.keys((result as any).data) : [],
+            finalOutputKeys: (result as any)?.data?.final_output?.outputs ? Object.keys((result as any).data.final_output.outputs) : [],
+          })
+          
           const capability = (result as any)?.capability
           const provider = (result as any)?.provider
           aiResponse.tool_executions = [
@@ -1213,6 +1247,24 @@ async function handleChat(
       tool_executions: aiResponse?.tool_executions || []
     }
     
+    // Track workflow completion telemetry
+    if (structuredResponse) {
+      analyticsData.structured_response_type = structuredResponse.type
+      analyticsData.has_structured_response = true
+      analyticsData.workflow_step_count = aiResponse?.tool_executions?.length || 0
+      analyticsData.workflow_completed = true
+      analyticsData.workflow_duration_ms = Date.now() - requestStartTime
+      
+      // Track confirmation potential for preview flows
+      const isPreviewFlow = (structuredResponse.data as any)?.isSimulation === true
+      analyticsData.is_preview_flow = isPreviewFlow
+      analyticsData.pending_action_created = !!(
+        aiResponse?.tool_executions?.some((t: any) => 
+          t?.args?.params?.is_simulation === true
+        )
+      )
+    }
+    
     // Debug logging
     console.log('[RESPONSE] 📤 Returning response payload:', {
       type: responseType,
@@ -1223,21 +1275,42 @@ async function handleChat(
       summary: structuredResponse?.summary?.substring(0, 100)
     })
 
+    // Log updated analytics with workflow data (non-blocking)
+    logCopilotAnalytics(client, analyticsData).catch(() => {})
+
     // Log final response payload
     return new Response(JSON.stringify(responsePayload), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
 
   } catch (error) {
-    // Update analytics with error info
+    // Update analytics with error info and categorization
     analyticsData.status = 'error'
     analyticsData.error_type = error.name || 'UnknownError'
     analyticsData.error_message = error.message || 'Unknown error'
     analyticsData.response_time_ms = Date.now() - requestStartTime
+    analyticsData.workflow_completed = false
+    
+    // Categorize errors for dashboard filtering
+    const errorMsg = (error.message || '').toLowerCase()
+    if (errorMsg.includes('timeout') || errorMsg.includes('timed out')) {
+      analyticsData.error_category = 'timeout'
+    } else if (errorMsg.includes('rate limit') || errorMsg.includes('quota')) {
+      analyticsData.error_category = 'rate_limit'
+    } else if (errorMsg.includes('auth') || errorMsg.includes('unauthorized') || errorMsg.includes('forbidden')) {
+      analyticsData.error_category = 'auth'
+    } else if (errorMsg.includes('not found') || errorMsg.includes('pgrst116')) {
+      analyticsData.error_category = 'not_found'
+    } else if (errorMsg.includes('validation') || errorMsg.includes('invalid')) {
+      analyticsData.error_category = 'validation'
+    } else if (errorMsg.includes('network') || errorMsg.includes('connection')) {
+      analyticsData.error_category = 'network'
+    } else {
+      analyticsData.error_category = 'internal'
+    }
 
     // Log error analytics (non-blocking)
-    logCopilotAnalytics(client, analyticsData).catch(err => {
-    })
+    logCopilotAnalytics(client, analyticsData).catch(() => {})
 
     const errorMessage = error.message || 'Unknown error'
     return createErrorResponse(
@@ -1276,7 +1349,19 @@ async function logCopilotAnalytics(client: any, analytics: any): Promise<void> {
         error_type: analytics.error_type || null,
         error_message: analytics.error_message || null,
         has_context: analytics.has_context,
-        context_type: analytics.context_type || null
+        context_type: analytics.context_type || null,
+        // Workflow telemetry fields (US-014)
+        workflow_type: analytics.workflow_type || null,
+        workflow_sequence_key: analytics.workflow_sequence_key || null,
+        is_deterministic_workflow: analytics.is_deterministic_workflow || false,
+        structured_response_type: analytics.structured_response_type || null,
+        has_structured_response: analytics.has_structured_response || false,
+        workflow_step_count: analytics.workflow_step_count || 0,
+        workflow_duration_ms: analytics.workflow_duration_ms || 0,
+        workflow_completed: analytics.workflow_completed || false,
+        is_preview_flow: analytics.is_preview_flow || false,
+        pending_action_created: analytics.pending_action_created || false,
+        error_category: analytics.error_category || null
       })
   } catch (error) {
     // Don't throw - analytics logging should never break the request
@@ -2102,6 +2187,47 @@ async function buildContext(client: any, userId: string, context?: ChatRequest['
 
     if (profile?.bio) {
       contextParts.push(`User bio: ${profile.bio}`)
+    }
+    
+    // ---------------------------------------------------------------------------
+    // User writing style (from AI Personalization settings)
+    // ---------------------------------------------------------------------------
+    const { data: writingStyle } = await client
+      .from('user_writing_styles')
+      .select('name, tone_description, examples, style_metadata')
+      .eq('user_id', userId)
+      .eq('is_default', true)
+      .maybeSingle()
+    
+    if (writingStyle) {
+      contextParts.push(`\n## User's Preferred Writing Style`)
+      contextParts.push(`Style name: ${writingStyle.name}`)
+      contextParts.push(`Tone: ${writingStyle.tone_description}`)
+      
+      // Include style metadata if available (from email training)
+      const meta = writingStyle.style_metadata as any
+      if (meta?.tone_characteristics) {
+        contextParts.push(`Tone characteristics: ${meta.tone_characteristics}`)
+      }
+      if (meta?.vocabulary_profile) {
+        contextParts.push(`Vocabulary: ${meta.vocabulary_profile}`)
+      }
+      if (meta?.greeting_style) {
+        contextParts.push(`Greeting style: ${meta.greeting_style}`)
+      }
+      if (meta?.signoff_style) {
+        contextParts.push(`Sign-off style: ${meta.signoff_style}`)
+      }
+      
+      // Include examples if available (limit to 2 for context size)
+      if (writingStyle.examples && Array.isArray(writingStyle.examples) && writingStyle.examples.length > 0) {
+        const exampleSnippets = writingStyle.examples.slice(0, 2).map((ex: string) => 
+          ex.length > 200 ? ex.substring(0, 200) + '...' : ex
+        )
+        contextParts.push(`Example snippets:\n${exampleSnippets.map((e: string) => `- "${e}"`).join('\n')}`)
+      }
+      
+      contextParts.push(`\n**IMPORTANT: When drafting emails, follow this user's writing style closely. Match their tone, vocabulary, greeting style, and sign-off patterns.**`)
     }
   } catch (e) {
     // fail open: copilot should still work without org context
@@ -7629,6 +7755,11 @@ function isPipelineFocusQuestion(messageLower: string): boolean {
     'high priority deals',
     'top deals',
     'help me with deals',
+    // V1 workflow button text - "What needs attention?" quick action
+    'what needs attention',
+    'needs attention',
+    'what should i focus on',
+    'what do i need to focus on',
   ]
 
   if (phrases.some((p) => messageLower.includes(p))) return true
@@ -7644,6 +7775,158 @@ function isPipelineFocusQuestion(messageLower: string): boolean {
   return hasDealOrPipeline && hasFocusIntent
 }
 
+// =============================================================================
+// Hybrid Escalation Rules (US-015)
+// Determines whether to use chat-first or agent-first (plan→execute) mode
+// =============================================================================
+
+interface EscalationDecision {
+  decision: 'chat' | 'agent'
+  reasons: string[]
+  complexity: 'simple' | 'moderate' | 'complex'
+}
+
+/**
+ * Analyze user message to determine if it should escalate to agent mode.
+ * 
+ * Escalation criteria:
+ * - Multi-entity: Request involves multiple distinct entities (deals AND contacts AND tasks)
+ * - Write operations: Request explicitly asks to create/update/delete data
+ * - Multi-step: Request implies a sequence of dependent operations
+ * - Conditional logic: Request has if/then/else requirements
+ * 
+ * Chat-first (simple) queries:
+ * - Questions about data (read-only)
+ * - V1 deterministic workflows
+ * - Single entity focus
+ * - Status/summary requests
+ */
+function analyzeEscalationCriteria(
+  message: string, 
+  messageLower: string, 
+  context?: { contactId?: string; dealIds?: string[]; currentView?: string }
+): EscalationDecision {
+  const reasons: string[] = []
+  let complexityScore = 0
+  
+  // ---------------------------------------------------------------------------
+  // Multi-entity detection
+  // ---------------------------------------------------------------------------
+  const entityMentions = {
+    contacts: /\b(contact|person|people|stakeholder|attendee|participant)\b/i.test(message),
+    deals: /\b(deal|opportunity|pipeline|contract|proposal)\b/i.test(message),
+    tasks: /\b(task|todo|action item|reminder|follow.?up)\b/i.test(message),
+    emails: /\b(email|mail|message|send|draft)\b/i.test(message),
+    meetings: /\b(meeting|call|event|calendar|schedule)\b/i.test(message),
+    slack: /\b(slack|post|notify|alert|channel)\b/i.test(message)
+  }
+  
+  const entityCount = Object.values(entityMentions).filter(Boolean).length
+  if (entityCount >= 3) {
+    reasons.push('multi-entity (3+ entity types)')
+    complexityScore += 3
+  } else if (entityCount === 2) {
+    complexityScore += 1
+  }
+  
+  // ---------------------------------------------------------------------------
+  // Write operation detection
+  // ---------------------------------------------------------------------------
+  const writePatterns = [
+    /\b(create|add|make|new|generate)\s+(a\s+)?(task|deal|contact|note|activity)/i,
+    /\b(update|change|modify|edit|set)\s+(the\s+)?(status|stage|value|name|priority)/i,
+    /\b(delete|remove|cancel|archive)\s+(the\s+)?(task|deal|meeting)/i,
+    /\bsend\s+(an?\s+)?(email|message|slack|notification)/i,
+    /\b(move|advance|push)\s+(the\s+)?deal/i,
+    /\b(assign|reassign|transfer)\s+to\b/i
+  ]
+  
+  const hasWriteOperation = writePatterns.some(p => p.test(message))
+  if (hasWriteOperation) {
+    reasons.push('write operation detected')
+    complexityScore += 2
+  }
+  
+  // ---------------------------------------------------------------------------
+  // Multi-step operation detection
+  // ---------------------------------------------------------------------------
+  const multiStepPatterns = [
+    /\band\s+then\b/i,
+    /\bafter\s+that\b/i,
+    /\bfirst\s+.+then\b/i,
+    /\bfor\s+each\b/i,
+    /\ball\s+(my\s+)?(contacts|deals|tasks)\b/i,
+    /\bevery\s+(contact|deal|task)\b/i,
+    /\bbulk\b/i,
+    /\bbatch\b/i,
+    /\bmultiple\s+(contacts|deals|tasks)\b/i
+  ]
+  
+  const hasMultiStep = multiStepPatterns.some(p => p.test(message))
+  if (hasMultiStep) {
+    reasons.push('multi-step workflow')
+    complexityScore += 2
+  }
+  
+  // ---------------------------------------------------------------------------
+  // Conditional logic detection
+  // ---------------------------------------------------------------------------
+  const conditionalPatterns = [
+    /\bif\s+.+then\b/i,
+    /\bwhen\s+.+notify\b/i,
+    /\bunless\b/i,
+    /\bdepending\s+on\b/i,
+    /\bbased\s+on\s+(the|their)\b/i,
+    /\bonly\s+if\b/i
+  ]
+  
+  const hasConditional = conditionalPatterns.some(p => p.test(message))
+  if (hasConditional) {
+    reasons.push('conditional logic')
+    complexityScore += 2
+  }
+  
+  // ---------------------------------------------------------------------------
+  // Chat-first (simple) indicators - reduce complexity score
+  // ---------------------------------------------------------------------------
+  const simplePatterns = [
+    /^(what|who|when|where|how many|show me|tell me|list|find)\b/i,
+    /\b(summary|overview|status|update me|catch me up)\b/i,
+    /\?$/,  // Questions
+  ]
+  
+  const isLikelySimple = simplePatterns.some(p => p.test(message.trim()))
+  if (isLikelySimple && !hasWriteOperation) {
+    complexityScore = Math.max(0, complexityScore - 1)
+  }
+  
+  // ---------------------------------------------------------------------------
+  // Decision logic
+  // ---------------------------------------------------------------------------
+  let complexity: 'simple' | 'moderate' | 'complex'
+  let decision: 'chat' | 'agent'
+  
+  if (complexityScore >= 4) {
+    complexity = 'complex'
+    decision = 'agent'
+    reasons.push('complexity threshold exceeded')
+  } else if (complexityScore >= 2) {
+    complexity = 'moderate'
+    // Moderate complexity: use chat with sequence support
+    decision = 'chat'
+  } else {
+    complexity = 'simple'
+    decision = 'chat'
+  }
+  
+  // If no specific reasons and simple, just indicate it's a basic query
+  if (reasons.length === 0) {
+    reasons.push('simple query')
+  }
+  
+  return { decision, reasons, complexity }
+}
+
 /**
  * Unified V1 Workflow Router
  * Maps user intent to one of the 5 deterministic V1 workflows.
@@ -7657,6 +7940,8 @@ interface V1WorkflowRoute {
 
 function routeToV1Workflow(messageLower: string, temporalContext?: TemporalContextPayload): V1WorkflowRoute | null {
   // Order matters - more specific checks first
+  
+  console.log('[V1-ROUTER] Checking message:', messageLower.substring(0, 100))
 
   // 1. Next Meeting Prep
   if (isNextMeetingPrepQuestion(messageLower)) {
@@ -7696,6 +7981,7 @@ function routeToV1Workflow(messageLower: string, temporalContext?: TemporalConte
 
   // 5. Catch Me Up (daily brief)
   if (isCatchMeUpQuestion(messageLower)) {
+    console.log('[V1-ROUTER] ✅ Matched: catch_me_up')
     return {
       workflow: 'catch_me_up',
       sequenceKey: 'seq-catch-me-up',
@@ -7741,32 +8027,71 @@ async function detectAndStructureResponse(
   // links + confirm buttons (instead of relying on plain text).
   // ---------------------------------------------------------------------------
   if (toolExecutions && toolExecutions.length > 0) {
-    const runSeqExec = toolExecutions
-      .filter((e) => e.toolName === 'execute_action' && e.success && (e as any).args?.action === 'run_sequence')
-      .slice(-1)[0] as any
+    console.log('[STRUCTURED] Processing toolExecutions:', {
+      count: toolExecutions.length,
+      tools: toolExecutions.map((e: any) => ({ 
+        name: e.toolName, 
+        success: e.success, 
+        action: e.args?.action,
+        hasResult: !!e.result 
+      }))
+    })
+    
+    // Find sequence executions - also include failed ones for better error handling
+    const allSeqExecs = toolExecutions
+      .filter((e) => e.toolName === 'execute_action' && (e as any).args?.action === 'run_sequence')
+    
+    const runSeqExec = allSeqExecs.slice(-1)[0] as any
 
     const seqKey = runSeqExec?.args?.params?.sequence_key
       ? String(runSeqExec.args.params.sequence_key)
       : null
 
-    const seqResult = runSeqExec?.result?.data || null
-    const finalOutputs = seqResult?.final_output?.outputs || null
+    // Try multiple paths for the result data
+    const seqResult = runSeqExec?.result?.data || runSeqExec?.result || null
+    const finalOutputs = seqResult?.final_output?.outputs || seqResult?.outputs || null
 
-    if (seqKey && finalOutputs) {
+    // Handle sequence results - check seqKey first, then try to extract outputs
+    if (seqKey) {
+      // Log for debugging
+      console.log('[STRUCTURED] Processing sequence response:', { 
+        seqKey, 
+        runSeqSuccess: runSeqExec?.success,
+        hasResult: !!seqResult,
+        hasFinalOutputs: !!finalOutputs,
+        outputKeys: finalOutputs ? Object.keys(finalOutputs) : [],
+        resultKeys: seqResult ? Object.keys(seqResult) : [],
+        resultError: runSeqExec?.result?.error || null
+      })
+      
       // Pipeline Focus Tasks
       if (seqKey === 'seq-pipeline-focus-tasks') {
-        const deals = finalOutputs?.pipeline_deals?.deals || []
-        const topDeal = Array.isArray(deals) ? deals[0] : null
-        const taskPreview = finalOutputs?.task_preview || null
+        // Try multiple possible paths for deals data
+        const dealsFromOutputs = finalOutputs?.pipeline_deals?.deals || 
+                                  finalOutputs?.pipeline_deals ||
+                                  seqResult?.pipeline_deals?.deals ||
+                                  seqResult?.pipeline_deals ||
+                                  []
+        const deals = Array.isArray(dealsFromOutputs) ? dealsFromOutputs : []
+        const topDeal = deals[0] || null
+        const taskPreview = finalOutputs?.task_preview || seqResult?.task_preview || null
+
+        console.log('[STRUCTURED] Pipeline Focus - extracted deals:', { 
+          dealCount: deals.length, 
+          hasTopDeal: !!topDeal,
+          hasTaskPreview: !!taskPreview 
+        })
 
         return {
           type: 'pipeline_focus_tasks',
-          summary: 'Here are the deals to focus on and the task I can create for you.',
+          summary: deals.length > 0 
+            ? `Here are the deals to focus on and the task I can create for you.`
+            : 'Your pipeline looks healthy! No urgent deals need attention right now.',
           data: {
             sequenceKey: seqKey,
             isSimulation: seqResult?.is_simulation === true,
             executionId: seqResult?.execution_id,
-            deal: topDeal || null,
+            deal: topDeal,
             taskPreview,
           },
           actions: [],
@@ -7967,6 +8292,151 @@ async function detectAndStructureResponse(
           metadata: {
             timeGenerated: new Date().toISOString(),
             dataSource: ['sequence', 'crm', 'tasks', 'messaging'],
+          },
+        }
+      }
+
+      // Catch Me Up (Daily Brief) - US-004/US-005
+      if (seqKey === 'seq-catch-me-up') {
+        // Log what we received for debugging
+        console.log('[STRUCTURED] seq-catch-me-up - finalOutputs keys:', finalOutputs ? Object.keys(finalOutputs) : 'null')
+        console.log('[STRUCTURED] seq-catch-me-up - seqResult keys:', seqResult ? Object.keys(seqResult) : 'null')
+        
+        // Determine time of day for adaptive greeting
+        const hour = new Date().getHours()
+        const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
+        
+        // Extract data from sequence outputs with multiple fallback paths
+        // The action results may be at different nesting levels
+        const extractArray = (key: string, subKey: string) => {
+          // Try finalOutputs.key.subKey first
+          if (finalOutputs?.[key]?.[subKey] && Array.isArray(finalOutputs[key][subKey])) {
+            return finalOutputs[key][subKey]
+          }
+          // Try finalOutputs.key directly if it's an array
+          if (finalOutputs?.[key] && Array.isArray(finalOutputs[key])) {
+            return finalOutputs[key]
+          }
+          // Try seqResult directly
+          if (seqResult?.[key]?.[subKey] && Array.isArray(seqResult[key][subKey])) {
+            return seqResult[key][subKey]
+          }
+          if (seqResult?.[key] && Array.isArray(seqResult[key])) {
+            return seqResult[key]
+          }
+          return []
+        }
+        
+        const meetingsToday = extractArray('meetings_today', 'meetings')
+        const meetingsTomorrow = extractArray('meetings_tomorrow', 'meetings')
+        const staleDeals = extractArray('stale_deals', 'deals')
+        const closingSoonDeals = extractArray('closing_soon_deals', 'deals')
+        const contactsNeedingAttention = extractArray('contacts_needing_attention', 'contacts')
+        const pendingTasks = extractArray('pending_tasks', 'tasks')
+        const dailyBrief = finalOutputs?.daily_brief || seqResult?.daily_brief || null
+        
+        console.log('[STRUCTURED] seq-catch-me-up - extracted counts:', {
+          meetingsToday: meetingsToday.length,
+          meetingsTomorrow: meetingsTomorrow.length,
+          staleDeals: staleDeals.length,
+          closingSoonDeals: closingSoonDeals.length,
+          contacts: contactsNeedingAttention.length,
+          tasks: pendingTasks.length,
+        })
+        
+        // Merge stale and closing soon deals
+        const priorityDeals = [...staleDeals, ...closingSoonDeals].slice(0, 5)
+        
+        // Generate greeting based on time of day
+        const greeting = timeOfDay === 'morning' 
+          ? "Good morning! Here's your day ahead."
+          : timeOfDay === 'afternoon'
+          ? "Here's your afternoon update."
+          : "Wrapping up the day. Here's your summary."
+        
+        // Map meetings to expected format
+        const schedule = meetingsToday.map((m: any) => ({
+          id: m.id || '',
+          title: m.title || m.summary || 'Meeting',
+          startTime: m.start_time || m.meeting_start || '',
+          endTime: m.end_time || m.meeting_end || '',
+          attendees: m.attendees?.map((a: any) => a.email || a.name) || [],
+          linkedDealId: m.deal_id || null,
+          linkedDealName: m.deal_name || null,
+          meetingUrl: m.meeting_url || m.conference_link || null,
+        }))
+        
+        // Map deals to expected format
+        const formattedDeals = priorityDeals.map((d: any) => ({
+          id: d.id || '',
+          name: d.name || '',
+          value: d.value || d.amount || null,
+          stage: d.stage_name || d.stage || null,
+          daysStale: d.days_stale || d.days_since_activity || null,
+          closeDate: d.expected_close_date || d.close_date || null,
+          healthStatus: d.health_status || (d.days_stale > 7 ? 'stale' : 'healthy'),
+          company: d.company_name || d.company || null,
+        }))
+        
+        // Map contacts to expected format with rich action context
+        const formattedContacts = contactsNeedingAttention.map((c: any) => ({
+          id: c.id || '',
+          name: c.full_name || c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Unknown',
+          email: c.email || null,
+          company: c.company_name || c.company || null,
+          lastContactDate: c.last_contact_date || c.last_activity_date || c.last_interaction_at || null,
+          daysSinceContact: c.days_since_last_contact || null,
+          healthStatus: c.health_status || 'unknown',
+          riskLevel: c.risk_level || 'unknown',
+          riskFactors: c.risk_factors || [],
+          reason: c.reason || (c.risk_level === 'high' ? 'high risk' : c.health_status === 'ghost' ? 'going dark' : 'needs follow-up'),
+        }))
+        
+        // Map tasks to expected format
+        const formattedTasks = pendingTasks.map((t: any) => ({
+          id: t.id || '',
+          title: t.title || '',
+          dueDate: t.due_date || null,
+          priority: t.priority || 'medium',
+          status: t.status || 'pending',
+          linkedDealId: t.deal_id || null,
+          linkedContactId: t.contact_id || null,
+        }))
+        
+        // Generate summary
+        const meetingCount = schedule.length
+        const dealCount = formattedDeals.length
+        const taskCount = formattedTasks.length
+        const summary = dailyBrief?.summary || 
+          `You have ${meetingCount} meeting${meetingCount !== 1 ? 's' : ''} today` +
+          (dealCount > 0 ? `, ${dealCount} deal${dealCount !== 1 ? 's' : ''} needing attention` : '') +
+          (taskCount > 0 ? `, and ${taskCount} pending task${taskCount !== 1 ? 's' : ''}` : '') +
+          '.'
+
+        return {
+          type: 'daily_brief',
+          summary,
+          data: {
+            sequenceKey: seqKey,
+            isSimulation: seqResult?.is_simulation === true,
+            executionId: seqResult?.execution_id,
+            greeting,
+            timeOfDay,
+            schedule,
+            priorityDeals: formattedDeals,
+            contactsNeedingAttention: formattedContacts,
+            tasks: formattedTasks,
+            tomorrowPreview: timeOfDay === 'evening' ? meetingsTomorrow.map((m: any) => ({
+              id: m.id || '',
+              title: m.title || m.summary || 'Meeting',
+              startTime: m.start_time || m.meeting_start || '',
+            })) : undefined,
+            summary,
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['sequence', 'calendar', 'crm', 'tasks'],
           },
         }
       }
@@ -11233,7 +11703,10 @@ async function structureNextMeetingPrepResponse(
     }> = []
     
     if (contactRow?.id || dealInfo?.id) {
-      let tasksQuery = client
+      // Build base query with type assertion for proper inference
+      type TaskRow = { id: string; title: string; status: string; due_date: string | null; assigned_to: string | null; contact_id: string | null; deal_id: string | null }
+      
+      let baseQuery = client
         .from('tasks')
         .select('id, title, status, due_date, assigned_to, contact_id, deal_id')
         .eq('user_id', userId)
@@ -11242,18 +11715,18 @@ async function structureNextMeetingPrepResponse(
         .limit(5)
       
       if (orgId) {
-        tasksQuery = tasksQuery.eq('org_id', orgId)
+        baseQuery = baseQuery.eq('org_id', orgId)
       }
       // Filter by contact_id or deal_id (can match either)
       if (contactRow?.id && dealInfo?.id) {
-        tasksQuery = tasksQuery.or(`contact_id.eq.${contactRow.id},deal_id.eq.${dealInfo.id}`)
+        baseQuery = baseQuery.or(`contact_id.eq.${contactRow.id},deal_id.eq.${dealInfo.id}`)
       } else if (contactRow?.id) {
-        tasksQuery = tasksQuery.eq('contact_id', contactRow.id)
+        baseQuery = baseQuery.eq('contact_id', contactRow.id)
       } else if (dealInfo?.id) {
-        tasksQuery = tasksQuery.eq('deal_id', dealInfo.id)
+        baseQuery = baseQuery.eq('deal_id', dealInfo.id)
       }
       
-      const { data: tasks } = await tasksQuery
+      const { data: tasks } = await baseQuery as { data: TaskRow[] | null }
       if (tasks) {
         for (const task of tasks) {
           actionItems.push({
@@ -11319,7 +11792,7 @@ async function structureNextMeetingPrepResponse(
     if (ANTHROPIC_API_KEY) {
       try {
         // Build context for AI
-        const contextParts = []
+        const contextParts: string[] = []
         if (meeting.title) contextParts.push(`Meeting: ${meeting.title}`)
         if (companyName) contextParts.push(`Company: ${companyName}`)
         if (dealInfo) {

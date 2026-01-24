@@ -147,6 +147,12 @@ export function AssistantShell({ mode, onOpenQuickAdd }: AssistantShellProps) {
       });
       return;
     }
+    
+    // Send a new message to copilot (for interactive follow-up actions)
+    if (actionName === 'send_message' && payload?.prompt) {
+      sendMessage(String(payload.prompt));
+      return;
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

@@ -45,6 +45,7 @@ import { DealMapBuilderResponse } from './responses/DealMapBuilderResponse';
 import { DailyFocusPlanResponse } from './responses/DailyFocusPlanResponse';
 import { FollowupZeroInboxResponse } from './responses/FollowupZeroInboxResponse';
 import { DealSlippageGuardrailsResponse } from './responses/DealSlippageGuardrailsResponse';
+import { DailyBriefResponse } from './responses/DailyBriefResponse';
 import { MeetingCountResponse } from './responses/MeetingCountResponse';
 import { MeetingBriefingResponse } from './responses/MeetingBriefingResponse';
 import { MeetingListResponse } from './responses/MeetingListResponse';
@@ -91,6 +92,7 @@ import type {
   DailyFocusPlanResponse as DailyFocusPlanResponseType,
   FollowupZeroInboxResponse as FollowupZeroInboxResponseType,
   DealSlippageGuardrailsResponse as DealSlippageGuardrailsResponseType,
+  DailyBriefResponse as DailyBriefResponseType,
   MeetingCountResponseData,
   MeetingBriefingResponseData,
   MeetingListResponseData,
@@ -228,6 +230,9 @@ export const CopilotResponse: React.FC<CopilotResponseProps> = ({ response, onAc
 
     case 'deal_slippage_guardrails':
       return <DealSlippageGuardrailsResponse data={response as DealSlippageGuardrailsResponseType} onActionClick={onActionClick} />;
+
+    case 'daily_brief':
+      return <DailyBriefResponse data={response as DailyBriefResponseType} onActionClick={onActionClick} />;
 
     case 'meeting_count':
       return <MeetingCountResponse data={(response as any).data as MeetingCountResponseData} onActionClick={onActionClick} />;

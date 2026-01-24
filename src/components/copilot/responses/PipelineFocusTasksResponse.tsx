@@ -1,5 +1,5 @@
 import React from 'react';
-import { Briefcase, CalendarDays, CheckSquare, ExternalLink, Sparkles } from 'lucide-react';
+import { Briefcase, CalendarDays, CheckSquare, ExternalLink, Sparkles, AlertCircle, Clock, X, Pencil } from 'lucide-react';
 import type { PipelineFocusTasksResponse as PipelineFocusTasksResponseType } from '../types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -21,11 +21,31 @@ export function PipelineFocusTasksResponse({ data, onActionClick }: Props) {
   const stage = deal?.stage_name ? String(deal.stage_name) : null;
   const health = deal?.health_status ? String(deal.health_status) : null;
   const risk = deal?.risk_level ? String(deal.risk_level) : null;
+  const value = deal?.value || deal?.amount || null;
+  const daysSinceActivity = deal?.days_since_activity || deal?.days_stale || null;
 
   const title = taskPreview?.title ? String(taskPreview.title) : 'Engagement task';
   const due = taskPreview?.due_date ? String(taskPreview.due_date) : null;
   const priority = taskPreview?.priority ? String(taskPreview.priority) : null;
   const description = taskPreview?.description ? String(taskPreview.description) : '';
+  
+  // Helper to format currency
+  const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(val);
+  
+  // Helper to get health color
+  const getHealthColor = (h: string | null) => {
+    if (!h) return 'text-gray-400';
+    const lower = h.toLowerCase();
+    if (lower === 'healthy' || lower === 'good') return 'text-emerald-400';
+    if (lower === 'at_risk' || lower === 'at risk' || lower === 'warning') return 'text-amber-400';
+    if (lower === 'stale' || lower === 'critical' || lower === 'bad') return 'text-red-400';
+    return 'text-gray-400';
+  };
 
   return (
     <div className="space-y-5">
@@ -47,17 +67,33 @@ export function PipelineFocusTasksResponse({ data, onActionClick }: Props) {
 
       <div className="grid md:grid-cols-2 gap-3">
         <div className="rounded-xl border border-gray-800/60 bg-gray-900/30 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Briefcase className="w-4 h-4 text-blue-400" />
-            <div className="text-sm font-semibold text-white">Top deal</div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-blue-400" />
+              <div className="text-sm font-semibold text-white">Priority Deal</div>
+            </div>
+            {value && (
+              <span className="text-sm font-semibold text-emerald-400">{formatCurrency(Number(value))}</span>
+            )}
           </div>
           <div className="text-sm text-gray-100 font-medium">{dealName}</div>
           <div className="text-xs text-gray-400 mt-1">
             {company ? `${company} • ` : ''}{stage ? `${stage} • ` : ''}{closeDate ? `Close: ${closeDate}` : ''}
           </div>
-          <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
-            {health ? <span>Health: {health}</span> : null}
-            {risk ? <span>Risk: {risk}</span> : null}
+          <div className="flex flex-wrap items-center gap-3 mt-2 text-xs">
+            {health && (
+              <span className={cn('flex items-center gap-1', getHealthColor(health))}>
+                <AlertCircle className="w-3 h-3" />
+                {health}
+              </span>
+            )}
+            {daysSinceActivity && Number(daysSinceActivity) > 0 && (
+              <span className="flex items-center gap-1 text-amber-400">
+                <Clock className="w-3 h-3" />
+                {daysSinceActivity} days since activity
+              </span>
+            )}
+            {risk && <span className="text-gray-400">Risk: {risk}</span>}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {dealId && (
@@ -98,15 +134,37 @@ export function PipelineFocusTasksResponse({ data, onActionClick }: Props) {
           ) : null}
           <div className="mt-3 flex flex-wrap gap-2">
             {isSimulation ? (
-              <Button
-                size="sm"
-                onClick={() => sendMessage('Yes create a task')}
-                disabled={isLoading}
-                className="gap-2"
-              >
-                <CheckSquare className="w-4 h-4" />
-                Create task
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  onClick={() => sendMessage('Confirm')}
+                  disabled={isLoading}
+                  className="gap-2"
+                >
+                  <CheckSquare className="w-4 h-4" />
+                  Create task
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => sendMessage('Edit the task')} 
+                  disabled={isLoading} 
+                  className="gap-2"
+                >
+                  <Pencil className="w-4 h-4" />
+                  Edit
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => sendMessage("Cancel, I don't need this")} 
+                  disabled={isLoading} 
+                  className="gap-2 text-gray-400 hover:text-gray-200"
+                >
+                  <X className="w-4 h-4" />
+                  Cancel
+                </Button>
+              </>
             ) : (
               <Button
                 variant="secondary"

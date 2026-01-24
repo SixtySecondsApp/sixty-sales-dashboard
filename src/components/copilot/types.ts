@@ -159,7 +159,8 @@ export type CopilotResponseType =
   | 'deal_map_builder'
   | 'daily_focus_plan'
   | 'followup_zero_inbox'
-  | 'deal_slippage_guardrails';
+  | 'deal_slippage_guardrails'
+  | 'daily_brief';
 
 export interface CopilotResponse {
   type: CopilotResponseType;
@@ -243,7 +244,8 @@ export type ResponseData =
   | DealMapBuilderResponseData
   | DailyFocusPlanResponseData
   | FollowupZeroInboxResponseData
-  | DealSlippageGuardrailsResponseData;
+  | DealSlippageGuardrailsResponseData
+  | DailyBriefResponseData;
 
 // ============================================================================
 // Demo-grade sequence panels (Top 3 workflows)
@@ -368,6 +370,71 @@ export interface DealSlippageGuardrailsResponseData {
   diagnosis: any | null;
   taskPreview: any | null;
   slackPreview: any | null;
+}
+
+// Daily Brief Response (Catch Me Up workflow)
+export interface DailyBriefResponse extends CopilotResponse {
+  type: 'daily_brief';
+  data: DailyBriefResponseData;
+}
+
+export interface DailyBriefResponseData {
+  sequenceKey: string;
+  isSimulation: boolean;
+  executionId?: string;
+  greeting: string;
+  timeOfDay: 'morning' | 'afternoon' | 'evening';
+  schedule: DailyBriefMeeting[];
+  priorityDeals: DailyBriefDeal[];
+  contactsNeedingAttention: DailyBriefContact[];
+  tasks: DailyBriefTask[];
+  tomorrowPreview?: DailyBriefMeeting[];
+  summary: string;
+}
+
+export interface DailyBriefMeeting {
+  id: string;
+  title: string;
+  startTime: string;
+  endTime?: string;
+  attendees?: string[];
+  linkedDealId?: string;
+  linkedDealName?: string;
+  meetingUrl?: string;
+}
+
+export interface DailyBriefDeal {
+  id: string;
+  name: string;
+  value?: number;
+  stage?: string;
+  daysStale?: number;
+  closeDate?: string;
+  healthStatus?: 'healthy' | 'at_risk' | 'stale';
+  company?: string;
+}
+
+export interface DailyBriefContact {
+  id: string;
+  name: string;
+  email?: string;
+  company?: string;
+  lastContactDate?: string;
+  daysSinceContact?: number;
+  healthStatus?: 'healthy' | 'at_risk' | 'critical' | 'ghost' | 'unknown';
+  riskLevel?: 'low' | 'medium' | 'high' | 'critical' | 'unknown';
+  riskFactors?: string[];
+  reason?: string;
+}
+
+export interface DailyBriefTask {
+  id: string;
+  title: string;
+  dueDate?: string;
+  priority?: 'high' | 'medium' | 'low';
+  status?: string;
+  linkedDealId?: string;
+  linkedContactId?: string;
 }
 
 // Pipeline Response

@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarDays, CheckSquare, ExternalLink, Mail, MessageSquare, Sparkles } from 'lucide-react';
+import { CalendarDays, CheckSquare, ExternalLink, Mail, MessageSquare, Sparkles, X, Pencil } from 'lucide-react';
 import type { PostMeetingFollowUpPackResponse as PostMeetingFollowUpPackResponseType } from '../types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -164,10 +164,32 @@ export function PostMeetingFollowUpPackResponse({ data, onActionClick }: Props) 
 
       <div className="flex flex-wrap gap-2">
         {isSimulation ? (
-          <Button size="sm" onClick={() => sendMessage('Confirm')} disabled={isLoading} className="gap-2">
-            <CheckSquare className="w-4 h-4" />
-            Run follow-up pack
-          </Button>
+          <>
+            <Button size="sm" onClick={() => sendMessage('Confirm')} disabled={isLoading} className="gap-2">
+              <CheckSquare className="w-4 h-4" />
+              Run follow-up pack
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => sendMessage('Edit the email draft')} 
+              disabled={isLoading} 
+              className="gap-2"
+            >
+              <Pencil className="w-4 h-4" />
+              Edit
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => sendMessage('Cancel, I don\'t want to send this')} 
+              disabled={isLoading} 
+              className="gap-2 text-gray-400 hover:text-gray-200"
+            >
+              <X className="w-4 h-4" />
+              Cancel
+            </Button>
+          </>
         ) : (
           <Button
             variant="secondary"

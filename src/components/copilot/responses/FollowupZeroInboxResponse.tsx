@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mail, MessageSquare, CheckSquare, ExternalLink, Sparkles, AlertCircle, Clock } from 'lucide-react';
+import { Mail, MessageSquare, CheckSquare, ExternalLink, Sparkles, AlertCircle, Clock, X, Pencil, SkipForward } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { FollowupZeroInboxResponse as FollowupZeroInboxResponseType } from '../types';
 import { Button } from '@/components/ui/button';
@@ -147,7 +147,7 @@ export function FollowupZeroInboxResponse({ data }: Props) {
       </Tabs>
 
       {isSimulation && (
-        <div className="mt-5 flex justify-end">
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
           <Button
             size="sm"
             onClick={() => sendMessage('Confirm')}
@@ -157,6 +157,36 @@ export function FollowupZeroInboxResponse({ data }: Props) {
           >
             <CheckSquare className="w-4 h-4" />
             Create follow-up task
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => sendMessage('Edit the email draft')} 
+            disabled={isLoading} 
+            className="gap-2"
+          >
+            <Pencil className="w-4 h-4" />
+            Edit
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => sendMessage("Skip this email, show me the next one")} 
+            disabled={isLoading} 
+            className="gap-2"
+          >
+            <SkipForward className="w-4 h-4" />
+            Skip
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => sendMessage("Cancel, I don't want to send this")} 
+            disabled={isLoading} 
+            className="gap-2 text-gray-400 hover:text-gray-200"
+          >
+            <X className="w-4 h-4" />
+            Cancel
           </Button>
         </div>
       )}
