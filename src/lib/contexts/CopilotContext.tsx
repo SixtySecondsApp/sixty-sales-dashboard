@@ -7,7 +7,7 @@
  * 2. Agent mode: Autonomous agent that understands, plans, executes, and reports
  */
 
-import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, ReactNode, useEffect } from 'react';
 import { CopilotService } from '@/lib/services/copilotService';
 import type {
   CopilotMessage,
@@ -33,6 +33,7 @@ import { getTemporalContext } from '@/lib/utils/temporalContext';
 import { useOrg } from '@/lib/contexts/OrgContext';
 import { toast } from 'sonner';
 import { useAutonomousAgent } from '@/lib/copilot/agent/useAutonomousAgent';
+import { useActionItemsStore, createActionItemFromStep, type ActionItemType } from '@/lib/stores/actionItemsStore';
 
 // =============================================================================
 // Agent Mode Types
@@ -167,6 +168,13 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     currentPlan: agent.currentPlan,
     report: agent.report,
   };
+
+  // Clear expired action items on mount
+  useEffect(() => {
+    const actionItemsStore = useActionItemsStore.getState();
+    actionItemsStore.clearExpired();
+    logger.log('🧹 Cleared expired action items on CopilotProvider mount');
+  }, []);
 
   // Abort controller for cancelling requests
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -952,7 +960,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
             }
             return msg;
           });
-          
+
           return {
             ...prev,
             messages: updatedMessages,
@@ -960,6 +968,70 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
             conversationId: response.conversationId
           };
         });
+
+        // Track simulation responses in Action Items Store for pending approvals
+        const structuredResponse = response.response.structuredResponse;
+        if (structuredResponse?.data) {
+          const data = structuredResponse.data as {
+            isSimulation?: boolean;
+            sequenceKey?: string;
+            executionId?: string;
+            taskPreview?: { title?: string; description?: string } | null;
+            prepTaskPreview?: { title?: string; description?: string } | null;
+            deal?: { id?: string; name?: string } | null;
+            contact?: { id?: string; name?: string } | null;
+            meeting?: { id?: string; title?: string } | null;
+          };
+
+          // Track simulation (preview) responses in Action Items Store
+          if (data.isSimulation && data.sequenceKey) {
+            const actionItemsStore = useActionItemsStore.getState();
+            const taskPreview = data.taskPreview || data.prepTaskPreview;
+
+            // Determine action item type based on sequence key
+            const typeMap: Record<string, ActionItemType> = {
+              'seq-pipeline-focus-tasks': 'task',
+              'seq-deal-rescue-pack': 'task',
+              'seq-next-meeting-command-center': 'meeting',
+              'seq-post-meeting-followup-pack': 'email',
+              'seq-deal-map-builder': 'task',
+              'seq-daily-focus-plan': 'task',
+              'seq-followup-zero-inbox': 'email',
+              'seq-deal-slippage-guardrails': 'slack',
+            };
+
+            const itemType = typeMap[data.sequenceKey] || 'other';
+            const item = createActionItemFromStep(
+              data.sequenceKey,
+              data.executionId || `preview-${Date.now()}`,
+              {
+                type: itemType,
+                title: taskPreview?.title || `${structuredResponse.type.replace(/_/g, ' ')} preview`,
+                description: taskPreview?.description || structuredResponse.summary,
+                contactId: data.contact?.id,
+                contactName: data.contact?.name,
+                dealId: data.deal?.id,
+                dealName: data.deal?.name,
+                previewData: data,
+              }
+            );
+
+            actionItemsStore.addItem(item);
+            logger.log('📋 Added action item for preview:', data.sequenceKey);
+          } else if (!data.isSimulation && data.sequenceKey) {
+            // Confirmed execution - mark matching pending items as confirmed
+            const actionItemsStore = useActionItemsStore.getState();
+            const pendingItems = actionItemsStore.getItemsBySequence(data.sequenceKey);
+
+            // Find pending items for this sequence and mark as confirmed
+            pendingItems
+              .filter(item => item.status === 'pending')
+              .forEach(item => {
+                actionItemsStore.confirmItem(item.id);
+                logger.log('✅ Confirmed action item:', item.id, data.sequenceKey);
+              });
+          }
+        }
       } catch (error) {
         logger.error('❌ Error sending message to Copilot:', error);
 
