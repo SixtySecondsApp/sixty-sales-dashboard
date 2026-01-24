@@ -598,13 +598,44 @@ async function runEnrichmentPipeline(
     console.log(`[Pipeline] Generating skill configurations`);
     const skills = await generateSkillConfigs(supabase, enrichmentData, domain);
 
-    // Save generated skills
+    // =========================================================================
+    // ENRICH-002: Detect and handle enrichment changes
+    // =========================================================================
+    // Fetch previous enrichment to compare
+    const { data: previousEnrichment } = await supabase
+      .from('organization_enrichment')
+      .select('company_name, description, products, competitors, generated_skills, enrichment_version')
+      .eq('id', enrichmentId)
+      .single();
+
+    // Calculate data hash for change detection
+    const currentHash = generateEnrichmentHash(enrichmentData);
+    const previousHash = previousEnrichment?.previous_hash;
+    const hasChanges = previousHash !== currentHash;
+    const newVersion = (previousEnrichment?.enrichment_version || 0) + 1;
+
+    // Build change summary
+    const changeSummary = hasChanges && previousEnrichment ? {
+      version: newVersion,
+      detected_at: new Date().toISOString(),
+      changes: detectEnrichmentChanges(previousEnrichment, enrichmentData, skills),
+    } : null;
+
+    if (changeSummary && changeSummary.changes.length > 0) {
+      console.log(`[Pipeline] Detected ${changeSummary.changes.length} changes in enrichment:`, 
+        changeSummary.changes.map(c => c.field).join(', '));
+    }
+
+    // Save generated skills with change tracking
     await supabase
       .from('organization_enrichment')
       .update({
         generated_skills: skills,
         status: 'completed',
         confidence_score: 0.85,
+        enrichment_version: newVersion,
+        previous_hash: currentHash,
+        change_summary: changeSummary,
       })
       .eq('id', enrichmentId);
 
@@ -1270,4 +1301,130 @@ function stripHtml(html: string): string {
     .replace(/&#39;/g, "'")
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+// ============================================================================
+// ENRICH-002: Change Detection Helpers
+// ============================================================================
+
+/**
+ * Generate a hash of enrichment data for change detection
+ */
+function generateEnrichmentHash(data: any): string {
+  const keyFields = {
+    company_name: data.company_name,
+    description: data.description?.substring(0, 500),
+    industry: data.industry,
+    products: data.products?.slice(0, 5).map((p: any) => p.name || p),
+    competitors: data.competitors?.slice(0, 5).map((c: any) => c.name || c),
+    target_market: data.target_market,
+  };
+  
+  // Simple hash function
+  const str = JSON.stringify(keyFields);
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit int
+  }
+  return hash.toString(16);
+}
+
+interface EnrichmentChange {
+  field: string;
+  type: 'added' | 'removed' | 'modified';
+  old_value?: any;
+  new_value?: any;
+}
+
+/**
+ * Detect specific changes between old and new enrichment data
+ */
+function detectEnrichmentChanges(
+  oldData: any,
+  newData: any,
+  newSkills: any
+): EnrichmentChange[] {
+  const changes: EnrichmentChange[] = [];
+
+  // Check company name change
+  if (oldData.company_name !== newData.company_name) {
+    changes.push({
+      field: 'company_name',
+      type: 'modified',
+      old_value: oldData.company_name,
+      new_value: newData.company_name,
+    });
+  }
+
+  // Check description change (significant change only)
+  if (oldData.description && newData.description) {
+    const oldLen = oldData.description.length;
+    const newLen = newData.description.length;
+    if (Math.abs(oldLen - newLen) > 100 || 
+        oldData.description.substring(0, 100) !== newData.description.substring(0, 100)) {
+      changes.push({
+        field: 'description',
+        type: 'modified',
+      });
+    }
+  }
+
+  // Check products changes
+  const oldProducts = (oldData.products || []).map((p: any) => p.name || p);
+  const newProducts = (newData.products || []).map((p: any) => p.name || p);
+  const addedProducts = newProducts.filter((p: string) => !oldProducts.includes(p));
+  const removedProducts = oldProducts.filter((p: string) => !newProducts.includes(p));
+  
+  if (addedProducts.length > 0) {
+    changes.push({
+      field: 'products',
+      type: 'added',
+      new_value: addedProducts,
+    });
+  }
+  if (removedProducts.length > 0) {
+    changes.push({
+      field: 'products',
+      type: 'removed',
+      old_value: removedProducts,
+    });
+  }
+
+  // Check competitors changes
+  const oldCompetitors = (oldData.competitors || []).map((c: any) => c.name || c);
+  const newCompetitors = (newData.competitors || []).map((c: any) => c.name || c);
+  const addedCompetitors = newCompetitors.filter((c: string) => !oldCompetitors.includes(c));
+  const removedCompetitors = oldCompetitors.filter((c: string) => !newCompetitors.includes(c));
+  
+  if (addedCompetitors.length > 0) {
+    changes.push({
+      field: 'competitors',
+      type: 'added',
+      new_value: addedCompetitors,
+    });
+  }
+  if (removedCompetitors.length > 0) {
+    changes.push({
+      field: 'competitors',
+      type: 'removed',
+      old_value: removedCompetitors,
+    });
+  }
+
+  // Check skill changes (new skills generated)
+  const oldSkillKeys = Object.keys(oldData.generated_skills || {});
+  const newSkillKeys = Object.keys(newSkills || {});
+  const addedSkills = newSkillKeys.filter(k => !oldSkillKeys.includes(k));
+  
+  if (addedSkills.length > 0) {
+    changes.push({
+      field: 'generated_skills',
+      type: 'added',
+      new_value: addedSkills,
+    });
+  }
+
+  return changes;
 }
