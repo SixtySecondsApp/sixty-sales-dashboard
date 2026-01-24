@@ -38,6 +38,11 @@ export const ConversationHistory: React.FC<ConversationHistoryProps> = ({
     try {
       await deleteConversation.mutateAsync(conversationId);
       toast.success('Conversation deleted');
+
+      // If deleting the current conversation, navigate to a new one
+      if (conversationId === currentConversationId) {
+        onNewConversation();
+      }
     } catch (error) {
       console.error('Error deleting conversation:', error);
       toast.error('Failed to delete conversation');

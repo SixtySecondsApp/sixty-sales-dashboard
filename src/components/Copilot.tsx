@@ -4,6 +4,8 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { v4 as uuidv4 } from 'uuid';
 import { useCopilot } from '@/lib/contexts/CopilotContext';
 import { CopilotLayout } from './copilot/CopilotLayout';
 import { CopilotRightPanel } from './copilot/CopilotRightPanel';
@@ -48,10 +50,42 @@ export const Copilot: React.FC<CopilotProps> = ({
   onDraftEmail,
   initialQuery
 }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { messages, isLoading, sendMessage, cancelRequest, context, conversationId, loadConversation, startNewChat, progressSteps } = useCopilot();
   const [inputValue, setInputValue] = useState(initialQuery || '');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { prompts: suggestedPrompts } = useDynamicPrompts(3);
+
+  // URL-based navigation for conversation selection
+  const handleSelectConversation = useCallback((id: string) => {
+    navigate(`/copilot/${id}`);
+  }, [navigate]);
+
+  // URL-based navigation for new chat
+  const handleNewConversation = useCallback(() => {
+    const newId = uuidv4();
+    startNewChat();
+    navigate(`/copilot/${newId}`);
+  }, [navigate, startNewChat]);
+
+  // Track last synced conversation ID to avoid redundant navigation
+  const lastSyncedConversationId = useRef<string | undefined>(undefined);
+
+  // Sync URL when API returns a different conversation ID
+  useEffect(() => {
+    // Only sync if we have a conversation ID and it's different from last synced
+    if (conversationId && conversationId !== lastSyncedConversationId.current) {
+      // Check if URL already matches
+      const currentUrlId = location.pathname.split('/copilot/')[1];
+      if (currentUrlId !== conversationId) {
+        lastSyncedConversationId.current = conversationId;
+        navigate(`/copilot/${conversationId}`, { replace: true });
+      } else {
+        lastSyncedConversationId.current = conversationId;
+      }
+    }
+  }, [conversationId, location.pathname, navigate]);
 
   // US-012: Fetch context data for right panel (US-006: includes summary counts)
   const { contextItems, contextSummary, isLoading: isContextLoading } = useCopilotContextData();
@@ -440,8 +474,8 @@ export const Copilot: React.FC<CopilotProps> = ({
         progressSteps={progressSteps}
         isProcessing={isLoading}
         currentConversationId={conversationId}
-        onSelectConversation={loadConversation}
-        onNewConversation={startNewChat}
+        onSelectConversation={handleSelectConversation}
+        onNewConversation={handleNewConversation}
       />
     }>
       <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 flex flex-col min-h-0 overflow-hidden h-[calc(100dvh-var(--app-top-offset))]">

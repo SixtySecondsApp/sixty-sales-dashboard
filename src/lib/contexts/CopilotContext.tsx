@@ -34,6 +34,7 @@ import { useOrg } from '@/lib/contexts/OrgContext';
 import { toast } from 'sonner';
 import { useAutonomousAgent } from '@/lib/copilot/agent/useAutonomousAgent';
 import { useActionItemsStore, createActionItemFromStep, type ActionItemType } from '@/lib/stores/actionItemsStore';
+import { getStepDurationEstimate } from '@/lib/utils/toolUtils';
 
 // =============================================================================
 // Agent Mode Types
@@ -93,6 +94,7 @@ interface CopilotContextValue {
   startNewChat: () => void;
   conversationId?: string;
   loadConversation: (conversationId: string) => Promise<void>;
+  setConversationId: (conversationId: string) => void;
 
   // Progress steps for right panel (US-007)
   progressSteps: ProgressStep[];
@@ -134,6 +136,8 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     currentInput: '',
     conversationId: undefined
   });
+  // Track whether conversation exists in database (vs client-generated UUID for URL)
+  const [isConversationPersisted, setIsConversationPersisted] = useState(false);
   const [context, setContextState] = useState<CopilotContextType>({
     userId: '',
     currentView: 'dashboard'
@@ -178,6 +182,18 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
 
   // Abort controller for cancelling requests
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Step progression timer ref for cleaning up
+  const stepProgressionRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup step progression timer on unmount
+  useEffect(() => {
+    return () => {
+      if (stepProgressionRef.current) {
+        clearTimeout(stepProgressionRef.current);
+      }
+    };
+  }, []);
 
   // Initialize user context
   React.useEffect(() => {
@@ -236,6 +252,11 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    // Clear step progression timer
+    if (stepProgressionRef.current) {
+      clearTimeout(stepProgressionRef.current);
+      stepProgressionRef.current = null;
+    }
     setState(prev => ({
       ...prev,
       messages: [],
@@ -244,6 +265,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
       mode: 'empty',
       isLoading: false
     }));
+    setIsConversationPersisted(false);
 
     // Clear context panel data
     setRelevantContextTypes([]);
@@ -293,6 +315,12 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
       logger.log('Request cancelled by user');
+
+      // Clear step progression timer
+      if (stepProgressionRef.current) {
+        clearTimeout(stepProgressionRef.current);
+        stepProgressionRef.current = null;
+      }
 
       // Update state to remove loading and pending message
       setState(prev => {
@@ -407,6 +435,44 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
       return labels[provider || ''] || provider || '';
     };
 
+    // Map internal tool names to user-friendly labels
+    const getToolLabel = (toolName?: string): string => {
+      const labels: Record<string, string> = {
+        // Core actions
+        execute_action: 'Processing request',
+        run_sequence: 'Running workflow',
+        list_skills: 'Loading capabilities',
+        get_skill: 'Retrieving skill',
+        resolve_entity: 'Finding contact',
+        // CRM operations
+        get_deals: 'Fetching deals',
+        get_contacts: 'Fetching contacts',
+        get_companies: 'Fetching companies',
+        search_deals: 'Searching deals',
+        search_contacts: 'Searching contacts',
+        create_task: 'Creating task',
+        update_deal: 'Updating deal',
+        // Calendar operations
+        get_calendar_events: 'Checking calendar',
+        get_meetings: 'Loading meetings',
+        get_meetings_for_period: 'Finding meetings',
+        // Email operations
+        draft_email: 'Drafting email',
+        search_emails: 'Searching emails',
+        send_email: 'Sending email',
+        // Meeting operations
+        get_meeting_transcript: 'Loading transcript',
+        analyze_meeting: 'Analyzing meeting',
+        // Task operations
+        get_tasks: 'Loading tasks',
+        search_tasks: 'Searching tasks',
+        // Activity
+        get_activities: 'Loading activities',
+        log_activity: 'Logging activity',
+      };
+      return labels[toolName || ''] || 'Processing';
+    };
+
     // Group executions by capability
     const executionsByCapability = new Map<string, ToolExecutionDetail[]>();
     for (const exec of executions) {
@@ -425,9 +491,12 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         const capabilityLabel = getCapabilityLabel(exec.capability);
         const providerLabel = getProviderLabel(exec.provider);
         
+        const toolLabel = getToolLabel(exec.toolName);
+        const providerSuffix = providerLabel ? ` via ${providerLabel}` : '';
+
         steps.push({
           id: `step-${exec.toolName}-${exec.latencyMs}`,
-          label: `${capabilityLabel}${providerLabel ? ` (${providerLabel})` : ''}: ${exec.toolName}`,
+          label: `${toolLabel}${providerSuffix}`,
           icon: capability === 'crm' ? 'database' : capability === 'calendar' ? 'calendar' : capability === 'email' ? 'mail' : 'activity',
           state: exec.success ? 'complete' : 'complete', // All steps are complete when we receive telemetry
           duration: exec.latencyMs,
@@ -571,8 +640,10 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     ) {
       return 'sales_coach';
     }
-    
-    return null;
+
+    // Fallback: show a generic loading animation for any query
+    // This ensures users always see visual feedback while waiting
+    return 'general_query';
   }, []);
 
   // Helper function to detect which context panel data sources are relevant
@@ -698,6 +769,12 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
           { label: 'Searching calendar events', icon: 'calendar' },
           { label: 'Searching recent emails', icon: 'mail' },
           { label: 'Resolving best match', icon: 'activity' }
+        ],
+        general_query: [
+          { label: 'Analyzing your request', icon: 'sparkles' },
+          { label: 'Gathering relevant context', icon: 'database' },
+          { label: 'Processing information', icon: 'activity' },
+          { label: 'Preparing response', icon: 'check-circle' }
         ]
       };
 
@@ -718,6 +795,87 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
       startTime: Date.now(),
       steps
     };
+  }, []);
+
+  // Helper function to generate contextual label from user message (fast, client-side)
+  const generateContextualLabel = useCallback((message: string): string => {
+    const lowerMessage = message.toLowerCase().trim();
+
+    // Keyword-based label generation for common patterns
+    const labelPatterns: Array<{ keywords: string[]; label: string }> = [
+      // Pipeline & Deals
+      { keywords: ['pipeline', 'deals', 'opportunities'], label: 'Analyzing pipeline' },
+      { keywords: ['closing', 'close this'], label: 'Finding closing deals' },
+      { keywords: ['deal health', 'how is the', 'deal going'], label: 'Checking deal health' },
+      { keywords: ['stalled', 'stuck', 'at risk'], label: 'Identifying at-risk deals' },
+
+      // Meetings
+      { keywords: ['prep', 'prepare', 'brief', 'next meeting'], label: 'Preparing meeting brief' },
+      { keywords: ['follow-up', 'followup', 'follow up', 'after meeting'], label: 'Creating follow-ups' },
+      { keywords: ['meeting', 'meetings', 'calendar'], label: 'Checking meetings' },
+      { keywords: ['schedule', 'book', 'reschedule'], label: 'Checking schedule' },
+
+      // Email
+      { keywords: ['draft email', 'write email', 'email to'], label: 'Drafting email' },
+      { keywords: ['email', 'emails', 'inbox'], label: 'Searching emails' },
+
+      // Contacts & People
+      { keywords: ['contact', 'person', 'who is'], label: 'Looking up contact' },
+      { keywords: ['team', 'rep', 'sales person'], label: 'Checking team data' },
+
+      // Activity & Updates
+      { keywords: ['catch me up', 'catch up', 'what did i miss', 'missed'], label: 'Reviewing recent activity' },
+      { keywords: ['activity', 'activities', 'recent'], label: 'Loading activity' },
+      { keywords: ['update', 'updates', 'news'], label: 'Getting updates' },
+      { keywords: ['summary', 'summarize', 'summarise'], label: 'Creating summary' },
+
+      // Tasks
+      { keywords: ['task', 'tasks', 'todo', 'to-do', 'to do'], label: 'Loading tasks' },
+      { keywords: ['overdue', 'due today', 'due this week'], label: 'Checking due tasks' },
+
+      // Analytics & Insights
+      { keywords: ['analytics', 'metrics', 'performance'], label: 'Analyzing performance' },
+      { keywords: ['forecast', 'projection', 'predict'], label: 'Running forecast' },
+      { keywords: ['coach', 'coaching', 'advice', 'tips'], label: 'Getting sales advice' },
+
+      // Search
+      { keywords: ['search', 'find', 'look for', 'looking for'], label: 'Searching' },
+      { keywords: ['show me', 'show my', 'list'], label: 'Loading data' },
+    ];
+
+    // Find matching pattern
+    for (const pattern of labelPatterns) {
+      if (pattern.keywords.some(keyword => lowerMessage.includes(keyword))) {
+        return pattern.label;
+      }
+    }
+
+    // Fallback: Extract first verb + noun for a reasonable label
+    // Common action verbs in sales context
+    const actionVerbs = ['check', 'get', 'show', 'find', 'search', 'load', 'analyze', 'review', 'prepare', 'create', 'draft', 'update'];
+    const words = lowerMessage.split(/\s+/);
+
+    for (const verb of actionVerbs) {
+      const verbIndex = words.findIndex(w => w.startsWith(verb));
+      if (verbIndex !== -1 && words[verbIndex + 1]) {
+        const noun = words[verbIndex + 1].replace(/[^a-z]/g, '');
+        if (noun.length > 2) {
+          // Capitalize first letter of verb
+          const capitalizedVerb = verb.charAt(0).toUpperCase() + verb.slice(1);
+          return `${capitalizedVerb}ing ${noun}`;
+        }
+      }
+    }
+
+    // Final fallback based on question type
+    if (lowerMessage.startsWith('what') || lowerMessage.startsWith('how')) {
+      return 'Analyzing request';
+    }
+    if (lowerMessage.startsWith('can you') || lowerMessage.startsWith('please')) {
+      return 'Processing request';
+    }
+
+    return 'Processing';
   }, []);
 
   const sendMessage = useCallback(
@@ -758,6 +916,8 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
       const predictedToolType = detectToolType(message);
       if (predictedToolType) {
         toolCall = createToolCall(predictedToolType);
+        // Add contextual label based on user's message
+        toolCall.customLabel = generateContextualLabel(message);
       }
 
       // Add assistant message placeholder with tool call
@@ -781,7 +941,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
       }));
 
       try {
-        // Show tool call as processing (honest state - no fake step simulation)
+        // Show tool call as processing with time-based step progression
         if (toolCall) {
           // Check if request was cancelled
           if (abortSignal.aborted) {
@@ -789,14 +949,20 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
             return;
           }
 
-          // Set tool call to processing state immediately (no fake progress steps)
+          // Clear any existing step progression timer
+          if (stepProgressionRef.current) {
+            clearTimeout(stepProgressionRef.current);
+            stepProgressionRef.current = null;
+          }
+
+          // Set tool call to processing state immediately with first step active
           setState(prev => {
             const updatedMessages = prev.messages.map(msg => {
               if (msg.id === assistantMessageId && msg.toolCall) {
                 const updatedToolCall: ToolCall = {
                   ...msg.toolCall,
                   state: 'processing' as ToolState,
-                  // Mark first step as active, rest as pending - actual completion comes from response
+                  // Mark first step as active, rest as pending
                   steps: msg.toolCall.steps.map((step, idx) => ({
                     ...step,
                     state: (idx === 0 ? 'active' : 'pending') as ToolState,
@@ -807,9 +973,72 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
               }
               return msg;
             });
-            
+
             return { ...prev, messages: updatedMessages };
           });
+
+          // Start step progression timer to advance through steps while waiting
+          // Use progressive intervals - earlier steps are faster, later steps are slower
+          // This matches user perception: quick initial progress, then slower "heavy lifting"
+          const steps = toolCall.steps;
+          const totalExpectedDuration = 10000; // 10 seconds typical API response time
+
+          // Calculate progressive step durations: each step takes longer than the previous
+          // For 4 steps: 1s, 2s, 3s, 4s = 10s total (1:2:3:4 ratio)
+          const stepCount = steps.length;
+          const ratioSum = (stepCount * (stepCount + 1)) / 2; // Sum of 1+2+3+...+n
+          const stepDurations = Array.from({ length: stepCount }, (_, i) => {
+            return Math.round((totalExpectedDuration * (i + 1)) / ratioSum);
+          });
+
+          let currentStepIndex = 0;
+
+          const advanceStep = () => {
+            // Check if cancelled
+            if (abortSignal.aborted) {
+              if (stepProgressionRef.current) {
+                clearTimeout(stepProgressionRef.current);
+                stepProgressionRef.current = null;
+              }
+              return;
+            }
+
+            // Move to next step (mark current as complete, next as active)
+            currentStepIndex++;
+
+            // Don't go past the last step - keep it active until response arrives
+            if (currentStepIndex >= steps.length) {
+              return;
+            }
+
+            setState(prev => {
+              const updatedMessages = prev.messages.map(msg => {
+                if (msg.id === assistantMessageId && msg.toolCall) {
+                  const updatedToolCall: ToolCall = {
+                    ...msg.toolCall,
+                    steps: msg.toolCall.steps.map((step, idx) => ({
+                      ...step,
+                      state: (idx < currentStepIndex ? 'complete' : idx === currentStepIndex ? 'active' : 'pending') as ToolState,
+                    }))
+                  };
+                  return { ...msg, toolCall: updatedToolCall };
+                }
+                return msg;
+              });
+              return { ...prev, messages: updatedMessages };
+            });
+
+            // Schedule next step advancement if not at the last step
+            // Use progressive duration for the current step
+            if (currentStepIndex < steps.length - 1) {
+              stepProgressionRef.current = setTimeout(advanceStep, stepDurations[currentStepIndex]);
+            }
+          };
+
+          // Schedule first step advancement with first step's duration
+          if (steps.length > 1) {
+            stepProgressionRef.current = setTimeout(advanceStep, stepDurations[0]);
+          }
         }
 
         // Check if cancelled before API call
@@ -841,8 +1070,12 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
             temporalContext: getTemporalContext()
           };
 
+          // Only send conversationId if it exists in the database
+          // For new conversations (client-generated UUID), let the API create it
+          const conversationIdToSend = isConversationPersisted ? state.conversationId : undefined;
+
           response = await Promise.race([
-            CopilotService.sendMessage(message, apiContext, state.conversationId),
+            CopilotService.sendMessage(message, apiContext, conversationIdToSend),
             timeoutPromise
           ]) as Awaited<ReturnType<typeof CopilotService.sendMessage>>;
         } catch (err: any) {
@@ -858,11 +1091,32 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
           throw (err instanceof Error ? err : new Error(String(err)));
         }
 
+        // Clear step progression timer now that response has arrived
+        if (stepProgressionRef.current) {
+          clearTimeout(stepProgressionRef.current);
+          stepProgressionRef.current = null;
+        }
+
         // Create tool call from real telemetry if available
+        // For 'general_query' type, keep placeholder steps and mark as complete for better UX
         let realToolCall: ToolCall | undefined;
         if (response.tool_executions && response.tool_executions.length > 0) {
-          realToolCall = createToolCallFromTelemetry(response.tool_executions);
-          logger.log('🔧 Created tool call from telemetry:', { toolCall: realToolCall, executions: response.tool_executions });
+          // For generic queries, use placeholder steps marked complete instead of raw telemetry
+          if (predictedToolType === 'general_query' && toolCall) {
+            realToolCall = {
+              ...toolCall,
+              state: 'complete',
+              endTime: Date.now(),
+              steps: toolCall.steps.map(step => ({
+                ...step,
+                state: 'complete' as const
+              }))
+            };
+            logger.log('🔧 Using completed placeholder steps for general_query');
+          } else {
+            realToolCall = createToolCallFromTelemetry(response.tool_executions);
+            logger.log('🔧 Created tool call from telemetry:', { toolCall: realToolCall, executions: response.tool_executions });
+          }
 
           // Check for resolve_entity tool results to update context panel
           const entityResolution = response.tool_executions.find(
@@ -968,6 +1222,11 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
             conversationId: response.conversationId
           };
         });
+
+        // Mark conversation as persisted now that API has created/confirmed it
+        if (response.conversationId) {
+          setIsConversationPersisted(true);
+        }
 
         // Track simulation responses in Action Items Store for pending approvals
         const structuredResponse = response.response.structuredResponse;
@@ -1117,7 +1376,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         });
       }
     },
-    [context, state.conversationId, state.isLoading, detectToolType, createToolCall, detectRelevantContextTypes, agentModeEnabled, agent]
+    [context, state.conversationId, state.isLoading, detectToolType, createToolCall, detectRelevantContextTypes, generateContextualLabel, agentModeEnabled, agent]
   );
 
   // Handle pending queries from openCopilot
@@ -1168,12 +1427,25 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         mode: copilotMessages.length > 0 ? 'active' : 'empty',
         isLoading: false
       }));
+      setIsConversationPersisted(copilotMessages.length > 0); // Persisted if has messages
 
       logger.log('Loaded conversation:', conversationId, 'with', copilotMessages.length, 'messages');
     } catch (error) {
       logger.error('Failed to load conversation:', error);
       setState(prev => ({ ...prev, isLoading: false }));
+      setIsConversationPersisted(false); // Failed to load, not persisted
     }
+  }, []);
+
+  // Set conversation ID without loading messages (for new conversations from URL)
+  // This is used for client-generated IDs that don't exist in database yet
+  const setConversationId = useCallback((conversationId: string) => {
+    setState(prev => ({
+      ...prev,
+      conversationId,
+    }));
+    setIsConversationPersisted(false); // Not in database yet
+    logger.log('Set conversation ID (not persisted):', conversationId);
   }, []);
 
   // Determine which messages to show based on mode
@@ -1215,6 +1487,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     startNewChat,
     conversationId: state.conversationId,
     loadConversation,
+    setConversationId,
 
     // Progress steps for right panel (US-007)
     progressSteps,

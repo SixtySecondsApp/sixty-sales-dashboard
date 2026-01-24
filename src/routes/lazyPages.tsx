@@ -132,6 +132,7 @@ export const ActivityProcessingPage = lazyWithRetry(() => import('@/pages/Activi
 export const Workflows = lazyWithRetry(() => import('@/pages/Workflows'));
 export const FreepikFlow = lazyWithRetry(() => import('@/components/workflows/FreepikFlow'));
 export const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
+export const CopilotPage = lazyWithRetry(() => import('@/pages/CopilotPage'));
 
 // ============================================================
 // SETTINGS PAGES
