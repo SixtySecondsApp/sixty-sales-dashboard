@@ -266,6 +266,17 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     displayGroup: 4,
   },
   {
+    path: '/action-centre',
+    access: 'internal',
+    label: 'Action Centre',
+    icon: Inbox,
+    showInNav: true,
+    navSection: 'tools',
+    order: 3,
+    displayGroup: 4,
+    badge: 'New',
+  },
+  {
     path: '/email-actions',
     access: 'internal',
     label: 'Email Actions',

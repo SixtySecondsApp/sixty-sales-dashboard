@@ -175,10 +175,10 @@ export interface MeetingAdapter {
     timezone?: string;
   }): Promise<ActionResult>;
   /**
-   * Get list of meetings for a specific period (today/tomorrow)
+   * Get list of meetings for a specific period
    */
   getMeetingsForPeriod(params: {
-    period: 'today' | 'tomorrow';
+    period: string; // today, tomorrow, monday-sunday, this_week, next_week
     timezone?: string;
     weekStartsOn?: 0 | 1;
     includeContext?: boolean;

@@ -19,6 +19,27 @@ function fail(error: string, source: string, extra?: Partial<ActionResult>): Act
   return { success: false, data: null, error, source, ...extra };
 }
 
+function formatAdapterError(e: unknown): string {
+  // Deno/Supabase errors are often plain objects (PostgREST) not Error instances.
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  if (e && typeof e === 'object') {
+    const anyErr = e as Record<string, unknown>;
+    const message =
+      (typeof anyErr.message === 'string' && anyErr.message) ||
+      (typeof anyErr.error === 'string' && anyErr.error) ||
+      (typeof anyErr.details === 'string' && anyErr.details) ||
+      (typeof anyErr.hint === 'string' && anyErr.hint);
+    if (message) return message;
+    try {
+      return JSON.stringify(anyErr);
+    } catch {
+      return '[unknown error object]';
+    }
+  }
+  return String(e);
+}
+
 export function createDbMeetingAdapter(client: SupabaseClient, userId: string): MeetingAdapter {
   return {
     source: 'db_meetings',
@@ -167,7 +188,7 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
         if (meetingsError) throw meetingsError;
         return ok({ meetings: meetings || [], matchedOn: 'recent' }, this.source);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },
@@ -285,7 +306,7 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
           this.source
         );
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },
@@ -332,7 +353,7 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
           note: 'Total is from calendar events. Recorded meetings may overlap with calendar events.',
         }, this.source);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },
@@ -348,7 +369,7 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
           .from('calendar_events')
           .select(`
             id, external_id, title, description, start_time, end_time, location, meeting_url,
-            attendees, attendees_count, status, is_recurring, organizer_email
+            attendees, attendees_count, status, organizer_email
           `)
           .eq('user_id', userId)
           .neq('status', 'cancelled')
@@ -405,7 +426,6 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
           attendees,
           attendeesCount: event.attendees_count || attendees.length,
           status: event.status,
-          isRecurring: event.is_recurring,
         };
 
         // If context not requested, return basic meeting info
@@ -547,7 +567,7 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
           context,
         }, this.source);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },
@@ -567,7 +587,7 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
           .from('calendar_events')
           .select(`
             id, external_id, title, description, start_time, end_time, location, meeting_url,
-            attendees, attendees_count, status, is_recurring, organizer_email
+            attendees, attendees_count, status, organizer_email
           `)
           .eq('user_id', userId)
           .neq('status', 'cancelled')
@@ -669,7 +689,7 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
           meetings,
         }, this.source);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },
@@ -785,7 +805,7 @@ export function createDbMeetingAdapter(client: SupabaseClient, userId: string): 
           })),
         }, this.source);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },
@@ -1002,6 +1022,39 @@ function calculateDateRangeWithTimezone(
       };
     }
 
+    // Day of week support - finds the NEXT occurrence of that day
+    case 'monday':
+    case 'tuesday':
+    case 'wednesday':
+    case 'thursday':
+    case 'friday':
+    case 'saturday':
+    case 'sunday': {
+      const dayMap: Record<string, number> = {
+        sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
+        thursday: 4, friday: 5, saturday: 6,
+      };
+      const targetDay = dayMap[period];
+      const currentDayOfWeek = new Date(Date.UTC(localYear, localMonth, localDay)).getUTCDay();
+      
+      // Calculate days until target day (0 = today if it's that day, otherwise next occurrence)
+      let daysUntil = targetDay - currentDayOfWeek;
+      if (daysUntil < 0) {
+        daysUntil += 7; // Next week
+      }
+      
+      const targetStart = new Date(localMidnight);
+      targetStart.setUTCDate(targetStart.getUTCDate() + daysUntil);
+      
+      const targetEnd = new Date(targetStart);
+      targetEnd.setUTCHours(23, 59, 59, 999);
+      
+      return {
+        startDate: localToUtc(targetStart),
+        endDate: localToUtc(targetEnd),
+      };
+    }
+
     default:
       // Default to today
       return {
@@ -1030,7 +1083,7 @@ export function createDbCrmAdapter(client: SupabaseClient, userId: string): CRMA
 
         return ok({ contacts: data || [] }, this.source);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },
@@ -1088,7 +1141,7 @@ export function createDbCrmAdapter(client: SupabaseClient, userId: string): CRMA
 
         return ok({ deals }, this.source);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },
@@ -1158,7 +1211,7 @@ export function createDbCrmAdapter(client: SupabaseClient, userId: string): CRMA
             return fail(`Unsupported entity: ${String(params.entity)}`, source);
         }
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, source);
       }
     },
@@ -1246,7 +1299,7 @@ export function createDbCrmAdapter(client: SupabaseClient, userId: string): CRMA
           by_stage: Object.values(byStage),
         }, this.source);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },
@@ -1369,7 +1422,7 @@ export function createDbCrmAdapter(client: SupabaseClient, userId: string): CRMA
           deals: deals.slice(0, limit),
         }, this.source);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },
@@ -1482,7 +1535,7 @@ export function createDbCrmAdapter(client: SupabaseClient, userId: string): CRMA
           by_month: Object.values(byMonth),
         }, this.source);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },
@@ -1566,7 +1619,7 @@ export function createDbCrmAdapter(client: SupabaseClient, userId: string): CRMA
           contacts: contactList.slice(0, limit),
         }, this.source);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },
@@ -1708,7 +1761,7 @@ export function createDbCrmAdapter(client: SupabaseClient, userId: string): CRMA
           overall_health: overallHealth,
         }, this.source);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },
@@ -1748,7 +1801,7 @@ export function createDbEmailAdapter(client: SupabaseClient, userId: string): Em
 
         return ok({ emails: data || [] }, this.source);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },
@@ -1955,7 +2008,7 @@ Return ONLY valid JSON with these fields (use null for unknown, never omit requi
           this.source
         );
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },
@@ -2123,7 +2176,7 @@ Return ONLY valid JSON with these fields (use null for unknown, never omit requi
           this.source
         );
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = formatAdapterError(e);
         return fail(msg, this.source);
       }
     },

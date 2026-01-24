@@ -1,15 +1,18 @@
 /**
  * Proactive Pipeline Analysis Edge Function
- * 
+ *
  * PROACTIVE-002: Daily analysis of pipeline health, sends insights via Slack.
- * 
+ * AC-005: Also creates Action Centre items for HITL approval.
+ *
  * Runs as a cron job (daily at 9am, configurable per org) and:
  * 1. Analyzes each user's pipeline for stalling deals, overdue tasks
  * 2. Identifies opportunities where agent can add value
- * 3. Sends summary to Slack with action options
- * 4. Tracks which insights get actioned
- * 
+ * 3. Creates Action Centre items for user approval (AC-005)
+ * 4. Sends summary to Slack with action options
+ * 5. Tracks which insights get actioned
+ *
  * @see docs/PRD_PROACTIVE_AI_TEAMMATE.md
+ * @see docs/project-requirements/PRD_ACTION_CENTRE.md
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -330,6 +333,12 @@ async function analyzeUserPipeline(
   summary.insights = summary.insights.slice(0, 10);
 
   console.log(`[Pipeline] Found ${summary.insights.length} insights for user ${userId}`);
+
+  // AC-005: Create Action Centre items for insights
+  if (summary.insights.length > 0) {
+    await createActionCentreItems(supabase, summary);
+  }
+
   return summary;
 }
 
@@ -488,9 +497,21 @@ function buildPipelineSlackMessage(summary: UserPipelineSummary): any[] {
     });
   }
 
+  // SS-002: Add "View in App" button linking to Action Centre
   blocks.push({
     type: 'actions',
     elements: [
+      {
+        type: 'button',
+        text: {
+          type: 'plain_text',
+          text: '📥 Action Centre',
+          emoji: true,
+        },
+        url: `https://app.use60.com/action-centre`,
+        action_id: 'open_action_centre',
+        style: 'primary',
+      },
       {
         type: 'button',
         text: {
@@ -528,4 +549,77 @@ function formatCurrency(value: number | null | undefined): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+// ============================================================================
+// AC-005: Create Action Centre Items
+// ============================================================================
+
+/**
+ * Creates Action Centre items for pipeline insights that need user action.
+ * These appear in the user's personal Action Centre for HITL approval.
+ */
+async function createActionCentreItems(
+  supabase: any,
+  summary: UserPipelineSummary
+): Promise<number> {
+  let itemsCreated = 0;
+
+  for (const insight of summary.insights) {
+    // Map insight type to action type
+    const actionTypeMap: Record<string, string> = {
+      'stale_deal': 'alert',
+      'overdue_task': 'task',
+      'at_risk': 'alert',
+      'closing_soon': 'alert',
+      'no_activity': 'insight',
+    };
+
+    // Map severity to risk level
+    const riskLevelMap: Record<string, string> = {
+      'critical': 'high',
+      'high': 'medium',
+      'medium': 'low',
+      'low': 'info',
+    };
+
+    try {
+      const { error } = await supabase.rpc('create_action_centre_item', {
+        p_user_id: summary.userId,
+        p_org_id: summary.organizationId,
+        p_action_type: actionTypeMap[insight.type] || 'insight',
+        p_risk_level: riskLevelMap[insight.severity] || 'low',
+        p_title: insight.title,
+        p_description: insight.description,
+        p_source_type: 'proactive',
+        p_source_id: `pipeline-${insight.type}-${insight.dealId || insight.contactId || Date.now()}`,
+        p_preview_data: {
+          dealId: insight.dealId,
+          dealName: insight.dealName,
+          contactId: insight.contactId,
+          contactName: insight.contactName,
+          value: insight.value,
+          sequenceKey: insight.sequenceKey,
+          insightType: insight.type,
+          suggestedAction: insight.suggestedAction,
+        },
+        p_deal_id: insight.dealId || null,
+        p_contact_id: insight.contactId || null,
+      });
+
+      if (!error) {
+        itemsCreated++;
+      } else {
+        console.error(`[Pipeline] Failed to create action centre item:`, error);
+      }
+    } catch (err) {
+      console.error(`[Pipeline] Error creating action centre item:`, err);
+    }
+  }
+
+  if (itemsCreated > 0) {
+    console.log(`[Pipeline] Created ${itemsCreated} Action Centre items for user ${summary.userId}`);
+  }
+
+  return itemsCreated;
 }

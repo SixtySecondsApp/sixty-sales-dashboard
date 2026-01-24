@@ -36,6 +36,7 @@ export const CopilotTestPage = lazyWithRetry(() => import('@/pages/platform/Copi
 export const CopilotLabPage = lazyWithRetry(() => import('@/pages/platform/CopilotLabPage'));
 export const AgentPerformanceDashboard = lazyWithRetry(() => import('@/pages/platform/AgentPerformanceDashboard'));
 export const NotetakerBranding = lazyWithRetry(() => import('@/pages/platform/NotetakerBranding'));
+export const ActionCentre = lazyWithRetry(() => import('@/pages/platform/ActionCentre'));
 
 // Admin Configuration
 export const Users = lazyWithRetry(() => import('@/pages/admin/Users'));

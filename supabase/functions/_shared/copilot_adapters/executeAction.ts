@@ -606,8 +606,13 @@ export async function executeAction(
     }
 
     case 'get_meetings_for_period': {
-      // Get list of meetings for today or tomorrow
-      const period = params.period ? String(params.period) as 'today' | 'tomorrow' : 'today';
+      // Get list of meetings for today, tomorrow, or a specific day of the week
+      const validPeriods = [
+        'today', 'tomorrow', 'this_week', 'next_week', 'last_week',
+        'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'
+      ];
+      const rawPeriod = params.period ? String(params.period).toLowerCase() : 'today';
+      const period = validPeriods.includes(rawPeriod) ? rawPeriod : 'today';
       const timezone = params.timezone ? String(params.timezone) : undefined;
       const weekStartsOn = params.week_starts_on !== undefined ? (Number(params.week_starts_on) as 0 | 1) : undefined;
       const includeContext = params.include_context === true;

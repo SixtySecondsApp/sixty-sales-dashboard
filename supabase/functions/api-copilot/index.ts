@@ -667,53 +667,6 @@ async function handleChat(
       escalationDecision: escalationDecision.decision
     })
     
-    // ---------------------------------------------------------------------------
-    // PROACTIVE-001: Clarifying Questions Flow
-    // If no clear V1 route and request seems ambiguous, offer clarification options
-    // ---------------------------------------------------------------------------
-    const sequencesForClarify = availableSkills.filter(s => s.category === 'agent-sequence')
-    const clarifyResult = detectAmbiguousRequest(messageLower, body.message, sequencesForClarify)
-    
-    if (clarifyResult.needsClarification && !v1Route && !isPerformanceQuery) {
-      console.log('[CLARIFY] Detected ambiguous request, offering options:', {
-        entityName: clarifyResult.entityName,
-        entityType: clarifyResult.entityType,
-        optionCount: clarifyResult.options.length,
-      })
-      
-      // Return clarifying question response
-      return new Response(JSON.stringify({
-        response: {
-          type: 'text',
-          content: clarifyResult.prompt,
-          recommendations: clarifyResult.options.map(opt => ({
-            title: opt.action,
-            description: opt.description,
-            action: 'quick_reply',
-            metadata: { 
-              sequenceKey: opt.sequenceKey,
-              skillKey: opt.skillKey,
-              optionId: opt.id,
-            },
-          })),
-          structuredResponse: {
-            type: 'clarifying_question',
-            entityName: clarifyResult.entityName,
-            entityType: clarifyResult.entityType,
-            options: clarifyResult.options,
-          },
-        },
-        conversationId: conversationId,
-        analytics: {
-          clarification_triggered: true,
-          entity_name: clarifyResult.entityName,
-          entity_type: clarifyResult.entityType,
-        },
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-    
     // If it's a deterministic workflow (performance report or V1 workflow),
     // skip Gemini and go straight to structured response.
     let aiResponse: any = null
@@ -1266,7 +1219,7 @@ async function handleChat(
 
     // Return response in the format expected by the frontend
     // If we have a structured response, prioritize it over text content
-    // REL-002: If both V1 and Gemini fallback failed, return graceful error
+    // REL-002: If deterministic flow couldn't produce a structured response, fail gracefully
     if (shouldSkipClaude && !structuredResponse) {
       const fallbackTriggered = (analyticsData as any).v1_fallback_triggered === true
       const geminiAlsoFailed = (analyticsData as any).gemini_fallback_failed === true
@@ -1279,10 +1232,37 @@ async function handleChat(
         geminiAlsoFailed,
       })
 
-      // Graceful error message based on what failed
+      // Surface the underlying tool error when available (helps debugging without breaking UI)
+      let toolError: string | null = null
+      try {
+        const execs = Array.isArray(aiResponse?.tool_executions) ? aiResponse.tool_executions : []
+        const lastExec = execs.slice(-1)[0] as any
+        const err = lastExec?.result?.error
+        if (!err) {
+          toolError = null
+        } else if (typeof err === 'string') {
+          toolError = err
+        } else if (err && typeof err === 'object') {
+          const anyErr = err as any
+          toolError =
+            (typeof anyErr.message === 'string' && anyErr.message) ||
+            (typeof anyErr.error === 'string' && anyErr.error) ||
+            (typeof anyErr.details === 'string' && anyErr.details) ||
+            (typeof anyErr.hint === 'string' && anyErr.hint) ||
+            (() => { try { return JSON.stringify(anyErr) } catch { return '[error object]' } })()
+        } else {
+          toolError = String(err)
+        }
+      } catch {
+        toolError = null
+      }
+
+      // Graceful error message based on what failed (return 200 so the UI doesn't hard-fail)
       const errorMessage = geminiAlsoFailed
-        ? 'I\'m having trouble processing that request right now. Please try again in a moment.'
-        : 'I encountered an error generating that response. Please try again.'
+        ? 'I’m having trouble processing that request right now. Please try again in a moment.'
+        : toolError
+          ? `I couldn’t pull that data right now (${toolError}).`
+          : 'I couldn’t generate that response right now. Please try again.'
 
       return new Response(JSON.stringify({
         response: {
@@ -1295,7 +1275,7 @@ async function handleChat(
         timestamp: new Date().toISOString()
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
+        status: 200
       })
     }
     
@@ -2554,7 +2534,7 @@ async function buildContext(client: any, userId: string, context?: ChatRequest['
       const { data: enrichment } = await client
         .from('organization_enrichment')
         .select('products, competitors, pain_points, target_market, buying_signals, value_propositions')
-        .eq('organization_id', resolvedOrgId)
+        .eq('organization_id', orgId)
         .eq('status', 'completed')
         .maybeSingle()
       
@@ -2600,7 +2580,7 @@ async function buildContext(client: any, userId: string, context?: ChatRequest['
       const { data: orgAiPrefs } = await client
         .from('org_ai_preferences')
         .select('brand_voice, blocked_phrases, preferred_tone')
-        .eq('organization_id', resolvedOrgId)
+        .eq('organization_id', orgId)
         .maybeSingle()
       
       if (orgAiPrefs) {
@@ -3445,7 +3425,7 @@ ACTION PARAMETERS:
 • get_booking_stats: { period?, filter_by?, source?, org_wide? } - Get meeting/booking statistics. period: "this_week"|"last_week"|"this_month"|"last_month"|"last_7_days"|"last_30_days" (default: "this_week").
 • get_meeting_count: { period?, timezone?, week_starts_on? } - Count meetings for a period. period: "today"|"tomorrow"|"this_week"|"next_week"|"this_month" (default: "this_week"). Uses user's timezone for accurate date boundaries.
 • get_next_meeting: { include_context?, timezone? } - Get next upcoming meeting with CRM context. include_context (default: true) adds company, deal, previous meetings, and recent activities. HERO FEATURE for meeting prep.
-• get_meetings_for_period: { period?, timezone?, week_starts_on?, include_context?, limit? } - Get meeting list for today or tomorrow. period: "today"|"tomorrow" (default: "today"). Great for daily briefings.
+• get_meetings_for_period: { period?, timezone?, week_starts_on?, include_context?, limit? } - Get meeting list for a period. period: "today"|"tomorrow"|"monday"|"tuesday"|"wednesday"|"thursday"|"friday"|"saturday"|"sunday"|"this_week"|"next_week" (default: "today"). Day names find the next occurrence.
 • get_time_breakdown: { period?, timezone?, week_starts_on? } - Analyze time spent in meetings. Returns total hours, internal vs external split, 1:1 vs group breakdown, and daily distribution.
 
 ## Email & Notifications
@@ -3737,7 +3717,28 @@ async function callGeminiAPI(
     .map((s) => `  - ${s.skill_key} (${s.name})`)
     .join('\n')
 
-  const systemInstruction = `You are a sales assistant for ${companyName}. You help sales reps prepare for calls, follow up after meetings, and manage their pipeline.
+  // AGENT-002 + CM-003: Load specialized team member persona with memory context
+  let personaSection = ''
+  if (orgId) {
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+      const compiledPersona = await getOrCompilePersona(client, orgId, userId, supabaseUrl, serviceRoleKey)
+      if (compiledPersona?.persona) {
+        personaSection = `## YOUR PERSONA (Team Member Identity)\n\n${compiledPersona.persona}\n\n---\n\n`
+        console.log('[GEMINI_PERSONA] ✅ Loaded specialized persona', {
+          hasEnrichment: compiledPersona.hasEnrichment,
+          hasSkillContext: compiledPersona.hasSkillContext,
+          hasMemoryContext: compiledPersona.hasMemoryContext,
+          version: compiledPersona.version,
+        })
+      }
+    } catch (personaError) {
+      console.error('[GEMINI_PERSONA] ⚠️ Failed to load persona:', personaError)
+    }
+  }
+
+  const systemInstruction = `${personaSection}You are a sales assistant for ${companyName}. You help sales reps prepare for calls, follow up after meetings, and manage their pipeline.
 
 ## ⚠️ CRITICAL RULE: First Name Resolution
 
@@ -4175,18 +4176,23 @@ async function callClaudeAPI(
     .join('\n')
 
   // AGENT-002: Load specialized team member persona
+  // CM-003: Also inject 7-day conversation memory context
   let compiledPersona: CompiledPersona | null = null
   let personaSection = ''
-  
+
   // Only try to load persona if we have an org
   if (orgId) {
     try {
-      compiledPersona = await getOrCompilePersona(client, orgId, userId)
+      // Pass supabaseUrl and serviceRoleKey for memory context loading (CM-003)
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+      compiledPersona = await getOrCompilePersona(client, orgId, userId, supabaseUrl, serviceRoleKey)
       if (compiledPersona?.persona) {
         personaSection = `\n## YOUR PERSONA (Team Member Identity)\n\n${compiledPersona.persona}\n\n---\n`
         console.log('[PERSONA] ✅ Loaded specialized persona', {
           hasEnrichment: compiledPersona.hasEnrichment,
           hasSkillContext: compiledPersona.hasSkillContext,
+          hasMemoryContext: compiledPersona.hasMemoryContext,
           version: compiledPersona.version,
         })
       }
@@ -8120,7 +8126,10 @@ function isMeetingsForPeriodQuestion(messageLower: string): boolean {
     messageLower.includes('meeting') ||
     messageLower.includes('meetings') ||
     messageLower.includes('calendar') ||
-    messageLower.includes('schedule')
+    messageLower.includes('schedule') ||
+    messageLower.includes('what do i have') ||
+    messageLower.includes("what's on") ||
+    messageLower.includes('what have i got')
 
   const intentPhrases = [
     'search meetings',
@@ -8137,17 +8146,37 @@ function isMeetingsForPeriodQuestion(messageLower: string): boolean {
     'meetings tomorrow',
     'schedule today',
     'schedule tomorrow',
+    'what about monday',
+    'what about tuesday',
+    'what about wednesday',
+    'what about thursday',
+    'what about friday',
+    'what about saturday',
+    'what about sunday',
   ]
 
   const hasIntent = intentPhrases.some((p) => messageLower.includes(p))
-  const mentionsTodayOrTomorrow = messageLower.includes('today') || messageLower.includes('tomorrow')
+  
+  // Time period detection - today, tomorrow, or day of week
+  const timePeriods = ['today', 'tomorrow', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'this week', 'next week']
+  const mentionsTimePeriod = timePeriods.some(period => messageLower.includes(period))
 
-  // If they clearly asked for meetings/schedule and anchored it to today/tomorrow, treat as deterministic.
-  if (mentionsMeetings && mentionsTodayOrTomorrow) return true
+  // If they clearly asked for meetings/schedule and anchored it to a time period, treat as deterministic.
+  if (mentionsMeetings && mentionsTimePeriod) return true
   return mentionsMeetings && hasIntent
 }
 
-function getMeetingsForPeriodPeriod(messageLower: string): 'today' | 'tomorrow' {
+function getMeetingsForPeriodPeriod(messageLower: string): string {
+  // Check for day of week first
+  const dayOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    .find(day => messageLower.includes(day))
+  if (dayOfWeek) return dayOfWeek
+  
+  // Check for week periods
+  if (messageLower.includes('this week')) return 'this_week'
+  if (messageLower.includes('next week')) return 'next_week'
+  
+  // Default to today/tomorrow
   return messageLower.includes('tomorrow') ? 'tomorrow' : 'today'
 }
 
@@ -9429,8 +9458,26 @@ async function detectAndStructureResponse(
         userEmailDomain = null
       }
 
-      const period = raw?.period === 'tomorrow' ? 'tomorrow' : 'today'
-      const periodLabel = period
+      // Support today, tomorrow, and day-of-week periods
+      const rawPeriod = raw?.period ? String(raw.period).toLowerCase() : 'today'
+      const validPeriods = ['today', 'tomorrow', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'this_week', 'next_week']
+      const period = validPeriods.includes(rawPeriod) ? rawPeriod : 'today'
+      
+      // Generate human-readable label
+      const periodLabels: Record<string, string> = {
+        today: 'today',
+        tomorrow: 'tomorrow',
+        monday: 'Monday',
+        tuesday: 'Tuesday',
+        wednesday: 'Wednesday',
+        thursday: 'Thursday',
+        friday: 'Friday',
+        saturday: 'Saturday',
+        sunday: 'Sunday',
+        this_week: 'this week',
+        next_week: 'next week',
+      }
+      const periodLabel = periodLabels[period] || period
 
       const meetings = rawMeetings.map((m: any) => {
         const attendeesRaw = Array.isArray(m.attendees) ? m.attendees : []
