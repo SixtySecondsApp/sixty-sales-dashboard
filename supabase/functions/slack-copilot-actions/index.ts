@@ -66,21 +66,30 @@ serve(async (req) => {
   try {
     const contentType = req.headers.get('content-type') || '';
     
-    // Handle Slack URL verification
+    // Handle Slack URL verification and JSON payloads
     if (contentType.includes('application/json')) {
       const body = await req.json();
-      
+
       // URL verification challenge
       if (body.type === 'url_verification') {
         return new Response(body.challenge, {
           headers: { 'Content-Type': 'text/plain' },
         });
       }
-      
+
       // Event callback (threaded replies)
       if (body.type === 'event_callback') {
         await handleSlackEvent(supabase, body.event);
         return new Response('ok', { headers: corsHeaders });
+      }
+
+      // Forwarded from slack-interactive (JSON body with type: 'block_actions')
+      if (body.type === 'block_actions' && body.actions) {
+        console.log('[slack-copilot-actions] Received forwarded action from slack-interactive');
+        await handleSlackInteraction(supabase, body as SlackInteraction);
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
     }
     
