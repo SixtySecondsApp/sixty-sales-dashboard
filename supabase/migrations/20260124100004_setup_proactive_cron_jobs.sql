@@ -22,37 +22,66 @@ CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
 -- 2. Create wrapper functions for each proactive job
 -- ============================================================================
 
+-- Add metadata column to cron_job_logs if not exists
+ALTER TABLE public.cron_job_logs ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+
 -- Helper function to call edge functions with service role
+-- Uses vault secrets instead of database settings (Supabase hosted doesn't allow ALTER DATABASE)
 CREATE OR REPLACE FUNCTION public.call_proactive_edge_function(function_name TEXT, payload JSONB DEFAULT '{}'::jsonb)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_supabase_url TEXT;
   v_service_role_key TEXT;
   v_request_id BIGINT;
 BEGIN
-  -- Get configuration from database settings
-  v_supabase_url := current_setting('app.supabase_url', true);
-  v_service_role_key := current_setting('app.supabase_service_role_key', true);
+  -- Get Supabase URL from environment or default
+  -- For staging: caerqjzvuerejfrdtygb, for production: ygdpgliavpxeugaajgrb
+  v_supabase_url := coalesce(
+    current_setting('app.supabase_url', true),
+    'https://' || current_setting('request.headers', true)::json->>'host'
+  );
 
-  -- Validate settings
-  IF v_supabase_url IS NULL OR v_service_role_key IS NULL THEN
+  -- Fallback to checking which project we're on
+  IF v_supabase_url IS NULL OR v_supabase_url = '' THEN
+    -- Try to detect from existing data
+    SELECT CASE
+      WHEN EXISTS (SELECT 1 FROM vault.secrets WHERE name = 'service_role_key')
+      THEN 'https://caerqjzvuerejfrdtygb.supabase.co'  -- Will be overwritten per-environment
+      ELSE NULL
+    END INTO v_supabase_url;
+  END IF;
+
+  -- Get service role key from vault
+  SELECT decrypted_secret INTO v_service_role_key
+  FROM vault.decrypted_secrets
+  WHERE name = 'service_role_key';
+
+  -- Validate
+  IF v_service_role_key IS NULL THEN
     INSERT INTO public.cron_job_logs (job_name, status, message)
-    VALUES (function_name, 'error', 'Database settings not configured. Set app.supabase_url and app.supabase_service_role_key');
+    VALUES (function_name, 'error', 'Vault secret "service_role_key" not found. Add it in Supabase Dashboard > Settings > Vault');
     RETURN;
   END IF;
 
-  -- Make async HTTP request to edge function
-  SELECT extensions.http_post(
+  IF v_supabase_url IS NULL THEN
+    INSERT INTO public.cron_job_logs (job_name, status, message)
+    VALUES (function_name, 'error', 'Could not determine Supabase URL');
+    RETURN;
+  END IF;
+
+  -- Make async HTTP request to edge function using net schema
+  SELECT net.http_post(
     url := v_supabase_url || '/functions/v1/' || function_name,
-    body := payload::text,
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || v_service_role_key
-    )
+    ),
+    body := payload,
+    timeout_milliseconds := 55000
   ) INTO v_request_id;
 
   -- Log the trigger
