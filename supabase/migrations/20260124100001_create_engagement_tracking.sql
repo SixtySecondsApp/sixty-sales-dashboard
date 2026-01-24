@@ -68,6 +68,11 @@ CREATE INDEX IF NOT EXISTS idx_engagement_sequence
 -- RLS policies
 ALTER TABLE copilot_engagement_events ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist (for idempotency)
+DROP POLICY IF EXISTS "Users can read own engagement events" ON copilot_engagement_events;
+DROP POLICY IF EXISTS "Admins can read org engagement events" ON copilot_engagement_events;
+DROP POLICY IF EXISTS "Service role can insert engagement events" ON copilot_engagement_events;
+
 -- Users can only see their own engagement events
 CREATE POLICY "Users can read own engagement events"
   ON copilot_engagement_events FOR SELECT
