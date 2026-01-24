@@ -19,7 +19,45 @@ interface SequenceStep {
   on_failure?: 'stop' | 'continue' | 'fallback';
   fallback_skill_key?: string;
   requires_approval?: boolean; // For write actions that need approval
+  // REL-001: Retry configuration
+  max_retries?: number; // Maximum retry attempts (default: 0)
+  // REL-003: Timeout configuration
+  timeout_ms?: number; // Step timeout in milliseconds (default: 30000)
 }
+
+// REL-001: Transient error detection for retry eligibility
+const TRANSIENT_ERROR_PATTERNS = [
+  /network/i,
+  /timeout/i,
+  /ETIMEDOUT/i,
+  /ECONNRESET/i,
+  /ECONNREFUSED/i,
+  /fetch failed/i,
+  /service unavailable/i,
+  /503/,
+  /504/,
+  /429/, // Rate limiting
+];
+
+function isTransientError(error: string | undefined): boolean {
+  if (!error) return false;
+  return TRANSIENT_ERROR_PATTERNS.some(pattern => pattern.test(error));
+}
+
+// REL-001: Calculate exponential backoff delay
+function getRetryDelay(attempt: number): number {
+  // Exponential backoff: 100ms, 200ms, 400ms, 800ms...
+  const baseDelay = 100;
+  return baseDelay * Math.pow(2, attempt);
+}
+
+// REL-001: Sleep utility for retry delays
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// REL-003: Default timeout for steps
+const DEFAULT_STEP_TIMEOUT_MS = 30000;
 
 /**
  * Resolve a single variable path like "outputs.lead_data.leads[0].contact.name"
@@ -229,64 +267,142 @@ export async function executeSequence(
     let result: SkillResult;
     let stepType: 'skill' | 'action' = skillKey ? 'skill' : 'action';
 
-    // Execute step based on type
-    if (skillKey) {
-      // Execute skill
-      console.log(`[sequenceExecutor] Executing skill: ${skillKey}`);
-      result = await executeAgentSkillWithContract(supabase, {
-        organizationId,
-        userId,
-        skillKey,
-        context: input,
-        dryRun: isSimulation,
-      });
-    } else if (actionKey) {
-      // Execute action (requires approval if requires_approval is true and not simulation)
-      console.log(`[sequenceExecutor] Executing action: ${actionKey}`);
-      const actionInput = { ...input };
-      // Safety: simulation mode should never perform write actions (ignore confirm even if provided in mapping)
-      if (isSimulation) {
-        delete (actionInput as any).confirm;
+    // REL-001 & REL-003: Retry and timeout configuration
+    const maxRetries = step.max_retries ?? 0;
+    const timeoutMs = step.timeout_ms ?? DEFAULT_STEP_TIMEOUT_MS;
+    let retryCount = 0;
+    const retryAttempts: Array<{ attempt: number; error: string; delay_ms: number }> = [];
+
+    // REL-001: Retry loop with exponential backoff
+    while (true) {
+      let stepExecutionError: string | undefined;
+      let timedOut = false;
+
+      try {
+        // REL-003: Create AbortController for timeout
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => {
+          abortController.abort();
+        }, timeoutMs);
+
+        // Execute step based on type with timeout wrapper
+        const executeStepWithTimeout = async (): Promise<SkillResult> => {
+          if (skillKey) {
+            // Execute skill
+            console.log(`[sequenceExecutor] Executing skill: ${skillKey}${retryCount > 0 ? ` (retry ${retryCount}/${maxRetries})` : ''}`);
+            return await executeAgentSkillWithContract(supabase, {
+              organizationId,
+              userId,
+              skillKey,
+              context: input,
+              dryRun: isSimulation,
+            });
+          } else if (actionKey) {
+            // Execute action (requires approval if requires_approval is true and not simulation)
+            console.log(`[sequenceExecutor] Executing action: ${actionKey}${retryCount > 0 ? ` (retry ${retryCount}/${maxRetries})` : ''}`);
+            const actionInput = { ...input };
+            // Safety: simulation mode should never perform write actions (ignore confirm even if provided in mapping)
+            if (isSimulation) {
+              delete (actionInput as any).confirm;
+            }
+            if (step.requires_approval && !isSimulation) {
+              // In real execution, approval would be checked here
+              // For now, we'll set confirm=true if requires_approval is set
+              actionInput.confirm = true;
+            }
+
+            const actionResult = await executeAction(
+              supabase,
+              userId,
+              organizationId,
+              actionKey as ExecuteActionName,
+              actionInput
+            );
+
+            // In simulation, convert "needs_confirmation" into a successful dry-run with preview payload.
+            // This allows sequences to complete without side effects while still returning useful outputs.
+            const normalizedActionResult = (isSimulation && actionResult.needs_confirmation && actionResult.preview)
+              ? { ...actionResult, success: true, data: actionResult.preview, error: undefined }
+              : actionResult;
+
+            // Convert ActionResult to SkillResult format
+            return {
+              status: normalizedActionResult.success ? 'success' : 'failed',
+              error: normalizedActionResult.error || undefined,
+              summary: normalizedActionResult.success
+                ? `Action ${actionKey} completed successfully`
+                : `Action ${actionKey} failed: ${normalizedActionResult.error || 'Unknown error'}`,
+              data: normalizedActionResult.data || {},
+              references: [],
+              meta: {
+                skill_id: actionKey,
+                skill_version: '1.0',
+                execution_time_ms: Date.now() - stepStart,
+                model: undefined,
+              },
+            };
+          } else {
+            // This shouldn't happen due to earlier validation, but keep as safety net
+            throw new Error(`Step ${i + 1} has neither skill_key nor action`);
+          }
+        };
+
+        // Race between execution and timeout
+        result = await Promise.race([
+          executeStepWithTimeout(),
+          new Promise<never>((_, reject) => {
+            abortController.signal.addEventListener('abort', () => {
+              reject(new Error(`Step ${i + 1} timed out after ${timeoutMs}ms`));
+            });
+          }),
+        ]);
+
+        clearTimeout(timeoutId);
+        stepExecutionError = result.status === 'failed' ? result.error : undefined;
+
+      } catch (err) {
+        // REL-003: Handle timeout errors
+        const errorStr = err instanceof Error ? err.message : String(err);
+        timedOut = errorStr.includes('timed out');
+        stepExecutionError = errorStr;
+
+        result = {
+          status: 'failed',
+          error: errorStr,
+          summary: timedOut
+            ? `Step ${i + 1} timed out after ${timeoutMs}ms`
+            : `Step ${i + 1} failed: ${errorStr}`,
+          data: {},
+          references: [],
+          meta: {
+            skill_id: skillKey || actionKey,
+            skill_version: '1.0',
+            execution_time_ms: Date.now() - stepStart,
+            model: undefined,
+            timed_out: timedOut,
+            timeout_ms: timedOut ? timeoutMs : undefined,
+          },
+        };
       }
-      if (step.requires_approval && !isSimulation) {
-        // In real execution, approval would be checked here
-        // For now, we'll set confirm=true if requires_approval is set
-        actionInput.confirm = true;
+
+      // REL-001: Check if we should retry
+      if (result.status === 'failed' && retryCount < maxRetries && isTransientError(stepExecutionError)) {
+        const delayMs = getRetryDelay(retryCount);
+        console.log(`[sequenceExecutor] Step ${i + 1} failed with transient error, retrying in ${delayMs}ms (attempt ${retryCount + 1}/${maxRetries})`);
+
+        retryAttempts.push({
+          attempt: retryCount + 1,
+          error: stepExecutionError || 'Unknown error',
+          delay_ms: delayMs,
+        });
+
+        await sleep(delayMs);
+        retryCount++;
+        continue; // Retry the step
       }
 
-      const actionResult = await executeAction(
-        supabase,
-        userId,
-        organizationId,
-        actionKey as ExecuteActionName,
-        actionInput
-      );
-
-      // In simulation, convert "needs_confirmation" into a successful dry-run with preview payload.
-      // This allows sequences to complete without side effects while still returning useful outputs.
-      const normalizedActionResult = (isSimulation && actionResult.needs_confirmation && actionResult.preview)
-        ? { ...actionResult, success: true, data: actionResult.preview, error: undefined }
-        : actionResult;
-
-      // Convert ActionResult to SkillResult format
-      result = {
-        status: normalizedActionResult.success ? 'success' : 'failed',
-        error: normalizedActionResult.error || undefined,
-        summary: normalizedActionResult.success
-          ? `Action ${actionKey} completed successfully`
-          : `Action ${actionKey} failed: ${normalizedActionResult.error || 'Unknown error'}`,
-        data: normalizedActionResult.data || {},
-        references: [],
-        meta: {
-          skill_id: actionKey,
-          skill_version: '1.0',
-          execution_time_ms: Date.now() - stepStart,
-          model: undefined,
-        },
-      };
-    } else {
-      // This shouldn't happen due to earlier validation, but keep as safety net
-      throw new Error(`Step ${i + 1} has neither skill_key nor action`);
+      // Step completed (success or non-retryable failure)
+      break;
     }
 
     // Handle failure strategy
@@ -336,6 +452,13 @@ export async function executeSequence(
       started_at: stepStartedAt,
       completed_at: stepCompletedAt,
       duration_ms: durationMs,
+      // REL-001: Retry information
+      retry_count: retryCount,
+      max_retries: maxRetries,
+      retry_attempts: retryAttempts.length > 0 ? retryAttempts : undefined,
+      // REL-003: Timeout information
+      timeout_ms: timeoutMs,
+      timed_out: result.meta?.timed_out || false,
       references: result.references || [],
       meta: result.meta || {},
       requires_approval: step.requires_approval || false,
@@ -381,6 +504,39 @@ export async function executeSequence(
     })
     .eq('id', executionId);
 
+  // =========================================================================
+  // ENGAGE-002: Log value tracking for sequence execution
+  // =========================================================================
+  if (overallStatus !== 'failed' && !isSimulation) {
+    try {
+      // Estimate time saved based on sequence complexity
+      const estimatedTimeSaved = estimateTimeSaved(sequenceKey, stepResults.length);
+      
+      // Determine outcome type from final output
+      const outcomeType = determineOutcomeType(sequenceKey, finalOutput);
+      
+      await supabase.rpc('log_copilot_engagement', {
+        p_org_id: organizationId,
+        p_user_id: userId,
+        p_event_type: 'sequence_executed',
+        p_trigger_type: 'reactive', // Will be overridden by caller if proactive
+        p_channel: 'copilot',
+        p_sequence_key: sequenceKey,
+        p_estimated_time_saved: estimatedTimeSaved,
+        p_outcome_type: outcomeType,
+        p_metadata: {
+          execution_id: executionId,
+          steps_completed: stepResults.filter(s => s.status === 'success' || s.status === 'partial').length,
+          total_steps: stepResults.length,
+          total_duration_ms: stepResults.reduce((sum, s) => sum + (s.duration_ms || 0), 0),
+        },
+      });
+    } catch (engageError) {
+      // Non-blocking - don't fail the sequence for engagement tracking
+      console.warn('[sequenceExecutor] Failed to log engagement:', engageError);
+    }
+  }
+
   return {
     success: overallStatus !== 'failed',
     execution_id: executionId,
@@ -392,5 +548,64 @@ export async function executeSequence(
     final_output: finalOutput,
     error: errorMessage,
   };
+}
+
+// =========================================================================
+// ENGAGE-002: Value estimation helpers
+// =========================================================================
+
+/**
+ * Estimate time saved based on sequence type and complexity
+ */
+function estimateTimeSaved(sequenceKey: string, stepCount: number): number {
+  // Base estimates per sequence type (in minutes)
+  const baseEstimates: Record<string, number> = {
+    'seq-next-meeting-command-center': 5,
+    'seq-post-meeting-followup-pack': 4,
+    'seq-deal-rescue-pack': 6,
+    'seq-pipeline-focus-tasks': 3,
+    'seq-catch-me-up': 2,
+    'seq-followup-zero-inbox': 5,
+    'seq-event-follow-up': 4,
+  };
+
+  const base = baseEstimates[sequenceKey] || 3;
+  
+  // Add time for additional steps (0.5 min per step over 3)
+  const stepBonus = Math.max(0, stepCount - 3) * 0.5;
+  
+  return Math.round(base + stepBonus);
+}
+
+/**
+ * Determine outcome type from sequence key and output
+ */
+function determineOutcomeType(
+  sequenceKey: string,
+  finalOutput: any
+): 'email_sent' | 'task_created' | 'deal_updated' | 'meeting_scheduled' | 'research_completed' | 'prep_generated' | 'no_outcome' {
+  // Map sequence keys to expected outcomes
+  const sequenceOutcomes: Record<string, string> = {
+    'seq-next-meeting-command-center': 'prep_generated',
+    'seq-post-meeting-followup-pack': 'email_sent',
+    'seq-deal-rescue-pack': 'deal_updated',
+    'seq-pipeline-focus-tasks': 'task_created',
+    'seq-catch-me-up': 'prep_generated',
+    'seq-followup-zero-inbox': 'email_sent',
+    'seq-event-follow-up': 'email_sent',
+  };
+
+  const outcome = sequenceOutcomes[sequenceKey];
+  if (outcome) return outcome as any;
+
+  // Infer from output
+  const outputs = finalOutput?.outputs || {};
+  if (outputs.email_draft || outputs.email) return 'email_sent';
+  if (outputs.tasks || outputs.task_pack) return 'task_created';
+  if (outputs.meeting_brief || outputs.prep) return 'prep_generated';
+  if (outputs.research || outputs.enrichment) return 'research_completed';
+  if (outputs.deal_update) return 'deal_updated';
+
+  return 'no_outcome';
 }
 
