@@ -1285,10 +1285,10 @@ export function createDbCrmAdapter(client: SupabaseClient, userId: string): CRMA
         }
 
         const selectFields = includeHealth
-          ? `id,name,company,value,stage_id,status,expected_close_date,probability,created_at,updated_at,
+          ? `id,name,company,contact_name,contact_email,value,stage_id,status,expected_close_date,probability,created_at,updated_at,
              deal_stages(name),
              deal_health_scores(health_status,risk_level,days_since_last_activity,days_in_current_stage,overall_health_score)`
-          : `id,name,company,value,stage_id,status,expected_close_date,probability,created_at,updated_at,
+          : `id,name,company,contact_name,contact_email,value,stage_id,status,expected_close_date,probability,created_at,updated_at,
              deal_stages(name)`;
 
         let q = client
@@ -1326,6 +1326,8 @@ export function createDbCrmAdapter(client: SupabaseClient, userId: string): CRMA
             id: deal.id,
             name: deal.name,
             company: deal.company,
+            contact_name: deal.contact_name || null,
+            contact_email: deal.contact_email || null,
             value: deal.value,
             stage_name: stageData?.name || 'Unknown',
             status: deal.status,

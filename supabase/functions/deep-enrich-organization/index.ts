@@ -19,6 +19,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { loadPrompt, interpolateVariables } from '../_shared/promptLoader.ts';
+import { invalidatePersonaCache } from '../_shared/salesCopilotPersona.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -441,6 +442,10 @@ async function runManualEnrichmentPipeline(
     // Save skill-derived context (brand_tone, words_to_avoid, etc.)
     await saveSkillDerivedContext(supabase, organizationId, skills, 'manual', 0.70);
 
+    // AGENT-003: Invalidate persona cache so it regenerates with new data
+    await invalidatePersonaCache(supabase, organizationId);
+    console.log(`[ManualPipeline] Invalidated persona cache for org ${organizationId}`);
+
     console.log(`[ManualPipeline] Enrichment complete for ${manualData.company_name}`);
 
   } catch (error) {
@@ -611,6 +616,10 @@ async function runEnrichmentPipeline(
 
     // Save skill-derived context (brand_tone, words_to_avoid, etc.)
     await saveSkillDerivedContext(supabase, organizationId, skills, 'enrichment', 0.85);
+
+    // AGENT-003: Invalidate persona cache so it regenerates with new data
+    await invalidatePersonaCache(supabase, organizationId);
+    console.log(`[Pipeline] Invalidated persona cache for org ${organizationId}`);
 
     console.log(`[Pipeline] Enrichment complete for ${domain}`);
 
