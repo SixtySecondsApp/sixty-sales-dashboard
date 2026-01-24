@@ -161,7 +161,10 @@ export function DailyFocusPlanResponse({ data }: Props) {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => { window.location.href = '/tasks'; }}
+              onClick={() => {
+                if (onActionClick) return onActionClick({ action: 'open_task', data: {} });
+                window.location.href = '/tasks';
+              }}
               className="gap-2"
             >
               <ExternalLink className="w-4 h-4" />

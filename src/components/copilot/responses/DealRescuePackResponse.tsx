@@ -10,7 +10,7 @@ interface Props {
   onActionClick?: (action: any) => void;
 }
 
-export function DealRescuePackResponse({ data }: Props) {
+export function DealRescuePackResponse({ data, onActionClick }: Props) {
   const { sendMessage, isLoading } = useCopilot();
   const { deal, plan, taskPreview, isSimulation } = data.data;
 
@@ -64,7 +64,10 @@ export function DealRescuePackResponse({ data }: Props) {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => { window.location.href = `/crm/deals/${dealId}`; }}
+              onClick={() => {
+                if (onActionClick) return onActionClick({ action: 'open_deal', data: { dealId } });
+                window.location.href = `/crm/deals/${dealId}`;
+              }}
               className="gap-2"
             >
               <ExternalLink className="w-4 h-4" />
@@ -130,7 +133,10 @@ export function DealRescuePackResponse({ data }: Props) {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => { window.location.href = '/tasks'; }}
+              onClick={() => {
+                if (onActionClick) return onActionClick({ action: 'open_task', data: {} });
+                window.location.href = '/tasks';
+              }}
               className="gap-2"
             >
               <ExternalLink className="w-4 h-4" />

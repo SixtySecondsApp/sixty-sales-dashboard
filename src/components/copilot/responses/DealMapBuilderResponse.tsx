@@ -10,7 +10,7 @@ interface Props {
   onActionClick?: (action: any) => void;
 }
 
-export function DealMapBuilderResponse({ data }: Props) {
+export function DealMapBuilderResponse({ data, onActionClick }: Props) {
   const { sendMessage, isLoading } = useCopilot();
   const { deal, plan, taskPreview, isSimulation } = data.data;
 
@@ -68,7 +68,10 @@ export function DealMapBuilderResponse({ data }: Props) {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => { window.location.href = `/crm/deals/${dealId}`; }}
+              onClick={() => {
+                if (onActionClick) return onActionClick({ action: 'open_deal', data: { dealId } });
+                window.location.href = `/crm/deals/${dealId}`;
+              }}
               className="gap-2"
             >
               <ExternalLink className="w-4 h-4" />
@@ -126,7 +129,10 @@ export function DealMapBuilderResponse({ data }: Props) {
                 Create top MAP task
               </Button>
             ) : (
-              <Button variant="secondary" size="sm" onClick={() => { window.location.href = '/tasks'; }} className="gap-2">
+              <Button variant="secondary" size="sm" onClick={() => {
+                if (onActionClick) return onActionClick({ action: 'open_task', data: {} });
+                window.location.href = '/tasks';
+              }} className="gap-2">
                 <ExternalLink className="w-4 h-4" />
                 View tasks
               </Button>

@@ -126,7 +126,10 @@ export function DealSlippageGuardrailsResponse({ data }: Props) {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => { window.location.href = `/crm/deals/${dealId}`; }}
+                onClick={() => {
+                  if (onActionClick) return onActionClick({ action: 'open_deal', data: { dealId } });
+                  window.location.href = `/crm/deals/${dealId}`;
+                }}
                 className="gap-2"
               >
                 <ExternalLink className="w-4 h-4" />
