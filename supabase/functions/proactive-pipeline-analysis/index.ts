@@ -106,36 +106,38 @@ serve(async (req) => {
 
 async function analyzeAllUsers(supabase: any): Promise<{ success: boolean; summaries: UserPipelineSummary[] }> {
   console.log('[Pipeline] Starting analysis for all users...');
-  
-  // Get all active users with proactive notifications enabled
-  const { data: users, error: usersError } = await supabase
-    .from('profiles')
-    .select(`
-      id,
-      first_name,
-      last_name,
-      email,
-      organization_memberships!inner(org_id)
-    `)
-    .eq('is_active', true);
 
-  if (usersError) {
-    throw new Error(`Failed to fetch users: ${usersError.message}`);
+  // Get all organization memberships first
+  const { data: memberships, error: membershipsError } = await supabase
+    .from('organization_memberships')
+    .select('user_id, org_id');
+
+  if (membershipsError) {
+    throw new Error(`Failed to fetch memberships: ${membershipsError.message}`);
   }
+
+  // Deduplicate by user (take first org per user)
+  const userOrgMap = new Map<string, string>();
+  for (const m of memberships || []) {
+    if (!userOrgMap.has(m.user_id)) {
+      userOrgMap.set(m.user_id, m.org_id);
+    }
+  }
+
+  console.log(`[Pipeline] Found ${userOrgMap.size} users with org memberships`);
 
   const summaries: UserPipelineSummary[] = [];
 
-  for (const user of users || []) {
-    const orgId = user.organization_memberships?.[0]?.org_id;
+  for (const [userId, orgId] of userOrgMap) {
     if (!orgId) continue;
 
     try {
-      const summary = await analyzeUserPipeline(supabase, user.id, orgId);
+      const summary = await analyzeUserPipeline(supabase, userId, orgId);
       if (summary.insights.length > 0) {
         summaries.push(summary);
       }
     } catch (err) {
-      console.error(`[Pipeline] Failed to analyze user ${user.id}:`, err);
+      console.error(`[Pipeline] Failed to analyze user ${userId}:`, err);
     }
   }
 
