@@ -100,26 +100,41 @@ async function callLambdaThumbnailGenerator(
 
     console.log(`[Thumbnail] Calling Lambda for ${s3Key} at ${timestampSeconds}s`);
 
+    console.log(`[Thumbnail] Lambda URL: ${lambdaUrl}`);
+    console.log(`[Thumbnail] API key configured: ${!!lambdaApiKey}`);
+    console.log(`[Thumbnail] Video URL length: ${videoUrl.length} chars`);
+    console.log(`[Thumbnail] Timestamp: ${timestampSeconds}s`);
+
+    const requestBody = {
+      // Use fathom_url field - the Lambda accepts any video URL
+      fathom_url: videoUrl,
+      timestamp_seconds: timestampSeconds,
+    };
+
     const response = await fetch(lambdaUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(lambdaApiKey && { 'x-api-key': lambdaApiKey }),
       },
-      body: JSON.stringify({
-        // Use fathom_url field - the Lambda accepts any video URL
-        fathom_url: videoUrl,
-        timestamp_seconds: timestampSeconds,
-      }),
-      signal: AbortSignal.timeout(60000), // 60 second timeout for video processing
+      body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(90000), // 90 second timeout for video processing
     });
 
+    const responseText = await response.text();
+    console.log(`[Thumbnail] Lambda response status: ${response.status}`);
+    console.log(`[Thumbnail] Lambda response body: ${responseText.substring(0, 500)}`);
+
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Lambda error: ${response.status} - ${errorText}`);
+      throw new Error(`Lambda error: ${response.status} - ${responseText}`);
     }
 
-    const result = await response.json();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      throw new Error(`Lambda returned invalid JSON: ${responseText.substring(0, 200)}`);
+    }
 
     // Lambda returns http_url and s3_location
     if (result.http_url || result.thumbnail_url) {
@@ -163,16 +178,31 @@ async function generatePlaceholderThumbnail(
 
   const bucketName = Deno.env.get('AWS_S3_BUCKET') || 'use60-application';
 
-  // Create a simple SVG placeholder with meeting initial
+  // Create a video-themed SVG placeholder with meeting info
   const initial = (meetingTitle || 'M')[0].toUpperCase();
   const colors = ['#4F46E5', '#7C3AED', '#2563EB', '#0891B2', '#059669'];
   const color = colors[initial.charCodeAt(0) % colors.length];
+  const truncatedTitle = (meetingTitle || 'Recording').substring(0, 40);
 
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="480" height="270" viewBox="0 0 480 270">
-      <rect width="480" height="270" fill="${color}"/>
-      <text x="240" y="150" font-family="Arial, sans-serif" font-size="100" fill="white" text-anchor="middle" dominant-baseline="middle">${initial}</text>
-      <text x="240" y="220" font-family="Arial, sans-serif" font-size="16" fill="rgba(255,255,255,0.7)" text-anchor="middle">60 Notetaker Recording</text>
+      <defs>
+        <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:${color};stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#1E1E2E;stop-opacity:1" />
+        </linearGradient>
+      </defs>
+      <rect width="480" height="270" fill="url(#bgGrad)"/>
+      <!-- Play button circle -->
+      <circle cx="240" cy="120" r="40" fill="rgba(255,255,255,0.2)"/>
+      <polygon points="230,100 260,120 230,140" fill="white"/>
+      <!-- Meeting title -->
+      <text x="240" y="190" font-family="Arial, sans-serif" font-size="14" fill="white" text-anchor="middle" font-weight="bold">${truncatedTitle}</text>
+      <!-- Subtitle -->
+      <text x="240" y="215" font-family="Arial, sans-serif" font-size="12" fill="rgba(255,255,255,0.7)" text-anchor="middle">60 Notetaker Recording</text>
+      <!-- Initial badge -->
+      <circle cx="420" cy="40" r="25" fill="rgba(255,255,255,0.3)"/>
+      <text x="420" y="47" font-family="Arial, sans-serif" font-size="20" fill="white" text-anchor="middle" dominant-baseline="middle" font-weight="bold">${initial}</text>
     </svg>
   `;
 
