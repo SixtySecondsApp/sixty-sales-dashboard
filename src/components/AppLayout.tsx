@@ -91,6 +91,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const trialStatus = useTrialStatus(activeOrgId);
   const location = useLocation();
 
+  // Check if user has integration that needs reconnection (must be before isIntegrationBannerVisible)
+  const { needsReconnect: integrationNeedsReconnect } = useIntegrationReconnectNeeded();
+
   // Check if trial banner should be showing (same logic as TrialBanner component)
   const isTrialBannerVisible = useMemo(() => {
     // Check for simulation data
@@ -170,9 +173,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Check if user needs to set up their password (magic link users)
   const { needsSetup: needsPasswordSetup, completeSetup: completePasswordSetup } = usePasswordSetupRequired();
-
-  // Check if user has integration that needs reconnection
-  const { needsReconnect: integrationNeedsReconnect } = useIntegrationReconnectNeeded();
 
   // Open/close QuickAdd via global modal events
   useEventListener('modal:opened', ({ type, context }) => {
