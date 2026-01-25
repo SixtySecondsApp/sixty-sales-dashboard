@@ -334,6 +334,15 @@ async function generateThumbnail(
     } else {
       await supabase.from('meetings').update(updateFields).eq('id', targetId);
     }
+
+    // Also update the linked meeting/recording if applicable (same as Lambda success path)
+    if (targetTable === 'recordings' && bot_id) {
+      await supabase
+        .from('meetings')
+        .update(updateFields)
+        .eq('bot_id', bot_id)
+        .eq('source_type', '60_notetaker');
+    }
   }
 
   return placeholderResult;
