@@ -131,6 +131,15 @@ const platformSections: Record<string, PlatformSection[]> = {
       badge: 'New',
     },
     {
+      id: 'api-usage',
+      title: '60 Notetaker Build',
+      description: 'Monitor MeetingBaaS, Gladia, and Deepgram usage against plan limits',
+      icon: Activity,
+      href: '/platform/60-notetaker-build',
+      color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30',
+      badge: 'New',
+    },
+    {
       id: 'billing-analytics',
       title: 'Billing Analytics',
       description: 'RevenueCat-inspired subscription metrics (MRR, churn, retention, LTV)',

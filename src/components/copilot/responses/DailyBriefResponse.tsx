@@ -181,11 +181,15 @@ export function DailyBriefResponse({ data, onActionClick }: Props) {
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-white truncate">{meeting.title}</div>
                   <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
-                    <Clock className="w-3 h-3" />
-                    <span>{formatTime(meeting.startTime)}</span>
+                    {formatTime(meeting.startTime) && (
+                      <>
+                        <Clock className="w-3 h-3" />
+                        <span>{formatTime(meeting.startTime)}</span>
+                      </>
+                    )}
                     {meeting.attendees && meeting.attendees.length > 0 && (
                       <>
-                        <span>•</span>
+                        {formatTime(meeting.startTime) && <span>•</span>}
                         <span>{meeting.attendees.length} attendee{meeting.attendees.length !== 1 ? 's' : ''}</span>
                       </>
                     )}
@@ -465,10 +469,12 @@ export function DailyBriefResponse({ data, onActionClick }: Props) {
               >
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-white truncate">{meeting.title}</div>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
-                    <Clock className="w-3 h-3" />
-                    <span>{formatTime(meeting.startTime)}</span>
-                  </div>
+                  {formatTime(meeting.startTime) && (
+                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                      <Clock className="w-3 h-3" />
+                      <span>{formatTime(meeting.startTime)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -499,12 +505,15 @@ function getDefaultGreeting(timeOfDay: 'morning' | 'afternoon' | 'evening'): str
   }
 }
 
-function formatTime(isoString: string): string {
+function formatTime(isoString: string | undefined | null): string {
   try {
+    if (!isoString) return '';
     const date = new Date(isoString);
+    // Check for Invalid Date - getTime() returns NaN for invalid dates
+    if (isNaN(date.getTime())) return '';
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   } catch {
-    return isoString;
+    return '';
   }
 }
 
@@ -517,19 +526,22 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-function formatRelativeDate(isoString: string): string {
+function formatRelativeDate(isoString: string | undefined | null): string {
   try {
+    if (!isoString) return '';
     const date = new Date(isoString);
+    // Check for Invalid Date
+    if (isNaN(date.getTime())) return '';
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${Math.floor(diffDays / 7) !== 1 ? 's' : ''} ago`;
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   } catch {
-    return isoString;
+    return '';
   }
 }
 

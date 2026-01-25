@@ -81,23 +81,29 @@ class RecordingService {
 
   /**
    * Get a fresh access token, refreshing if needed
+   * Uses a more aggressive refresh strategy to avoid stale token issues
    */
   private async getFreshAccessToken(): Promise<string | null> {
     // First try to get current session
     const { data: sessionData } = await supabase.auth.getSession();
 
     if (sessionData?.session?.access_token) {
-      // Check if token is expired or about to expire (within 60 seconds)
+      // Check if token is expired or about to expire (within 2 minutes buffer)
+      // Using 2 minutes instead of 60 seconds to be more conservative
       const expiresAt = sessionData.session.expires_at;
       const now = Math.floor(Date.now() / 1000);
 
-      if (expiresAt && expiresAt > now + 60) {
-        // Token is still valid
+      console.log('[RecordingService] Token check - expires_at:', expiresAt, 'now:', now, 'remaining:', expiresAt ? expiresAt - now : 'N/A', 'seconds');
+
+      if (expiresAt && expiresAt > now + 120) {
+        // Token is still valid with comfortable buffer
         return sessionData.session.access_token;
       }
+
+      console.warn('[RecordingService] Token expiring soon (within 120s), proactively refreshing');
     }
 
-    // Token is expired or missing - try to refresh
+    // Token is expired, expiring soon, or missing - try to refresh
     logger.info('[RecordingService] Token expired or missing, attempting refresh');
     const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
 
@@ -106,7 +112,25 @@ class RecordingService {
       return null;
     }
 
-    return refreshData?.session?.access_token || null;
+    // Verify the refreshed token is actually valid
+    if (!refreshData?.session?.access_token || !refreshData.session.expires_at) {
+      logger.error('[RecordingService] Refresh returned invalid session data');
+      return null;
+    }
+
+    const newExpiresAt = refreshData.session.expires_at;
+    const now = Math.floor(Date.now() / 1000);
+
+    if (newExpiresAt <= now) {
+      logger.error('[RecordingService] Refreshed token is already expired', {
+        expiresAt: newExpiresAt,
+        now,
+      });
+      return null;
+    }
+
+    logger.info('[RecordingService] Token refreshed successfully, expires in', newExpiresAt - now, 'seconds');
+    return refreshData.session.access_token;
   }
 
   /**
@@ -132,6 +156,12 @@ class RecordingService {
 
       const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL);
 
+      // Debug: log token info (first/last chars only for security)
+      const tokenPreview = accessToken.length > 20
+        ? `${accessToken.substring(0, 10)}...${accessToken.substring(accessToken.length - 10)}`
+        : '[short token]';
+      console.log('[RecordingService] Using token:', tokenPreview, 'length:', accessToken.length);
+
       // Make the request
       let response = await fetch(`${supabaseUrl}/functions/v1/deploy-recording-bot`, {
         method: 'POST',
@@ -148,14 +178,44 @@ class RecordingService {
 
       // Handle 401 with automatic retry after token refresh
       if (response.status === 401) {
-        logger.warn('[RecordingService] Got 401, attempting token refresh and retry');
+        // Log the error details from the response
+        try {
+          const errorBody = await response.clone().json();
+          console.error('[RecordingService] 401 error details:', JSON.stringify(errorBody, null, 2));
+        } catch (e) {
+          console.error('[RecordingService] Could not parse 401 error body');
+        }
+        console.warn('[RecordingService] Got 401, attempting token refresh and retry');
 
+        // Force a fresh session refresh
         const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
 
         if (refreshError || !refreshData?.session?.access_token) {
           logger.error('[RecordingService] Token refresh failed on 401 retry:', refreshError);
           return { success: false, error: 'Session expired. Please log in again.' };
         }
+
+        // Verify the refreshed token is actually new and valid
+        const newExpiresAt = refreshData.session.expires_at;
+        const now = Math.floor(Date.now() / 1000);
+
+        if (!newExpiresAt || newExpiresAt <= now) {
+          logger.error('[RecordingService] Refreshed token appears invalid or expired', {
+            expiresAt: newExpiresAt,
+            now,
+          });
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
+
+        // Log the new token preview for comparison
+        const newTokenPreview = refreshData.session.access_token.length > 20
+          ? `${refreshData.session.access_token.substring(0, 10)}...${refreshData.session.access_token.substring(refreshData.session.access_token.length - 10)}`
+          : '[short token]';
+        console.log('[RecordingService] Token refreshed, retrying request. New token:', newTokenPreview);
+
+        // Longer delay to ensure token propagation across Supabase services
+        // 500ms gives more buffer for distributed system sync
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         // Retry with fresh token
         response = await fetch(`${supabaseUrl}/functions/v1/deploy-recording-bot`, {
@@ -170,6 +230,19 @@ class RecordingService {
             calendar_event_id: params.calendarEventId,
           }),
         });
+
+        // If retry also fails with 401, don't auto-sign-out - just return an error
+        // The user can manually refresh the page or sign out if needed
+        if (response.status === 401) {
+          // Log second 401 error details too
+          try {
+            const errorBody2 = await response.clone().json();
+            console.error('[RecordingService] Retry ALSO failed with 401. Error details:', JSON.stringify(errorBody2, null, 2));
+          } catch (e) {
+            console.error('[RecordingService] Retry also failed with 401 (could not parse error body)');
+          }
+          return { success: false, error: 'Authentication failed. Please refresh the page and try again.' };
+        }
       }
 
       const result = await response.json();
@@ -235,6 +308,17 @@ class RecordingService {
           return { success: false, error: 'Session expired. Please log in again.' };
         }
 
+        // Verify the refreshed token is valid
+        const newExpiresAt = refreshData.session.expires_at;
+        const now = Math.floor(Date.now() / 1000);
+
+        if (!newExpiresAt || newExpiresAt <= now) {
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
+
+        // Longer delay to ensure token propagation
+        await new Promise(resolve => setTimeout(resolve, 500));
+
         response = await fetch(`${supabaseUrl}/functions/v1/stop-recording-bot`, {
           method: 'POST',
           headers: {
@@ -245,6 +329,11 @@ class RecordingService {
             recording_id: recordingId,
           }),
         });
+
+        // If retry also fails with 401, return error without auto-sign-out
+        if (response.status === 401) {
+          return { success: false, error: 'Authentication failed. Please refresh the page and try again.' };
+        }
       }
 
       const result = await response.json();
@@ -414,6 +503,17 @@ class RecordingService {
           return { success: false, error: 'Session expired. Please log in again.' };
         }
 
+        // Verify the refreshed token is valid
+        const newExpiresAt = refreshData.session.expires_at;
+        const now = Math.floor(Date.now() / 1000);
+
+        if (!newExpiresAt || newExpiresAt <= now) {
+          return { success: false, error: 'Session expired. Please log in again.' };
+        }
+
+        // Longer delay to ensure token propagation
+        await new Promise(resolve => setTimeout(resolve, 500));
+
         response = await fetch(
           `${supabaseUrl}/functions/v1/get-recording-url?recording_id=${recordingId}`,
           {
@@ -423,6 +523,11 @@ class RecordingService {
             },
           }
         );
+
+        // If retry also fails with 401, return error without auto-sign-out
+        if (response.status === 401) {
+          return { success: false, error: 'Authentication failed. Please refresh the page and try again.' };
+        }
       }
 
       const result = await response.json();

@@ -45,7 +45,7 @@ export function IntegrationReconnectBanner({
 
       const { data, error } = await supabase
         .from('integration_alerts')
-        .select('id, integration_type, title, message, severity, created_at')
+        .select('id, integration_name, title, message, severity, created_at')
         .eq('user_id', user.id)
         .is('resolved_at', null)
         .in('alert_type', ['token_revoked', 'token_expired', 'connection_failed'])
@@ -111,8 +111,8 @@ export function IntegrationReconnectBanner({
 
   // Use the most recent alert for display
   const primaryAlert = alerts[0];
-  const integrationName = getIntegrationName(primaryAlert.integration_type);
-  const reconnectUrl = getReconnectUrl(primaryAlert.integration_type);
+  const integrationName = getIntegrationName(primaryAlert.integration_name);
+  const reconnectUrl = getReconnectUrl(primaryAlert.integration_name);
   const hasMultipleAlerts = alerts.length > 1;
 
   return (

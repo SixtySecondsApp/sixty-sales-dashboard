@@ -15,7 +15,7 @@
 
 import { serve } from 'https://deno.land/std@0.190.0/http/server.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { S3Client, PutObjectCommand, HeadObjectCommand } from 'npm:@aws-sdk/client-s3@3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from 'npm:@aws-sdk/client-s3@3';
 import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3';
 import { handleCorsPreflightRequest, getCorsHeaders, jsonResponse, errorResponse } from '../_shared/corsHelper.ts';
 import { captureException, addBreadcrumb } from '../_shared/sentryEdge.ts';
@@ -42,6 +42,11 @@ type MeetingBaaSEventType =
   | 'calendar.deleted'
   | 'calendar.error'
   | 'calendar.sync_complete'
+  // Calendar event webhooks - dot notation (actual format from MeetingBaaS)
+  | 'calendar.event_created'
+  | 'calendar.event_updated'
+  | 'calendar.event_deleted'
+  // Calendar event webhooks - underscore notation (legacy/alternate format)
   | 'calendar_event.created'
   | 'calendar_event.updated'
   | 'calendar_event.deleted';
@@ -508,8 +513,8 @@ async function uploadRecordingToS3(
 
     await s3Client.send(putCommand);
 
-    // Generate a signed URL (7 days expiry)
-    const getCommand = new HeadObjectCommand({
+    // Generate a signed URL for downloading (7 days expiry)
+    const getCommand = new GetObjectCommand({
       Bucket: bucketName,
       Key: s3Key,
     });
@@ -979,8 +984,8 @@ async function handleBotCompleted(
     return { success: true };
   }
 
-  // transcription_provider is "none" - trigger process-recording with audio URL for Gladia transcription
-  console.log('[MeetingBaaS Webhook] transcription_provider is none - triggering process-recording with Gladia');
+  // transcription_provider is "none" - trigger process-recording (will try MeetingBaaS API, then fallback to external services)
+  console.log('[MeetingBaaS Webhook] transcription_provider is none - triggering process-recording');
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -1019,8 +1024,36 @@ async function handleBotCompleted(
 // Calendar Event Handlers
 // =============================================================================
 
+// MeetingBaaS calendar event instance (actual format from webhook)
+interface MeetingBaaSEventInstance {
+  event_id: string;
+  title?: string;
+  start: string; // ISO timestamp
+  end: string; // ISO timestamp
+  meeting_url?: string;
+  meeting_platform?: string;
+  bot_scheduled: boolean;
+  is_all_day?: boolean;
+  is_exception?: boolean;
+  status?: string;
+  attendees?: Array<{
+    email?: string;
+    name?: string;
+    response_status?: string;
+  }>;
+}
+
 interface MeetingBaaSCalendarEventData {
   calendar_id: string;
+  event_type?: 'one_off' | 'recurring';
+  series_id?: string;
+  series_bot_scheduled?: boolean;
+  is_exception?: boolean;
+  // Array of event instances (MeetingBaaS uses both "instances" and "affected_instances" depending on event type)
+  instances?: MeetingBaaSEventInstance[];
+  affected_instances?: MeetingBaaSEventInstance[];
+  // Legacy format fields for backward compatibility
+  bot_scheduled?: boolean;
   event?: {
     id?: string;
     summary?: string;
@@ -1050,21 +1083,28 @@ interface MeetingBaaSCalendarEventData {
 /**
  * Handle calendar event webhooks from MeetingBaaS
  * This syncs calendar events to our database so auto-join scheduler can deploy bots
+ *
+ * MeetingBaaS sends events in instances[] array format:
+ * { calendar_id, instances: [{ event_id, title, start, end, meeting_url, bot_scheduled, ... }] }
  */
 async function handleCalendarEvent(
   supabase: SupabaseClient,
   eventType: 'calendar_event.created' | 'calendar_event.updated' | 'calendar_event.deleted',
   data: MeetingBaaSCalendarEventData
 ): Promise<{ success: boolean; error?: string }> {
-  const { calendar_id: meetingbaasCalendarId, event: eventData, event_id: deletedEventId } = data;
+  const meetingbaasCalendarId = data.calendar_id;
 
   addBreadcrumb(`Processing ${eventType} for calendar: ${meetingbaasCalendarId}`, 'meetingbaas');
 
+  // MeetingBaaS uses "instances" for created events and "affected_instances" for updated events
+  const allInstances = data.instances || data.affected_instances || [];
+
   console.log(`[MeetingBaaS Webhook] ${eventType}:`, {
     meetingbaasCalendarId,
-    eventId: eventData?.id || deletedEventId,
-    summary: eventData?.summary,
-    hangoutLink: eventData?.hangoutLink,
+    instanceCount: allInstances.length,
+    instancesField: data.instances ? 'instances' : data.affected_instances ? 'affected_instances' : 'none',
+    seriesId: data.series_id,
+    eventType: data.event_type,
   });
 
   if (!meetingbaasCalendarId) {
@@ -1100,106 +1140,284 @@ async function handleCalendarEvent(
 
   const internalCalendarId = internalCalendar.id;
 
-  // Handle delete event
+  // Handle delete event - check both instances array and legacy event_id
   if (eventType === 'calendar_event.deleted') {
-    const eventIdToDelete = deletedEventId || eventData?.id;
-    if (!eventIdToDelete) {
+    const eventIds: string[] = [];
+
+    // Collect event IDs from instances/affected_instances array
+    if (allInstances.length > 0) {
+      eventIds.push(...allInstances.map(i => i.event_id));
+    }
+    // Legacy format
+    if (data.event_id) {
+      eventIds.push(data.event_id);
+    }
+    if (data.event?.id) {
+      eventIds.push(data.event.id);
+    }
+
+    if (eventIds.length === 0) {
       return { success: false, error: 'Missing event_id for delete' };
     }
 
-    const { error: deleteError } = await supabase
-      .from('calendar_events')
-      .delete()
-      .eq('external_id', eventIdToDelete)
-      .eq('calendar_id', internalCalendarId);
+    for (const eventIdToDelete of eventIds) {
+      const { error: deleteError } = await supabase
+        .from('calendar_events')
+        .delete()
+        .eq('external_id', eventIdToDelete)
+        .eq('calendar_id', internalCalendarId);
 
-    if (deleteError) {
-      console.error('[MeetingBaaS Webhook] Failed to delete event:', deleteError);
-      return { success: false, error: deleteError.message };
+      if (deleteError) {
+        console.error('[MeetingBaaS Webhook] Failed to delete event:', deleteError);
+      } else {
+        console.log(`[MeetingBaaS Webhook] Deleted calendar event: ${eventIdToDelete}`);
+      }
     }
-
-    console.log(`[MeetingBaaS Webhook] Deleted calendar event: ${eventIdToDelete}`);
     return { success: true };
   }
 
-  // Handle create/update event
-  if (!eventData) {
-    return { success: false, error: 'Missing event data in payload' };
-  }
+  // Handle create/update - process instances/affected_instances array (actual MeetingBaaS format)
+  // allInstances is already defined at the top of the function
 
-  const externalId = eventData.id;
-  if (!externalId) {
-    return { success: false, error: 'Missing event.id in payload' };
-  }
-
-  // Extract meeting URL from various possible sources
-  let meetingUrl = eventData.hangoutLink || eventData.location;
-  if (!meetingUrl && eventData.conferenceData?.entryPoints) {
-    const videoEntry = eventData.conferenceData.entryPoints.find(
-      ep => ep.entryPointType === 'video'
-    );
-    meetingUrl = videoEntry?.uri;
-  }
-
-  // Detect meeting provider
-  let meetingProvider = null;
-  if (meetingUrl) {
-    if (meetingUrl.includes('meet.google.com')) {
-      meetingProvider = 'google_meet';
-    } else if (meetingUrl.includes('zoom.us')) {
-      meetingProvider = 'zoom';
-    } else if (meetingUrl.includes('teams.microsoft.com')) {
-      meetingProvider = 'teams';
+  // Fallback to legacy format if no instances
+  if (allInstances.length === 0 && data.event) {
+    const eventData = data.event;
+    const externalId = eventData.id;
+    if (!externalId) {
+      return { success: false, error: 'Missing event.id in payload' };
     }
+
+    // Extract meeting URL from various possible sources
+    let meetingUrl = eventData.hangoutLink || eventData.location;
+    if (!meetingUrl && eventData.conferenceData?.entryPoints) {
+      const videoEntry = eventData.conferenceData.entryPoints.find(
+        ep => ep.entryPointType === 'video'
+      );
+      meetingUrl = videoEntry?.uri;
+    }
+
+    // Detect meeting provider
+    let meetingProvider = null;
+    if (meetingUrl) {
+      if (meetingUrl.includes('meet.google.com')) meetingProvider = 'google_meet';
+      else if (meetingUrl.includes('zoom.us')) meetingProvider = 'zoom';
+      else if (meetingUrl.includes('teams.microsoft.com')) meetingProvider = 'teams';
+    }
+
+    const calendarEvent = {
+      external_id: externalId,
+      calendar_id: internalCalendarId,
+      user_id: user_id,
+      org_id: org_id,
+      title: eventData.summary || 'Untitled Event',
+      description: eventData.description,
+      location: eventData.location,
+      start_time: eventData.start?.dateTime || eventData.start?.date,
+      end_time: eventData.end?.dateTime || eventData.end?.date,
+      all_day: !eventData.start?.dateTime,
+      meeting_url: meetingUrl,
+      meeting_provider: meetingProvider,
+      hangout_link: eventData.hangoutLink,
+      html_link: eventData.htmlLink,
+      etag: eventData.etag,
+      status: eventData.status || 'confirmed',
+      organizer_email: eventData.organizer?.email,
+      creator_email: eventData.creator?.email,
+      attendees_count: eventData.attendees?.length || 0,
+      attendees: eventData.attendees,
+      raw_data: eventData,
+      sync_status: 'synced',
+      synced_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Unique constraint is on (user_id, external_id)
+    const { error: upsertError } = await supabase
+      .from('calendar_events')
+      .upsert(calendarEvent, { onConflict: 'user_id,external_id' });
+
+    if (upsertError) {
+      console.error('[MeetingBaaS Webhook] Failed to upsert calendar event:', upsertError);
+      return { success: false, error: upsertError.message };
+    }
+
+    console.log(`[MeetingBaaS Webhook] ${eventType === 'calendar_event.created' ? 'Created' : 'Updated'} calendar event (legacy): ${eventData.summary}`);
   }
 
-  // Build calendar event record
-  const calendarEvent = {
-    external_id: externalId,
-    calendar_id: internalCalendarId,
-    user_id: user_id,
-    org_id: org_id,
-    title: eventData.summary || 'Untitled Event',
-    description: eventData.description,
-    location: eventData.location,
-    start_time: eventData.start?.dateTime || eventData.start?.date,
-    end_time: eventData.end?.dateTime || eventData.end?.date,
-    all_day: !eventData.start?.dateTime,
-    meeting_url: meetingUrl,
-    meeting_provider: meetingProvider,
-    hangout_link: eventData.hangoutLink,
-    html_link: eventData.htmlLink,
-    etag: eventData.etag,
-    status: eventData.status || 'confirmed',
-    organizer_email: eventData.organizer?.email,
-    creator_email: eventData.creator?.email,
-    attendees_count: eventData.attendees?.length || 0,
-    attendees: eventData.attendees,
-    raw_data: eventData,
-    sync_status: 'synced',
-    synced_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
+  // Process instances/affected_instances array (actual MeetingBaaS format)
+  for (const instance of allInstances) {
+    const externalId = instance.event_id;
+    const meetingUrl = instance.meeting_url;
 
-  // Upsert the event
-  const { error: upsertError } = await supabase
-    .from('calendar_events')
-    .upsert(calendarEvent, {
-      onConflict: 'external_id,calendar_id',
-    });
+    // Detect meeting provider from meeting_platform or URL
+    let meetingProvider = instance.meeting_platform || null;
+    if (!meetingProvider && meetingUrl) {
+      if (meetingUrl.includes('meet.google.com')) meetingProvider = 'google_meet';
+      else if (meetingUrl.includes('zoom.us')) meetingProvider = 'zoom';
+      else if (meetingUrl.includes('teams.microsoft.com')) meetingProvider = 'teams';
+    }
 
-  if (upsertError) {
-    console.error('[MeetingBaaS Webhook] Failed to upsert calendar event:', upsertError);
-    return { success: false, error: upsertError.message };
+    const calendarEvent = {
+      external_id: externalId,
+      calendar_id: internalCalendarId,
+      user_id: user_id,
+      org_id: org_id,
+      title: instance.title || 'Untitled Event',
+      start_time: instance.start,
+      end_time: instance.end,
+      all_day: instance.is_all_day || false,
+      meeting_url: meetingUrl,
+      meeting_provider: meetingProvider,
+      status: instance.status || 'confirmed',
+      attendees_count: instance.attendees?.length || 0,
+      attendees: instance.attendees,
+      raw_data: { ...instance, series_id: data.series_id, event_type: data.event_type },
+      sync_status: 'synced',
+      synced_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Unique constraint is on (user_id, external_id)
+    const { error: upsertError } = await supabase
+      .from('calendar_events')
+      .upsert(calendarEvent, { onConflict: 'user_id,external_id' });
+
+    if (upsertError) {
+      console.error('[MeetingBaaS Webhook] Failed to upsert calendar event:', upsertError);
+      continue; // Continue with other instances
+    }
+
+    console.log(`[MeetingBaaS Webhook] ${eventType === 'calendar_event.created' ? 'Created' : 'Updated'} calendar event: ${instance.title} (${externalId})`);
   }
-
-  console.log(`[MeetingBaaS Webhook] ${eventType === 'calendar_event.created' ? 'Created' : 'Updated'} calendar event: ${eventData.summary}`);
 
   // Update the MeetingBaaS calendar last_sync_at
   await supabase
     .from('meetingbaas_calendars')
     .update({ last_sync_at: new Date().toISOString() })
     .eq('id', mbCalendar.id);
+
+  // FALLBACK BOT DEPLOYMENT: Process instances with bot_scheduled=false
+  // This handles the case where native bot scheduling is enabled but MeetingBaaS decides not to schedule
+  if (eventType !== 'calendar_event.deleted') {
+    const instancesToCheck = allInstances.filter(i => i.bot_scheduled === false && i.meeting_url);
+
+    if (instancesToCheck.length > 0) {
+      console.log(`[MeetingBaaS Webhook] Found ${instancesToCheck.length} instance(s) with bot_scheduled=false`);
+
+      // Check user's notetaker settings (once for all instances)
+      const { data: userSettings } = await supabase
+        .from('notetaker_user_settings')
+        .select('is_enabled, auto_record_external, auto_record_internal')
+        .eq('user_id', user_id)
+        .maybeSingle();
+
+      if (!userSettings?.is_enabled) {
+        console.log(`[MeetingBaaS Webhook] Fallback skipped - notetaker not enabled for user: ${user_id}`);
+      } else {
+        // Get org domain for internal/external detection
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('company_domain')
+          .eq('id', org_id)
+          .single();
+
+        const companyDomain = orgData?.company_domain || '';
+
+        for (const instance of instancesToCheck) {
+          const startTime = instance.start ? new Date(instance.start) : null;
+          const now = new Date();
+          const minLookahead = 2 * 60 * 1000; // 2 minutes minimum
+          const maxLookahead = 48 * 60 * 60 * 1000; // 48 hours
+
+          // Only consider events starting within the next 48 hours (but not in the next 2 minutes)
+          if (!startTime || startTime <= now ||
+              (startTime.getTime() - now.getTime()) <= minLookahead ||
+              (startTime.getTime() - now.getTime()) >= maxLookahead) {
+            console.log(`[MeetingBaaS Webhook] Skipping fallback - event not in scheduling window: ${instance.title}`);
+            continue;
+          }
+
+          console.log(`[MeetingBaaS Webhook] Checking fallback deployment for: ${instance.title}`);
+
+          // Determine if meeting is internal or external
+          const attendeeEmails = (instance.attendees || []).map(a => a.email).filter(Boolean) as string[];
+          const hasExternal = companyDomain
+            ? attendeeEmails.some(email => {
+                const domain = email?.split('@')[1]?.toLowerCase() || '';
+                return domain !== companyDomain.toLowerCase();
+              })
+            : true; // If no company domain set, assume external
+
+          const shouldRecord = hasExternal ? userSettings.auto_record_external : userSettings.auto_record_internal;
+
+          if (!shouldRecord) {
+            console.log(`[MeetingBaaS Webhook] Fallback skipped - user preferences (hasExternal: ${hasExternal}, auto_record_external: ${userSettings.auto_record_external}, auto_record_internal: ${userSettings.auto_record_internal})`);
+            continue;
+          }
+
+          console.log(`[MeetingBaaS Webhook] Deploying fallback bot for: ${instance.title} (hasExternal: ${hasExternal})`);
+
+          // Query the upserted event to get its ID
+          const { data: insertedEvent } = await supabase
+            .from('calendar_events')
+            .select('id')
+            .eq('external_id', instance.event_id)
+            .eq('calendar_id', internalCalendarId)
+            .maybeSingle();
+
+          if (!insertedEvent) {
+            console.warn(`[MeetingBaaS Webhook] Could not find inserted event: ${instance.event_id}`);
+            continue;
+          }
+
+          // Check if there's already a recording for this event
+          const { data: existingRecording } = await supabase
+            .from('recordings')
+            .select('id')
+            .eq('calendar_event_id', insertedEvent.id)
+            .maybeSingle();
+
+          if (existingRecording) {
+            console.log(`[MeetingBaaS Webhook] Recording already exists for event: ${instance.title}`);
+            continue;
+          }
+
+          // Deploy bot via edge function
+          try {
+            const deployResponse = await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/deploy-recording-bot`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                  'x-user-id': user_id,
+                },
+                body: JSON.stringify({
+                  meeting_url: instance.meeting_url,
+                  meeting_title: instance.title,
+                  calendar_event_id: insertedEvent.id,
+                  attendees: instance.attendees?.map(a => ({ email: a.email, name: a.name })),
+                  scheduled_time: instance.start,
+                }),
+              }
+            );
+
+            if (deployResponse.ok) {
+              const deployResult = await deployResponse.json();
+              console.log(`[MeetingBaaS Webhook] Fallback bot deployed for ${instance.title}:`, deployResult);
+            } else {
+              const errorText = await deployResponse.text();
+              console.warn(`[MeetingBaaS Webhook] Fallback bot deployment failed: ${deployResponse.status} - ${errorText}`);
+            }
+          } catch (deployError) {
+            console.error('[MeetingBaaS Webhook] Error deploying fallback bot:', deployError);
+            // Don't fail the webhook - event is already synced
+          }
+        }
+      }
+    }
+  }
 
   return { success: true };
 }
@@ -1535,12 +1753,19 @@ serve(async (req) => {
           break;
 
         // Calendar event handlers - sync MeetingBaaS calendar events to our database
+        // MeetingBaaS uses dot notation (calendar.event_created) but we also support underscore notation
+        case 'calendar.event_created':
+        case 'calendar.event_updated':
+        case 'calendar.event_deleted':
         case 'calendar_event.created':
         case 'calendar_event.updated':
         case 'calendar_event.deleted':
+          // Normalize event type to underscore format for handler
+          const normalizedEventType = eventType.replace('calendar.event_', 'calendar_event.') as
+            'calendar_event.created' | 'calendar_event.updated' | 'calendar_event.deleted';
           result = await handleCalendarEvent(
             supabase,
-            eventType as 'calendar_event.created' | 'calendar_event.updated' | 'calendar_event.deleted',
+            normalizedEventType,
             rawPayload.data as MeetingBaaSCalendarEventData
           );
           break;

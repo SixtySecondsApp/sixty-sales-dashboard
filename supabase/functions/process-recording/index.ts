@@ -204,16 +204,101 @@ interface AttendeeInfo {
 }
 
 // =============================================================================
-// Gladia Transcription Service
+// Transcription Services (Deepgram primary, Gladia fallback)
 // =============================================================================
 
-interface GladiaTranscriptResult {
+interface TranscriptResult {
   text: string;
   utterances: TranscriptUtterance[];
   speakers?: { id: number; count: number }[];
 }
 
-async function transcribeWithGladia(audioUrl: string): Promise<GladiaTranscriptResult> {
+/**
+ * Transcribe audio using Deepgram (primary provider)
+ * Free tier: 45 hours/month
+ */
+async function transcribeWithDeepgram(audioUrl: string): Promise<TranscriptResult> {
+  const deepgramApiKey = Deno.env.get('DEEPGRAM_API_KEY');
+  if (!deepgramApiKey) {
+    throw new Error('DEEPGRAM_API_KEY not configured');
+  }
+
+  console.log('[ProcessRecording] Starting Deepgram transcription...');
+
+  const response = await fetch(
+    'https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&diarize=true&punctuate=true&utterances=true',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Token ${deepgramApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url: audioUrl }),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Deepgram API error: ${error}`);
+  }
+
+  const result = await response.json();
+  const channel = result.results?.channels?.[0];
+  const alternatives = channel?.alternatives?.[0];
+
+  if (!alternatives) {
+    throw new Error('Deepgram returned no transcription');
+  }
+
+  console.log('[ProcessRecording] Deepgram transcription complete');
+
+  // Convert Deepgram utterances format to our standard format
+  const utterances: TranscriptUtterance[] = (result.results?.utterances || []).map((u: any) => ({
+    speaker: u.speaker ?? 0,
+    start: u.start ?? 0,
+    end: u.end ?? 0,
+    text: u.transcript ?? '',
+    confidence: u.confidence,
+  }));
+
+  // If no utterances but we have words with speakers, build utterances from words
+  if (utterances.length === 0 && alternatives.words?.length > 0) {
+    let currentSpeaker = -1;
+    let currentUtterance: TranscriptUtterance | null = null;
+
+    for (const word of alternatives.words) {
+      if (word.speaker !== currentSpeaker) {
+        if (currentUtterance) {
+          utterances.push(currentUtterance);
+        }
+        currentSpeaker = word.speaker ?? 0;
+        currentUtterance = {
+          speaker: currentSpeaker,
+          start: word.start ?? 0,
+          end: word.end ?? 0,
+          text: word.punctuated_word || word.word || '',
+          confidence: word.confidence,
+        };
+      } else if (currentUtterance) {
+        currentUtterance.end = word.end ?? currentUtterance.end;
+        currentUtterance.text += ' ' + (word.punctuated_word || word.word || '');
+      }
+    }
+    if (currentUtterance) {
+      utterances.push(currentUtterance);
+    }
+  }
+
+  return {
+    text: alternatives.transcript || '',
+    utterances,
+  };
+}
+
+/**
+ * Transcribe audio using Gladia (fallback provider)
+ */
+async function transcribeWithGladia(audioUrl: string): Promise<TranscriptResult> {
   const gladiaApiKey = Deno.env.get('GLADIA_API_KEY');
   if (!gladiaApiKey) {
     throw new Error('GLADIA_API_KEY not configured');
@@ -290,6 +375,34 @@ async function transcribeWithGladia(audioUrl: string): Promise<GladiaTranscriptR
     })),
     speakers: result.transcription?.speakers,
   };
+}
+
+/**
+ * Main transcription function - tries Deepgram first, then Gladia
+ */
+async function transcribeAudio(audioUrl: string): Promise<TranscriptResult> {
+  // Try Deepgram first (better free tier)
+  const deepgramKey = Deno.env.get('DEEPGRAM_API_KEY');
+  if (deepgramKey) {
+    try {
+      return await transcribeWithDeepgram(audioUrl);
+    } catch (error) {
+      console.warn('[ProcessRecording] Deepgram failed, trying Gladia:', error);
+    }
+  }
+
+  // Fall back to Gladia
+  const gladiaKey = Deno.env.get('GLADIA_API_KEY');
+  if (gladiaKey) {
+    try {
+      return await transcribeWithGladia(audioUrl);
+    } catch (error) {
+      console.warn('[ProcessRecording] Gladia failed:', error);
+      throw error;
+    }
+  }
+
+  throw new Error('No transcription API key configured (DEEPGRAM_API_KEY or GLADIA_API_KEY)');
 }
 
 // =============================================================================
@@ -664,11 +777,40 @@ async function processRecording(
         })),
       };
     } else {
-      // Fall back to Gladia transcription if no transcript provided
-      // (MeetingBaaS transcription API is not reliable - use Gladia instead)
-      console.log('[ProcessRecording] No transcript provided, using Gladia transcription');
-      const transcriptionUrl = uploadResult.success ? uploadResult.storageUrl! : mediaUrlForTranscription;
-      transcript = await transcribeWithGladia(transcriptionUrl);
+      // No transcript provided in webhook - try MeetingBaaS API first
+      console.log('[ProcessRecording] No transcript provided, trying MeetingBaaS API...');
+
+      try {
+        const meetingBaaSClient = createMeetingBaaSClient();
+        const { data: transcriptData, error: transcriptError } =
+          await meetingBaaSClient.getTranscript(effectiveBotId);
+
+        if (transcriptData && transcriptData.text && transcriptData.utterances) {
+          console.log('[ProcessRecording] Got transcript from MeetingBaaS API');
+          transcript = {
+            text: transcriptData.text,
+            utterances: transcriptData.utterances.map((u) => ({
+              speaker: u.speaker,
+              start: u.start,
+              end: u.end,
+              text: u.text,
+              confidence: u.confidence,
+            })),
+          };
+        } else {
+          console.warn('[ProcessRecording] MeetingBaaS transcript API returned no data:', transcriptError?.message);
+          // Fall back to external transcription service
+          console.log('[ProcessRecording] Falling back to external transcription service...');
+          const transcriptionUrl = uploadResult.success ? uploadResult.storageUrl! : mediaUrlForTranscription;
+          transcript = await transcribeAudio(transcriptionUrl);
+        }
+      } catch (meetingBaaSError) {
+        console.warn('[ProcessRecording] MeetingBaaS transcript API failed:', meetingBaaSError);
+        // Fall back to external transcription service
+        console.log('[ProcessRecording] Falling back to external transcription service...');
+        const transcriptionUrl = uploadResult.success ? uploadResult.storageUrl! : mediaUrlForTranscription;
+        transcript = await transcribeAudio(transcriptionUrl);
+      }
     }
 
     // Get attendees from calendar event if available
@@ -835,11 +977,12 @@ async function processRecording(
           const actionItemsToInsert = enhancedAnalysis.actionItems.map((item) => ({
             meeting_id: meeting.id,
             title: item.title,
-            assignee: item.assignedTo,
-            due_date: item.deadline,
+            assignee_name: item.assignedTo,
+            deadline_at: item.deadline ? new Date(item.deadline).toISOString() : null,
             priority: item.priority,
-            status: 'pending',
-            confidence: item.confidence,
+            completed: false,
+            ai_confidence_score: item.confidence,
+            ai_generated: true,
             created_at: new Date().toISOString(),
           }));
 

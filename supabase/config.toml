@@ -79,6 +79,34 @@ verify_jwt = false
 [functions.fireflies-sync]
 verify_jwt = false
 
+# Google Calendar API - called from browser to sync/manage calendar
+# Handle auth internally (CORS preflight needs to work)
+[functions.google-calendar]
+verify_jwt = false
+
+# Google test connection - verifies Google API access for various services
+[functions.google-test-connection]
+verify_jwt = false
+
+# Google Tasks API - manages user tasks
+[functions.google-tasks]
+verify_jwt = false
+
+# Google Docs API - reads/writes documents
+[functions.google-docs]
+verify_jwt = false
+
+[functions.google-docs-create]
+verify_jwt = false
+
+# Google Drive API - file management
+[functions.google-drive]
+verify_jwt = false
+
+# Google Workspace batch operations
+[functions.google-workspace-batch]
+verify_jwt = false
+
 # Google Calendar webhook - receives push notifications from Google Calendar API
 # Google sends unauthenticated requests, we verify via channel_id in database
 [functions.google-calendar-webhook]
@@ -92,6 +120,21 @@ verify_jwt = false
 # MeetingBaaS webhook - receives push notifications from MeetingBaaS API
 # External service sends unauthenticated requests, we verify via signature
 [functions.meetingbaas-webhook]
+verify_jwt = false
+
+# Deploy recording bot - called from browser with user JWT
+# We handle auth verification manually inside the function (CORS preflight needs to work)
+[functions.deploy-recording-bot]
+verify_jwt = false
+
+# Stop recording bot - called from browser with user JWT
+# We handle auth verification manually inside the function (CORS preflight needs to work)
+[functions.stop-recording-bot]
+verify_jwt = false
+
+# Get recording URL - called from browser with user JWT
+# We handle auth verification manually inside the function (CORS preflight needs to work)
+[functions.get-recording-url]
 verify_jwt = false
 
 # Process recording - called internally by meetingbaas-webhook
@@ -125,10 +168,25 @@ verify_jwt = false
 [functions.google-oauth-initiate]
 verify_jwt = false
 
+# OAuth exchange function - exchanges code for tokens
+# Called from browser with user JWT, handles auth manually (CORS preflight needs to work)
+[functions.google-oauth-exchange]
+verify_jwt = false
+
 [functions.hubspot-oauth-initiate]
 verify_jwt = false
 
 # Password reset email - called from admin panel with user JWT
 # We handle auth verification manually inside the function (CORS preflight needs to work)
 [functions.send-password-reset-email]
+verify_jwt = false
+
+# Generate S3 video thumbnail - called internally by process-recording
+# Uses service role key for auth
+[functions.generate-s3-video-thumbnail]
+verify_jwt = false
+
+# Sync recording to CRM - called internally by process-recording
+# Uses service role key for auth
+[functions.sync-recording-to-crm]
 verify_jwt = false
