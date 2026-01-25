@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { ViewModeBanner } from '@/components/ViewModeBanner';
 import { ExternalViewBanner, ExternalViewBannerSpacer } from '@/components/ExternalViewBanner';
 import { ImpersonationBanner } from '@/components/ImpersonationBanner';
+import { IntegrationReconnectBanner, useHasIntegrationAlerts } from '@/components/IntegrationReconnectBanner';
 import { ExternalViewToggle } from '@/components/ExternalViewToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { HITLIndicator } from '@/components/HITLIndicator';
@@ -87,6 +88,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { signOut } = useAuth();
   const { activeOrgId } = useOrg();
   const trialStatus = useTrialStatus(activeOrgId);
+  const hasIntegrationAlerts = useHasIntegrationAlerts(userData?.id);
   const location = useLocation();
 
   // Check if trial banner should be showing (same logic as TrialBanner component)
@@ -108,22 +110,26 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return trialStatus.isTrialing && !trialStatus.isLoading;
   }, [trialStatus.isTrialing, trialStatus.isLoading]);
 
+  // Check if integration reconnect banner should be showing
+  const isIntegrationBannerVisible = hasIntegrationAlerts;
+
   // AppLayout uses top padding to make room for the fixed top bars/banners.
   // Some pages (e.g. Copilot chat) need a reliable way to compute the remaining viewport height
   // without hard-coding "4rem" and accidentally creating extra scroll space.
   const topOffsetPx = useMemo(() => {
-    // Base top bar is 64px (pt-16). Impersonation adds 44px. Trial banner adds ~17px.
-    if (isTrialBannerVisible) {
-      return isImpersonating ? 132 : 115;
-    }
-    return isImpersonating ? 108 : 64;
-  }, [isTrialBannerVisible, isImpersonating]);
+    // Base top bar is 64px (pt-16). Impersonation adds 44px. Trial banner adds ~50px. Integration banner adds ~50px.
+    let offset = 64; // Base
+    if (isImpersonating) offset += 44;
+    if (isTrialBannerVisible) offset += 50;
+    if (isIntegrationBannerVisible) offset += 50;
+    return offset;
+  }, [isTrialBannerVisible, isImpersonating, isIntegrationBannerVisible]);
 
-  const topPaddingClass = useMemo(() => {
-    return isTrialBannerVisible
-      ? (isImpersonating ? 'pt-[132px] lg:pt-[132px]' : 'pt-[115px] lg:pt-[115px]')
-      : (isImpersonating ? 'pt-[108px] lg:pt-[108px]' : 'pt-16 lg:pt-16');
-  }, [isTrialBannerVisible, isImpersonating]);
+  // Calculate the additional offset for IntegrationReconnectBanner (appears below TrialBanner)
+  const integrationBannerTopOffset = useMemo(() => {
+    // TrialBanner is at top-[65px] and is ~50px tall
+    return isTrialBannerVisible ? 50 : 0;
+  }, [isTrialBannerVisible]);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, toggleMobileMenu] = useCycle(false, true);
   const [hasMounted, setHasMounted] = useState(false);
@@ -304,6 +310,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Trial Banner - shown when organization is in trial period */}
       <TrialBanner />
+
+      {/* Integration Reconnect Banner - shown when user has integration alerts */}
+      <IntegrationReconnectBanner additionalTopOffset={integrationBannerTopOffset} />
 
       {/* Main app content */}
       <div className="flex">
@@ -937,6 +946,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {
             // Used by full-height pages to avoid double-counting the top padding.
             '--app-top-offset': `${topOffsetPx}px`,
+            paddingTop: `${topOffsetPx}px`,
           } as React.CSSProperties
         }
         className={cn(
@@ -944,8 +954,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         'flex-1 transition-[margin] duration-300 ease-in-out min-h-screen',
         'bg-[#F8FAFC] dark:bg-gray-950',
         isCollapsed ? 'lg:ml-[96px]' : 'lg:ml-[256px]',
-        'ml-0',
-        topPaddingClass
+        'ml-0'
       )}
       >
         {children}
