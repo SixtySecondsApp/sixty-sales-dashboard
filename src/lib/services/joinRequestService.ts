@@ -316,15 +316,36 @@ export async function getPendingJoinRequests(orgId: string): Promise<JoinRequest
   try {
     const { data, error } = await supabase
       .from('organization_join_requests')
-      .select('*')
+      .select(`
+        id,
+        org_id,
+        user_id,
+        email,
+        status,
+        requested_at,
+        actioned_by,
+        actioned_at,
+        rejection_reason,
+        join_request_token,
+        join_request_expires_at,
+        user_profile:profiles!user_id(
+          id,
+          email,
+          first_name,
+          last_name
+        )
+      `)
       .eq('org_id', orgId)
       .eq('status', 'pending')
       .order('requested_at', { ascending: false });
 
     if (error) {
       console.error('[joinRequestService] Failed to get pending requests:', error);
+      console.error('[joinRequestService] Error details:', error);
       return [];
     }
+
+    console.log('[joinRequestService] Fetched join requests with profiles:', JSON.stringify(data, null, 2));
 
     return (data || []) as JoinRequest[];
   } catch (err) {

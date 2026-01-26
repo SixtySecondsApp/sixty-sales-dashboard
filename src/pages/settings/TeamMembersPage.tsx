@@ -77,9 +77,20 @@ export default function TeamMembersPage() {
   // Fetch join requests
   const { data: joinRequests = [], isLoading: isLoadingJoinRequests } = useQuery({
     queryKey: ['join-requests', activeOrgId],
-    queryFn: () => {
+    queryFn: async () => {
       if (!activeOrgId) return [];
-      return getPendingJoinRequests(activeOrgId);
+      const requests = await getPendingJoinRequests(activeOrgId);
+      console.log('[TeamMembersPage] Join requests fetched:', requests);
+      requests.forEach((req, idx) => {
+        console.log(`[TeamMembersPage] Request ${idx}:`, {
+          email: req.email,
+          user_id: req.user_id,
+          has_profile: !!req.user_profile,
+          first_name: req.user_profile?.first_name,
+          last_name: req.user_profile?.last_name,
+        });
+      });
+      return requests;
     },
     enabled: !!activeOrgId,
   });
@@ -516,10 +527,9 @@ export default function TeamMembersPage() {
                         </div>
                         <div>
                           <p className="text-gray-900 dark:text-white font-medium">
-                            {request.user_profile?.first_name &&
-                            request.user_profile?.last_name
+                            {request.user_profile?.first_name && request.user_profile?.last_name
                               ? `${request.user_profile.first_name} ${request.user_profile.last_name}`
-                              : request.email}
+                              : request.user_profile?.first_name || request.user_profile?.last_name || 'Name not available'}
                           </p>
                           <p className="text-sm text-gray-600 dark:text-gray-400">{request.email}</p>
                         </div>
