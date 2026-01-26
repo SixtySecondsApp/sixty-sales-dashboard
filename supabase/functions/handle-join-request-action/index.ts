@@ -187,29 +187,52 @@ serve(async (req: Request): Promise<Response> => {
     const userName = profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}`.trim() : joinRequest.email.split('@')[0];
 
     if (action === 'approve') {
-      // Generate magic link token
-      const token = generateToken(64);
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+      // Check if user is already a member (shouldn't happen, but be safe)
+      const { data: existingMembership } = await supabaseAdmin
+        .from('organization_memberships')
+        .select('id')
+        .eq('org_id', joinRequest.org_id)
+        .eq('user_id', joinRequest.user_id)
+        .maybeSingle();
 
-      // Update join request with token and expiry
-      const { error: updateError } = await supabaseAdmin
-        .from('organization_join_requests')
-        .update({
-          status: 'approved',
-          join_request_token: token,
-          join_request_expires_at: expiresAt.toISOString(),
-          actioned_by: admin_user_id,
-          actioned_at: new Date().toISOString(),
-        })
-        .eq('id', request_id);
+      if (existingMembership) {
+        // Update request status but don't create duplicate membership
+        await supabaseAdmin
+          .from('organization_join_requests')
+          .update({
+            status: 'approved',
+            actioned_by: admin_user_id,
+            actioned_at: new Date().toISOString(),
+          })
+          .eq('id', request_id);
 
-      if (updateError) {
-        console.error('Failed to update join request:', updateError);
         return new Response(
           JSON.stringify({
             success: false,
-            error: 'Failed to update join request',
+            error: 'User is already a member of this organization',
+          } as HandleJoinRequestResponse),
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      // IMMEDIATELY CREATE MEMBERSHIP (no magic link needed)
+      const { error: membershipError } = await supabaseAdmin
+        .from('organization_memberships')
+        .insert({
+          org_id: joinRequest.org_id,
+          user_id: joinRequest.user_id,
+          role: 'member',
+        });
+
+      if (membershipError) {
+        console.error('Failed to create membership:', membershipError);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Failed to create membership',
           } as HandleJoinRequestResponse),
           {
             status: 500,
@@ -218,11 +241,37 @@ serve(async (req: Request): Promise<Response> => {
         );
       }
 
-      // Build approval link
-      const approvalLink = `${SITE_URL}/auth/accept-join-request?token=${token}&request_id=${request_id}`;
+      // Update profile status to active
+      const { error: profileUpdateError } = await supabaseAdmin
+        .from('profiles')
+        .update({
+          profile_status: 'active',
+        })
+        .eq('id', joinRequest.user_id);
 
-      // Send approval email via encharge-send-email
+      if (profileUpdateError) {
+        console.error('Failed to update profile status:', profileUpdateError);
+        // Don't fail - membership was already created
+      }
+
+      // Update join request status
+      const { error: updateError } = await supabaseAdmin
+        .from('organization_join_requests')
+        .update({
+          status: 'approved',
+          actioned_by: admin_user_id,
+          actioned_at: new Date().toISOString(),
+        })
+        .eq('id', request_id);
+
+      if (updateError) {
+        console.error('Failed to update join request:', updateError);
+        // Don't fail - membership was already created
+      }
+
+      // Send welcome email via encharge-send-email (no magic link needed)
       const enchargeFunctionUrl = `${SUPABASE_URL}/functions/v1/encharge-send-email`;
+      const dashboardLink = `${SITE_URL}/dashboard`;
 
       const emailResponse = await fetch(enchargeFunctionUrl, {
         method: 'POST',
@@ -239,22 +288,21 @@ serve(async (req: Request): Promise<Response> => {
           variables: {
             first_name: profile?.first_name || userName,
             org_name: org.name,
-            approval_link: approvalLink,
-            action_url: approvalLink,
+            approval_link: dashboardLink,
+            action_url: dashboardLink,
           },
         }),
       });
 
       if (!emailResponse.ok) {
-        console.error('Failed to send approval email:', emailResponse.status);
-        // Don't fail the whole request if email fails - the approval was still recorded
+        console.error('Failed to send welcome email:', emailResponse.status);
+        // Don't fail the whole request if email fails - the membership was created
       }
 
       return new Response(
         JSON.stringify({
           success: true,
-          message: 'Join request approved and email sent',
-          token: token,
+          message: 'Join request approved, membership created, and email sent',
         } as HandleJoinRequestResponse),
         {
           status: 200,

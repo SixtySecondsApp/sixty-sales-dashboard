@@ -1,6 +1,6 @@
 import SettingsPageWrapper from '@/components/SettingsPageWrapper';
 import { useState, useEffect } from 'react';
-import { Users, Trash2, Loader2, AlertCircle, UserPlus, Mail, RefreshCw, X, Check, Clock, Crown } from 'lucide-react';
+import { Users, Trash2, Loader2, AlertCircle, UserPlus, Mail, RefreshCw, X, Check, Clock, Crown, ChevronDown, ChevronUp, UserCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useOrg } from '@/lib/contexts/OrgContext';
 import { useAuth } from '@/lib/contexts/AuthContext';
@@ -61,6 +61,9 @@ export default function TeamMembersPage() {
   const [newInviteRole, setNewInviteRole] = useState<'admin' | 'member'>('member');
   const [isSendingInvite, setIsSendingInvite] = useState(false);
 
+  // Join requests section collapse state
+  const [isJoinRequestsExpanded, setIsJoinRequestsExpanded] = useState(true);
+
   // Helper function to sort members by role hierarchy
   const sortMembersByRole = (membersList: TeamMember[]): TeamMember[] => {
     const roleOrder = { owner: 1, admin: 2, member: 3, readonly: 4 };
@@ -78,12 +81,21 @@ export default function TeamMembersPage() {
   const { data: joinRequests = [], isLoading: isLoadingJoinRequests } = useQuery({
     queryKey: ['join-requests', activeOrgId],
     queryFn: async () => {
-      if (!activeOrgId) return [];
+      if (!activeOrgId) {
+        console.log('[TeamMembersPage] No activeOrgId, skipping join requests fetch');
+        return [];
+      }
+      console.log('[TeamMembersPage] Fetching join requests for org:', activeOrgId);
       const requests = await getPendingJoinRequests(activeOrgId);
-      console.log('[TeamMembersPage] Join requests fetched:', requests);
+      console.log('[TeamMembersPage] Join requests fetched:', {
+        count: requests.length,
+        requests: requests,
+      });
       requests.forEach((req, idx) => {
         console.log(`[TeamMembersPage] Request ${idx}:`, {
+          id: req.id,
           email: req.email,
+          status: req.status,
           user_id: req.user_id,
           has_profile: !!req.user_profile,
           first_name: req.user_profile?.first_name,
@@ -93,6 +105,7 @@ export default function TeamMembersPage() {
       return requests;
     },
     enabled: !!activeOrgId,
+    refetchInterval: 10000, // Auto-refresh every 10 seconds to catch new requests
   });
 
   // Approve mutation
@@ -499,21 +512,51 @@ export default function TeamMembersPage() {
           )}
         </div>
 
-        {/* Join Requests */}
-        {joinRequests.length > 0 && (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-yellow-500" />
-              Join Requests <span className="text-sm font-normal text-yellow-600 dark:text-yellow-400">({joinRequests.length})</span>
-            </h2>
+        {/* Pending Join Requests - Always Visible */}
+        <div>
+          <button
+            onClick={() => setIsJoinRequestsExpanded(!isJoinRequestsExpanded)}
+            className="w-full flex items-center justify-between mb-4 group"
+          >
+            <div className="flex items-center gap-2">
+              <UserCog className="w-5 h-5 text-yellow-500" />
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Pending Join Requests
+                {joinRequests.length > 0 && (
+                  <span className="ml-2 text-sm font-normal text-yellow-600 dark:text-yellow-400">
+                    ({joinRequests.length})
+                  </span>
+                )}
+              </h2>
+            </div>
+            {isJoinRequestsExpanded ? (
+              <ChevronUp className="w-5 h-5 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors" />
+            )}
+          </button>
+
+          {isJoinRequestsExpanded && (
             <div className="border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
-              <div className="divide-y divide-gray-200 dark:divide-gray-800">
-                {isLoadingJoinRequests ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-8 h-8 text-[#37bd7e] animate-spin" />
+              {isLoadingJoinRequests ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-[#37bd7e] animate-spin" />
+                </div>
+              ) : joinRequests.length === 0 ? (
+                <div className="text-center py-12 px-6">
+                  <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                    <UserCog className="w-8 h-8 text-gray-400" />
                   </div>
-                ) : (
-                  joinRequests.map((request: JoinRequest) => (
+                  <h3 className="text-base font-medium text-gray-900 dark:text-white mb-2">
+                    No Pending Requests
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 max-w-sm mx-auto">
+                    When users request to join your organization, they'll appear here for approval.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-200 dark:divide-gray-800">
+                  {joinRequests.map((request: JoinRequest) => (
                     <div
                       key={request.id}
                       className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
@@ -535,43 +578,34 @@ export default function TeamMembersPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        {request.status === 'pending' ? (
-                          <>
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs">
-                              <Clock className="w-3 h-3" />
-                              Awaiting Approval
-                            </span>
-                            <button
-                              onClick={() => approveMutation.mutate(request.id)}
-                              disabled={approveMutation.isPending}
-                              className="p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors disabled:opacity-50"
-                              title="Approve request"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => rejectMutation.mutate({ requestId: request.id })}
-                              disabled={rejectMutation.isPending}
-                              className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors disabled:opacity-50"
-                              title="Reject request"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 text-xs">
-                            <Mail className="w-3 h-3" />
-                            Approved - Awaiting User
-                          </span>
-                        )}
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs">
+                          <Clock className="w-3 h-3" />
+                          Awaiting Approval
+                        </span>
+                        <button
+                          onClick={() => approveMutation.mutate(request.id)}
+                          disabled={approveMutation.isPending}
+                          className="p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors disabled:opacity-50"
+                          title="Approve request and grant immediate access"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => rejectMutation.mutate({ requestId: request.id })}
+                          disabled={rejectMutation.isPending}
+                          className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors disabled:opacity-50"
+                          title="Reject request"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Invite New Members */}
         {permissions.canManageTeam && (

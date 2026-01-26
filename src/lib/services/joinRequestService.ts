@@ -336,7 +336,7 @@ export async function getPendingJoinRequests(orgId: string): Promise<JoinRequest
         )
       `)
       .eq('org_id', orgId)
-      .in('status', ['pending', 'approved']) // Show both pending (awaiting admin) and approved (awaiting user)
+      .eq('status', 'pending') // Only show pending requests (approved ones become members immediately)
       .order('requested_at', { ascending: false });
 
     if (error) {
