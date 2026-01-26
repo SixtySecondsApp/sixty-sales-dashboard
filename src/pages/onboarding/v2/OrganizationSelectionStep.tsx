@@ -24,13 +24,28 @@ export function OrganizationSelectionStep() {
   const [similarOrgs, setSimilarOrgs] = useState<SimilarOrg[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const { manualData, submitJoinRequest, createNewOrganization } = useOnboardingV2Store();
+  const {
+    manualData,
+    similarOrganizations: preFetchedOrgs,
+    matchSearchTerm,
+    submitJoinRequest,
+    createNewOrganization
+  } = useOnboardingV2Store();
 
-  const companyName = manualData?.company_name || '';
+  // Use pre-fetched orgs if available, fall back to manual data search
+  const companyName = manualData?.company_name || matchSearchTerm || '';
 
   useEffect(() => {
+    // If we have pre-fetched orgs, use them immediately
+    if (preFetchedOrgs && preFetchedOrgs.length > 0) {
+      setSimilarOrgs(preFetchedOrgs);
+      setLoading(false);
+      return;
+    }
+
+    // Otherwise, search for similar orgs
     searchSimilarOrgs();
-  }, [companyName]);
+  }, [companyName, preFetchedOrgs]);
 
   const searchSimilarOrgs = async () => {
     if (!companyName) return;

@@ -78,8 +78,8 @@ export function CompletionStep() {
       // Wait a brief moment for real-time subscription to update
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Navigate to dashboard
-      navigate('/dashboard', { replace: true });
+      // Navigate to dashboard with full page refresh to clear React Query cache
+      window.location.href = '/dashboard';
     } catch (error) {
       console.error('Error completing onboarding:', error);
       // Fall back to direct navigation even if completion save fails
@@ -178,29 +178,23 @@ export function CompletionStep() {
         <div className="space-y-3">
           {nextSteps.map((item, i) => {
             const Icon = item.icon;
-            const handleNavigation = async (route: string) => {
-              // For dashboard, ensure onboarding is marked complete
-              if (route === '/dashboard' && !isNavigating) {
-                await handleGoToDashboard();
-              } else {
-                // For other routes (integrations), also mark complete before navigating
-                if (!isNavigating) {
-                  setIsNavigating(true);
-                  try {
-                    await completeStep('complete');
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    navigate(route, { replace: true });
-                  } finally {
-                    setIsNavigating(false);
-                  }
-                }
+            const handleNavigation = async () => {
+              if (isNavigating) return;
+              setIsNavigating(true);
+              try {
+                await completeStep('complete');
+                await new Promise(resolve => setTimeout(resolve, 100));
+                // Use full page load to clear React Query cache
+                window.location.href = item.route;
+              } finally {
+                setIsNavigating(false);
               }
             };
 
             return (
               <button
                 key={i}
-                onClick={() => handleNavigation(item.route)}
+                onClick={handleNavigation}
                 disabled={isNavigating}
                 className="w-full flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer text-gray-400 hover:bg-gray-800 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
               >

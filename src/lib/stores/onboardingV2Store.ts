@@ -151,6 +151,7 @@ export const SKILLS: SkillMeta[] = [
 export type OnboardingV2Step =
   | 'website_input'        // Ask for website URL (personal email users)
   | 'manual_enrichment'    // Q&A fallback (no website available)
+  | 'organization_selection'  // Fuzzy match found - choose to join or create new
   | 'pending_approval'     // Awaiting admin approval of join request
   | 'enrichment_loading'   // AI analyzing company
   | 'enrichment_result'    // Show what we learned
@@ -177,6 +178,10 @@ interface OnboardingV2State {
 
   // Manual enrichment data (Q&A fallback)
   manualData: ManualEnrichmentData | null;
+
+  // Similar organizations from fuzzy matching
+  similarOrganizations: Array<{ id: string; name: string; company_domain: string; member_count: number; similarity_score: number }> | null;
+  matchSearchTerm: string | null;
 
   // Enrichment data
   enrichment: EnrichmentData | null;
@@ -336,6 +341,10 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
   // Manual enrichment state
   manualData: null,
 
+  // Similar organizations state
+  similarOrganizations: null,
+  matchSearchTerm: null,
+
   // Enrichment state
   enrichment: null,
   isEnrichmentLoading: false,
@@ -453,6 +462,22 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
           return;
         }
 
+        // If no exact match, try fuzzy domain matching
+        const { data: similarByDomain } = await supabase.rpc('find_similar_organizations_by_domain', {
+          p_search_domain: domain,
+          p_limit: 5,
+        });
+
+        if (similarByDomain && similarByDomain.length > 0) {
+          set({
+            currentStep: 'organization_selection',
+            similarOrganizations: similarByDomain,
+            matchSearchTerm: domain,
+            domain,
+          });
+          return;
+        }
+
         // No existing org - create new one
         const organizationName = domain || 'My Organization';
         const { data: newOrg, error: createError } = await supabase
@@ -546,8 +571,26 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('No session');
 
-      // Check if organization with this name already exists
       const organizationName = manualData.company_name || 'My Organization';
+
+      // First, search for similar organizations using fuzzy matching
+      const { data: similarOrgs } = await supabase.rpc('find_similar_organizations', {
+        p_search_name: organizationName,
+        p_limit: 5,
+      });
+
+      // If we found similar orgs, show selection step
+      if (similarOrgs && similarOrgs.length > 0) {
+        set({
+          organizationCreationInProgress: false,
+          currentStep: 'organization_selection',
+          similarOrganizations: similarOrgs,
+          matchSearchTerm: organizationName,
+        });
+        return organizationName; // Return something truthy to prevent error
+      }
+
+      // Check if organization with this name already exists (fallback to exact match)
       const { data: existingOrg } = await supabase
         .from('organizations')
         .select('id, name')
@@ -1184,6 +1227,9 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       hasNoWebsite: false,
       // Manual enrichment
       manualData: null,
+      // Similar organizations
+      similarOrganizations: null,
+      matchSearchTerm: null,
       // Enrichment
       enrichment: null,
       isEnrichmentLoading: false,

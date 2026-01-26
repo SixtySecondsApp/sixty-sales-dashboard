@@ -21,6 +21,7 @@ import { supabase } from '@/lib/supabase/clientV2';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { WebsiteInputStep } from './WebsiteInputStep';
 import { ManualEnrichmentStep } from './ManualEnrichmentStep';
+import { OrganizationSelectionStep } from './OrganizationSelectionStep';
 import { PendingApprovalStep } from './PendingApprovalStep';
 import { EnrichmentLoadingStep } from './EnrichmentLoadingStep';
 import { EnrichmentResultStep } from './EnrichmentResultStep';
@@ -36,6 +37,7 @@ const USE_PLATFORM_SKILLS = false;
 const VALID_STEPS: OnboardingV2Step[] = [
   'website_input',
   'manual_enrichment',
+  'organization_selection',
   'pending_approval',
   'enrichment_loading',
   'enrichment_result',
@@ -192,6 +194,8 @@ export function OnboardingV2({ organizationId, domain, userEmail }: OnboardingV2
         return <WebsiteInputStep key="website" organizationId={organizationId} />;
       case 'manual_enrichment':
         return <ManualEnrichmentStep key="manual" organizationId={organizationId} />;
+      case 'organization_selection':
+        return <OrganizationSelectionStep key="org-selection" />;
       case 'pending_approval':
         return <PendingApprovalStep key="pending" />;
       case 'enrichment_loading':

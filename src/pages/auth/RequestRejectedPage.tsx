@@ -127,10 +127,33 @@ export default function RequestRejectedPage() {
 
           <div className="space-y-3">
             <Button
-              onClick={() => navigate('/dashboard')}
-              className="w-full bg-gray-700 hover:bg-gray-600 text-white"
+              onClick={async () => {
+                try {
+                  // Reset profile status to active
+                  await supabase
+                    .from('profiles')
+                    .update({ profile_status: 'active' })
+                    .eq('id', user?.id);
+
+                  // Reset onboarding progress to start over
+                  await supabase
+                    .from('user_onboarding_progress')
+                    .update({
+                      onboarding_step: 'website_input',
+                      onboarding_completed_at: null,
+                    })
+                    .eq('user_id', user?.id);
+
+                  toast.success('You can now request to join a different organization');
+                  window.location.href = '/onboarding?step=website_input';
+                } catch (error) {
+                  console.error('Error resetting onboarding:', error);
+                  toast.error('Failed to restart onboarding');
+                }
+              }}
+              className="w-full bg-violet-600 hover:bg-violet-700 text-white"
             >
-              Return to Dashboard
+              Start Over & Request Different Organization
             </Button>
             <Button
               onClick={handleLogout}
