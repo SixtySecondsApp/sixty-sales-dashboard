@@ -760,7 +760,9 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
 
   // Start enrichment (website-based)
   startEnrichment: async (organizationId, domain, force = false) => {
-    set({ isEnrichmentLoading: true, enrichmentError: null, enrichmentSource: 'website' });
+    // If retrying (force=true), reset polling state to allow fresh attempt
+    const resetState = force ? { pollingStartTime: null, pollingAttempts: 0 } : {};
+    set({ isEnrichmentLoading: true, enrichmentError: null, enrichmentSource: 'website', ...resetState });
 
     try {
       const { data: { session } } = await supabase.auth.getSession();

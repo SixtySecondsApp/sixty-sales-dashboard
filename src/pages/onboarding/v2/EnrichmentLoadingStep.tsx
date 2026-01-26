@@ -126,7 +126,7 @@ export function EnrichmentLoadingStep({ domain, organizationId: propOrgId }: Enr
           <button
             onClick={() => {
               if (!organizationId) return;
-              // For manual enrichment, just retry polling
+              // For manual enrichment, just reload the page
               // For website enrichment, retry with the domain
               if (enrichmentSource === 'manual' || !domain) {
                 // Just reload the page - the enrichment process is running in the background
