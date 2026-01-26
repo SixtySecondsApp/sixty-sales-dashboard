@@ -50,7 +50,7 @@ export function RecoveryTokenDetector() {
 
     // If user is on base domain/path without recovery route but has recovery tokens, redirect
     // But DON'T redirect if it's an invite or if already on callback/set-password pages
-    // Also exclude OAuth callbacks (Google, SSO, etc.) which use 'code' parameter for different purpose
+    // Also exclude OAuth callbacks (Google, SSO, Fathom, etc.) which use 'code' parameter for different purpose
     if (
       (hasTokenHash || hasRecoveryType || hasCode || hasAccessToken || hasAccessTokenInHash) &&
       !window.location.pathname.startsWith('/auth/reset-password') &&
@@ -58,6 +58,7 @@ export function RecoveryTokenDetector() {
       !window.location.pathname.startsWith('/auth/google/callback') &&
       !window.location.pathname.startsWith('/auth/sso-callback') &&
       !window.location.pathname.startsWith('/auth/set-password') &&
+      !window.location.pathname.startsWith('/oauth/') &&
       !isInvite &&
       !hasWaitlistEntry
     ) {
