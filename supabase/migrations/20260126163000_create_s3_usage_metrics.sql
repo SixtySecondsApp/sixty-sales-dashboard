@@ -30,13 +30,16 @@ CREATE INDEX idx_s3_usage_metrics_type ON s3_usage_metrics(metric_type);
 -- RLS policies: only admins can read
 ALTER TABLE s3_usage_metrics ENABLE ROW LEVEL SECURITY;
 
--- Admin read policy (uses admin_user_ids table)
+-- Admin read policy (org admins can see their org's metrics)
 CREATE POLICY "Admins can read s3_usage_metrics"
   ON s3_usage_metrics FOR SELECT
   USING (
+    -- Org admins/owners can see their org's metrics
     EXISTS (
-      SELECT 1 FROM admin_user_ids
-      WHERE admin_user_ids.user_id = auth.uid()
+      SELECT 1 FROM organization_memberships om
+      WHERE om.user_id = auth.uid()
+        AND om.org_id = s3_usage_metrics.org_id
+        AND om.role IN ('owner', 'admin')
     )
   );
 
