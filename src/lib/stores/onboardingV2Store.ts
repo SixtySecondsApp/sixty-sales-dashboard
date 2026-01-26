@@ -1165,10 +1165,44 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
     if (!session?.user) throw new Error('No user found');
 
     try {
-      // Create join request via RPC
+      // Fetch profile data to include with join request
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      // If profile is empty, try to get from auth metadata and update profile
+      if (profileData && (!profileData.first_name || !profileData.last_name)) {
+        const firstName = session.user.user_metadata?.first_name;
+        const lastName = session.user.user_metadata?.last_name;
+
+        if (firstName || lastName) {
+          console.log('[submitJoinRequest] Syncing names from auth metadata to profile');
+          await supabase
+            .from('profiles')
+            .update({
+              first_name: firstName || profileData.first_name,
+              last_name: lastName || profileData.last_name,
+            })
+            .eq('id', session.user.id);
+
+          // Update local profile data
+          profileData.first_name = firstName || profileData.first_name;
+          profileData.last_name = lastName || profileData.last_name;
+        }
+      }
+
+      // Create join request via RPC with profile data
       const { data, error } = await supabase.rpc('create_join_request', {
         p_org_id: orgId,
         p_user_id: session.user.id,
+        p_user_profile: profileData
+          ? {
+              first_name: profileData.first_name,
+              last_name: profileData.last_name,
+            }
+          : null,
       });
 
       if (error) throw error;
