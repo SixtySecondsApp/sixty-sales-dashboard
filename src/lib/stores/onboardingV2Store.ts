@@ -331,7 +331,8 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
   isPersonalEmail: false,
 
   // Step management
-  currentStep: 'enrichment_loading',
+  // Default to website_input as a safe fallback - will be updated by setUserEmail()
+  currentStep: 'website_input',
   currentSkillIndex: 0,
 
   // Website input state
