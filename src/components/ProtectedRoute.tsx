@@ -20,6 +20,7 @@ const publicRoutes = [
   '/auth/sso-callback',
   '/auth/verify-email',
   '/auth/set-password', // Waitlist invite password setup - auth handled internally
+  '/auth/pending-approval', // Join request pending approval - auth handled internally
   '/auth/accept-join-request', // Join request acceptance - handled in the page
   '/debug-auth',
   '/auth/google/callback',

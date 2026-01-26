@@ -408,100 +408,112 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('No session');
 
-      // If organizationId is empty/null (personal email user), check for existing org by domain
-      if (!finalOrgId || finalOrgId === '') {
-        // Try multiple strategies to find existing organization:
-        // 1. Exact match by company_domain
-        // 2. Fuzzy domain match (with similarity scoring)
-        // 3. Try to use the find_similar_organizations_by_domain RPC
+      // ALWAYS check for existing organizations by domain first
+      // Even if we have an auto-created org ID, we should check if a real org exists
+      console.log('[onboardingV2] Checking for existing organization with domain:', domain);
 
-        let existingOrg = null;
+      let existingOrg = null;
 
-        // Strategy 1: Exact match by company_domain
-        const { data: exactMatch } = await supabase
-          .from('organizations')
-          .select('id, name, company_domain')
-          .eq('company_domain', domain)
-          .eq('is_active', true)
-          .maybeSingle();
+      // Strategy 1: Exact match by company_domain
+      const { data: exactMatch } = await supabase
+        .from('organizations')
+        .select('id, name, company_domain')
+        .eq('company_domain', domain)
+        .eq('is_active', true)
+        .maybeSingle();
 
-        existingOrg = exactMatch;
+      existingOrg = exactMatch;
 
-        // Strategy 2: If no exact match, try fuzzy domain matching RPC
-        if (!existingOrg) {
-          const { data: fuzzyMatches } = await supabase.rpc('find_similar_organizations_by_domain', {
-            p_search_domain: domain,
-            p_limit: 5,
-          });
-
-          // Use the best match (highest similarity score)
-          if (fuzzyMatches && fuzzyMatches.length > 0) {
-            existingOrg = fuzzyMatches[0]; // Take highest similarity match
-          }
-        }
-
-        if (existingOrg) {
-          // Organization exists - create join request instead
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('first_name, last_name')
-            .eq('id', session.user.id)
-            .maybeSingle();
-
-          const joinRequestResult = await supabase.rpc('create_join_request', {
-            p_org_id: existingOrg.id,
-            p_user_id: session.user.id,
-            p_user_profile: profileData
-              ? {
-                  first_name: profileData.first_name,
-                  last_name: profileData.last_name,
-                }
-              : null,
-          });
-
-          if (joinRequestResult.error) throw joinRequestResult.error;
-
-          // Update user profile status to pending_approval
-          await supabase
-            .from('profiles')
-            .update({ profile_status: 'pending_approval' })
-            .eq('id', session.user.id);
-
-          // Store pending join request state
-          set({
-            organizationId: existingOrg.id,
-            domain,
-            enrichmentSource: 'website',
-            currentStep: 'pending_approval',
-            // Store join request status
-            pendingJoinRequest: {
-              requestId: joinRequestResult.data[0].join_request_id,
-              orgId: existingOrg.id,
-              orgName: existingOrg.name,
-              status: 'pending',
-            },
-          });
-
-          return;
-        }
-
-        // If no exact match, try fuzzy domain matching
-        const { data: similarByDomain } = await supabase.rpc('find_similar_organizations_by_domain', {
+      // Strategy 2: If no exact match, try fuzzy domain matching RPC
+      if (!existingOrg) {
+        const { data: fuzzyMatches } = await supabase.rpc('find_similar_organizations_by_domain', {
           p_search_domain: domain,
           p_limit: 5,
         });
 
-        if (similarByDomain && similarByDomain.length > 0) {
-          set({
-            currentStep: 'organization_selection',
-            similarOrganizations: similarByDomain,
-            matchSearchTerm: domain,
-            domain,
-          });
-          return;
+        // Use the best match (highest similarity score > 0.7)
+        if (fuzzyMatches && fuzzyMatches.length > 0 && fuzzyMatches[0].similarity_score > 0.7) {
+          console.log('[onboardingV2] Found fuzzy match with score:', fuzzyMatches[0].similarity_score);
+          existingOrg = fuzzyMatches[0];
+        }
+      }
+
+      if (existingOrg) {
+        console.log('[onboardingV2] Found existing organization:', existingOrg.name);
+
+        // Organization exists - create join request instead
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        const joinRequestResult = await supabase.rpc('create_join_request', {
+          p_org_id: existingOrg.id,
+          p_user_id: session.user.id,
+          p_user_profile: profileData
+            ? {
+                first_name: profileData.first_name,
+                last_name: profileData.last_name,
+              }
+            : null,
+        });
+
+        if (joinRequestResult.error) throw joinRequestResult.error;
+
+        console.log('[onboardingV2] Join request created successfully');
+
+        // Update user profile status to pending_approval
+        await supabase
+          .from('profiles')
+          .update({ profile_status: 'pending_approval' })
+          .eq('id', session.user.id);
+
+        // Delete the auto-created organization if one was passed in
+        if (organizationId && organizationId !== existingOrg.id) {
+          console.log('[onboardingV2] Cleaning up auto-created org:', organizationId);
+          try {
+            // Remove membership first
+            await supabase
+              .from('organization_memberships')
+              .delete()
+              .eq('org_id', organizationId)
+              .eq('user_id', session.user.id);
+
+            // Delete the org (trigger will handle if it has other members)
+            await supabase
+              .from('organizations')
+              .delete()
+              .eq('id', organizationId)
+              .eq('created_by', session.user.id);
+          } catch (cleanupErr) {
+            console.error('[onboardingV2] Failed to cleanup auto-org:', cleanupErr);
+          }
         }
 
-        // No existing org - create new one
+        // Store pending join request state
+        set({
+          organizationId: existingOrg.id,
+          domain,
+          enrichmentSource: 'website',
+          currentStep: 'pending_approval',
+          // Store join request status
+          pendingJoinRequest: {
+            requestId: joinRequestResult.data[0].join_request_id,
+            orgId: existingOrg.id,
+            orgName: existingOrg.name,
+            status: 'pending',
+          },
+        });
+
+        return;
+      }
+
+      console.log('[onboardingV2] No existing organization found, checking if we need to create one');
+
+      // No existing org found - check if we need to create one or use the provided one
+      if (!finalOrgId || finalOrgId === '') {
+        // No org ID provided - create new one
         const organizationName = domain || 'My Organization';
         const { data: newOrg, error: createError } = await supabase
           .from('organizations')
@@ -518,6 +530,8 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
           throw createError || new Error('Failed to create organization');
         }
 
+        console.log('[onboardingV2] Created new organization:', newOrg.id);
+
         // Add user as owner of the new organization
         const { error: memberError } = await supabase
           .from('organization_memberships')
@@ -530,39 +544,15 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
         if (memberError) throw memberError;
 
         finalOrgId = newOrg.id;
-
-        // After creating/joining new org, cleanup old auto-created orgs
-        // This prevents users from being in multiple organizations
-        try {
-          // Get all user's memberships
-          const { data: allMemberships } = await supabase
-            .from('organization_memberships')
-            .select('org_id, role, organizations(created_by)')
-            .eq('user_id', session.user.id);
-
-          // Find auto-created orgs (where user is owner and org was auto-created by them)
-          const oldAutoOrgs = allMemberships?.filter(m =>
-            m.org_id !== newOrg.id &&  // Not the new org
-            m.role === 'owner' &&  // User created it
-            m.organizations.created_by === session.user.id
-          ) || [];
-
-          // Remove user from old auto-created orgs
-          for (const oldOrg of oldAutoOrgs) {
-            await supabase
-              .from('organization_memberships')
-              .delete()
-              .eq('org_id', oldOrg.org_id)
-              .eq('user_id', session.user.id);
-
-            console.log('[onboardingV2] Removed from old auto-org:', oldOrg.org_id);
-          }
-          // Trigger will automatically delete empty orgs
-        } catch (cleanupErr) {
-          console.error('[onboardingV2] Failed to cleanup old org:', cleanupErr);
-        }
-
         set({ organizationId: finalOrgId });
+      } else {
+        // Use the provided org ID and update its domain
+        console.log('[onboardingV2] Using provided org ID and updating domain:', finalOrgId);
+
+        await supabase
+          .from('organizations')
+          .update({ company_domain: domain })
+          .eq('id', finalOrgId);
       }
 
       set({
@@ -1279,7 +1269,7 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       userEmail: null,
       isPersonalEmail: false,
       // Steps
-      currentStep: 'enrichment_loading',
+      currentStep: 'website_input', // Reset to website_input to allow users to restart onboarding
       currentSkillIndex: 0,
       // Website input
       websiteUrl: null,

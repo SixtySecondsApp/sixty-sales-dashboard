@@ -15,6 +15,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 import { cancelJoinRequest } from '@/lib/services/joinRequestService';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 export default function PendingApprovalPage() {
   const navigate = useNavigate();
@@ -22,9 +23,11 @@ export default function PendingApprovalPage() {
   const [joinRequest, setJoinRequest] = useState<{
     orgName: string;
     email: string;
+    requestId: string;
   } | null>(null);
   const [checking, setChecking] = useState(false);
   const [canceling, setCanceling] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
 
   useEffect(() => {
     // Fetch join request details
@@ -34,7 +37,7 @@ export default function PendingApprovalPage() {
       try {
         const { data } = await supabase
           .from('organization_join_requests')
-          .select('org_id, email, organizations(name)')
+          .select('id, org_id, email, organizations(name)')
           .eq('user_id', user.id)
           .eq('status', 'pending')
           .maybeSingle();
@@ -42,6 +45,7 @@ export default function PendingApprovalPage() {
         if (data) {
           console.log('[PendingApprovalPage] Join request data:', data);
           setJoinRequest({
+            requestId: data.id,
             orgName: data.organizations?.name || 'the organization',
             email: data.email,
           });
@@ -115,30 +119,18 @@ export default function PendingApprovalPage() {
   };
 
   const handleCancelRequest = async () => {
-    if (!user?.id || !joinRequest) return;
-
-    const confirmed = window.confirm(
-      'Are you sure you want to cancel this request and restart onboarding? This will allow you to create a new organization or request to join a different one.'
-    );
-
-    if (!confirmed) return;
+    if (!user?.id || !joinRequest?.requestId) {
+      console.error('[PendingApprovalPage] Missing required data:', { userId: user?.id, requestId: joinRequest?.requestId });
+      toast.error('Unable to cancel request. Please refresh the page and try again.');
+      return;
+    }
 
     setCanceling(true);
+    setShowCancelDialog(false);
+
     try {
-      // Get the join request ID
-      const { data: requests } = await supabase
-        .from('organization_join_requests')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('status', 'pending')
-        .maybeSingle();
-
-      if (!requests?.id) {
-        toast.error('No pending request found');
-        return;
-      }
-
-      const result = await cancelJoinRequest(requests.id, user.id);
+      console.log('[PendingApprovalPage] Cancelling join request:', joinRequest.requestId);
+      const result = await cancelJoinRequest(joinRequest.requestId, user.id);
 
       if (result.success) {
         toast.success('Join request cancelled. Redirecting to onboarding...');
@@ -146,11 +138,12 @@ export default function PendingApprovalPage() {
           navigate('/onboarding?step=website_input', { replace: true });
         }, 1000);
       } else {
+        console.error('[PendingApprovalPage] Cancel failed:', result.error);
         toast.error(result.error || 'Failed to cancel request');
       }
     } catch (error) {
       console.error('[PendingApprovalPage] Error cancelling request:', error);
-      toast.error('Failed to cancel request');
+      toast.error('Failed to cancel request. Please try again.');
     } finally {
       setCanceling(false);
     }
@@ -237,8 +230,8 @@ export default function PendingApprovalPage() {
               )}
             </Button>
             <Button
-              onClick={handleCancelRequest}
-              disabled={canceling}
+              onClick={() => setShowCancelDialog(true)}
+              disabled={canceling || !joinRequest?.requestId}
               className="w-full bg-gray-700 hover:bg-gray-600 text-white disabled:bg-gray-600 disabled:cursor-not-allowed"
             >
               {canceling ? (
@@ -268,6 +261,19 @@ export default function PendingApprovalPage() {
           </p>
         </div>
       </motion.div>
+
+      {/* Cancel Confirmation Dialog */}
+      <ConfirmDialog
+        open={showCancelDialog}
+        onClose={() => setShowCancelDialog(false)}
+        onConfirm={handleCancelRequest}
+        title="Cancel Join Request?"
+        description={`Are you sure you want to cancel your request to join ${joinRequest?.orgName || 'this organization'}? You'll be able to create a new organization or request to join a different one.`}
+        confirmText="Yes, Cancel Request"
+        cancelText="No, Keep Request"
+        confirmVariant="warning"
+        loading={canceling}
+      />
     </div>
   );
 }

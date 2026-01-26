@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { cancelJoinRequest } from '@/lib/services/joinRequestService';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 export function PendingApprovalStep() {
   const navigate = useNavigate();
@@ -22,19 +23,39 @@ export function PendingApprovalStep() {
   const { pendingJoinRequest, userEmail } = useOnboardingV2Store();
   const [profileEmail, setProfileEmail] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [joinRequestId, setJoinRequestId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch the user's profile email if not set
-    if (!userEmail) {
-      const fetchUserEmail = async () => {
+    // Fetch the user's profile email and join request ID
+    const fetchData = async () => {
+      if (!userEmail) {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user?.email) {
           setProfileEmail(session.user.email);
         }
-      };
-      fetchUserEmail();
-    }
-  }, [userEmail]);
+      }
+
+      // Fetch join request ID if we don't have it from store
+      if (user?.id && !pendingJoinRequest?.requestId) {
+        const { data } = await supabase
+          .from('organization_join_requests')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('status', 'pending')
+          .maybeSingle();
+
+        if (data?.id) {
+          setJoinRequestId(data.id);
+        }
+      } else if (pendingJoinRequest?.requestId) {
+        setJoinRequestId(pendingJoinRequest.requestId);
+      }
+    };
+
+    fetchData();
+  }, [userEmail, user?.id, pendingJoinRequest?.requestId]);
 
   const checkApprovalStatus = async () => {
     if (!user) return;
@@ -81,6 +102,40 @@ export function PendingApprovalStep() {
       toast.error('Failed to check status. Please try again.');
     } finally {
       setChecking(false);
+    }
+  };
+
+  const handleCancelRequest = async () => {
+    if (!user?.id || !joinRequestId) {
+      console.error('[PendingApprovalStep] Missing required data:', { userId: user?.id, joinRequestId });
+      toast.error('Unable to cancel request. Please refresh the page and try again.');
+      return;
+    }
+
+    setCanceling(true);
+    setShowCancelDialog(false);
+
+    try {
+      console.log('[PendingApprovalStep] Cancelling join request:', joinRequestId);
+      const result = await cancelJoinRequest(joinRequestId, user.id);
+
+      if (result.success) {
+        toast.success('Join request cancelled. Restarting onboarding...');
+        // Reset store state
+        useOnboardingV2Store.getState().reset();
+        // Redirect to website input
+        setTimeout(() => {
+          navigate('/onboarding?step=website_input', { replace: true });
+        }, 1000);
+      } else {
+        console.error('[PendingApprovalStep] Cancel failed:', result.error);
+        toast.error(result.error || 'Failed to cancel request');
+      }
+    } catch (error) {
+      console.error('[PendingApprovalStep] Error cancelling request:', error);
+      toast.error('Failed to cancel request. Please try again.');
+    } finally {
+      setCanceling(false);
     }
   };
 
@@ -177,35 +232,18 @@ export function PendingApprovalStep() {
 
             {/* Cancel and restart onboarding button */}
             <button
-              onClick={async () => {
-                if (!confirm('Are you sure you want to cancel this request and restart onboarding? This will allow you to create a new organization or request to join a different one.')) {
-                  return;
-                }
-
-                if (pendingJoinRequest?.requestId && user?.id) {
-                  const result = await cancelJoinRequest(
-                    pendingJoinRequest.requestId,
-                    user.id
-                  );
-
-                  if (result.success) {
-                    toast.success('Join request cancelled. Restarting onboarding...');
-                    // Reset store state
-                    useOnboardingV2Store.getState().reset();
-                    // Redirect to website input
-                    setTimeout(() => {
-                      navigate('/onboarding?step=website_input', { replace: true });
-                    }, 1000);
-                  } else {
-                    toast.error(result.error || 'Failed to cancel request');
-                  }
-                } else {
-                  toast.error('Unable to cancel request. Please try again.');
-                }
-              }}
-              className="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 mb-2"
+              onClick={() => setShowCancelDialog(true)}
+              disabled={canceling || !joinRequestId}
+              className="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 mb-2 disabled:bg-gray-600 disabled:cursor-not-allowed"
             >
-              Cancel Request & Restart Onboarding
+              {canceling ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 inline animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                'Cancel Request & Restart Onboarding'
+              )}
             </button>
 
             {/* Helper text */}
@@ -222,6 +260,19 @@ export function PendingApprovalStep() {
           </div>
         </div>
       </div>
+
+      {/* Cancel Confirmation Dialog */}
+      <ConfirmDialog
+        open={showCancelDialog}
+        onClose={() => setShowCancelDialog(false)}
+        onConfirm={handleCancelRequest}
+        title="Cancel Join Request?"
+        description={`Are you sure you want to cancel your request to join ${orgName}? You'll be able to create a new organization or request to join a different one.`}
+        confirmText="Yes, Cancel Request"
+        cancelText="No, Keep Request"
+        confirmVariant="warning"
+        loading={canceling}
+      />
     </motion.div>
   );
 }
