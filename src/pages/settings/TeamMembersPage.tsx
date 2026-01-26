@@ -1,6 +1,6 @@
 import SettingsPageWrapper from '@/components/SettingsPageWrapper';
 import { useState, useEffect } from 'react';
-import { Users, Trash2, Loader2, AlertCircle, UserPlus, Mail, RefreshCw, X, Check, Clock } from 'lucide-react';
+import { Users, Trash2, Loader2, AlertCircle, UserPlus, Mail, RefreshCw, X, Check, Clock, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useOrg } from '@/lib/contexts/OrgContext';
 import { useAuth } from '@/lib/contexts/AuthContext';
@@ -60,6 +60,19 @@ export default function TeamMembersPage() {
   const [newInviteEmail, setNewInviteEmail] = useState('');
   const [newInviteRole, setNewInviteRole] = useState<'admin' | 'member'>('member');
   const [isSendingInvite, setIsSendingInvite] = useState(false);
+
+  // Helper function to sort members by role hierarchy
+  const sortMembersByRole = (membersList: TeamMember[]): TeamMember[] => {
+    const roleOrder = { owner: 1, admin: 2, member: 3, readonly: 4 };
+    return [...membersList].sort((a, b) => {
+      const roleComparison = roleOrder[a.role] - roleOrder[b.role];
+      // If same role, sort by created_at (oldest first)
+      if (roleComparison === 0) {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+      return roleComparison;
+    });
+  };
 
   // Fetch join requests
   const { data: joinRequests = [], isLoading: isLoadingJoinRequests } = useQuery({
@@ -160,7 +173,8 @@ export default function TeamMembersPage() {
           user: profileMap.get(m.user_id) || null,
         }));
 
-        setMembers(membersWithProfiles);
+        // Sort by role hierarchy: owner → admin → member → readonly
+        setMembers(sortMembersByRole(membersWithProfiles));
       } catch (err: any) {
         console.error('Error loading members:', err);
       } finally {
@@ -280,11 +294,69 @@ export default function TeamMembersPage() {
       if (response.error) throw response.error;
 
       toast.success('Role updated');
-      setMembers(
-        members.map((m) => (m.user_id === userId ? { ...m, role: newRole } : m))
-      );
+
+      // Update and re-sort members list
+      const updatedMembers = members.map((m) => (m.user_id === userId ? { ...m, role: newRole } : m));
+      setMembers(sortMembersByRole(updatedMembers));
     } catch (err: any) {
       toast.error(err.message || 'Failed to update role');
+    }
+  };
+
+  // Handle ownership transfer (owner only)
+  const handleTransferOwnership = async (newOwnerId: string) => {
+    if (!activeOrgId || !user?.id) return;
+
+    const newOwner = members.find((m) => m.user_id === newOwnerId);
+    if (!newOwner) return;
+
+    const confirmMessage = `Are you sure you want to transfer ownership to ${newOwner.user?.full_name || newOwner.user?.email}? You will become an admin.`;
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      // Start a transaction-like update: demote current owner to admin, promote new member to owner
+      // 1. Promote new owner
+      const { error: promoteError } = await supabase
+        .from('organization_memberships')
+        .update({ role: 'owner' })
+        .eq('org_id', activeOrgId)
+        .eq('user_id', newOwnerId);
+
+      if (promoteError) throw promoteError;
+
+      // 2. Demote current owner to admin
+      const { error: demoteError } = await supabase
+        .from('organization_memberships')
+        .update({ role: 'admin' })
+        .eq('org_id', activeOrgId)
+        .eq('user_id', user.id);
+
+      if (demoteError) {
+        // Try to rollback the promotion
+        await supabase
+          .from('organization_memberships')
+          .update({ role: newOwner.role })
+          .eq('org_id', activeOrgId)
+          .eq('user_id', newOwnerId);
+        throw demoteError;
+      }
+
+      toast.success(`Ownership transferred to ${newOwner.user?.full_name || newOwner.user?.email}`);
+
+      // Update and re-sort members list
+      const updatedMembers = members.map((m) => {
+        if (m.user_id === newOwnerId) return { ...m, role: 'owner' as const };
+        if (m.user_id === user.id) return { ...m, role: 'admin' as const };
+        return m;
+      });
+      setMembers(sortMembersByRole(updatedMembers));
+
+      // Refresh organization context to update permissions
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to transfer ownership');
     }
   };
 
@@ -345,7 +417,42 @@ export default function TeamMembersPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      {permissions.canManageTeam && member.role !== 'owner' && member.user_id !== user?.id ? (
+                      {/* Owner can transfer ownership or change roles */}
+                      {permissions.isOwner && member.user_id !== user?.id ? (
+                        <>
+                          {member.role === 'owner' ? (
+                            // Can't change other owners (shouldn't happen, but be safe)
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-medium border ${roleColors[member.role]}`}
+                            >
+                              {roleLabels[member.role]}
+                            </span>
+                          ) : (
+                            <>
+                              <select
+                                value={member.role}
+                                onChange={(e) =>
+                                  handleChangeRole(member.user_id, e.target.value as 'admin' | 'member' | 'readonly')
+                                }
+                                className="bg-gray-100 dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                              >
+                                <option value="admin">Admin</option>
+                                <option value="member">Member</option>
+                                <option value="readonly">View Only</option>
+                              </select>
+                              <button
+                                onClick={() => handleTransferOwnership(member.user_id)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-500/20 border border-purple-300 dark:border-purple-500/30 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-500/30 transition-colors"
+                                title="Transfer ownership to this user"
+                              >
+                                <Crown className="w-3.5 h-3.5" />
+                                Transfer Ownership
+                              </button>
+                            </>
+                          )}
+                        </>
+                      ) : permissions.canManageTeam && member.role !== 'owner' && member.user_id !== user?.id ? (
+                        // Admins can change roles but not transfer ownership
                         <select
                           value={member.role}
                           onChange={(e) =>
@@ -358,6 +465,7 @@ export default function TeamMembersPage() {
                           <option value="readonly">View Only</option>
                         </select>
                       ) : (
+                        // Show role badge only
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-medium border ${roleColors[member.role]}`}
                         >
