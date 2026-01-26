@@ -324,6 +324,8 @@ export async function getPendingJoinRequests(orgId: string): Promise<JoinRequest
     console.log('[joinRequestService] User email:', session?.user?.email);
 
     // Step 1: Fetch join requests (without embedded profile join)
+    // Note: Only selecting columns that exist in base migration
+    // join_request_token and join_request_expires_at columns may not exist yet
     const { data: joinRequests, error } = await supabase
       .from('organization_join_requests')
       .select(`
@@ -335,9 +337,7 @@ export async function getPendingJoinRequests(orgId: string): Promise<JoinRequest
         requested_at,
         actioned_by,
         actioned_at,
-        rejection_reason,
-        join_request_token,
-        join_request_expires_at
+        rejection_reason
       `)
       .eq('org_id', orgId)
       .eq('status', 'pending') // Only show pending requests (approved ones become members immediately)
