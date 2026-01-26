@@ -27,6 +27,7 @@ import {
 } from '../_shared/meetingbaas.ts';
 // Import AI analysis function from fathom-sync for sentiment, talk time, and coaching
 import { analyzeTranscriptWithClaude, TranscriptAnalysis } from '../fathom-sync/aiAnalysis.ts';
+import { syncRecordingToMeeting } from '../_shared/recordingCompleteSync.ts';
 
 // =============================================================================
 // Storage Upload Helper
@@ -1037,33 +1038,13 @@ async function processRecording(
       }
     }
 
-    // Step 10: Generate thumbnail for the recording
-    if (supabaseUrl && serviceRoleKey && uploadResult.storagePath) {
-      try {
-        console.log('[ProcessRecording] Step 10: Triggering thumbnail generation...');
-        const thumbnailResponse = await fetch(`${supabaseUrl}/functions/v1/generate-s3-video-thumbnail`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${serviceRoleKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            recording_id: recordingId,
-            bot_id: effectiveBotId,
-            timestamp: 30, // Extract frame at 30 seconds
-          }),
-        });
-
-        if (thumbnailResponse.ok) {
-          const thumbnailResult = await thumbnailResponse.json();
-          console.log('[ProcessRecording] Thumbnail generated:', thumbnailResult.success);
-        } else {
-          console.warn('[ProcessRecording] Thumbnail generation failed:', await thumbnailResponse.text());
-        }
-      } catch (err) {
-        console.warn('[ProcessRecording] Thumbnail error (non-blocking):', err);
-      }
-    }
+    // Step 10: Sync S3 URLs to meetings and generate thumbnail
+    console.log('[ProcessRecording] Step 10: Syncing S3 URLs and generating thumbnail...');
+    await syncRecordingToMeeting({
+      recording_id: recordingId,
+      bot_id: effectiveBotId,
+      supabase,
+    });
 
     // Step 11: Send recording ready notification
     if (supabaseUrl && serviceRoleKey) {

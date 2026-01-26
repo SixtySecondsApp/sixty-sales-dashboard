@@ -16,6 +16,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { legacyCorsHeaders as corsHeaders, handleCorsPreflightRequest } from '../_shared/corsHelper.ts';
+import { syncRecordingToMeeting } from '../_shared/recordingCompleteSync.ts';
 
 interface GladiaWebhookPayload {
   id: string;
@@ -169,6 +170,13 @@ serve(async (req) => {
           .update(meetingUpdate)
           .eq('bot_id', botId)
           .eq('source_type', '60_notetaker');
+
+        // Sync S3 URLs and trigger thumbnail generation (if S3 upload complete)
+        await syncRecordingToMeeting({
+          recording_id: recordingId,
+          bot_id: botId,
+          supabase,
+        });
       }
 
       // Trigger AI analysis (lightweight, can run in edge function)

@@ -26,7 +26,7 @@ import {
 
 // Get Sentry DSN from environment
 const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN;
-const ENVIRONMENT = import.meta.env.VITE_ENVIRONMENT || 'development';
+const ENVIRONMENT = (import.meta.env.VITE_ENVIRONMENT || 'development').toLowerCase();
 const IS_PRODUCTION = ENVIRONMENT === 'production';
 const APP_VERSION = import.meta.env.VITE_APP_VERSION || '2.1.5';
 

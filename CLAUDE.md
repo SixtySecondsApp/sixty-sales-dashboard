@@ -384,22 +384,110 @@ const { data } = await supabase
 
 ## 60 Notetaker (MeetingBaaS) Integration
 
-Bot-based meeting recording system that joins Zoom/Meet/Teams calls.
+Bot-based meeting recording system that joins Zoom/Meet/Teams calls with permanent S3 storage.
 
 ### Key Files
-- `supabase/functions/auto-join-scheduler/` - Cron job deploys bots
-- `supabase/functions/deploy-recording-bot/` - Bot deployment
-- `supabase/functions/meetingbaas-webhook/` - Webhook handler
-- `supabase/functions/generate-s3-video-thumbnail/` - Thumbnail generation
-- `supabase/functions/process-recording/` - AI analysis
+- `supabase/functions/auto-join-scheduler/` - Cron job deploys bots (every 2 min)
+- `supabase/functions/deploy-recording-bot/` - Bot deployment via MeetingBaaS API
+- `supabase/functions/meetingbaas-webhook/` - Webhook handler for bot lifecycle events
+- `supabase/functions/process-gladia-webhook/` - Gladia async transcription results
+- `supabase/functions/process-recording/` - MeetingBaaS transcription + AI analysis
+- `supabase/functions/upload-recording-to-s3/` - Background S3 upload (streaming multipart)
+- `supabase/functions/poll-s3-upload-queue/` - Cron job polls upload queue (every 5 min)
+- `supabase/functions/generate-s3-video-thumbnail/` - Thumbnail generation via Lambda
+- `supabase/functions/_shared/recordingCompleteSync.ts` - Provider-agnostic S3 URL sync
 
 ### Recording Flow
-1. `auto-join-scheduler` (cron every 2 min) finds upcoming meetings
+
+**Phase 1: Bot Deployment & Recording**
+1. `auto-join-scheduler` (cron every 2 min) finds upcoming meetings with `auto_join_enabled=true`
 2. `deploy-recording-bot` sends bot to meeting via MeetingBaaS API
-3. `meetingbaas-webhook` receives status updates and completion
-4. Recording uploaded to S3: `meeting-recordings/{org_id}/{user_id}/{recording_id}/`
-5. `process-recording` generates AI summary, highlights, action items
-6. `generate-s3-video-thumbnail` creates thumbnail via Lambda
+3. `meetingbaas-webhook` receives status updates:
+   - `bot.joined` → Update status to 'joined'
+   - `bot.completed` → Store MeetingBaaS URLs (4-hour expiry), set `s3_upload_status='pending'`
+
+**Phase 2: S3 Upload (Background)**
+4. `poll-s3-upload-queue` (cron every 5 min) finds recordings with `s3_upload_status='pending'`
+   - Checks MeetingBaaS URL expiry (must be <4 hours old)
+   - Implements exponential backoff retry: 2min, 5min, 10min (max 3 attempts)
+5. `upload-recording-to-s3` streams video/audio to S3:
+   - **Streaming multipart upload** (5MB chunks, no memory buffering)
+   - S3 path: `meeting-recordings/{org_id}/{user_id}/{recording_id}/`
+   - Updates: `s3_upload_status='complete'`, records file size, stores S3 URLs
+
+**Phase 3: Transcription (Async)**
+6. Two transcription paths:
+   - **Gladia**: Async API → `process-gladia-webhook` receives results
+   - **MeetingBaaS**: `transcript.ready` webhook → `process-recording`
+7. Both paths call `syncRecordingToMeeting()` helper:
+   - Checks if `s3_upload_status='complete'`
+   - Syncs S3 URLs to meetings table (`video_url`, `audio_url`)
+   - Triggers thumbnail generation if S3 video URL exists
+
+**Phase 4: Thumbnail & Display**
+8. `generate-s3-video-thumbnail` creates thumbnail:
+   - Generates presigned S3 URL (15 min expiry) for private video
+   - Calls Fathom Lambda with presigned URL
+   - Stores thumbnail S3 URL in meetings table
+9. Meetings page displays recording with permanent S3 URLs
+
+### Architecture Highlights
+
+**Unified Storage**: Both Fathom and 60 Notetaker recordings write to unified `meetings` table:
+```typescript
+// meetings.source_type differentiates sources
+'fathom'        // Fathom integration (video_url from Fathom)
+'60_notetaker'  // MeetingBaaS bot (video_url from S3, permanent)
+'manual'        // Manual upload
+```
+
+**Provider-Agnostic Design**: The `syncRecordingToMeeting()` helper works with both transcription providers:
+```typescript
+// Called by process-gladia-webhook AND process-recording
+await syncRecordingToMeeting({
+  recording_id,
+  bot_id,
+  supabase,
+});
+
+// Automatically:
+// 1. Syncs S3 URLs to meetings table (if upload complete)
+// 2. Triggers thumbnail generation (if S3 video URL exists)
+```
+
+**Retry Strategy**: Exponential backoff for failed uploads:
+- Attempt 1: 2 minutes after failure
+- Attempt 2: 5 minutes after failure
+- Attempt 3: 10 minutes after failure
+- Max attempts: 3 (then mark as permanently failed)
+
+### S3 Storage & Cost Tracking
+
+**Admin Dashboard**: `/platform/s3-storage` shows:
+- Total storage used (GB)
+- Current month cost
+- Next month projection
+- Daily breakdown with charts
+
+**Metrics Calculation** (daily cron at midnight UTC):
+- Storage: $0.023/GB/month
+- Download: $0.09/GB (estimated at 50% of storage × 1.7% daily download rate)
+- Upload: Free
+
+**Database Tracking**:
+```sql
+-- recordings table tracks upload status
+s3_upload_status ENUM('pending', 'uploading', 'complete', 'failed')
+s3_video_url TEXT
+s3_audio_url TEXT
+s3_file_size_bytes BIGINT
+s3_upload_retry_count INT DEFAULT 0
+
+-- s3_usage_metrics table tracks costs
+metric_type ENUM('storage_gb', 'upload_gb', 'download_gb', 'api_requests')
+value NUMERIC
+cost_usd NUMERIC
+```
 
 ### Thumbnail Generation Pattern
 Uses existing Fathom Lambda with presigned S3 URLs:
@@ -422,18 +510,12 @@ const response = await fetch(lambdaUrl, {
 - `MEETINGBAAS_API_KEY` - API access
 - `MEETINGBAAS_WEBHOOK_SECRET` - Signature verification
 - `AWS_REGION`, `AWS_S3_BUCKET`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+- `GLADIA_API_KEY` - Async transcription (optional, MeetingBaaS fallback)
 
 ### Required Vault Secret (for cron)
 - Name: `service_role_key`
 - Value: Supabase service role key
-- Used by: `call_auto_join_scheduler()` SQL function
-
-### Source Type Column
-```sql
--- meetings.source_type can be:
--- 'fathom' (default), '60_notetaker', 'manual'
-WHERE source_type = '60_notetaker'
-```
+- Used by: `call_auto_join_scheduler()`, `call_poll_s3_upload_queue()` SQL functions
 
 ## Security Architecture
 
