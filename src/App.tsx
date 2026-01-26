@@ -299,7 +299,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* Home route - redirects unauthenticated to /learnmore, authenticated to dashboard */}
                 <Route path="/" element={<DefaultRoute />} />
                 {/* Dashboard alias for backwards compatibility */}
-                <Route path="/dashboard" element={<InternalRouteGuard><AppLayout><Dashboard /></AppLayout></InternalRouteGuard>} />
+                <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
                 {/* Internal-only routes - CRM and tools */}
                 <Route path="/copilot" element={<InternalRouteGuard><AppLayout><Copilot /></AppLayout></InternalRouteGuard>} />
                 <Route path="/activity" element={<InternalRouteGuard><AppLayout><ActivityLog /></AppLayout></InternalRouteGuard>} />

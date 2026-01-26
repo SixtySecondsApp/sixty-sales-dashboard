@@ -75,38 +75,63 @@ export function OnboardingV2({ organizationId, domain, userEmail }: OnboardingV2
   // 2. localStorage is already cleared in SetPassword to prevent cached org bypass
   // 3. This validation was breaking the onboarding flow by clearing valid organizationIds
 
-  // Read step from URL on mount, but ensure fresh onboarding starts at website_input
+  // Read step from database on mount for resumption after logout
   useEffect(() => {
-    // For fresh onboarding (personal email, no domain), always start at website_input
-    // regardless of URL parameter
-    const isFreshStart = userEmail && !domain && !organizationId;
+    const loadProgressFromDatabase = async () => {
+      if (!user) return;
 
-    if (isFreshStart) {
-      // Fresh signup - always start with website input
-      console.log('[OnboardingV2] Fresh start detected (personal email). Starting at website_input');
-      setStep('website_input');
-      return;
-    }
+      try {
+        const { data: progress } = await supabase
+          .from('user_onboarding_progress')
+          .select('onboarding_step')
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-    // For continuing onboarding, validate the URL step is appropriate
-    const urlStep = searchParams.get('step') as OnboardingV2Step | null;
-    if (urlStep && VALID_STEPS.includes(urlStep)) {
-      // CRITICAL: Validate that enrichment_loading is only accessed with proper setup
-      // If user tries to jump directly to enrichment_loading without a domain/org, redirect
-      if (urlStep === 'enrichment_loading' && !domain && !organizationId) {
-        console.warn('[OnboardingV2] Cannot start enrichment without domain/organizationId. Redirecting to website_input');
+        if (progress && progress.onboarding_step !== 'complete') {
+          const dbStep = progress.onboarding_step as OnboardingV2Step;
+
+          // Validate it's a V2 step
+          if (VALID_STEPS.includes(dbStep)) {
+            console.log('[OnboardingV2] Resuming from database step:', dbStep);
+            setStep(dbStep);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('[OnboardingV2] Error loading progress from database:', error);
+      }
+
+      // Fallback: determine initial step based on onboarding context
+      const isFreshStart = userEmail && !domain && !organizationId;
+
+      if (isFreshStart) {
+        console.log('[OnboardingV2] Fresh start detected (personal email). Starting at website_input');
         setStep('website_input');
         return;
       }
 
-      console.log('[OnboardingV2] Resuming from URL step:', urlStep);
-      setStep(urlStep);
-    } else {
-      // No URL step specified, default to website_input for safety
-      console.log('[OnboardingV2] No URL step specified. Starting at website_input');
-      setStep('website_input');
-    }
-  }, []); // Only run on mount - fresh start decision happens once
+      // For continuing onboarding, validate the URL step is appropriate
+      const urlStep = searchParams.get('step') as OnboardingV2Step | null;
+      if (urlStep && VALID_STEPS.includes(urlStep)) {
+        // CRITICAL: Validate that enrichment_loading is only accessed with proper setup
+        // If user tries to jump directly to enrichment_loading without a domain/org, redirect
+        if (urlStep === 'enrichment_loading' && !domain && !organizationId) {
+          console.warn('[OnboardingV2] Cannot start enrichment without domain/organizationId. Redirecting to website_input');
+          setStep('website_input');
+          return;
+        }
+
+        console.log('[OnboardingV2] Resuming from URL step:', urlStep);
+        setStep(urlStep);
+      } else {
+        // No URL step specified, default to website_input for safety
+        console.log('[OnboardingV2] No URL step specified. Starting at website_input');
+        setStep('website_input');
+      }
+    };
+
+    loadProgressFromDatabase();
+  }, [user]);
 
   // Sync store step changes to URL
   useEffect(() => {
@@ -115,6 +140,28 @@ export function OnboardingV2({ organizationId, domain, userEmail }: OnboardingV2
       setSearchParams({ step: currentStep }, { replace: true });
     }
   }, [currentStep, searchParams, setSearchParams]);
+
+  // Sync current step to database for resumption after logout
+  useEffect(() => {
+    const syncStepToDatabase = async () => {
+      if (!currentStep || currentStep === 'complete' || !user) return;
+
+      try {
+        await supabase
+          .from('user_onboarding_progress')
+          .update({ onboarding_step: currentStep })
+          .eq('user_id', user.id);
+
+        console.log('[OnboardingV2] Synced step to database:', currentStep);
+      } catch (error) {
+        console.error('[OnboardingV2] Failed to sync step to database:', error);
+      }
+    };
+
+    // Debounce to avoid excessive DB writes
+    const timeout = setTimeout(syncStepToDatabase, 1000);
+    return () => clearTimeout(timeout);
+  }, [currentStep, user]);
 
   // Initialize store with organization data and detect email type
   useEffect(() => {

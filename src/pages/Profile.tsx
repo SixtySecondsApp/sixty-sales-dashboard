@@ -57,14 +57,12 @@ export default function Profile() {
     setIsLoading(true);
     const updates = {
       first_name: formData.firstName,
-      last_name: formData.lastName,
-      email: formData.email
+      last_name: formData.lastName
     };
 
     try {
-      // Update auth user metadata
+      // Update auth user metadata (email is not editable)
       const { error: authError } = await supabase.auth.updateUser({
-        email: formData.email,
         data: { full_name: `${formData.firstName} ${formData.lastName}` }
       });
 
@@ -76,8 +74,7 @@ export default function Profile() {
           .from('profiles')
           .update({
             first_name: formData.firstName,
-            last_name: formData.lastName,
-            email: formData.email
+            last_name: formData.lastName
           })
           .eq('id', user.id);
 
@@ -290,9 +287,10 @@ export default function Profile() {
                 <input
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-all duration-200"
+                  disabled={true}
+                  className="w-full bg-gray-100 dark:bg-gray-800/30 border border-gray-300 dark:border-gray-700/30 rounded-xl px-4 py-2.5 text-gray-600 dark:text-gray-500 placeholder-gray-400 cursor-not-allowed opacity-60"
                 />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Email address cannot be changed</p>
               </div>
             </div>
 

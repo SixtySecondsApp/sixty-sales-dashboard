@@ -504,12 +504,15 @@ async function generateSkillConfigsFromManualData(
   const systemPrompt = interpolateVariables(promptConfig.systemPrompt, variables);
   const userPrompt = interpolateVariables(promptConfig.userPrompt, variables);
 
-  // Add context that this is manual input
+  // Add context that this is manual input and restrict web search
   const fullPrompt = `${systemPrompt}
 
-Note: This company data was collected via a Q&A questionnaire, not from website scraping.
-The data may be less comprehensive, so generate reasonable defaults where information is missing.
-Focus on creating useful, actionable skill configurations based on the provided information.
+IMPORTANT: This company data was collected via a Q&A questionnaire, not from website scraping.
+- Do NOT attempt to search the web for additional company information
+- Do NOT request the user to provide a website
+- Use ONLY the provided company information to generate recommendations
+- The data may be less comprehensive, so generate reasonable defaults where information is missing
+- Focus on creating useful, actionable skill configurations based strictly on the provided information
 
 ${userPrompt}`;
 

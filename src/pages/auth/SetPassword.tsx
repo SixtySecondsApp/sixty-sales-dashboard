@@ -26,6 +26,30 @@ interface TokenValidationResult {
   error?: string;
 }
 
+interface NameValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+function validateName(name: string): NameValidationResult {
+  // Allow: letters (any language), spaces, hyphens, apostrophes
+  const validNameRegex = /^[\p{L}\s'-]+$/u;
+
+  if (!name || !name.trim()) {
+    return { valid: false, error: 'Name is required' };
+  }
+
+  if (name.trim().length < 2) {
+    return { valid: false, error: 'Name must be at least 2 characters' };
+  }
+
+  if (!validNameRegex.test(name.trim())) {
+    return { valid: false, error: 'Name can only contain letters, spaces, hyphens, and apostrophes' };
+  }
+
+  return { valid: true };
+}
+
 export default function SetPassword() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -38,6 +62,8 @@ export default function SetPassword() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [waitlistEntryId, setWaitlistEntryId] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
+  const [firstNameError, setFirstNameError] = useState<string | null>(null);
+  const [lastNameError, setLastNameError] = useState<string | null>(null);
 
   useEffect(() => {
     validateToken();
@@ -113,15 +139,23 @@ export default function SetPassword() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!firstName || !firstName.trim()) {
-      toast.error('First name is required');
+    // Validate first name
+    const firstNameValidation = validateName(firstName);
+    if (!firstNameValidation.valid) {
+      setFirstNameError(firstNameValidation.error || 'Invalid first name');
+      toast.error(firstNameValidation.error || 'Invalid first name');
       return;
     }
+    setFirstNameError(null);
 
-    if (!lastName || !lastName.trim()) {
-      toast.error('Last name is required');
+    // Validate last name
+    const lastNameValidation = validateName(lastName);
+    if (!lastNameValidation.valid) {
+      setLastNameError(lastNameValidation.error || 'Invalid last name');
+      toast.error(lastNameValidation.error || 'Invalid last name');
       return;
     }
+    setLastNameError(null);
 
     if (!password || password.length < 6) {
       toast.error('Password must be at least 6 characters long');
@@ -287,10 +321,41 @@ export default function SetPassword() {
       }
 
       if (!profileSyncSuccess) {
-        console.error('[SetPassword] ⚠ Failed to sync profile after 3 attempts');
-        toast.warning('Account created. Profile setup will complete on first login.');
+        console.error('[SetPassword] ⚠ Failed to sync profile after 3 client attempts');
+
+        // Try edge function as last resort (uses service role to bypass RLS)
+        try {
+          console.log('[SetPassword] Attempting profile sync via edge function...');
+          const { data: edgeResponse, error: edgeFunctionError } = await supabase.functions.invoke(
+            'sync-profile-names',
+            {
+              body: {
+                userId,
+                firstName: firstName.trim(),
+                lastName: lastName.trim(),
+              },
+            }
+          );
+
+          if (edgeFunctionError) {
+            console.error('[SetPassword] Edge function error:', edgeFunctionError);
+          } else if (edgeResponse?.success) {
+            console.log('[SetPassword] ✓ Profile synced via edge function');
+            profileSyncSuccess = true;
+            toast.success('Account created successfully! Welcome to Early Access.');
+          } else {
+            console.error('[SetPassword] Edge function returned failure:', edgeResponse);
+          }
+        } catch (edgeErr) {
+          console.error('[SetPassword] Exception calling edge function:', edgeErr);
+        }
       } else {
         toast.success('Account created successfully! Welcome to Early Access.');
+      }
+
+      if (!profileSyncSuccess) {
+        console.warn('[SetPassword] Profile names may sync on first login');
+        toast.warning('Account created. Profile setup will complete on first login.');
       }
 
       setTimeout(() => {
@@ -371,12 +436,27 @@ export default function SetPassword() {
                 id="firstName"
                 type="text"
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                onChange={(e) => {
+                  setFirstName(e.target.value);
+                  if (e.target.value.trim()) {
+                    const validation = validateName(e.target.value);
+                    setFirstNameError(validation.valid ? null : validation.error || null);
+                  } else {
+                    setFirstNameError(null);
+                  }
+                }}
                 placeholder="Enter your first name"
-                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                className={`w-full px-4 py-3 bg-gray-800/50 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent ${
+                  firstNameError
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-gray-700 focus:ring-[#37bd7e]'
+                }`}
                 required
                 disabled={isLoading}
               />
+              {firstNameError && (
+                <p className="text-red-400 text-sm mt-1">{firstNameError}</p>
+              )}
             </div>
 
             <div>
@@ -387,12 +467,27 @@ export default function SetPassword() {
                 id="lastName"
                 type="text"
                 value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                onChange={(e) => {
+                  setLastName(e.target.value);
+                  if (e.target.value.trim()) {
+                    const validation = validateName(e.target.value);
+                    setLastNameError(validation.valid ? null : validation.error || null);
+                  } else {
+                    setLastNameError(null);
+                  }
+                }}
                 placeholder="Enter your last name"
-                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                className={`w-full px-4 py-3 bg-gray-800/50 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent ${
+                  lastNameError
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-gray-700 focus:ring-[#37bd7e]'
+                }`}
                 required
                 disabled={isLoading}
               />
+              {lastNameError && (
+                <p className="text-red-400 text-sm mt-1">{lastNameError}</p>
+              )}
             </div>
 
             <div>

@@ -20,6 +20,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useOnboardingV2Store, SKILLS, SkillId } from '@/lib/stores/onboardingV2Store';
 import { useOnboardingProgress } from '@/lib/hooks/useOnboardingProgress';
+import { useInvalidateUserProfile } from '@/lib/hooks/useUserProfile';
+import { useAuth } from '@/lib/contexts/AuthContext';
 
 interface NextStepItem {
   icon: typeof FileText;
@@ -38,6 +40,8 @@ export function CompletionStep() {
   const navigate = useNavigate();
   const { enrichment, skillConfigs, setStep } = useOnboardingV2Store();
   const { completeStep } = useOnboardingProgress();
+  const { user } = useAuth();
+  const invalidateProfile = useInvalidateUserProfile();
   const [isNavigating, setIsNavigating] = useState(false);
 
   // Determine which skills have been configured (have non-empty data)
@@ -64,6 +68,12 @@ export function CompletionStep() {
       // Mark onboarding as complete using the proper hook
       // This ensures needsOnboarding state updates before navigation
       await completeStep('complete');
+
+      // Invalidate profile cache so dashboard fetches fresh data
+      // This ensures the profile is populated immediately after onboarding
+      if (user?.id) {
+        invalidateProfile();
+      }
 
       // Wait a brief moment for real-time subscription to update
       await new Promise(resolve => setTimeout(resolve, 100));

@@ -107,7 +107,7 @@ export function useUserProfileById(userId: string | null | undefined) {
     staleTime: 10 * 60 * 1000, // 10 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnMount: 'stale', // Refetch on mount if data is stale (ensures fresh profile on dashboard load after onboarding)
     refetchOnReconnect: false,
     retry: 1,
   });

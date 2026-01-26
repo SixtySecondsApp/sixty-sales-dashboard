@@ -336,7 +336,7 @@ export default function TeamMembersPage() {
                       </div>
                       <div>
                         <p className="text-gray-900 dark:text-white font-medium">
-                          {member.user?.full_name || 'Unknown User'}
+                          {member.user?.full_name || member.user?.email?.split('@')[0] || 'Unknown User'}
                           {member.user_id === user?.id && (
                             <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">(you)</span>
                           )}
