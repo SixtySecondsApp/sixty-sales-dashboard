@@ -281,17 +281,17 @@ export async function acceptJoinRequest(
       // Don't fail - membership was already created
     }
 
-    // Mark the join request as having been used
+    // Mark the join request as having been used by clearing the token
+    // Keep status as 'approved' since membership is now created
     const { error: requestUpdateError } = await supabase
       .from('organization_join_requests')
       .update({
-        status: 'activated',
-        join_request_token: null, // Clear token after use
+        join_request_token: null, // Clear token after use to prevent reuse
       })
       .eq('id', requestId);
 
     if (requestUpdateError) {
-      console.error('[joinRequestService] Failed to mark request as activated:', requestUpdateError);
+      console.error('[joinRequestService] Failed to clear join request token:', requestUpdateError);
       // Don't fail - the important parts were already done
     }
 
@@ -336,7 +336,7 @@ export async function getPendingJoinRequests(orgId: string): Promise<JoinRequest
         )
       `)
       .eq('org_id', orgId)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'approved']) // Show both pending (awaiting admin) and approved (awaiting user)
       .order('requested_at', { ascending: false });
 
     if (error) {

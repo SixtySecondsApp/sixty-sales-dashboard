@@ -34,16 +34,15 @@ export default function PendingApprovalPage() {
       try {
         const { data } = await supabase
           .from('organization_join_requests')
-          .select('organization_id, email, organization_id(name)')
+          .select('org_id, email, organizations(name)')
           .eq('user_id', user.id)
           .eq('status', 'pending')
           .maybeSingle();
 
         if (data) {
+          console.log('[PendingApprovalPage] Join request data:', data);
           setJoinRequest({
-            orgName: typeof data.organization_id === 'object' && data.organization_id?.name 
-              ? data.organization_id.name 
-              : 'the organization',
+            orgName: data.organizations?.name || 'the organization',
             email: data.email,
           });
         }

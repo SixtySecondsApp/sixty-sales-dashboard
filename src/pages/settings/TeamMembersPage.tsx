@@ -535,26 +535,35 @@ export default function TeamMembersPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs">
-                          <Clock className="w-3 h-3" />
-                          Pending
-                        </span>
-                        <button
-                          onClick={() => approveMutation.mutate(request.id)}
-                          disabled={approveMutation.isPending}
-                          className="p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors disabled:opacity-50"
-                          title="Approve request"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => rejectMutation.mutate({ requestId: request.id })}
-                          disabled={rejectMutation.isPending}
-                          className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors disabled:opacity-50"
-                          title="Reject request"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        {request.status === 'pending' ? (
+                          <>
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs">
+                              <Clock className="w-3 h-3" />
+                              Awaiting Approval
+                            </span>
+                            <button
+                              onClick={() => approveMutation.mutate(request.id)}
+                              disabled={approveMutation.isPending}
+                              className="p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors disabled:opacity-50"
+                              title="Approve request"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => rejectMutation.mutate({ requestId: request.id })}
+                              disabled={rejectMutation.isPending}
+                              className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors disabled:opacity-50"
+                              title="Reject request"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 text-xs">
+                            <Mail className="w-3 h-3" />
+                            Approved - Awaiting User
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))
