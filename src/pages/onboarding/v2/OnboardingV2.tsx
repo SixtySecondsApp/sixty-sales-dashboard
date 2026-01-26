@@ -178,7 +178,48 @@ export function OnboardingV2({ organizationId, domain, userEmail }: OnboardingV2
     }
   }, [organizationId, domain, userEmail, setOrganizationId, setDomain, setUserEmail]);
 
-  // Auto-start enrichment for corporate email path
+  // Check for existing organization when business email signs up
+  useEffect(() => {
+    const checkBusinessEmailOrg = async () => {
+      // Only run this check once when component mounts with business email
+      if (!userEmail || !domain) return;
+
+      const { setStep } = useOnboardingV2Store.getState();
+
+      try {
+        // Call RPC to check if org exists for this email domain
+        const { data: existingOrg } = await supabase
+          .rpc('check_existing_org_by_email_domain', {
+            p_email: userEmail,
+          })
+          .maybeSingle();
+
+        if (existingOrg && existingOrg.should_request_join) {
+          console.log('[OnboardingV2] Found existing org for business email:', existingOrg.org_name);
+          // Set step to organization selection to allow join request
+          setStep('organization_selection');
+          // Update store with similar orgs data
+          useOnboardingV2Store.setState({
+            similarOrganizations: [{
+              id: existingOrg.org_id,
+              name: existingOrg.org_name,
+              company_domain: existingOrg.org_domain,
+              member_count: existingOrg.member_count,
+              similarity_score: 1.0, // Exact match
+            }],
+            matchSearchTerm: existingOrg.org_domain,
+          });
+        }
+      } catch (error) {
+        console.error('[OnboardingV2] Error checking for existing org:', error);
+        // Continue to enrichment on error
+      }
+    };
+
+    checkBusinessEmailOrg();
+  }, [userEmail, domain]);
+
+  // Auto-start enrichment for corporate email path (if no existing org found)
   useEffect(() => {
     const effectiveDomain = storeDomain || domain;
     if (currentStep === 'enrichment_loading' && effectiveDomain && !userEmail) {
