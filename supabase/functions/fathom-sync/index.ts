@@ -729,6 +729,7 @@ serve(async (req) => {
     }
 
     let meetingsSynced = 0
+    let meetingsSkipped = 0
     let totalMeetingsFound = 0
     const errors: Array<{ call_id: string; error: string }> = []
     let bulkSyncFastMode = false // Track if fast mode was used for bulk sync
@@ -748,7 +749,8 @@ serve(async (req) => {
           webhook_payload,
           skip_thumbnails ?? false, // skipThumbnails
           false, // markAsHistorical
-          false // skipTranscriptFetch - process transcripts immediately for webhooks
+          false, // skipTranscriptFetch - process transcripts immediately for webhooks
+          true // isWebhookSync - always process webhooks
         )
 
         if (result.success) {
@@ -769,7 +771,8 @@ serve(async (req) => {
           call_id,
           skip_thumbnails ?? false, // skipThumbnails
           false, // markAsHistorical
-          false // skipTranscriptFetch - process transcripts immediately
+          false, // skipTranscriptFetch - process transcripts immediately
+          true // isWebhookSync - always process webhooks
         )
 
         if (result.success) {
@@ -786,19 +789,48 @@ serve(async (req) => {
       let apiStartDate = start_date
       let apiEndDate = end_date
       let syncLimit = limit
-      
+
       // For onboarding syncs, set specific behaviors
       const isOnboardingFast = sync_type === 'onboarding_fast'
       const isOnboardingBackground = sync_type === 'onboarding_background'
       const markAsHistorical = isOnboardingFast || isOnboardingBackground || body.is_onboarding
+
+      // Determine if we should allow re-syncing existing meetings
+      // - Incremental: false (only fetch new meetings, skip existing)
+      // - Date-range syncs: true (user explicitly requested that period, may want updates)
+      const allowResync = sync_type !== 'incremental'
+      console.log(`🔄 Sync mode: ${sync_type}, allowResync: ${allowResync}`)
 
       // Default date ranges based on sync type
       if (!apiStartDate) {
         const now = new Date()
         switch (sync_type) {
           case 'incremental':
-            // Last 24 hours for incremental sync
-            apiStartDate = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+            // SMART INCREMENTAL: Fetch only meetings newer than our most recent synced meeting
+            // This avoids fetching and processing meetings we already have
+            if (orgId) {
+              const { data: mostRecentMeeting } = await supabase
+                .from('meetings')
+                .select('meeting_start, title')
+                .eq('org_id', orgId)
+                .order('meeting_start', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+
+              if (mostRecentMeeting) {
+                // Start from the most recent meeting we have (add 1 second to avoid duplicate)
+                const mostRecentDate = new Date(mostRecentMeeting.meeting_start)
+                apiStartDate = new Date(mostRecentDate.getTime() + 1000).toISOString()
+                console.log(`📅 Incremental sync: fetching meetings after ${apiStartDate} (most recent: ${mostRecentMeeting.title})`)
+              } else {
+                // No meetings yet - fall back to last 24 hours
+                apiStartDate = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+                console.log(`📅 Incremental sync: no existing meetings, fetching last 24 hours`)
+              }
+            } else {
+              // No org context - fall back to last 24 hours
+              apiStartDate = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+            }
             apiEndDate = now.toISOString()
             break
           case 'all_time':
@@ -917,16 +949,27 @@ serve(async (req) => {
               call,
               skipThumbsForThis,
               markAsHistorical,
-              skipTranscriptsForThis
+              skipTranscriptsForThis,
+              allowResync // Allow re-sync for date-range syncs, skip for incremental
             )
 
             if (result.success) {
-              meetingsSynced++
-              if (shouldProcessFully) {
-                meetingsFullyProcessed++
+              // Check if it was actually synced or just skipped
+              if (result.error && result.error.includes('already synced')) {
+                meetingsSkipped++
+              } else {
+                meetingsSynced++
+                if (shouldProcessFully) {
+                  meetingsFullyProcessed++
+                }
               }
             } else {
-              errors.push({ call_id: String(call.recording_id || call.id), error: result.error || 'Unknown error' })
+              // Only add to errors if it's a real error (not just missing recording_id)
+              if (!result.error || !result.error.includes('Missing recording_id')) {
+                errors.push({ call_id: String(call.recording_id || call.id), error: result.error || 'Unknown error' })
+              } else {
+                meetingsSkipped++
+              }
             }
           } catch (error) {
             errors.push({
@@ -971,7 +1014,8 @@ serve(async (req) => {
                 call,
                 fastModeSkipThumbnails,
                 markAsHistorical,
-                fastModeSkipTranscripts
+                fastModeSkipTranscripts,
+                allowResync // Use same allowResync logic for fallback retries
               )
               if (result.success) meetingsSynced++
             } catch (error) {
@@ -1161,6 +1205,7 @@ serve(async (req) => {
         success: true,
         sync_type,
         meetings_synced: meetingsSynced,
+        meetings_skipped: meetingsSkipped,
         total_meetings_found: totalMeetingsFound,
         errors: errors.length > 0 ? errors : undefined,
         // Fast mode indicator - transcripts will be processed in background
@@ -1382,10 +1427,38 @@ async function syncSingleCall(
   call: any, // Directly receive the call object from bulk API
   skipThumbnails: boolean = false,
   markAsHistorical: boolean = false, // Mark as historical import (doesn't count toward new meeting limit)
-  skipTranscriptFetch: boolean = false // Skip transcript/summary fetch for bulk syncs
+  skipTranscriptFetch: boolean = false, // Skip transcript/summary fetch for bulk syncs
+  allowResync: boolean = false // Flag to allow re-syncing existing meetings (for date-range syncs or webhooks)
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Call object already contains all necessary data from bulk API
+
+    // EARLY EXIT: Skip meetings without valid recording ID
+    const recordingIdRaw = call?.recording_id ?? call?.id ?? call?.recordingId ?? null
+    if (!recordingIdRaw) {
+      console.warn(`⚠️  Skipping meeting without recording ID: ${call.title || 'Unknown'}`)
+      return { success: false, error: 'Missing recording_id - cannot uniquely identify meeting' }
+    }
+
+    // EARLY EXIT: Skip already-synced meetings (unless allowResync is true)
+    // allowResync is true for:
+    // - Webhook syncs (always get latest data)
+    // - Date-range syncs (user explicitly requested that period, may want updates)
+    // allowResync is false for:
+    // - Incremental syncs (only new meetings, skip existing)
+    if (!allowResync && orgId) {
+      const { data: existingMeeting } = await supabase
+        .from('meetings')
+        .select('id, fathom_recording_id, last_synced_at')
+        .eq('org_id', orgId)
+        .eq('fathom_recording_id', String(recordingIdRaw))
+        .maybeSingle()
+
+      if (existingMeeting) {
+        console.log(`⏭️  Skipping already-synced meeting: ${call.title || recordingIdRaw} (last synced: ${existingMeeting.last_synced_at})`)
+        return { success: true, error: 'Meeting already synced' }
+      }
+    }
 
     // Use the owner resolution service to resolve meeting owner
     const ownerResult = await resolveMeetingOwner(
