@@ -32,40 +32,42 @@ serve(async (req) => {
     const body: DisconnectRequest = await req.json().catch(() => ({} as DisconnectRequest))
     const deleteSyncedMeetings = !!body.delete_synced_meetings
 
-    const authHeader = req.headers.get('Authorization') || ''
-    console.log('[fathom-disconnect] Auth header present:', !!authHeader)
+    // Get authorization header - Supabase edge runtime passes this through
+    const authHeader = req.headers.get('authorization') || req.headers.get('Authorization') || ''
 
-    if (!authHeader) {
-      console.error('[fathom-disconnect] Missing authorization header')
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    console.log('[fathom-disconnect] Starting disconnect, auth header present:', !!authHeader)
 
-    // Validate user via anon client using caller JWT
-    const anonClient = createClient(
+    // Create Supabase client and validate user
+    const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } }
+      {
+        global: {
+          headers: { Authorization: authHeader }
+        }
+      }
     )
 
     console.log('[fathom-disconnect] Validating user session...')
-    const { data: { user }, error: userError } = await anonClient.auth.getUser()
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
 
     if (userError || !user) {
-      console.error('[fathom-disconnect] Session validation failed:', userError?.message)
+      console.error('[fathom-disconnect] Auth failed:', {
+        error: userError?.message,
+        hasHeader: !!authHeader,
+        headerPrefix: authHeader ? authHeader.substring(0, 20) : 'none'
+      })
       return new Response(
         JSON.stringify({
           success: false,
           error: 'Unauthorized: Invalid session',
-          details: userError?.message
+          details: userError?.message || 'No user found'
         }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log('[fathom-disconnect] User validated:', user.id)
+    console.log('[fathom-disconnect] ✅ User validated:', user.id)
 
     // Service role client for privileged operations
     const supabase = createClient(
