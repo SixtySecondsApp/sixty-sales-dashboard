@@ -92,8 +92,8 @@ export interface RecordingSettings {
 
 export const DEFAULT_BOT_NAME = '60 Notetaker';
 // Bot avatar image shown when joining meetings
-export const DEFAULT_BOT_IMAGE =
-  'https://ygdpgliavpxeugaajgrb.supabase.co/storage/v1/object/public/Logos/ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459/60-notetaker.jpg';
+// Using 256x256px 60 icon from app (publicly accessible)
+export const DEFAULT_BOT_IMAGE = 'https://app.use60.com/favicon_0_256x256.png';
 export const DEFAULT_ENTRY_MESSAGE =
   "Hi! I'm here to take notes so {rep_name} can focus on our conversation. 📝";
 

@@ -917,53 +917,32 @@ async function handleBotCompleted(
     return { success: false, error: `Recording record not found: ${deployment.recording_id}` };
   }
 
-  // Download and upload video to S3 (prefer video over audio)
-  const mediaUrl = video || audio;
-  if (mediaUrl) {
-    console.log('[MeetingBaaS Webhook] Uploading recording to S3...');
-    const uploadResult = await uploadRecordingToS3(
-      mediaUrl,
-      orgId,
-      recording.user_id,
-      deployment.recording_id
-    );
+  // Skip S3 upload in webhook to avoid memory limits (284MB+ for long recordings)
+  // MeetingBaaS URLs are valid for 4 hours and used directly by Gladia for transcription
+  // S3 upload can be added back as a background job later if needed for permanent storage
 
-    if (uploadResult.success) {
-      // Update recording with S3 details
-      await supabase
-        .from('recordings')
-        .update({
-          recording_s3_key: uploadResult.storagePath,
-          recording_s3_url: uploadResult.storageUrl,
-          meeting_start_time: joined_at,
-          meeting_end_time: exited_at,
-          meeting_duration_seconds: duration_seconds,
-          status: 'processing',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', deployment.recording_id);
-    } else {
-      console.warn('[MeetingBaaS Webhook] S3 upload failed:', uploadResult.error);
-      // Store MeetingBaaS URL as fallback
-      await supabase
-        .from('recordings')
-        .update({
-          meeting_start_time: joined_at,
-          meeting_end_time: exited_at,
-          meeting_duration_seconds: duration_seconds,
-          status: 'processing',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', deployment.recording_id);
-    }
-  }
+  console.log('[MeetingBaaS Webhook] Storing recording metadata and queueing S3 upload (async)...');
+  await supabase
+    .from('recordings')
+    .update({
+      meeting_start_time: joined_at,
+      meeting_end_time: exited_at,
+      meeting_duration_seconds: duration_seconds,
+      status: 'processing',
+      s3_upload_status: 'pending', // Queue for S3 upload by poll-s3-upload-queue cron
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', deployment.recording_id);
 
-  // Update deployment status
+  // Update deployment status and store MeetingBaaS URLs for S3 upload
+  // URLs are valid for 4 hours - poll-s3-upload-queue will process them
   await supabase
     .from('bot_deployments')
     .update({
       status: 'completed',
       leave_time: exited_at,
+      video_url: video || null,
+      audio_url: audio || null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', deployment.id);
@@ -984,37 +963,108 @@ async function handleBotCompleted(
     return { success: true };
   }
 
-  // transcription_provider is "none" - trigger process-recording (will try MeetingBaaS API, then fallback to external services)
-  console.log('[MeetingBaaS Webhook] transcription_provider is none - triggering process-recording');
+  // transcription_provider is "none" - trigger async transcription with Gladia
+  console.log('[MeetingBaaS Webhook] transcription_provider is none - triggering async transcription');
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const gladiaApiKey = Deno.env.get('GLADIA_API_KEY');
+
+  if (!gladiaApiKey) {
+    console.warn('[MeetingBaaS Webhook] GLADIA_API_KEY not configured - skipping transcription');
+    return { success: true };
+  }
 
   try {
-    const processResponse = await fetch(`${supabaseUrl}/functions/v1/process-recording`, {
+    // Request async transcription from Gladia with webhook callback
+    // Prefer audio over video (smaller file, faster to process)
+    const transcriptionUrl = audio || video;
+
+    if (!transcriptionUrl) {
+      console.warn('[MeetingBaaS Webhook] No audio/video URL available for transcription');
+      return { success: true };
+    }
+
+    console.log('[MeetingBaaS Webhook] Requesting Gladia transcription (async mode)...');
+
+    // Encode recording_id and bot_id in callback URL query params (Gladia doesn't support metadata field)
+    const callbackUrl = `${supabaseUrl}/functions/v1/process-gladia-webhook?recording_id=${encodeURIComponent(deployment.recording_id)}&bot_id=${encodeURIComponent(bot_id)}`;
+
+    const gladiaResponse = await fetch('https://api.gladia.io/v2/transcription', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${serviceRoleKey}`,
+        'x-gladia-key': gladiaApiKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        recording_id: deployment.recording_id,
-        bot_id: bot_id,
-        // Pass audio/video URLs for Gladia transcription
-        video_url: video,
-        audio_url: audio,
+        audio_url: transcriptionUrl,
+        diarization: true,
+        diarization_config: {
+          min_speakers: 2,
+          max_speakers: 10,
+        },
+        // CRITICAL: Enable webhook for async processing with recording_id in URL
+        callback_url: callbackUrl,
       }),
     });
 
-    if (!processResponse.ok) {
-      const errorText = await processResponse.text();
-      console.error('[MeetingBaaS Webhook] process-recording failed:', processResponse.status, errorText);
-    } else {
-      console.log('[MeetingBaaS Webhook] process-recording triggered successfully');
+    if (!gladiaResponse.ok) {
+      const errorText = await gladiaResponse.text();
+      console.error('[MeetingBaaS Webhook] Gladia API error:', gladiaResponse.status, errorText);
+
+      // Update recording status to failed
+      await supabase
+        .from('recordings')
+        .update({
+          status: 'failed',
+          error_message: `Gladia transcription request failed: ${errorText}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', deployment.recording_id);
+
+      return { success: false, error: `Gladia API error: ${errorText}` };
     }
+
+    const gladiaResult = await gladiaResponse.json();
+    const { result_url, id: gladiaJobId } = gladiaResult;
+
+    console.log('[MeetingBaaS Webhook] Gladia transcription started:', {
+      job_id: gladiaJobId,
+      result_url: result_url,
+    });
+
+    // Update recording with Gladia job tracking info
+    await supabase
+      .from('recordings')
+      .update({
+        status: 'transcribing',
+        gladia_job_id: gladiaJobId,
+        gladia_result_url: result_url,
+        transcription_started_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', deployment.recording_id);
+
+    // Sync to meetings table
+    await syncMeetingStatus(supabase, bot_id, 'processing', {
+      // processing_status will be updated to 'ready' when Gladia webhook arrives
+    });
+
+    console.log('[MeetingBaaS Webhook] Async transcription initiated - will process via webhook');
+
   } catch (error) {
-    console.error('[MeetingBaaS Webhook] Failed to trigger process-recording:', error);
-    // Don't fail the webhook - the recording data is saved and can be processed later
+    console.error('[MeetingBaaS Webhook] Failed to initiate transcription:', error);
+
+    // Update recording status
+    await supabase
+      .from('recordings')
+      .update({
+        status: 'failed',
+        error_message: error instanceof Error ? error.message : 'Failed to initiate transcription',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', deployment.recording_id);
+
+    // Don't fail the webhook - recording data is saved
   }
 
   return { success: true };

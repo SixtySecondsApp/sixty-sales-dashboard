@@ -190,3 +190,20 @@ verify_jwt = false
 # Uses service role key for auth
 [functions.sync-recording-to-crm]
 verify_jwt = false
+
+# Process Gladia webhook - receives async transcription results
+# Called by Gladia API (external webhook) - no JWT verification needed
+[functions.process-gladia-webhook]
+verify_jwt = false
+
+# Process AI analysis - triggered after transcription completes
+# Called internally by process-gladia-webhook - no JWT verification needed
+[functions.process-ai-analysis]
+verify_jwt = false
+
+# Poll Gladia jobs - scheduled cron job that checks for completed transcriptions
+# Runs every 3 minutes to poll Gladia API (since webhooks don't work)
+# Called by Supabase cron scheduler - no JWT verification needed
+# The cron schedule is managed via SQL function: supabase/migrations/*_poll_gladia_cron.sql
+[functions.poll-gladia-jobs]
+verify_jwt = false

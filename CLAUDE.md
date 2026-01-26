@@ -435,6 +435,178 @@ const response = await fetch(lambdaUrl, {
 WHERE source_type = '60_notetaker'
 ```
 
+## Security Architecture
+
+> **Full Documentation**: [`docs/SECURITY_HARDENING_GUIDE.md`](docs/SECURITY_HARDENING_GUIDE.md)
+> **Implementation Summary**: [`docs/SECURITY_IMPLEMENTATION_SUMMARY.md`](docs/SECURITY_IMPLEMENTATION_SUMMARY.md)
+
+### Defense-in-Depth Security Model
+
+use60 implements a comprehensive security architecture to protect user data, learned from Clawdbot vulnerability analysis where exposed AI control interfaces led to credential theft, conversation history exfiltration, and perception manipulation attacks.
+
+**Key Achievement**: Multi-layered defense system that protects user data even if the edge function is compromised.
+
+### Security Layers
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  Frontend (React)                                              │
+│  - User authentication via JWT                                 │
+└────────────┬───────────────────────────────────────────────────┘
+             │ JWT token
+             ↓
+┌────────────────────────────────────────────────────────────────┐
+│  Edge Function (api-copilot)                                   │
+│  - User-scoped client (default) ← Layer 1: Minimal Permissions│
+│  - Service role (justified only, audited)                      │
+└────────────┬───────────────────────────────────────────────────┘
+             │ User JWT
+             ↓
+┌────────────────────────────────────────────────────────────────┐
+│  Row Level Security (RLS) ← Layer 2: Database Enforcement      │
+│  - User isolation enforced                                     │
+│  - Org sharing configurable (admin-controlled)                 │
+│  - Copilot conversations ALWAYS private                        │
+└────────────┬───────────────────────────────────────────────────┘
+             │ Filtered query
+             ↓
+┌────────────────────────────────────────────────────────────────┐
+│  Database (Supabase) ← Layer 3: Data Isolation                 │
+│  - Only user's data returned                                   │
+│  - Audit logs preserved                                        │
+└────────────┬───────────────────────────────────────────────────┘
+             │
+             ↓
+┌────────────────────────────────────────────────────────────────┐
+│  Security Monitoring ← Layer 4: Threat Detection               │
+│  - Anomaly detection active (credential harvesting, exfiltration)│
+│  - Real-time alerting                                          │
+│  - Automated incident response                                 │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### Dynamic Data Sharing Model
+
+**Org Settings Table**: Admin-configurable data sharing preferences
+
+```sql
+-- org_settings table
+enable_crm_sharing: true       -- Contacts, deals (default: shared)
+enable_meeting_sharing: true   -- Meetings (default: shared)
+enable_task_sharing: false     -- Tasks (default: private)
+enable_email_sharing: false    -- Emails (default: private)
+enable_copilot_sharing: false  -- ALWAYS false (enforced by CHECK constraint)
+```
+
+**Dynamic RLS**: Policies check org settings at runtime
+
+```typescript
+// Example: Contacts policy
+// User can see own contacts OR (if CRM sharing enabled) org members' contacts
+SELECT * FROM contacts WHERE
+  owner_id = auth.uid()
+  OR (is_crm_sharing_enabled() AND user_in_same_org(owner_id))
+```
+
+### Copilot Conversation Privacy
+
+**Strict Isolation**: Conversations are ALWAYS user-private, never shared
+
+- ✅ User can read own conversations
+- ❌ Org admins CANNOT read conversations (even with admin role)
+- ❌ Service role CANNOT bypass (RLS enforced)
+- ✅ Export rate limiting: Max 10 exports/hour (prevents bulk exfiltration)
+- ✅ Access logging: Every read logged to security_audit_log
+- ✅ Retention policies: Auto-archive after 365 days, GDPR right to erasure
+
+**Why Strict**: Conversation history contains strategic intelligence:
+- Months of context about deals, contacts, planning
+- User's thinking patterns and decision-making
+- Competitive intelligence and business strategy
+
+### Service Role Minimization
+
+**Current State** (needs refactoring):
+```typescript
+// ❌ DANGEROUS: Service role bypasses ALL security
+const client = createClient(url, SERVICE_ROLE_KEY)
+const { data } = await client.from('copilot_conversations').select('*')
+// Returns ALL users' conversations! Compromised function = game over
+```
+
+**Target State**:
+```typescript
+// ✅ SAFE: User-scoped client respects RLS
+const userClient = createClient(url, ANON_KEY, {
+  global: { headers: { Authorization: authHeader } }
+})
+const { data } = await userClient.from('copilot_conversations').select('*')
+// Returns ONLY current user's conversations (RLS enforced)
+
+// Service role ONLY for justified cases (documented and audited)
+const serviceClient = createClient(url, SERVICE_ROLE_KEY)
+// Use ONLY for: org-wide persona compilation, cross-user analytics
+```
+
+**Refactoring Guide**: `supabase/functions/api-copilot/SERVICE_ROLE_REFACTOR.md`
+
+### Security Monitoring
+
+**Real-time Dashboard** (for org admins):
+- **Health Score**: 0-100 based on incidents, suspicious activity, RLS coverage
+- **Anomaly Detection**:
+  - Credential harvesting: >50 accesses/hour = critical threat
+  - Conversation exfiltration: >5 exports in 10min = critical threat
+- **GDPR Compliance**: Automated checks for retention policies, access logging, right to erasure
+
+**Key Functions**:
+```sql
+-- Daily monitoring
+SELECT * FROM get_security_health_score(org_id);
+SELECT * FROM detect_credential_harvesting();
+SELECT * FROM detect_conversation_exfiltration();
+
+-- Compliance reporting
+SELECT * FROM generate_gdpr_compliance_report(org_id);
+```
+
+**Automated Incident Response**:
+- Critical events trigger: System warnings, audit logs, Slack alerts (TODO)
+- Rate limiting: Automatic enforcement on suspicious activity
+- Access logs: Comprehensive audit trail for forensic analysis
+
+### Key Migrations
+
+| Migration | Purpose |
+|-----------|---------|
+| `20260126000000_comprehensive_security_hardening.sql` | RLS policies, org_settings, audit logging |
+| `20260126000001_copilot_conversation_protection.sql` | Retention policies, export limits, GDPR compliance |
+| `20260126000002_security_monitoring_dashboard.sql` | Health score, anomaly detection, compliance reporting |
+
+### Security Best Practices
+
+**Always Do**:
+- Use user-scoped client by default (respects RLS)
+- Log all privileged operations to security_audit_log
+- Validate RLS policies before deployment: `SELECT * FROM check_missing_rls_policies()`
+- Monitor security dashboard daily: `SELECT * FROM security_dashboard`
+
+**Never Do**:
+- Use service role without justification and documentation
+- Share copilot conversations (enforced by CHECK constraint)
+- Skip RLS validation before deploying migrations
+- Ignore security alerts from anomaly detection
+
+### Maintenance Schedule
+
+| Frequency | Task |
+|-----------|------|
+| **Daily** | Review security dashboard, check critical events |
+| **Weekly** | Review audit logs, verify automated maintenance |
+| **Monthly** | GDPR compliance report, update org settings |
+| **Quarterly** | Rotate API keys, test incident response |
+| **Annually** | Rotate service role keys, penetration testing |
+
 ## Supabase Project References
 
 | Environment | Project Ref | Usage |

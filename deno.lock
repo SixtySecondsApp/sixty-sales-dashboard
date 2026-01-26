@@ -39,6 +39,7 @@
     "packageJson": {
       "dependencies": [
         "npm:@apollo/server@5",
+        "npm:@aws-sdk/client-s3@^3.975.0",
         "npm:@aws-sdk/client-ses@^3.883.0",
         "npm:@clerk/clerk-react@^5.57.1",
         "npm:@dnd-kit/core@^6.3.1",
