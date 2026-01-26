@@ -361,6 +361,11 @@ export async function getPendingJoinRequests(orgId: string): Promise<JoinRequest
     }
 
     // Step 2: Fetch profiles for all user_ids
+    // Note: RLS may block some profiles if users haven't joined the org yet
+    // The profiles table RLS policy only allows viewing profiles of users who:
+    // - Are the current user
+    // - Share an organization with the current user
+    // Since pending join requests haven't been approved, users_share_organization() returns false
     const userIds = joinRequests.map(req => req.user_id);
     console.log('[joinRequestService] Fetching profiles for user IDs:', userIds);
 
@@ -374,6 +379,9 @@ export async function getPendingJoinRequests(orgId: string): Promise<JoinRequest
       // Continue without profiles - we still have email from join requests
     } else {
       console.log('[joinRequestService] ✅ Fetched', profiles?.length || 0, 'profiles');
+      if (profiles && profiles.length < userIds.length) {
+        console.log('[joinRequestService] ⚠️ Some profiles blocked by RLS (expected for pending requests)');
+      }
     }
 
     // Step 3: Merge profiles with join requests

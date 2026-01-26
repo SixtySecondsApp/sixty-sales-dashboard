@@ -587,7 +587,7 @@ export default function TeamMembersPage() {
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-full bg-yellow-200 dark:bg-yellow-500/20 flex items-center justify-center">
                           <span className="text-yellow-900 dark:text-yellow-400 font-medium">
-                            {request.user_profile?.first_name?.[0] ||
+                            {request.user_profile?.first_name?.[0]?.toUpperCase() ||
                               request.email[0].toUpperCase()}
                           </span>
                         </div>
@@ -595,7 +595,7 @@ export default function TeamMembersPage() {
                           <p className="text-gray-900 dark:text-white font-medium">
                             {request.user_profile?.first_name && request.user_profile?.last_name
                               ? `${request.user_profile.first_name} ${request.user_profile.last_name}`
-                              : request.user_profile?.first_name || request.user_profile?.last_name || 'Name not available'}
+                              : request.user_profile?.first_name || request.user_profile?.last_name || request.email.split('@')[0]}
                           </p>
                           <p className="text-sm text-gray-600 dark:text-gray-400">{request.email}</p>
                         </div>
