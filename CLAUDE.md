@@ -41,10 +41,10 @@ Sales intelligence platform that helps teams prepare for meetings and act on ins
 | Table | User Column | Notes |
 |-------|-------------|-------|
 | `meetings` | `owner_user_id` | **NOT `user_id`** - common error! |
+| `tasks` | `owner_id` | **NOT `user_id`** - common error! |
+| `deals` | `owner_id` | **NOT `user_id`** - common error! |
 | `contacts` | `user_id` | Standard |
-| `deals` | `user_id` | Standard |
 | `activities` | `user_id` | Standard |
-| `tasks` | `user_id` | Standard |
 | `calendar_events` | `user_id` | Standard |
 | `workflow_executions` | `user_id` | Standard |
 
