@@ -360,50 +360,21 @@ export async function getPendingJoinRequests(orgId: string): Promise<JoinRequest
       return [];
     }
 
-    // Step 2: Fetch profiles for all user_ids
-    // Note: RLS may block some profiles if users haven't joined the org yet
-    // The profiles table RLS policy only allows viewing profiles of users who:
-    // - Are the current user
-    // - Share an organization with the current user
-    // Since pending join requests haven't been approved, users_share_organization() returns false
-    const userIds = joinRequests.map(req => req.user_id);
-    console.log('[joinRequestService] Fetching profiles for user IDs:', userIds);
-
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('id, email, first_name, last_name')
-      .in('id', userIds);
-
-    if (profilesError) {
-      console.warn('[joinRequestService] ⚠️ Failed to fetch profiles:', profilesError);
-      // Continue without profiles - we still have email from join requests
-    } else {
-      console.log('[joinRequestService] ✅ Fetched', profiles?.length || 0, 'profiles');
-      if (profiles && profiles.length < userIds.length) {
-        console.log('[joinRequestService] ⚠️ Some profiles blocked by RLS (expected for pending requests)');
-      }
-    }
-
-    // Step 3: Merge profiles with join requests
-    const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
-
-    const enrichedRequests = joinRequests.map(req => ({
-      ...req,
-      user_profile: profileMap.get(req.user_id) || null,
-    }));
-
-    console.log('[joinRequestService] ✅ Enriched requests with profile data');
-    enrichedRequests.forEach((req, idx) => {
+    // Log what we have in user_profile (stored in join request table)
+    joinRequests.forEach((req, idx) => {
       console.log(`[joinRequestService] Request ${idx + 1}:`, {
         email: req.email,
         status: req.status,
         org_id: req.org_id,
-        has_profile: !!req.user_profile,
-        profile_name: req.user_profile ? `${req.user_profile.first_name} ${req.user_profile.last_name}` : 'N/A',
+        user_profile_data: req.user_profile,
+        has_first_name: !!(req.user_profile as any)?.first_name,
+        has_last_name: !!(req.user_profile as any)?.last_name,
       });
     });
 
-    return enrichedRequests as JoinRequest[];
+    // Return join requests as-is - they already have user_profile data from the table
+    // No need to fetch profiles separately (would be blocked by RLS anyway)
+    return joinRequests as JoinRequest[];
   } catch (err) {
     console.error('[joinRequestService] ❌ Exception in getPendingJoinRequests:', err);
     return [];
