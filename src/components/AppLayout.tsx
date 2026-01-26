@@ -128,18 +128,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return offset;
   }, [isTrialBannerVisible, isImpersonating, isIntegrationBannerVisible]);
 
-  const topPaddingClass = useMemo(() => {
-    // Calculate padding based on visible banners
-    // Base: pt-16 (64px)
-    // + 44px for impersonation
-    // + 51px for trial banner
-    // + 40px for integration banner
-    let basePx = 64;
-    if (isImpersonating) basePx += 44;
-    if (isTrialBannerVisible) basePx += 51;
-    if (isIntegrationBannerVisible) basePx += 40;
-    return `pt-[${basePx}px] lg:pt-[${basePx}px]`;
-  }, [isTrialBannerVisible, isImpersonating, isIntegrationBannerVisible]);
+  // Note: topOffsetPx is used for inline paddingTop style since dynamic Tailwind classes
+  // like pt-[${px}px] don't work at runtime (Tailwind JIT needs to see them at build time)
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, toggleMobileMenu] = useCycle(false, true);
   const [hasMounted, setHasMounted] = useState(false);
@@ -960,14 +950,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {
             // Used by full-height pages to avoid double-counting the top padding.
             '--app-top-offset': `${topOffsetPx}px`,
+            // Dynamic padding for banners - inline style because dynamic Tailwind classes don't work at runtime
+            paddingTop: `${topOffsetPx}px`,
           } as React.CSSProperties
         }
         className={cn(
         isFullHeightPage && 'h-[100dvh] overflow-hidden',
         'flex-1 transition-[margin] duration-300 ease-in-out',
         isCollapsed ? 'lg:ml-[96px]' : 'lg:ml-[256px]',
-        'ml-0',
-        topPaddingClass
+        'ml-0'
       )}
       >
         {children}
