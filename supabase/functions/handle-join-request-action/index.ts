@@ -60,6 +60,17 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Debug: Check if auth header is present
+    const authHeader = req.headers.get('authorization');
+    console.log('[handle-join-request-action] Auth header present:', !!authHeader);
+    console.log('[handle-join-request-action] Auth header preview:', authHeader?.substring(0, 30) + '...');
+
+    if (!authHeader) {
+      console.error('[handle-join-request-action] ❌ MISSING AUTH HEADER!');
+      console.error('[handle-join-request-action] This request will fail permission checks.');
+      console.error('[handle-join-request-action] Headers:', Object.fromEntries(req.headers.entries()));
+    }
+
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: {
         autoRefreshToken: false,
@@ -131,6 +142,9 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     // 2. Verify admin is an owner/admin of the org
+    console.log('[handle-join-request-action] Checking permissions for user:', admin_user_id);
+    console.log('[handle-join-request-action] For organization:', joinRequest.org_id);
+
     const { data: adminMembership, error: adminCheckError } = await supabaseAdmin
       .from('organization_memberships')
       .select('id, role')
@@ -138,8 +152,20 @@ serve(async (req: Request): Promise<Response> => {
       .eq('user_id', admin_user_id)
       .maybeSingle();
 
+    console.log('[handle-join-request-action] Membership query result:', {
+      found: !!adminMembership,
+      role: adminMembership?.role,
+      error: adminCheckError?.message
+    });
+
     if (adminCheckError || !adminMembership || !['owner', 'admin'].includes(adminMembership.role)) {
-      console.error('Admin permission check failed:', adminCheckError);
+      console.error('[handle-join-request-action] ❌ Admin permission check failed:', {
+        adminCheckError,
+        hasMembership: !!adminMembership,
+        role: adminMembership?.role,
+        admin_user_id,
+        org_id: joinRequest.org_id
+      });
       return new Response(
         JSON.stringify({
           success: false,
@@ -151,6 +177,8 @@ serve(async (req: Request): Promise<Response> => {
         }
       );
     }
+
+    console.log('[handle-join-request-action] ✅ Permission check passed, role:', adminMembership.role);
 
     // 3. Get organization details
     const { data: org, error: orgError } = await supabaseAdmin
