@@ -314,6 +314,15 @@ export async function acceptJoinRequest(
  */
 export async function getPendingJoinRequests(orgId: string): Promise<JoinRequest[]> {
   try {
+    console.log('[joinRequestService] ===== FETCHING JOIN REQUESTS =====');
+    console.log('[joinRequestService] Org ID:', orgId);
+
+    // Check auth state
+    const { data: { session } } = await supabase.auth.getSession();
+    console.log('[joinRequestService] Auth session exists:', !!session);
+    console.log('[joinRequestService] User ID:', session?.user?.id);
+    console.log('[joinRequestService] User email:', session?.user?.email);
+
     const { data, error } = await supabase
       .from('organization_join_requests')
       .select(`
@@ -340,16 +349,35 @@ export async function getPendingJoinRequests(orgId: string): Promise<JoinRequest
       .order('requested_at', { ascending: false });
 
     if (error) {
-      console.error('[joinRequestService] Failed to get pending requests:', error);
-      console.error('[joinRequestService] Error details:', error);
+      console.error('[joinRequestService] ❌ Query failed with error:', error);
+      console.error('[joinRequestService] Error code:', error.code);
+      console.error('[joinRequestService] Error message:', error.message);
+      console.error('[joinRequestService] Error details:', error.details);
+      console.error('[joinRequestService] Error hint:', error.hint);
       return [];
     }
 
-    console.log('[joinRequestService] Fetched join requests with profiles:', JSON.stringify(data, null, 2));
+    console.log('[joinRequestService] ✅ Query succeeded');
+    console.log('[joinRequestService] Number of results:', data?.length || 0);
+    console.log('[joinRequestService] Raw data:', JSON.stringify(data, null, 2));
+
+    if (data && data.length > 0) {
+      data.forEach((req, idx) => {
+        console.log(`[joinRequestService] Request ${idx + 1}:`, {
+          email: req.email,
+          status: req.status,
+          org_id: req.org_id,
+          has_profile: !!req.user_profile,
+          profile_name: req.user_profile ? `${req.user_profile.first_name} ${req.user_profile.last_name}` : 'N/A',
+        });
+      });
+    } else {
+      console.warn('[joinRequestService] ⚠️ No pending requests found for org:', orgId);
+    }
 
     return (data || []) as JoinRequest[];
   } catch (err) {
-    console.error('[joinRequestService] Exception in getPendingJoinRequests:', err);
+    console.error('[joinRequestService] ❌ Exception in getPendingJoinRequests:', err);
     return [];
   }
 }

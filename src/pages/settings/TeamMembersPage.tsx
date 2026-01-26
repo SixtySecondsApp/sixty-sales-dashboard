@@ -64,6 +64,17 @@ export default function TeamMembersPage() {
   // Join requests section collapse state
   const [isJoinRequestsExpanded, setIsJoinRequestsExpanded] = useState(true);
 
+  // Debug: Log component mount and context values
+  useEffect(() => {
+    console.log('[TeamMembersPage] ===== COMPONENT MOUNTED =====');
+    console.log('[TeamMembersPage] Active Org ID:', activeOrgId);
+    console.log('[TeamMembersPage] User:', {
+      id: user?.id,
+      email: user?.email,
+    });
+    console.log('[TeamMembersPage] Permissions:', permissions);
+  }, []);
+
   // Helper function to sort members by role hierarchy
   const sortMembersByRole = (membersList: TeamMember[]): TeamMember[] => {
     const roleOrder = { owner: 1, admin: 2, member: 3, readonly: 4 };
@@ -78,35 +89,47 @@ export default function TeamMembersPage() {
   };
 
   // Fetch join requests
-  const { data: joinRequests = [], isLoading: isLoadingJoinRequests } = useQuery({
+  const { data: joinRequests = [], isLoading: isLoadingJoinRequests, error: joinRequestsError } = useQuery({
     queryKey: ['join-requests', activeOrgId],
     queryFn: async () => {
+      console.log('[TeamMembersPage] ===== JOIN REQUESTS QUERY =====');
+      console.log('[TeamMembersPage] Active Org ID:', activeOrgId);
+      console.log('[TeamMembersPage] User ID:', user?.id);
+      console.log('[TeamMembersPage] User Email:', user?.email);
+      console.log('[TeamMembersPage] Permissions:', permissions);
+
       if (!activeOrgId) {
-        console.log('[TeamMembersPage] No activeOrgId, skipping join requests fetch');
+        console.warn('[TeamMembersPage] ⚠️ No activeOrgId available, cannot fetch join requests');
         return [];
       }
-      console.log('[TeamMembersPage] Fetching join requests for org:', activeOrgId);
+
       const requests = await getPendingJoinRequests(activeOrgId);
-      console.log('[TeamMembersPage] Join requests fetched:', {
-        count: requests.length,
-        requests: requests,
-      });
-      requests.forEach((req, idx) => {
-        console.log(`[TeamMembersPage] Request ${idx}:`, {
-          id: req.id,
-          email: req.email,
-          status: req.status,
-          user_id: req.user_id,
-          has_profile: !!req.user_profile,
-          first_name: req.user_profile?.first_name,
-          last_name: req.user_profile?.last_name,
+
+      console.log('[TeamMembersPage] ===== QUERY COMPLETE =====');
+      console.log('[TeamMembersPage] Results count:', requests.length);
+
+      if (requests.length > 0) {
+        console.log('[TeamMembersPage] ✅ Found pending requests:');
+        requests.forEach((req, idx) => {
+          console.log(`  ${idx + 1}. ${req.email} (${req.user_profile?.first_name || 'No name'} ${req.user_profile?.last_name || ''})`);
         });
-      });
+      } else {
+        console.warn('[TeamMembersPage] ⚠️ No pending requests returned');
+      }
+
       return requests;
     },
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && !!user?.id,
     refetchInterval: 10000, // Auto-refresh every 10 seconds to catch new requests
+    retry: 2,
   });
+
+  // Log query errors
+  useEffect(() => {
+    if (joinRequestsError) {
+      console.error('[TeamMembersPage] ❌ Join requests query error:', joinRequestsError);
+    }
+  }, [joinRequestsError]);
 
   // Approve mutation
   const approveMutation = useMutation({
