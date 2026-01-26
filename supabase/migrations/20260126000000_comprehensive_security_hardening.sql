@@ -421,8 +421,8 @@ CREATE POLICY "meetings_delete_v2" ON public.meetings
 CREATE POLICY "tasks_select_v2" ON public.tasks
   FOR SELECT
   USING (
-    -- Own records
-    user_id = auth.uid()
+    -- Own records (check owner_id, created_by, or assigned_to)
+    (owner_id = auth.uid() OR created_by = auth.uid() OR assigned_to = auth.uid())
     OR
     -- Org admin can see all
     is_org_admin()
@@ -435,7 +435,7 @@ CREATE POLICY "tasks_select_v2" ON public.tasks
         WHERE om1.user_id = auth.uid()
           AND EXISTS (
             SELECT 1 FROM public.organization_memberships om2
-            WHERE om2.user_id = tasks.user_id
+            WHERE om2.user_id = COALESCE(tasks.owner_id, tasks.created_by, tasks.assigned_to)
               AND om2.org_id = om1.org_id
           )
       )
@@ -446,20 +446,20 @@ CREATE POLICY "tasks_insert_v2" ON public.tasks
   FOR INSERT
   WITH CHECK (
     auth.uid() IS NOT NULL
-    AND user_id = auth.uid()
+    AND (created_by = auth.uid() OR assigned_to = auth.uid())
   );
 
 CREATE POLICY "tasks_update_v2" ON public.tasks
   FOR UPDATE
   USING (
-    user_id = auth.uid()
+    (owner_id = auth.uid() OR created_by = auth.uid() OR assigned_to = auth.uid())
     OR is_org_admin()
   );
 
 CREATE POLICY "tasks_delete_v2" ON public.tasks
   FOR DELETE
   USING (
-    user_id = auth.uid()
+    (owner_id = auth.uid() OR created_by = auth.uid() OR assigned_to = auth.uid())
     OR is_org_admin()
   );
 
