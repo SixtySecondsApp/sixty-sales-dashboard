@@ -323,7 +323,8 @@ export async function getPendingJoinRequests(orgId: string): Promise<JoinRequest
     console.log('[joinRequestService] User ID:', session?.user?.id);
     console.log('[joinRequestService] User email:', session?.user?.email);
 
-    const { data, error } = await supabase
+    // Step 1: Fetch join requests (without embedded profile join)
+    const { data: joinRequests, error } = await supabase
       .from('organization_join_requests')
       .select(`
         id,
@@ -336,13 +337,7 @@ export async function getPendingJoinRequests(orgId: string): Promise<JoinRequest
         actioned_at,
         rejection_reason,
         join_request_token,
-        join_request_expires_at,
-        user_profile:profiles!user_id(
-          id,
-          email,
-          first_name,
-          last_name
-        )
+        join_request_expires_at
       `)
       .eq('org_id', orgId)
       .eq('status', 'pending') // Only show pending requests (approved ones become members immediately)
@@ -357,25 +352,50 @@ export async function getPendingJoinRequests(orgId: string): Promise<JoinRequest
       return [];
     }
 
-    console.log('[joinRequestService] ✅ Query succeeded');
-    console.log('[joinRequestService] Number of results:', data?.length || 0);
-    console.log('[joinRequestService] Raw data:', JSON.stringify(data, null, 2));
+    console.log('[joinRequestService] ✅ Join requests query succeeded');
+    console.log('[joinRequestService] Number of results:', joinRequests?.length || 0);
 
-    if (data && data.length > 0) {
-      data.forEach((req, idx) => {
-        console.log(`[joinRequestService] Request ${idx + 1}:`, {
-          email: req.email,
-          status: req.status,
-          org_id: req.org_id,
-          has_profile: !!req.user_profile,
-          profile_name: req.user_profile ? `${req.user_profile.first_name} ${req.user_profile.last_name}` : 'N/A',
-        });
-      });
-    } else {
+    if (!joinRequests || joinRequests.length === 0) {
       console.warn('[joinRequestService] ⚠️ No pending requests found for org:', orgId);
+      return [];
     }
 
-    return (data || []) as JoinRequest[];
+    // Step 2: Fetch profiles for all user_ids
+    const userIds = joinRequests.map(req => req.user_id);
+    console.log('[joinRequestService] Fetching profiles for user IDs:', userIds);
+
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, email, first_name, last_name')
+      .in('id', userIds);
+
+    if (profilesError) {
+      console.warn('[joinRequestService] ⚠️ Failed to fetch profiles:', profilesError);
+      // Continue without profiles - we still have email from join requests
+    } else {
+      console.log('[joinRequestService] ✅ Fetched', profiles?.length || 0, 'profiles');
+    }
+
+    // Step 3: Merge profiles with join requests
+    const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+
+    const enrichedRequests = joinRequests.map(req => ({
+      ...req,
+      user_profile: profileMap.get(req.user_id) || null,
+    }));
+
+    console.log('[joinRequestService] ✅ Enriched requests with profile data');
+    enrichedRequests.forEach((req, idx) => {
+      console.log(`[joinRequestService] Request ${idx + 1}:`, {
+        email: req.email,
+        status: req.status,
+        org_id: req.org_id,
+        has_profile: !!req.user_profile,
+        profile_name: req.user_profile ? `${req.user_profile.first_name} ${req.user_profile.last_name}` : 'N/A',
+      });
+    });
+
+    return enrichedRequests as JoinRequest[];
   } catch (err) {
     console.error('[joinRequestService] ❌ Exception in getPendingJoinRequests:', err);
     return [];
