@@ -54,39 +54,64 @@ export interface AcceptRequestResult {
 
 /**
  * Approve a join request
- * Calls edge function to generate token and send approval email
+ * Uses RPC function which handles permission checks via RLS
  */
 export async function approveJoinRequest(
   requestId: string,
   adminUserId: string
 ): Promise<ApproveRequestResult> {
   try {
-    const { data, error } = await supabase.functions.invoke('handle-join-request-action', {
-      body: {
-        action: 'approve',
-        request_id: requestId,
-        admin_user_id: adminUserId,
-      },
+    console.log('[joinRequestService] Approving join request via RPC:', requestId);
+
+    // Call RPC function - auth is handled automatically via session
+    const { data, error } = await supabase.rpc('approve_join_request', {
+      p_request_id: requestId,
     });
 
     if (error) {
-      console.error('[joinRequestService] Failed to approve request:', error);
+      console.error('[joinRequestService] RPC error:', error);
       return {
         success: false,
         error: error.message || 'Failed to approve join request',
       };
     }
 
-    if (!data?.success) {
+    // RPC returns array with single result
+    const result = data?.[0];
+
+    if (!result) {
+      console.error('[joinRequestService] No result from RPC');
       return {
         success: false,
-        error: data?.error || 'Failed to approve join request',
+        error: 'Failed to approve join request',
       };
+    }
+
+    if (!result.success) {
+      console.error('[joinRequestService] RPC returned failure:', result.message);
+      return {
+        success: false,
+        error: result.message || 'Failed to approve join request',
+      };
+    }
+
+    console.log('[joinRequestService] ✅ Join request approved successfully');
+
+    // Update profile status to active
+    if (result.user_id) {
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ profile_status: 'active' })
+        .eq('id', result.user_id);
+
+      if (profileError) {
+        console.error('[joinRequestService] Failed to update profile status:', profileError);
+        // Don't fail - membership was already created
+      }
     }
 
     return {
       success: true,
-      token: data.token,
     };
   } catch (err) {
     console.error('[joinRequestService] Exception in approveJoinRequest:', err);
@@ -99,7 +124,7 @@ export async function approveJoinRequest(
 
 /**
  * Reject a join request
- * Calls edge function to reject and send rejection email
+ * Uses RPC function which handles permission checks via RLS
  */
 export async function rejectJoinRequest(
   requestId: string,
@@ -107,29 +132,42 @@ export async function rejectJoinRequest(
   reason?: string
 ): Promise<RejectRequestResult> {
   try {
-    const { data, error } = await supabase.functions.invoke('handle-join-request-action', {
-      body: {
-        action: 'reject',
-        request_id: requestId,
-        admin_user_id: adminUserId,
-        rejection_reason: reason,
-      },
+    console.log('[joinRequestService] Rejecting join request via RPC:', requestId);
+
+    // Call RPC function - auth is handled automatically via session
+    const { data, error } = await supabase.rpc('reject_join_request', {
+      p_request_id: requestId,
+      p_reason: reason || null,
     });
 
     if (error) {
-      console.error('[joinRequestService] Failed to reject request:', error);
+      console.error('[joinRequestService] RPC error:', error);
       return {
         success: false,
         error: error.message || 'Failed to reject join request',
       };
     }
 
-    if (!data?.success) {
+    // RPC returns array with single result
+    const result = data?.[0];
+
+    if (!result) {
+      console.error('[joinRequestService] No result from RPC');
       return {
         success: false,
-        error: data?.error || 'Failed to reject join request',
+        error: 'Failed to reject join request',
       };
     }
+
+    if (!result.success) {
+      console.error('[joinRequestService] RPC returned failure:', result.message);
+      return {
+        success: false,
+        error: result.message || 'Failed to reject join request',
+      };
+    }
+
+    console.log('[joinRequestService] ✅ Join request rejected successfully');
 
     return {
       success: true,
