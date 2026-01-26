@@ -409,13 +409,35 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
 
       // If organizationId is empty/null (personal email user), check for existing org by domain
       if (!finalOrgId || finalOrgId === '') {
-        // Check if organization with this domain already exists
-        const { data: existingOrg } = await supabase
+        // Try multiple strategies to find existing organization:
+        // 1. Exact match by company_domain
+        // 2. Fuzzy domain match (with similarity scoring)
+        // 3. Try to use the find_similar_organizations_by_domain RPC
+
+        let existingOrg = null;
+
+        // Strategy 1: Exact match by company_domain
+        const { data: exactMatch } = await supabase
           .from('organizations')
           .select('id, name, company_domain')
           .eq('company_domain', domain)
           .eq('is_active', true)
           .maybeSingle();
+
+        existingOrg = exactMatch;
+
+        // Strategy 2: If no exact match, try fuzzy domain matching RPC
+        if (!existingOrg) {
+          const { data: fuzzyMatches } = await supabase.rpc('find_similar_organizations_by_domain', {
+            p_search_domain: domain,
+            p_limit: 5,
+          });
+
+          // Use the best match (highest similarity score)
+          if (fuzzyMatches && fuzzyMatches.length > 0) {
+            existingOrg = fuzzyMatches[0]; // Take highest similarity match
+          }
+        }
 
         if (existingOrg) {
           // Organization exists - create join request instead
