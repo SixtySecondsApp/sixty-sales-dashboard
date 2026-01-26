@@ -33,7 +33,10 @@ serve(async (req) => {
     const deleteSyncedMeetings = !!body.delete_synced_meetings
 
     const authHeader = req.headers.get('Authorization') || ''
+    console.log('[fathom-disconnect] Auth header present:', !!authHeader)
+
     if (!authHeader) {
+      console.error('[fathom-disconnect] Missing authorization header')
       return new Response(
         JSON.stringify({ success: false, error: 'Missing authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -47,13 +50,22 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     )
 
+    console.log('[fathom-disconnect] Validating user session...')
     const { data: { user }, error: userError } = await anonClient.auth.getUser()
+
     if (userError || !user) {
+      console.error('[fathom-disconnect] Session validation failed:', userError?.message)
       return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized: Invalid session' }),
+        JSON.stringify({
+          success: false,
+          error: 'Unauthorized: Invalid session',
+          details: userError?.message
+        }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    console.log('[fathom-disconnect] User validated:', user.id)
 
     // Service role client for privileged operations
     const supabase = createClient(
