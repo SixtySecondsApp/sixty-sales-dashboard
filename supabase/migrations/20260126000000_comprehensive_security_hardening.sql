@@ -619,10 +619,21 @@ CREATE POLICY "calendar_events_delete_v2" ON public.calendar_events
 CREATE POLICY "leads_select_v2" ON public.leads
   FOR SELECT
   USING (
-    -- Org members can see their org's leads
-    org_id IN (
-      SELECT org_id FROM public.organization_memberships
-      WHERE user_id = auth.uid()
+    -- Own leads
+    owner_id = auth.uid()
+    OR
+    -- Org admin can see all
+    is_org_admin()
+    OR
+    -- Org members in same org (leads are team-visible by default)
+    EXISTS (
+      SELECT 1 FROM public.organization_memberships om1
+      WHERE om1.user_id = auth.uid()
+        AND EXISTS (
+          SELECT 1 FROM public.organization_memberships om2
+          WHERE om2.user_id = leads.owner_id
+            AND om2.org_id = om1.org_id
+        )
     )
   );
 
@@ -630,31 +641,20 @@ CREATE POLICY "leads_insert_v2" ON public.leads
   FOR INSERT
   WITH CHECK (
     auth.uid() IS NOT NULL
-    AND (
-      org_id IS NULL
-      OR org_id IN (
-        SELECT org_id FROM public.organization_memberships
-        WHERE user_id = auth.uid()
-      )
-    )
+    AND (owner_id = auth.uid() OR created_by = auth.uid())
   );
 
 CREATE POLICY "leads_update_v2" ON public.leads
   FOR UPDATE
   USING (
-    org_id IN (
-      SELECT org_id FROM public.organization_memberships
-      WHERE user_id = auth.uid()
-    )
+    owner_id = auth.uid()
+    OR is_org_admin()
   );
 
 CREATE POLICY "leads_delete_v2" ON public.leads
   FOR DELETE
   USING (
-    org_id IN (
-      SELECT org_id FROM public.organization_memberships
-      WHERE user_id = auth.uid()
-    )
+    owner_id = auth.uid()
     OR is_org_admin()
   );
 
