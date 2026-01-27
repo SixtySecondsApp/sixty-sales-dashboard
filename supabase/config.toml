@@ -181,6 +181,11 @@ verify_jwt = false
 [functions.send-password-reset-email]
 verify_jwt = false
 
+# Process Lambda compression callback - receives HMAC-signed results from AWS Lambda
+# Uses X-Callback-Signature header for auth (not JWT)
+[functions.process-compress-callback]
+verify_jwt = false
+
 # Generate S3 video thumbnail - called internally by process-recording
 # Uses service role key for auth
 [functions.generate-s3-video-thumbnail]
@@ -189,6 +194,11 @@ verify_jwt = false
 # Sync recording to CRM - called internally by process-recording
 # Uses service role key for auth
 [functions.sync-recording-to-crm]
+verify_jwt = false
+
+# Stages API - called from browser with user JWT
+# Uses service role key internally (CORS preflight needs to work)
+[functions.stages]
 verify_jwt = false
 
 # Process Gladia webhook - receives async transcription results
