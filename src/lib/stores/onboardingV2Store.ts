@@ -146,10 +146,13 @@ export const SKILLS: SkillMeta[] = [
  * 1. Corporate email: enrichment_loading → enrichment_result → skills_config → complete
  * 2. Personal email with website: website_input → enrichment_loading → enrichment_result → skills_config → complete
  * 3. Personal email, no website: website_input → manual_enrichment → enrichment_loading → enrichment_result → skills_config → complete
+ * 4. Existing org (join request): website_input → pending_approval (awaiting admin approval)
  */
 export type OnboardingV2Step =
   | 'website_input'        // Ask for website URL (personal email users)
   | 'manual_enrichment'    // Q&A fallback (no website available)
+  | 'organization_selection'  // Fuzzy match found - choose to join or create new
+  | 'pending_approval'     // Awaiting admin approval of join request
   | 'enrichment_loading'   // AI analyzing company
   | 'enrichment_result'    // Show what we learned
   | 'skills_config'        // Configure 5 skills
@@ -176,11 +179,18 @@ interface OnboardingV2State {
   // Manual enrichment data (Q&A fallback)
   manualData: ManualEnrichmentData | null;
 
+  // Similar organizations from fuzzy matching
+  similarOrganizations: Array<{ id: string; name: string; company_domain: string; member_count: number; similarity_score: number }> | null;
+  matchSearchTerm: string | null;
+
   // Enrichment data
   enrichment: EnrichmentData | null;
   isEnrichmentLoading: boolean;
   enrichmentError: string | null;
   enrichmentSource: 'website' | 'manual' | null;
+  // Polling timeout protection
+  pollingStartTime: number | null;
+  pollingAttempts: number;
 
   // Skill configurations (legacy)
   skillConfigs: SkillConfigs;
@@ -247,6 +257,10 @@ interface OnboardingV2State {
   fetchCompiledSkills: (organizationId: string) => Promise<void>;
   toggleCompiledSkillEnabled: (skillKey: string, enabled: boolean) => void;
   saveCompiledSkillPreferences: (organizationId: string) => Promise<boolean>;
+
+  // Organization selection actions
+  submitJoinRequest: (orgId: string, orgName: string) => Promise<void>;
+  createNewOrganization: (orgName: string) => Promise<void>;
 
   // Reset
   reset: () => void;
@@ -317,7 +331,8 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
   isPersonalEmail: false,
 
   // Step management
-  currentStep: 'enrichment_loading',
+  // Default to website_input as a safe fallback - will be updated by setUserEmail()
+  currentStep: 'website_input',
   currentSkillIndex: 0,
 
   // Website input state
@@ -327,11 +342,18 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
   // Manual enrichment state
   manualData: null,
 
+  // Similar organizations state
+  similarOrganizations: null,
+  matchSearchTerm: null,
+
   // Enrichment state
   enrichment: null,
   isEnrichmentLoading: false,
   enrichmentError: null,
   enrichmentSource: null,
+  // Polling timeout protection
+  pollingStartTime: null as number | null,
+  pollingAttempts: 0,
 
   // Skill state (legacy)
   skillConfigs: defaultSkillConfigs,
@@ -386,58 +408,112 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('No session');
 
-      // If organizationId is empty/null (personal email user), check for existing org by domain
-      if (!finalOrgId || finalOrgId === '') {
-        // Check if organization with this domain already exists
-        const { data: existingOrg } = await supabase
-          .from('organizations')
-          .select('id, name, company_domain')
-          .eq('company_domain', domain)
-          .eq('is_active', true)
+      // ALWAYS check for existing organizations by domain first
+      // Even if we have an auto-created org ID, we should check if a real org exists
+      console.log('[onboardingV2] Checking for existing organization with domain:', domain);
+
+      let existingOrg = null;
+
+      // Strategy 1: Exact match by company_domain
+      const { data: exactMatch } = await supabase
+        .from('organizations')
+        .select('id, name, company_domain')
+        .eq('company_domain', domain)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      existingOrg = exactMatch;
+
+      // Strategy 2: If no exact match, try fuzzy domain matching RPC
+      if (!existingOrg) {
+        const { data: fuzzyMatches } = await supabase.rpc('find_similar_organizations_by_domain', {
+          p_search_domain: domain,
+          p_limit: 5,
+        });
+
+        // Use the best match (highest similarity score > 0.7)
+        if (fuzzyMatches && fuzzyMatches.length > 0 && fuzzyMatches[0].similarity_score > 0.7) {
+          console.log('[onboardingV2] Found fuzzy match with score:', fuzzyMatches[0].similarity_score);
+          existingOrg = fuzzyMatches[0];
+        }
+      }
+
+      if (existingOrg) {
+        console.log('[onboardingV2] Found existing organization:', existingOrg.name);
+
+        // Organization exists - create join request instead
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', session.user.id)
           .maybeSingle();
 
-        if (existingOrg) {
-          // Organization exists - create join request instead
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('first_name, last_name')
-            .eq('id', session.user.id)
-            .maybeSingle();
+        const joinRequestResult = await supabase.rpc('create_join_request', {
+          p_org_id: existingOrg.id,
+          p_user_id: session.user.id,
+          p_user_profile: profileData
+            ? {
+                first_name: profileData.first_name,
+                last_name: profileData.last_name,
+              }
+            : null,
+        });
 
-          const joinRequestResult = await supabase.rpc('create_join_request', {
-            p_org_id: existingOrg.id,
-            p_user_id: session.user.id,
-            p_user_profile: profileData
-              ? {
-                  first_name: profileData.first_name,
-                  last_name: profileData.last_name,
-                }
-              : null,
-          });
+        if (joinRequestResult.error) throw joinRequestResult.error;
 
-          if (joinRequestResult.error) throw joinRequestResult.error;
+        console.log('[onboardingV2] Join request created successfully');
 
-          // Store pending join request state
-          set({
-            organizationId: existingOrg.id,
-            domain,
-            enrichmentSource: 'website',
-            currentStep: 'enrichment_loading',
-            // Store join request status
-            pendingJoinRequest: {
-              requestId: joinRequestResult.data[0].join_request_id,
-              orgId: existingOrg.id,
-              orgName: existingOrg.name,
-              status: 'pending',
-            },
-          });
+        // Update user profile status to pending_approval
+        await supabase
+          .from('profiles')
+          .update({ profile_status: 'pending_approval' })
+          .eq('id', session.user.id);
 
-          // Continue with enrichment (limited access)
-          get().startEnrichment(existingOrg.id, domain);
-          return;
+        // Delete the auto-created organization if one was passed in
+        if (organizationId && organizationId !== existingOrg.id) {
+          console.log('[onboardingV2] Cleaning up auto-created org:', organizationId);
+          try {
+            // Remove membership first
+            await supabase
+              .from('organization_memberships')
+              .delete()
+              .eq('org_id', organizationId)
+              .eq('user_id', session.user.id);
+
+            // Delete the org (trigger will handle if it has other members)
+            await supabase
+              .from('organizations')
+              .delete()
+              .eq('id', organizationId)
+              .eq('created_by', session.user.id);
+          } catch (cleanupErr) {
+            console.error('[onboardingV2] Failed to cleanup auto-org:', cleanupErr);
+          }
         }
 
-        // No existing org - create new one
+        // Store pending join request state
+        set({
+          organizationId: existingOrg.id,
+          domain,
+          enrichmentSource: 'website',
+          currentStep: 'pending_approval',
+          // Store join request status
+          pendingJoinRequest: {
+            requestId: joinRequestResult.data[0].join_request_id,
+            orgId: existingOrg.id,
+            orgName: existingOrg.name,
+            status: 'pending',
+          },
+        });
+
+        return;
+      }
+
+      console.log('[onboardingV2] No existing organization found, checking if we need to create one');
+
+      // No existing org found - check if we need to create one or use the provided one
+      if (!finalOrgId || finalOrgId === '') {
+        // No org ID provided - create new one
         const organizationName = domain || 'My Organization';
         const { data: newOrg, error: createError } = await supabase
           .from('organizations')
@@ -454,6 +530,8 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
           throw createError || new Error('Failed to create organization');
         }
 
+        console.log('[onboardingV2] Created new organization:', newOrg.id);
+
         // Add user as owner of the new organization
         const { error: memberError } = await supabase
           .from('organization_memberships')
@@ -467,6 +545,14 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
 
         finalOrgId = newOrg.id;
         set({ organizationId: finalOrgId });
+      } else {
+        // Use the provided org ID and update its domain
+        console.log('[onboardingV2] Using provided org ID and updating domain:', finalOrgId);
+
+        await supabase
+          .from('organizations')
+          .update({ company_domain: domain })
+          .eq('id', finalOrgId);
       }
 
       set({
@@ -498,8 +584,78 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('No session');
 
-      // Create organization with manual data company_name
       const organizationName = manualData.company_name || 'My Organization';
+
+      // First, search for similar organizations using fuzzy matching
+      const { data: similarOrgs } = await supabase.rpc('find_similar_organizations', {
+        p_search_name: organizationName,
+        p_limit: 5,
+      });
+
+      // If we found similar orgs, show selection step
+      if (similarOrgs && similarOrgs.length > 0) {
+        set({
+          organizationCreationInProgress: false,
+          currentStep: 'organization_selection',
+          similarOrganizations: similarOrgs,
+          matchSearchTerm: organizationName,
+        });
+        return organizationName; // Return something truthy to prevent error
+      }
+
+      // Check if organization with this name already exists (fallback to exact match)
+      const { data: existingOrg } = await supabase
+        .from('organizations')
+        .select('id, name')
+        .ilike('name', organizationName)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (existingOrg) {
+        // Organization exists - return it instead of creating a new one
+        // Store pending join request state to trigger confirmation dialog
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        const joinRequestResult = await supabase.rpc('create_join_request', {
+          p_org_id: existingOrg.id,
+          p_user_id: session.user.id,
+          p_user_profile: profileData
+            ? {
+                first_name: profileData.first_name,
+                last_name: profileData.last_name,
+              }
+            : null,
+        });
+
+        if (joinRequestResult.error) throw joinRequestResult.error;
+
+        // Update user profile status to pending_approval
+        await supabase
+          .from('profiles')
+          .update({ profile_status: 'pending_approval' })
+          .eq('id', session.user.id);
+
+        // Store pending join request state
+        set({
+          organizationCreationInProgress: false,
+          organizationId: existingOrg.id,
+          currentStep: 'pending_approval',
+          pendingJoinRequest: {
+            requestId: joinRequestResult.data[0].join_request_id,
+            orgId: existingOrg.id,
+            orgName: existingOrg.name,
+            status: 'pending',
+          },
+        });
+
+        return existingOrg.id;
+      }
+
+      // Create organization with manual data company_name
       const { data: newOrg, error: createError } = await supabase
         .from('organizations')
         .insert({
@@ -524,6 +680,36 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
         });
 
       if (memberError) throw memberError;
+
+      // After creating new org, cleanup old auto-created orgs
+      try {
+        // Get all user's memberships
+        const { data: allMemberships } = await supabase
+          .from('organization_memberships')
+          .select('org_id, role, organizations(created_by)')
+          .eq('user_id', userId);
+
+        // Find auto-created orgs (where user is owner and org was auto-created by them)
+        const oldAutoOrgs = allMemberships?.filter(m =>
+          m.org_id !== newOrg.id &&  // Not the new org
+          m.role === 'owner' &&  // User created it
+          m.organizations.created_by === userId
+        ) || [];
+
+        // Remove user from old auto-created orgs
+        for (const oldOrg of oldAutoOrgs) {
+          await supabase
+            .from('organization_memberships')
+            .delete()
+            .eq('org_id', oldOrg.org_id)
+            .eq('user_id', userId);
+
+          console.log('[onboardingV2] Removed from old auto-org:', oldOrg.org_id);
+        }
+        // Trigger will automatically delete empty orgs
+      } catch (cleanupErr) {
+        console.error('[onboardingV2] Failed to cleanup old org:', cleanupErr);
+      }
 
       set({
         organizationCreationInProgress: false,
@@ -587,7 +773,9 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
 
   // Start enrichment (website-based)
   startEnrichment: async (organizationId, domain, force = false) => {
-    set({ isEnrichmentLoading: true, enrichmentError: null, enrichmentSource: 'website' });
+    // If retrying (force=true), reset polling state to allow fresh attempt
+    const resetState = force ? { pollingStartTime: null, pollingAttempts: 0 } : {};
+    set({ isEnrichmentLoading: true, enrichmentError: null, enrichmentSource: 'website', ...resetState });
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -614,8 +802,39 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
     }
   },
 
-  // Poll enrichment status
+  // Poll enrichment status with timeout protection
   pollEnrichmentStatus: async (organizationId) => {
+    const MAX_POLLING_DURATION = 5 * 60 * 1000; // 5 minutes
+    const MAX_ATTEMPTS = 150; // 150 * 2s = 5 minutes
+    const POLL_INTERVAL = 2000; // 2 seconds
+
+    const state = get();
+
+    // Initialize polling metadata on first call
+    if (!state.pollingStartTime) {
+      set({ pollingStartTime: Date.now(), pollingAttempts: 0 });
+    }
+
+    const currentState = get();
+    const elapsedTime = Date.now() - (currentState.pollingStartTime || Date.now());
+    const attempts = currentState.pollingAttempts || 0;
+
+    // Check timeout conditions - stop if exceeded limits
+    if (elapsedTime > MAX_POLLING_DURATION || attempts > MAX_ATTEMPTS) {
+      const elapsedSeconds = Math.round(elapsedTime / 1000);
+      console.error('[pollEnrichmentStatus] Timeout reached after', elapsedSeconds, 'seconds and', attempts, 'attempts');
+      set({
+        isEnrichmentLoading: false,
+        enrichmentError: `Enrichment timed out after ${elapsedSeconds}s. Please try again or contact support.`,
+        pollingStartTime: null,
+        pollingAttempts: 0,
+      });
+      return;
+    }
+
+    // Increment attempt counter
+    set({ pollingAttempts: attempts + 1 });
+
     const poll = async () => {
       try {
         const response = await supabase.functions.invoke('deep-enrich-organization', {
@@ -638,6 +857,8 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
             skillConfigs: generatedSkills,
             isEnrichmentLoading: false,
             currentStep: 'enrichment_result',
+            pollingStartTime: null, // Reset polling state
+            pollingAttempts: 0,
           });
           return;
         }
@@ -646,6 +867,8 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
           set({
             isEnrichmentLoading: false,
             enrichmentError: enrichment?.error_message || 'Enrichment failed',
+            pollingStartTime: null,
+            pollingAttempts: 0,
           });
           return;
         }
@@ -655,12 +878,18 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
           set({ enrichment });
         }
 
-        // Continue polling
-        setTimeout(() => get().pollEnrichmentStatus(organizationId), 2000);
+        // Continue polling (recursive call after delay)
+        setTimeout(() => get().pollEnrichmentStatus(organizationId), POLL_INTERVAL);
 
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to get status';
-        set({ isEnrichmentLoading: false, enrichmentError: message });
+        const message = error instanceof Error ? error.message : 'Failed to get enrichment status';
+        console.error('[pollEnrichmentStatus] Error:', message);
+        set({
+          isEnrichmentLoading: false,
+          enrichmentError: message,
+          pollingStartTime: null,
+          pollingAttempts: 0,
+        });
       }
     };
 
@@ -920,6 +1149,117 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
     }
   },
 
+  // Submit join request for existing organization
+  submitJoinRequest: async (orgId: string, orgName: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('No user found');
+
+    try {
+      // Fetch profile data to include with join request
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      // If profile is empty, try to get from auth metadata and update profile
+      if (profileData && (!profileData.first_name || !profileData.last_name)) {
+        const firstName = session.user.user_metadata?.first_name;
+        const lastName = session.user.user_metadata?.last_name;
+
+        if (firstName || lastName) {
+          console.log('[submitJoinRequest] Syncing names from auth metadata to profile');
+          await supabase
+            .from('profiles')
+            .update({
+              first_name: firstName || profileData.first_name,
+              last_name: lastName || profileData.last_name,
+            })
+            .eq('id', session.user.id);
+
+          // Update local profile data
+          profileData.first_name = firstName || profileData.first_name;
+          profileData.last_name = lastName || profileData.last_name;
+        }
+      }
+
+      // Create join request via RPC with profile data
+      const { data, error } = await supabase.rpc('create_join_request', {
+        p_org_id: orgId,
+        p_user_id: session.user.id,
+        p_user_profile: profileData
+          ? {
+              first_name: profileData.first_name,
+              last_name: profileData.last_name,
+            }
+          : null,
+      });
+
+      if (error) throw error;
+
+      // Update profile status
+      await supabase
+        .from('profiles')
+        .update({ profile_status: 'pending_approval' })
+        .eq('id', session.user.id);
+
+      // Store pending request info
+      set({
+        pendingJoinRequest: {
+          orgId,
+          orgName,
+          requestId: data?.[0]?.request_id,
+          status: 'pending',
+        },
+        currentStep: 'pending_approval',
+      });
+    } catch (error) {
+      console.error('[onboardingV2Store] Error submitting join request:', error);
+      throw error;
+    }
+  },
+
+  // Create new organization
+  createNewOrganization: async (orgName: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) throw new Error('No user found');
+
+    try {
+      // Create new organization
+      const { data: org, error } = await supabase
+        .from('organizations')
+        .insert({
+          name: orgName,
+          created_by: session.user.id,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Create membership
+      await supabase
+        .from('organization_memberships')
+        .insert({
+          org_id: org.id,
+          user_id: session.user.id,
+          role: 'owner',
+        });
+
+      set({ organizationId: org.id });
+
+      // Proceed to enrichment
+      const state = get();
+      if (state.domain) {
+        await get().startEnrichment(org.id, state.domain, false);
+      }
+    } catch (error) {
+      console.error('[onboardingV2Store] Error creating organization:', error);
+      throw error;
+    }
+  },
+
   // Reset store
   reset: () => {
     set({
@@ -929,13 +1269,16 @@ export const useOnboardingV2Store = create<OnboardingV2State>((set, get) => ({
       userEmail: null,
       isPersonalEmail: false,
       // Steps
-      currentStep: 'enrichment_loading',
+      currentStep: 'website_input', // Reset to website_input to allow users to restart onboarding
       currentSkillIndex: 0,
       // Website input
       websiteUrl: null,
       hasNoWebsite: false,
       // Manual enrichment
       manualData: null,
+      // Similar organizations
+      similarOrganizations: null,
+      matchSearchTerm: null,
       // Enrichment
       enrichment: null,
       isEnrichmentLoading: false,

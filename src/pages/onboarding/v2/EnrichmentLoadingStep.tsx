@@ -16,29 +16,51 @@ interface EnrichmentLoadingStepProps {
 }
 
 const tasks = [
-  { label: 'Scanning website', threshold: 20 },
-  { label: 'Identifying industry', threshold: 40 },
-  { label: 'Analyzing products', threshold: 60 },
-  { label: 'Finding competitors', threshold: 80 },
-  { label: 'Building profile', threshold: 100 },
+  { label: 'Fetching website pages', threshold: 15, detail: 'Reading homepage and key pages...' },
+  { label: 'Analyzing company information', threshold: 35, detail: 'Extracting products and services...' },
+  { label: 'Identifying competitors', threshold: 55, detail: 'Researching market position...' },
+  { label: 'Learning brand voice', threshold: 75, detail: 'Understanding messaging style...' },
+  { label: 'Generating AI skills', threshold: 95, detail: 'Creating personalized configurations...' },
+  { label: 'Finalizing profile', threshold: 100, detail: 'Almost done!' },
 ];
 
 export function EnrichmentLoadingStep({ domain, organizationId: propOrgId }: EnrichmentLoadingStepProps) {
   const [progress, setProgress] = useState(0);
-  const { organizationId: storeOrgId, startEnrichment, enrichment, isEnrichmentLoading, enrichmentError, setStep } = useOnboardingV2Store();
+  const [startTime] = useState(Date.now());
+  const [showStillWorkingMessage, setShowStillWorkingMessage] = useState(false);
+  const { organizationId: storeOrgId, startEnrichment, enrichment, isEnrichmentLoading, enrichmentError, setStep, enrichmentSource } = useOnboardingV2Store();
 
   // Use organizationId from store (which gets updated when new org is created)
   // Fall back to prop if store is empty
   const organizationId = storeOrgId || propOrgId;
 
-  // Start enrichment on mount
+  // Guard: Redirect to website_input if no organizationId (cannot proceed without it)
   useEffect(() => {
     if (!organizationId || organizationId === '') {
-      console.warn('EnrichmentLoadingStep: organizationId is empty, skipping enrichment start');
+      console.error('[EnrichmentLoadingStep] No organizationId - cannot proceed with enrichment. Redirecting to website_input');
+      setStep('website_input');
       return;
     }
-    startEnrichment(organizationId, domain);
-  }, [organizationId, domain, startEnrichment]);
+  }, [organizationId, setStep]);
+
+  // Start enrichment on mount (only for website-based enrichment, not manual)
+  // Manual enrichment is already started in submitManualEnrichment
+  useEffect(() => {
+    if (!organizationId || organizationId === '') {
+      return; // Guard above already handles redirect
+    }
+
+    // Skip if this is manual enrichment (no domain, and source is 'manual')
+    if (!domain && enrichmentSource === 'manual') {
+      console.log('EnrichmentLoadingStep: Manual enrichment already started, skipping startEnrichment');
+      return;
+    }
+
+    // Only start enrichment for website-based flow
+    if (domain) {
+      startEnrichment(organizationId, domain);
+    }
+  }, [organizationId, domain, startEnrichment, enrichmentSource]);
 
   // Simulate progress while enrichment is running
   useEffect(() => {
@@ -65,6 +87,19 @@ export function EnrichmentLoadingStep({ domain, organizationId: propOrgId }: Enr
     return () => clearInterval(interval);
   }, [isEnrichmentLoading, enrichment?.status]);
 
+  // Show "still working" message after 30 seconds
+  useEffect(() => {
+    if (isEnrichmentLoading || enrichment?.status === 'scraping' || enrichment?.status === 'analyzing') {
+      const timer = setTimeout(() => {
+        if (progress >= 80 && enrichment?.status !== 'completed') {
+          setShowStillWorkingMessage(true);
+        }
+      }, 30000); // 30 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [isEnrichmentLoading, enrichment?.status, progress]);
+
   // Auto-advance when complete
   useEffect(() => {
     if (progress >= 100 && enrichment?.status === 'completed') {
@@ -89,7 +124,17 @@ export function EnrichmentLoadingStep({ domain, organizationId: propOrgId }: Enr
           <h2 className="text-xl font-bold text-white mb-2">Something went wrong</h2>
           <p className="text-gray-400 mb-6">{enrichmentError}</p>
           <button
-            onClick={() => organizationId && startEnrichment(organizationId, domain)}
+            onClick={() => {
+              if (!organizationId) return;
+              // For manual enrichment, just reload the page
+              // For website enrichment, retry with the domain
+              if (enrichmentSource === 'manual' || !domain) {
+                // Just reload the page - the enrichment process is running in the background
+                location.reload();
+              } else {
+                startEnrichment(organizationId, domain, true); // force = true to retry
+              }
+            }}
             disabled={!organizationId}
             className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -141,6 +186,13 @@ export function EnrichmentLoadingStep({ domain, organizationId: propOrgId }: Enr
             <span className="text-2xl font-bold text-white">{Math.round(progress)}%</span>
           </div>
         </div>
+
+        {/* Time Estimate */}
+        {progress < 90 && (
+          <p className="text-xs text-gray-500 mb-6">
+            Estimated: {Math.max(0, Math.round((90 - progress) / 2))}s remaining
+          </p>
+        )}
 
         {/* Title */}
         <h2 className="text-xl font-bold text-white mb-2">
@@ -210,6 +262,22 @@ export function EnrichmentLoadingStep({ domain, organizationId: propOrgId }: Enr
                 </motion.span>
               </p>
             </div>
+          </motion.div>
+        )}
+
+        {/* Still Working Message - appears after 30 seconds */}
+        {showStillWorkingMessage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mt-6 p-4 bg-blue-900/20 border border-blue-800/50 rounded-lg"
+          >
+            <p className="text-sm text-blue-300">
+              <strong>Still analyzing your company...</strong>
+              <br />
+              Our AI is doing deep research to create the best possible assistant for you.
+              This usually takes 20-40 seconds. Thank you for your patience!
+            </p>
           </motion.div>
         )}
 

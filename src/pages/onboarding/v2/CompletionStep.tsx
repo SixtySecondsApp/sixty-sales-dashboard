@@ -19,7 +19,9 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useOnboardingV2Store, SKILLS, SkillId } from '@/lib/stores/onboardingV2Store';
-import { supabase } from '@/lib/supabase/clientV2';
+import { useOnboardingProgress } from '@/lib/hooks/useOnboardingProgress';
+import { useInvalidateUserProfile } from '@/lib/hooks/useUserProfile';
+import { useAuth } from '@/lib/contexts/AuthContext';
 
 interface NextStepItem {
   icon: typeof FileText;
@@ -37,6 +39,9 @@ const nextSteps: NextStepItem[] = [
 export function CompletionStep() {
   const navigate = useNavigate();
   const { enrichment, skillConfigs, setStep } = useOnboardingV2Store();
+  const { completeStep } = useOnboardingProgress();
+  const { user } = useAuth();
+  const invalidateProfile = useInvalidateUserProfile();
   const [isNavigating, setIsNavigating] = useState(false);
 
   // Determine which skills have been configured (have non-empty data)
@@ -60,25 +65,21 @@ export function CompletionStep() {
     setIsNavigating(true);
 
     try {
-      // Mark V1 onboarding as complete in the database
-      // This ensures ProtectedRoute allows navigation to dashboard
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await supabase
-          .from('user_onboarding_progress')
-          .upsert({
-            user_id: session.user.id,
-            onboarding_step: 'complete',
-            onboarding_completed_at: new Date().toISOString(),
-          }, {
-            onConflict: 'user_id',
-          });
+      // Mark onboarding as complete using the proper hook
+      // This ensures needsOnboarding state updates before navigation
+      await completeStep('complete');
 
-        // Wait for the real-time subscription to propagate the change
-        await new Promise(resolve => setTimeout(resolve, 200));
+      // Invalidate profile cache so dashboard fetches fresh data
+      // This ensures the profile is populated immediately after onboarding
+      if (user?.id) {
+        invalidateProfile();
       }
 
-      navigate('/dashboard', { replace: true });
+      // Wait a brief moment for real-time subscription to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Navigate to dashboard with full page refresh to clear React Query cache
+      window.location.href = '/dashboard';
     } catch (error) {
       console.error('Error completing onboarding:', error);
       // Fall back to direct navigation even if completion save fails
@@ -177,11 +178,25 @@ export function CompletionStep() {
         <div className="space-y-3">
           {nextSteps.map((item, i) => {
             const Icon = item.icon;
+            const handleNavigation = async () => {
+              if (isNavigating) return;
+              setIsNavigating(true);
+              try {
+                await completeStep('complete');
+                await new Promise(resolve => setTimeout(resolve, 100));
+                // Use full page load to clear React Query cache
+                window.location.href = item.route;
+              } finally {
+                setIsNavigating(false);
+              }
+            };
+
             return (
               <button
                 key={i}
-                onClick={() => navigate(item.route)}
-                className="w-full flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer text-gray-400 hover:bg-gray-800 hover:text-white"
+                onClick={handleNavigation}
+                disabled={isNavigating}
+                className="w-full flex items-center gap-3 p-2 rounded-lg transition-colors cursor-pointer text-gray-400 hover:bg-gray-800 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-gray-800">
                   <Icon className="w-4 h-4 text-gray-400" />

@@ -16,6 +16,14 @@ interface ExtendedAuthError extends AuthError {
   requiresVerification?: boolean;
 }
 
+// Signup metadata interface - includes all fields sent during signup
+export interface SignUpMetadata {
+  full_name?: string;
+  first_name?: string;
+  last_name?: string;
+  company_domain?: string | null;
+}
+
 // Auth context types - shared between Supabase and Clerk implementations
 export interface AuthContextType {
   // State
@@ -25,7 +33,7 @@ export interface AuthContextType {
 
   // Actions
   signIn: (email: string, password: string) => Promise<{ error: ExtendedAuthError | null }>;
-  signUp: (email: string, password: string, metadata?: { full_name?: string }) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string, metadata?: SignUpMetadata) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
   updatePassword: (password: string) => Promise<{ error: AuthError | null }>;
@@ -391,7 +399,7 @@ const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   // Sign up function
-  const signUp = useCallback(async (email: string, password: string, metadata?: { full_name?: string }) => {
+  const signUp = useCallback(async (email: string, password: string, metadata?: SignUpMetadata) => {
     try {
       // Use current origin for email redirect so it works in both local and production
       const redirectUrl = `${window.location.origin}/auth/callback`;

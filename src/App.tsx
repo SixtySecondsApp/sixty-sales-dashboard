@@ -39,6 +39,7 @@ import Login from '@/pages/auth/login';
 import AuthCallback from '@/pages/auth/AuthCallback';
 import AcceptInvitation from '@/pages/auth/AcceptInvitation';
 import InviteSignup from '@/pages/auth/InviteSignup';
+import PendingApprovalPage from '@/pages/auth/PendingApprovalPage';
 import TestGoogleTasks from '@/pages/TestGoogleTasks';
 import MeetingThumbnail from '@/pages/MeetingThumbnail';
 import BrowserlessTest from '@/pages/BrowserlessTest';
@@ -279,6 +280,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/auth/forgot-password" element={<ForgotPassword />} />
         <Route path="/auth/reset-password/*" element={<ResetPassword />} />
         <Route path="/auth/set-password" element={<SetPassword />} />
+        <Route path="/auth/pending-approval" element={<PendingApprovalPage />} />
         <Route path="/update-password" element={<UpdatePassword />} />
 
         {/* OAuth callback routes - must be public for external redirects */}
@@ -301,7 +303,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* Home route - redirects unauthenticated to /learnmore, authenticated to dashboard */}
                 <Route path="/" element={<DefaultRoute />} />
                 {/* Dashboard alias for backwards compatibility */}
-                <Route path="/dashboard" element={<InternalRouteGuard><AppLayout><Dashboard /></AppLayout></InternalRouteGuard>} />
+                <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
                 {/* Internal-only routes - CRM and tools */}
                 {/* Copilot with URL-based conversation routing */}
                 <Route path="/copilot" element={<InternalRouteGuard><AppLayout><CopilotPage /></AppLayout></InternalRouteGuard>} />

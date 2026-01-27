@@ -107,7 +107,9 @@ export async function grantAccess(
       }
 
       // Build the custom invitation URL with token and waitlist_entry params
-      invitationUrl = `https://app.use60.com/auth/set-password?token=${tokenData.token}&waitlist_entry=${entryId}`;
+      // Use current environment (localhost, staging, or production)
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.use60.com';
+      invitationUrl = `${origin}/auth/set-password?token=${tokenData.token}&waitlist_entry=${entryId}`;
     } catch (tokenGenError: any) {
       console.error('Error generating waitlist token:', tokenGenError);
       return { success: false, error: tokenGenError.message || 'Failed to generate invitation token' };
@@ -267,7 +269,9 @@ export async function bulkGrantAccess(
           }
 
           // Build the custom invitation URL
-          const invitationUrl = `https://app.use60.com/auth/set-password?token=${tokenData.token}&waitlist_entry=${entry.id}`;
+          // Use current environment (localhost, staging, or production)
+          const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.use60.com';
+          const invitationUrl = `${origin}/auth/set-password?token=${tokenData.token}&waitlist_entry=${entry.id}`;
 
           if (invitationUrl) {
             magicLinks.push({

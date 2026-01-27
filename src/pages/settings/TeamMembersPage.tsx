@@ -1,6 +1,6 @@
 import SettingsPageWrapper from '@/components/SettingsPageWrapper';
 import { useState, useEffect } from 'react';
-import { Users, Trash2, Loader2, AlertCircle, UserPlus, Mail, RefreshCw, X, Check, Clock } from 'lucide-react';
+import { Users, Trash2, Loader2, AlertCircle, UserPlus, Mail, RefreshCw, X, Check, Clock, Crown, ChevronDown, ChevronUp, UserCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useOrg } from '@/lib/contexts/OrgContext';
 import { useAuth } from '@/lib/contexts/AuthContext';
@@ -13,7 +13,12 @@ import {
   resendInvitation,
   type Invitation,
 } from '@/lib/services/invitationService';
-import { joinRequestService, type JoinRequest } from '@/lib/services/joinRequestService';
+import {
+  getPendingJoinRequests,
+  approveJoinRequest,
+  rejectJoinRequest,
+  type JoinRequest,
+} from '@/lib/services/joinRequestService';
 import { toast } from 'sonner';
 
 interface TeamMember {
@@ -56,47 +61,112 @@ export default function TeamMembersPage() {
   const [newInviteRole, setNewInviteRole] = useState<'admin' | 'member'>('member');
   const [isSendingInvite, setIsSendingInvite] = useState(false);
 
+  // Join requests section collapse state
+  const [isJoinRequestsExpanded, setIsJoinRequestsExpanded] = useState(true);
+
+  // Debug: Log component mount and context values
+  useEffect(() => {
+    console.log('[TeamMembersPage] ===== COMPONENT MOUNTED =====');
+    console.log('[TeamMembersPage] Active Org ID:', activeOrgId);
+    console.log('[TeamMembersPage] User:', {
+      id: user?.id,
+      email: user?.email,
+    });
+    console.log('[TeamMembersPage] Permissions:', permissions);
+  }, []);
+
+  // Helper function to sort members by role hierarchy
+  const sortMembersByRole = (membersList: TeamMember[]): TeamMember[] => {
+    const roleOrder = { owner: 1, admin: 2, member: 3, readonly: 4 };
+    return [...membersList].sort((a, b) => {
+      const roleComparison = roleOrder[a.role] - roleOrder[b.role];
+      // If same role, sort by created_at (oldest first)
+      if (roleComparison === 0) {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+      return roleComparison;
+    });
+  };
+
   // Fetch join requests
-  const { data: joinRequests = [], isLoading: isLoadingJoinRequests } = useQuery({
+  const { data: joinRequests = [], isLoading: isLoadingJoinRequests, error: joinRequestsError } = useQuery({
     queryKey: ['join-requests', activeOrgId],
-    queryFn: () => {
-      if (!activeOrgId) return [];
-      return joinRequestService.getPendingJoinRequests(activeOrgId);
+    queryFn: async () => {
+      console.log('[TeamMembersPage] ===== JOIN REQUESTS QUERY =====');
+      console.log('[TeamMembersPage] Active Org ID:', activeOrgId);
+      console.log('[TeamMembersPage] User ID:', user?.id);
+      console.log('[TeamMembersPage] User Email:', user?.email);
+      console.log('[TeamMembersPage] Permissions:', permissions);
+
+      if (!activeOrgId) {
+        console.warn('[TeamMembersPage] ⚠️ No activeOrgId available, cannot fetch join requests');
+        return [];
+      }
+
+      const requests = await getPendingJoinRequests(activeOrgId);
+
+      console.log('[TeamMembersPage] ===== QUERY COMPLETE =====');
+      console.log('[TeamMembersPage] Results count:', requests.length);
+
+      if (requests.length > 0) {
+        console.log('[TeamMembersPage] ✅ Found pending requests:');
+        requests.forEach((req, idx) => {
+          console.log(`  ${idx + 1}. ${req.email} (${req.user_profile?.first_name || 'No name'} ${req.user_profile?.last_name || ''})`);
+        });
+      } else {
+        console.warn('[TeamMembersPage] ⚠️ No pending requests returned');
+      }
+
+      return requests;
     },
-    enabled: !!activeOrgId,
+    enabled: !!activeOrgId && !!user?.id,
+    refetchInterval: 10000, // Auto-refresh every 10 seconds to catch new requests
+    retry: 2,
   });
+
+  // Log query errors
+  useEffect(() => {
+    if (joinRequestsError) {
+      console.error('[TeamMembersPage] ❌ Join requests query error:', joinRequestsError);
+    }
+  }, [joinRequestsError]);
 
   // Approve mutation
   const approveMutation = useMutation({
-    mutationFn: (requestId: string) => joinRequestService.approveJoinRequest(requestId),
+    mutationFn: (requestId: string) => {
+      if (!user?.id) throw new Error('User ID not available');
+      return approveJoinRequest(requestId, user.id);
+    },
     onSuccess: (result) => {
       if (result.success) {
-        toast.success('Join request approved');
+        toast.success('Join request approved and email sent');
         queryClient.invalidateQueries({ queryKey: ['join-requests'] });
         queryClient.invalidateQueries({ queryKey: ['organization-members'] });
       } else {
-        toast.error(result.message);
+        toast.error(result.error || 'Failed to approve request');
       }
     },
-    onError: () => {
-      toast.error('Failed to approve request');
+    onError: (error: any) => {
+      toast.error(error?.message || 'Failed to approve request');
     },
   });
 
   // Reject mutation
   const rejectMutation = useMutation({
-    mutationFn: ({ requestId, reason }: { requestId: string; reason?: string }) =>
-      joinRequestService.rejectJoinRequest(requestId, reason),
+    mutationFn: ({ requestId, reason }: { requestId: string; reason?: string }) => {
+      if (!user?.id) throw new Error('User ID not available');
+      return rejectJoinRequest(requestId, user.id, reason);
+    },
     onSuccess: (result) => {
       if (result.success) {
-        toast.success('Join request rejected');
+        toast.success('Join request rejected and email sent');
         queryClient.invalidateQueries({ queryKey: ['join-requests'] });
       } else {
-        toast.error(result.message);
+        toast.error(result.error || 'Failed to reject request');
       }
     },
-    onError: () => {
-      toast.error('Failed to reject request');
+    onError: (error: any) => {
+      toast.error(error?.message || 'Failed to reject request');
     },
   });
 
@@ -150,7 +220,8 @@ export default function TeamMembersPage() {
           user: profileMap.get(m.user_id) || null,
         }));
 
-        setMembers(membersWithProfiles);
+        // Sort by role hierarchy: owner → admin → member → readonly
+        setMembers(sortMembersByRole(membersWithProfiles));
       } catch (err: any) {
         console.error('Error loading members:', err);
       } finally {
@@ -270,11 +341,69 @@ export default function TeamMembersPage() {
       if (response.error) throw response.error;
 
       toast.success('Role updated');
-      setMembers(
-        members.map((m) => (m.user_id === userId ? { ...m, role: newRole } : m))
-      );
+
+      // Update and re-sort members list
+      const updatedMembers = members.map((m) => (m.user_id === userId ? { ...m, role: newRole } : m));
+      setMembers(sortMembersByRole(updatedMembers));
     } catch (err: any) {
       toast.error(err.message || 'Failed to update role');
+    }
+  };
+
+  // Handle ownership transfer (owner only)
+  const handleTransferOwnership = async (newOwnerId: string) => {
+    if (!activeOrgId || !user?.id) return;
+
+    const newOwner = members.find((m) => m.user_id === newOwnerId);
+    if (!newOwner) return;
+
+    const confirmMessage = `Are you sure you want to transfer ownership to ${newOwner.user?.full_name || newOwner.user?.email}? You will become an admin.`;
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      // Start a transaction-like update: demote current owner to admin, promote new member to owner
+      // 1. Promote new owner
+      const { error: promoteError } = await supabase
+        .from('organization_memberships')
+        .update({ role: 'owner' })
+        .eq('org_id', activeOrgId)
+        .eq('user_id', newOwnerId);
+
+      if (promoteError) throw promoteError;
+
+      // 2. Demote current owner to admin
+      const { error: demoteError } = await supabase
+        .from('organization_memberships')
+        .update({ role: 'admin' })
+        .eq('org_id', activeOrgId)
+        .eq('user_id', user.id);
+
+      if (demoteError) {
+        // Try to rollback the promotion
+        await supabase
+          .from('organization_memberships')
+          .update({ role: newOwner.role })
+          .eq('org_id', activeOrgId)
+          .eq('user_id', newOwnerId);
+        throw demoteError;
+      }
+
+      toast.success(`Ownership transferred to ${newOwner.user?.full_name || newOwner.user?.email}`);
+
+      // Update and re-sort members list
+      const updatedMembers = members.map((m) => {
+        if (m.user_id === newOwnerId) return { ...m, role: 'owner' as const };
+        if (m.user_id === user.id) return { ...m, role: 'admin' as const };
+        return m;
+      });
+      setMembers(sortMembersByRole(updatedMembers));
+
+      // Refresh organization context to update permissions
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to transfer ownership');
     }
   };
 
@@ -326,7 +455,7 @@ export default function TeamMembersPage() {
                       </div>
                       <div>
                         <p className="text-gray-900 dark:text-white font-medium">
-                          {member.user?.full_name || 'Unknown User'}
+                          {member.user?.full_name || member.user?.email?.split('@')[0] || 'Unknown User'}
                           {member.user_id === user?.id && (
                             <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">(you)</span>
                           )}
@@ -335,7 +464,42 @@ export default function TeamMembersPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      {permissions.canManageTeam && member.role !== 'owner' && member.user_id !== user?.id ? (
+                      {/* Owner can transfer ownership or change roles */}
+                      {permissions.isOwner && member.user_id !== user?.id ? (
+                        <>
+                          {member.role === 'owner' ? (
+                            // Can't change other owners (shouldn't happen, but be safe)
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-medium border ${roleColors[member.role]}`}
+                            >
+                              {roleLabels[member.role]}
+                            </span>
+                          ) : (
+                            <>
+                              <select
+                                value={member.role}
+                                onChange={(e) =>
+                                  handleChangeRole(member.user_id, e.target.value as 'admin' | 'member' | 'readonly')
+                                }
+                                className="bg-gray-100 dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                              >
+                                <option value="admin">Admin</option>
+                                <option value="member">Member</option>
+                                <option value="readonly">View Only</option>
+                              </select>
+                              <button
+                                onClick={() => handleTransferOwnership(member.user_id)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-500/20 border border-purple-300 dark:border-purple-500/30 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-500/30 transition-colors"
+                                title="Transfer ownership to this user"
+                              >
+                                <Crown className="w-3.5 h-3.5" />
+                                Transfer Ownership
+                              </button>
+                            </>
+                          )}
+                        </>
+                      ) : permissions.canManageTeam && member.role !== 'owner' && member.user_id !== user?.id ? (
+                        // Admins can change roles but not transfer ownership
                         <select
                           value={member.role}
                           onChange={(e) =>
@@ -348,6 +512,7 @@ export default function TeamMembersPage() {
                           <option value="readonly">View Only</option>
                         </select>
                       ) : (
+                        // Show role badge only
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-medium border ${roleColors[member.role]}`}
                         >
@@ -370,21 +535,51 @@ export default function TeamMembersPage() {
           )}
         </div>
 
-        {/* Join Requests */}
-        {joinRequests.length > 0 && (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-yellow-500" />
-              Join Requests <span className="text-sm font-normal text-yellow-600 dark:text-yellow-400">({joinRequests.length})</span>
-            </h2>
+        {/* Pending Join Requests - Always Visible */}
+        <div>
+          <button
+            onClick={() => setIsJoinRequestsExpanded(!isJoinRequestsExpanded)}
+            className="w-full flex items-center justify-between mb-4 group"
+          >
+            <div className="flex items-center gap-2">
+              <UserCog className="w-5 h-5 text-yellow-500" />
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Pending Join Requests
+                {joinRequests.length > 0 && (
+                  <span className="ml-2 text-sm font-normal text-yellow-600 dark:text-yellow-400">
+                    ({joinRequests.length})
+                  </span>
+                )}
+              </h2>
+            </div>
+            {isJoinRequestsExpanded ? (
+              <ChevronUp className="w-5 h-5 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors" />
+            )}
+          </button>
+
+          {isJoinRequestsExpanded && (
             <div className="border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
-              <div className="divide-y divide-gray-200 dark:divide-gray-800">
-                {isLoadingJoinRequests ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-8 h-8 text-[#37bd7e] animate-spin" />
+              {isLoadingJoinRequests ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-[#37bd7e] animate-spin" />
+                </div>
+              ) : joinRequests.length === 0 ? (
+                <div className="text-center py-12 px-6">
+                  <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                    <UserCog className="w-8 h-8 text-gray-400" />
                   </div>
-                ) : (
-                  joinRequests.map((request: JoinRequest) => (
+                  <h3 className="text-base font-medium text-gray-900 dark:text-white mb-2">
+                    No Pending Requests
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 max-w-sm mx-auto">
+                    When users request to join your organization, they'll appear here for approval.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-200 dark:divide-gray-800">
+                  {joinRequests.map((request: JoinRequest) => (
                     <div
                       key={request.id}
                       className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
@@ -392,16 +587,15 @@ export default function TeamMembersPage() {
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-full bg-yellow-200 dark:bg-yellow-500/20 flex items-center justify-center">
                           <span className="text-yellow-900 dark:text-yellow-400 font-medium">
-                            {request.user_profile?.first_name?.[0] ||
+                            {request.user_profile?.first_name?.[0]?.toUpperCase() ||
                               request.email[0].toUpperCase()}
                           </span>
                         </div>
                         <div>
                           <p className="text-gray-900 dark:text-white font-medium">
-                            {request.user_profile?.first_name &&
-                            request.user_profile?.last_name
+                            {request.user_profile?.first_name && request.user_profile?.last_name
                               ? `${request.user_profile.first_name} ${request.user_profile.last_name}`
-                              : request.email}
+                              : request.user_profile?.first_name || request.user_profile?.last_name || request.email.split('@')[0]}
                           </p>
                           <p className="text-sm text-gray-600 dark:text-gray-400">{request.email}</p>
                         </div>
@@ -409,13 +603,13 @@ export default function TeamMembersPage() {
                       <div className="flex items-center gap-3">
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs">
                           <Clock className="w-3 h-3" />
-                          Pending
+                          Awaiting Approval
                         </span>
                         <button
                           onClick={() => approveMutation.mutate(request.id)}
                           disabled={approveMutation.isPending}
                           className="p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors disabled:opacity-50"
-                          title="Approve request"
+                          title="Approve request and grant immediate access"
                         >
                           <Check className="w-4 h-4" />
                         </button>
@@ -429,12 +623,12 @@ export default function TeamMembersPage() {
                         </button>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Invite New Members */}
         {permissions.canManageTeam && (

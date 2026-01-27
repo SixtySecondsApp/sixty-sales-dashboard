@@ -509,12 +509,15 @@ async function generateSkillConfigsFromManualData(
   const systemPrompt = interpolateVariables(promptConfig.systemPrompt, variables);
   const userPrompt = interpolateVariables(promptConfig.userPrompt, variables);
 
-  // Add context that this is manual input
+  // Add context that this is manual input and restrict web search
   const fullPrompt = `${systemPrompt}
 
-Note: This company data was collected via a Q&A questionnaire, not from website scraping.
-The data may be less comprehensive, so generate reasonable defaults where information is missing.
-Focus on creating useful, actionable skill configurations based on the provided information.
+IMPORTANT: This company data was collected via a Q&A questionnaire, not from website scraping.
+- Do NOT attempt to search the web for additional company information
+- Do NOT request the user to provide a website
+- Use ONLY the provided company information to generate recommendations
+- The data may be less comprehensive, so generate reasonable defaults where information is missing
+- Focus on creating useful, actionable skill configurations based strictly on the provided information
 
 ${userPrompt}`;
 
@@ -1218,6 +1221,49 @@ async function getEnrichmentStatus(
 
     if (!enrichment) {
       return { success: true, status: 'not_started' };
+    }
+
+    // Timeout detection: If enrichment has been running for > 5 minutes, mark as failed
+    // This prevents infinite polling if the backend gets stuck
+    const MAX_ENRICHMENT_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+    const isActivelyRunning = enrichment.status === 'scraping' || enrichment.status === 'analyzing';
+
+    if (isActivelyRunning && enrichment.created_at) {
+      const createdAtTime = new Date(enrichment.created_at).getTime();
+      const now = Date.now();
+      const elapsed = now - createdAtTime;
+
+      if (elapsed > MAX_ENRICHMENT_DURATION) {
+        console.error(
+          '[getEnrichmentStatus] Timeout detected: enrichment running for',
+          Math.round(elapsed / 1000),
+          'seconds. Marking as failed.'
+        );
+
+        // Update the enrichment record to mark as failed
+        const { error: updateError } = await supabase
+          .from('organization_enrichment')
+          .update({
+            status: 'failed',
+            error_message: 'Enrichment timed out after 5 minutes',
+          })
+          .eq('id', enrichment.id);
+
+        if (updateError) {
+          console.error('[getEnrichmentStatus] Failed to update enrichment status:', updateError);
+        }
+
+        // Return failed status to frontend
+        return {
+          success: true,
+          status: 'failed',
+          enrichment: {
+            ...enrichment,
+            status: 'failed',
+            error_message: 'Enrichment timed out after 5 minutes',
+          },
+        };
+      }
     }
 
     // If completed, also fetch skills

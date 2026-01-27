@@ -26,9 +26,35 @@ interface TokenValidationResult {
   error?: string;
 }
 
+interface NameValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+function validateName(name: string): NameValidationResult {
+  // Allow: letters (any language), spaces, hyphens, apostrophes
+  const validNameRegex = /^[\p{L}\s'-]+$/u;
+
+  if (!name || !name.trim()) {
+    return { valid: false, error: 'Name is required' };
+  }
+
+  if (name.trim().length < 2) {
+    return { valid: false, error: 'Name must be at least 2 characters' };
+  }
+
+  if (!validNameRegex.test(name.trim())) {
+    return { valid: false, error: 'Name can only contain letters, spaces, hyphens, and apostrophes' };
+  }
+
+  return { valid: true };
+}
+
 export default function SetPassword() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -36,6 +62,8 @@ export default function SetPassword() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [waitlistEntryId, setWaitlistEntryId] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
+  const [firstNameError, setFirstNameError] = useState<string | null>(null);
+  const [lastNameError, setLastNameError] = useState<string | null>(null);
 
   useEffect(() => {
     validateToken();
@@ -111,6 +139,24 @@ export default function SetPassword() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate first name
+    const firstNameValidation = validateName(firstName);
+    if (!firstNameValidation.valid) {
+      setFirstNameError(firstNameValidation.error || 'Invalid first name');
+      toast.error(firstNameValidation.error || 'Invalid first name');
+      return;
+    }
+    setFirstNameError(null);
+
+    // Validate last name
+    const lastNameValidation = validateName(lastName);
+    if (!lastNameValidation.valid) {
+      setLastNameError(lastNameValidation.error || 'Invalid last name');
+      toast.error(lastNameValidation.error || 'Invalid last name');
+      return;
+    }
+    setLastNameError(null);
+
     if (!password || password.length < 6) {
       toast.error('Password must be at least 6 characters long');
       return;
@@ -130,6 +176,15 @@ export default function SetPassword() {
 
     try {
       const token = searchParams.get('token');
+
+      // Clear any stale organization data from localStorage
+      // This prevents old org IDs from interfering with new signup
+      try {
+        localStorage.removeItem('org-store');
+        console.log('[SetPassword] Cleared stale org-store from localStorage');
+      } catch (err) {
+        console.error('[SetPassword] Failed to clear localStorage:', err);
+      }
 
       console.log('[SetPassword] Creating account for:', userEmail);
 
@@ -159,20 +214,22 @@ export default function SetPassword() {
       const userId = signUpData.user.id;
       console.log('[SetPassword] User created in Supabase Auth:', userId);
 
-      // 2. Create user profile with status: 'active'
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: userId,
-          email: userEmail,
-          status: 'active',
+      // 2. Store first_name/last_name in auth metadata
+      // The profile was auto-created by database trigger with id and email
+      try {
+        const { error: metadataError } = await supabase.auth.updateUser({
+          data: {
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+          },
         });
-
-      if (profileError) {
-        console.error('[SetPassword] Error creating profile:', profileError);
-        toast.warning('Account created but profile setup incomplete. Please log in.');
-      } else {
-        console.log('[SetPassword] Profile created successfully');
+        if (metadataError) {
+          console.warn('[SetPassword] Error storing auth metadata:', metadataError);
+        } else {
+          console.log('[SetPassword] ✓ Stored first/last name in auth metadata');
+        }
+      } catch (metadataError) {
+        console.warn('[SetPassword] Exception storing auth metadata:', metadataError);
       }
 
       // 3. Update waitlist entry to 'converted' and link user
@@ -222,10 +279,87 @@ export default function SetPassword() {
       }
 
       console.log('[SetPassword] User signed in successfully');
-      toast.success('Account created successfully! Welcome to Early Access.');
+
+      // Sync profile with first/last name NOW while we're authenticated
+      // This ensures profile is complete before redirect
+      // Retry logic in case of transient failures
+      let profileSyncSuccess = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`[SetPassword] Syncing profile (attempt ${attempt}/3)...`);
+          const { data, error: updateError } = await supabase
+            .from('profiles')
+            .update({
+              first_name: firstName.trim(),
+              last_name: lastName.trim(),
+            })
+            .eq('id', userId)
+            .select();
+
+          if (updateError) {
+            console.warn(`[SetPassword] Profile sync attempt ${attempt} failed:`, updateError);
+            if (attempt < 3) {
+              // Wait before retry
+              await new Promise(r => setTimeout(r, 500 * attempt));
+              continue;
+            }
+          } else {
+            console.log('[SetPassword] ✓ Profile synced successfully', {
+              updated: data,
+              first_name: firstName,
+              last_name: lastName,
+            });
+            profileSyncSuccess = true;
+            break;
+          }
+        } catch (syncErr) {
+          console.warn(`[SetPassword] Profile sync exception attempt ${attempt}:`, syncErr);
+          if (attempt < 3) {
+            await new Promise(r => setTimeout(r, 500 * attempt));
+          }
+        }
+      }
+
+      if (!profileSyncSuccess) {
+        console.error('[SetPassword] ⚠ Failed to sync profile after 3 client attempts');
+
+        // Try edge function as last resort (uses service role to bypass RLS)
+        try {
+          console.log('[SetPassword] Attempting profile sync via edge function...');
+          const { data: edgeResponse, error: edgeFunctionError } = await supabase.functions.invoke(
+            'sync-profile-names',
+            {
+              body: {
+                userId,
+                firstName: firstName.trim(),
+                lastName: lastName.trim(),
+              },
+            }
+          );
+
+          if (edgeFunctionError) {
+            console.error('[SetPassword] Edge function error:', edgeFunctionError);
+          } else if (edgeResponse?.success) {
+            console.log('[SetPassword] ✓ Profile synced via edge function');
+            profileSyncSuccess = true;
+            toast.success('Account created successfully! Welcome to Early Access.');
+          } else {
+            console.error('[SetPassword] Edge function returned failure:', edgeResponse);
+          }
+        } catch (edgeErr) {
+          console.error('[SetPassword] Exception calling edge function:', edgeErr);
+        }
+      } else {
+        toast.success('Account created successfully! Welcome to Early Access.');
+      }
+
+      if (!profileSyncSuccess) {
+        console.warn('[SetPassword] Profile names may sync on first login');
+        toast.warning('Account created. Profile setup will complete on first login.');
+      }
 
       setTimeout(() => {
-        navigate('/dashboard', { replace: true });
+        navigate('/onboarding', { replace: true });
       }, 1000);
     } catch (error: any) {
       console.error('[SetPassword] Error during account creation:', error);
@@ -295,6 +429,68 @@ export default function SetPassword() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
+              <label htmlFor="firstName" className="block text-sm font-medium text-gray-300 mb-2">
+                First Name
+              </label>
+              <input
+                id="firstName"
+                type="text"
+                value={firstName}
+                onChange={(e) => {
+                  setFirstName(e.target.value);
+                  if (e.target.value.trim()) {
+                    const validation = validateName(e.target.value);
+                    setFirstNameError(validation.valid ? null : validation.error || null);
+                  } else {
+                    setFirstNameError(null);
+                  }
+                }}
+                placeholder="Enter your first name"
+                className={`w-full px-4 py-3 bg-gray-800/50 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent ${
+                  firstNameError
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-gray-700 focus:ring-[#37bd7e]'
+                }`}
+                required
+                disabled={isLoading}
+              />
+              {firstNameError && (
+                <p className="text-red-400 text-sm mt-1">{firstNameError}</p>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="lastName" className="block text-sm font-medium text-gray-300 mb-2">
+                Last Name
+              </label>
+              <input
+                id="lastName"
+                type="text"
+                value={lastName}
+                onChange={(e) => {
+                  setLastName(e.target.value);
+                  if (e.target.value.trim()) {
+                    const validation = validateName(e.target.value);
+                    setLastNameError(validation.valid ? null : validation.error || null);
+                  } else {
+                    setLastNameError(null);
+                  }
+                }}
+                placeholder="Enter your last name"
+                className={`w-full px-4 py-3 bg-gray-800/50 border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent ${
+                  lastNameError
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-gray-700 focus:ring-[#37bd7e]'
+                }`}
+                required
+                disabled={isLoading}
+              />
+              {lastNameError && (
+                <p className="text-red-400 text-sm mt-1">{lastNameError}</p>
+              )}
+            </div>
+
+            <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
                 Set Your Password
               </label>
@@ -336,7 +532,7 @@ export default function SetPassword() {
 
             <button
               type="submit"
-              disabled={isLoading || !password || !confirmPassword}
+              disabled={isLoading || !firstName || !lastName || !password || !confirmPassword}
               className="w-full bg-[#37bd7e] hover:bg-[#2da76c] disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
             >
               {isLoading ? (

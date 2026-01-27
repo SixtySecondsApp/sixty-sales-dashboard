@@ -52,12 +52,24 @@ export function useOrgMembers() {
       );
 
       // Transform the data to a flat structure
-      return memberships.map((member) => {
+      const members = memberships.map((member) => {
         const profile = profileMap.get(member.user_id);
         // Construct name from first_name and last_name
         const name = profile
           ? [profile.first_name, profile.last_name].filter(Boolean).join(' ') || null
           : null;
+
+        // Debug: log if user is missing names
+        if (!name && profile?.email) {
+          console.warn('[useOrgMembers] User missing names:', {
+            userId: member.user_id,
+            email: profile.email,
+            hasProfile: !!profile,
+            first_name: profile?.first_name,
+            last_name: profile?.last_name,
+          });
+        }
+
         return {
           user_id: member.user_id,
           email: profile?.email || '',
@@ -65,6 +77,8 @@ export function useOrgMembers() {
           role: member.role,
         };
       }) as OrgMember[];
+
+      return members;
     },
     enabled: !!orgId,
   });
