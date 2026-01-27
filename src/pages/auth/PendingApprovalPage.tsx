@@ -49,6 +49,21 @@ export default function PendingApprovalPage() {
             orgName: data.organizations?.name || 'the organization',
             email: data.email,
           });
+        } else {
+          // No pending join request found - user may have been removed or request was deleted
+          console.log('[PendingApprovalPage] No pending join request found, auto-restarting onboarding');
+
+          // Reset profile status to active
+          await supabase
+            .from('profiles')
+            .update({ profile_status: 'active' })
+            .eq('id', user.id);
+
+          // Show toast and redirect
+          toast.info('Your join request was removed. Restarting onboarding...');
+          setTimeout(() => {
+            navigate('/onboarding?step=website_input', { replace: true });
+          }, 1500);
         }
       } catch (err) {
         console.error('Error fetching join request:', err);
@@ -56,7 +71,7 @@ export default function PendingApprovalPage() {
     };
 
     fetchJoinRequest();
-  }, [user?.id]);
+  }, [user?.id, navigate]);
 
   const handleLogout = async () => {
     try {
@@ -229,23 +244,48 @@ export default function PendingApprovalPage() {
                 'Check Approval Status'
               )}
             </Button>
-            <Button
-              onClick={() => setShowCancelDialog(true)}
-              disabled={canceling || !joinRequest?.requestId}
-              className="w-full bg-gray-700 hover:bg-gray-600 text-white disabled:bg-gray-600 disabled:cursor-not-allowed"
-            >
-              {canceling ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Cancelling...
-                </>
-              ) : (
-                'Cancel Request & Restart Onboarding'
-              )}
-            </Button>
-            <p className="text-xs text-gray-400 text-center -mt-1">
-              Wrong organization? Cancel and start over
-            </p>
+            {joinRequest?.requestId ? (
+              <>
+                <Button
+                  onClick={() => setShowCancelDialog(true)}
+                  disabled={canceling}
+                  className="w-full bg-gray-700 hover:bg-gray-600 text-white disabled:bg-gray-600 disabled:cursor-not-allowed"
+                >
+                  {canceling ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Cancelling...
+                    </>
+                  ) : (
+                    'Cancel Request & Restart Onboarding'
+                  )}
+                </Button>
+                <p className="text-xs text-gray-400 text-center -mt-1">
+                  Wrong organization? Cancel and start over
+                </p>
+              </>
+            ) : (
+              <>
+                <Button
+                  onClick={async () => {
+                    // Reset profile status and redirect
+                    if (user?.id) {
+                      await supabase
+                        .from('profiles')
+                        .update({ profile_status: 'active' })
+                        .eq('id', user.id);
+                    }
+                    navigate('/onboarding?step=website_input', { replace: true });
+                  }}
+                  className="w-full bg-violet-600 hover:bg-violet-700 text-white"
+                >
+                  Restart Onboarding
+                </Button>
+                <p className="text-xs text-gray-400 text-center -mt-1">
+                  Your join request was removed. Click to start over.
+                </p>
+              </>
+            )}
             <Button
               onClick={handleLogout}
               variant="outline"
