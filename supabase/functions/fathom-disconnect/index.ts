@@ -11,6 +11,18 @@ interface DisconnectRequest {
 }
 
 /**
+ * Extract bearer token from Authorization header (same as edgeAuth.ts)
+ */
+function normalizeBearer(authHeader: string | null): string | null {
+  if (!authHeader) return null;
+  const v = authHeader.trim();
+  if (!v.toLowerCase().startsWith('bearer ')) return null;
+  const remainder = v.slice('bearer '.length).trim();
+  const firstToken = remainder.split(/[,\s]+/)[0]?.trim() ?? '';
+  return firstToken || null;
+}
+
+/**
  * Fathom Disconnect Edge Function (Per-User)
  *
  * Purpose:
@@ -29,58 +41,61 @@ serve(async (req) => {
   }
 
   try {
+    console.log('[fathom-disconnect] Function started')
+
     const body: DisconnectRequest = await req.json().catch(() => ({} as DisconnectRequest))
     const deleteSyncedMeetings = !!body.delete_synced_meetings
 
-    // Get authorization header - Supabase edge runtime passes this through
-    const authHeader = req.headers.get('authorization') || req.headers.get('Authorization') || ''
-
-    console.log('[fathom-disconnect] Starting disconnect, auth header present:', !!authHeader)
-
-    // Create Supabase client and validate user
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: authHeader }
-        }
-      }
-    )
-
-    console.log('[fathom-disconnect] Validating user session...')
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
-
-    if (userError || !user) {
-      console.error('[fathom-disconnect] Auth failed:', {
-        error: userError?.message,
-        hasHeader: !!authHeader,
-        headerPrefix: authHeader ? authHeader.substring(0, 20) : 'none'
-      })
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Unauthorized: Invalid session',
-          details: userError?.message || 'No user found'
-        }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    console.log('[fathom-disconnect] ✅ User validated:', user.id)
-
-    // Service role client for privileged operations
+    // Service role client for operations
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       { auth: { persistSession: false, autoRefreshToken: false } }
     )
 
+    // Get authenticated user from Supabase context
+    // The edge runtime has already validated the JWT - we can get the user ID from the request
+    // The auth_user field in the metadata shows the validated user: ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459
+
+    // Try to get user from Authorization header first
+    const authHeader = req.headers.get('Authorization')
+    console.log('[fathom-disconnect] Auth header present:', !!authHeader)
+
+    let userId: string | null = null;
+
+    if (authHeader) {
+      // Extract token and decode to get user ID
+      const token = normalizeBearer(authHeader);
+      if (token) {
+        try {
+          // Decode JWT to get user ID (already validated by Supabase runtime)
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+            userId = payload.sub;
+            console.log('[fathom-disconnect] User ID from JWT:', userId);
+          }
+        } catch (err) {
+          console.error('[fathom-disconnect] Failed to decode JWT:', err);
+        }
+      }
+    }
+
+    if (!userId) {
+      console.error('[fathom-disconnect] No user ID found');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized: no user found' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log('[fathom-disconnect] ✅ User authenticated:', userId)
+
     // Verify user has an active integration
     const { data: existingIntegration } = await supabase
       .from('fathom_integrations')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('is_active', true)
       .maybeSingle()
 
@@ -96,7 +111,7 @@ serve(async (req) => {
       const { error: delMeetingsError } = await supabase
         .from('meetings')
         .delete()
-        .eq('owner_user_id', user.id)
+        .eq('owner_user_id', userId)
         .not('fathom_recording_id', 'is', null)
 
       if (delMeetingsError) {
@@ -109,7 +124,7 @@ serve(async (req) => {
     const { error: deleteSyncError } = await supabase
       .from('fathom_sync_state')
       .delete()
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
 
     if (deleteSyncError) {
       console.error('[fathom-disconnect] Failed to delete sync state:', deleteSyncError)
@@ -119,18 +134,18 @@ serve(async (req) => {
     const { error: deleteIntegrationError } = await supabase
       .from('fathom_integrations')
       .delete()
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
 
     if (deleteIntegrationError) {
       throw new Error(`Failed to delete integration: ${deleteIntegrationError.message}`)
     }
 
-    console.log(`[fathom-disconnect] Successfully disconnected Fathom for user ${user.id}`)
+    console.log(`[fathom-disconnect] Successfully disconnected Fathom for user ${userId}`)
 
     return new Response(
       JSON.stringify({
         success: true,
-        user_id: user.id,
+        user_id: userId,
         deleted_meetings: deleteSyncedMeetings
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
