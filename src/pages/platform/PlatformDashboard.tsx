@@ -45,6 +45,7 @@ import {
   GitBranch,
   Bot,
   FlaskConical,
+  Video,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -312,6 +313,14 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: Bot,
       href: '/platform/integrations/notetaker-branding',
       color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30',
+    },
+    {
+      id: 'notetaker-video-quality',
+      title: 'Video Quality',
+      description: 'Configure recording compression quality (480p / 720p / 1080p)',
+      icon: Video,
+      href: '/platform/integrations/notetaker-video-quality',
+      color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30',
     },
   ],
   'Email & Communications': [

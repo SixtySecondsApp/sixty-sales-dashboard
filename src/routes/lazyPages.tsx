@@ -37,6 +37,7 @@ export const CopilotTestPage = lazyWithRetry(() => import('@/pages/platform/Copi
 export const CopilotLabPage = lazyWithRetry(() => import('@/pages/platform/CopilotLabPage'));
 export const AgentPerformanceDashboard = lazyWithRetry(() => import('@/pages/platform/AgentPerformanceDashboard'));
 export const NotetakerBranding = lazyWithRetry(() => import('@/pages/platform/NotetakerBranding'));
+export const NotetakerVideoQuality = lazyWithRetry(() => import('@/pages/platform/NotetakerVideoQuality'));
 export const ActionCentre = lazyWithRetry(() => import('@/pages/platform/ActionCentre'));
 
 // Admin Configuration

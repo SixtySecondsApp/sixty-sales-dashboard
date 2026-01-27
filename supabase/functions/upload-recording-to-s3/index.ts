@@ -1,12 +1,13 @@
-// Upload recording to S3
+// Upload recording to S3 via Lambda compression pipeline
 // Triggered by poll-s3-upload-queue cron job
-// Streams video/audio from MeetingBaaS to S3 without memory buffering
+// Invokes Lambda asynchronously (fire-and-forget) to compress + upload video
+// Lambda calls back to process-compress-callback when done
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
-import { createS3Client, getS3Bucket, generateS3Key, getS3Url } from '../_shared/s3Client.ts';
-import { streamUploadToS3 } from '../_shared/s3StreamUpload.ts';
+import { getS3Bucket, generateS3Key } from '../_shared/s3Client.ts';
+import { LambdaClient, InvokeCommand } from 'npm:@aws-sdk/client-lambda@3';
 
 interface UploadRequest {
   recording_id: string;
@@ -38,7 +39,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Starting S3 upload for recording: ${recording_id}`);
+    console.log(`[Upload] Starting Lambda invocation for recording: ${recording_id}`);
 
     // 1. Get recording and bot deployment details
     const { data: recording, error: recordingError } = await supabase
@@ -47,7 +48,7 @@ serve(async (req) => {
         `
         id,
         org_id,
-        owner_user_id,
+        user_id,
         s3_upload_status,
         bot_deployments (
           video_url,
@@ -63,17 +64,27 @@ serve(async (req) => {
       throw new Error(`Recording not found: ${recordingError?.message}`);
     }
 
-    // Check if already uploaded
+    // Check if already uploaded or processing
     if (recording.s3_upload_status === 'complete') {
-      console.log('Recording already uploaded to S3');
+      console.log('[Upload] Recording already uploaded to S3');
       return new Response(
         JSON.stringify({ message: 'Already uploaded', recording_id }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    if (recording.s3_upload_status === 'processing') {
+      console.log('[Upload] Recording already being processed by Lambda');
+      return new Response(
+        JSON.stringify({ message: 'Already processing', recording_id }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Get MeetingBaaS URLs
-    const botDeployment = recording.bot_deployments;
+    const botDeployment = Array.isArray(recording.bot_deployments)
+      ? recording.bot_deployments[0]
+      : recording.bot_deployments;
     if (!botDeployment || !botDeployment.video_url) {
       throw new Error('No MeetingBaaS URLs found');
     }
@@ -84,7 +95,7 @@ serve(async (req) => {
     const now = new Date();
 
     if (now > expiryTime) {
-      console.error('MeetingBaaS URLs expired');
+      console.error('[Upload] MeetingBaaS URLs expired');
       await supabase
         .from('recordings')
         .update({
@@ -96,91 +107,97 @@ serve(async (req) => {
       throw new Error('MeetingBaaS URLs expired');
     }
 
-    // 2. Update status to uploading
+    // 2. Fetch video quality setting
+    const { data: qualitySetting } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'notetaker_video_quality')
+      .maybeSingle();
+
+    const videoQuality = qualitySetting?.value || '480p';
+    console.log(`[Upload] Video quality setting: ${videoQuality}`);
+
+    // 3. Build S3 keys
+    const bucket = getS3Bucket();
+    const videoKey = generateS3Key(recording.org_id, recording.user_id, recording_id, 'video.mp4');
+    const audioKey = generateS3Key(recording.org_id, recording.user_id, recording_id, 'audio.mp3');
+
+    // 4. Build Lambda payload
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const callbackSecret = Deno.env.get('COMPRESS_CALLBACK_SECRET');
+    if (!callbackSecret) {
+      throw new Error('COMPRESS_CALLBACK_SECRET not configured');
+    }
+
+    const lambdaPayload = {
+      recording_id,
+      video_url: botDeployment.video_url,
+      audio_url: botDeployment.audio_url || null,
+      s3_bucket: bucket,
+      s3_video_key: videoKey,
+      s3_audio_key: audioKey,
+      aws_region: Deno.env.get('AWS_REGION') || 'eu-west-2',
+      callback_url: `${supabaseUrl}/functions/v1/process-compress-callback`,
+      callback_secret: callbackSecret,
+      video_quality: videoQuality,
+    };
+
+    // 5. Invoke Lambda asynchronously (fire-and-forget)
+    const lambdaArn = Deno.env.get('LAMBDA_COMPRESS_FUNCTION_ARN');
+    if (!lambdaArn) {
+      throw new Error('LAMBDA_COMPRESS_FUNCTION_ARN not configured');
+    }
+
+    const lambdaClient = new LambdaClient({
+      region: Deno.env.get('AWS_REGION') || 'eu-west-2',
+      credentials: {
+        accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID')!,
+        secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY')!,
+      },
+    });
+
+    const invokeCommand = new InvokeCommand({
+      FunctionName: lambdaArn,
+      InvocationType: 'Event', // Async - returns 202 immediately
+      Payload: new TextEncoder().encode(JSON.stringify(lambdaPayload)),
+    });
+
+    const lambdaResponse = await lambdaClient.send(invokeCommand);
+
+    if (lambdaResponse.StatusCode !== 202) {
+      throw new Error(`Lambda invocation failed with status ${lambdaResponse.StatusCode}`);
+    }
+
+    console.log(`[Upload] Lambda invoked successfully for recording: ${recording_id}`);
+
+    // 6. Update status to processing
     await supabase
       .from('recordings')
       .update({
-        s3_upload_status: 'uploading',
+        s3_upload_status: 'processing',
         s3_upload_started_at: new Date().toISOString(),
       })
       .eq('id', recording_id);
-
-    // 3. Upload video to S3
-    console.log('Uploading video to S3...');
-    const s3Client = createS3Client();
-    const bucket = getS3Bucket();
-
-    const videoKey = generateS3Key(
-      recording.org_id,
-      recording.owner_user_id,
-      recording_id,
-      'video.mp4'
-    );
-
-    const videoResult = await streamUploadToS3(
-      s3Client,
-      bucket,
-      videoKey,
-      botDeployment.video_url
-    );
-
-    console.log(`Video uploaded: ${videoResult.sizeBytes} bytes in ${videoResult.durationMs}ms`);
-
-    // 4. Upload audio to S3 (if available)
-    let audioResult: { url: string; sizeBytes: number } | null = null;
-
-    if (botDeployment.audio_url) {
-      console.log('Uploading audio to S3...');
-      const audioKey = generateS3Key(
-        recording.org_id,
-        recording.owner_user_id,
-        recording_id,
-        'audio.mp3'
-      );
-
-      audioResult = await streamUploadToS3(
-        s3Client,
-        bucket,
-        audioKey,
-        botDeployment.audio_url
-      );
-
-      console.log(`Audio uploaded: ${audioResult.sizeBytes} bytes`);
-    }
-
-    // 5. Update recording with S3 URLs and status
-    const totalSize = videoResult.sizeBytes + (audioResult?.sizeBytes || 0);
-
-    await supabase
-      .from('recordings')
-      .update({
-        s3_upload_status: 'complete',
-        s3_upload_completed_at: new Date().toISOString(),
-        s3_video_url: videoResult.url,
-        s3_audio_url: audioResult?.url || null,
-        s3_file_size_bytes: totalSize,
-      })
-      .eq('id', recording_id);
-
-    console.log(`Upload complete: ${recording_id}, total size: ${totalSize} bytes`);
 
     return new Response(
       JSON.stringify({
         success: true,
         recording_id,
-        video_url: videoResult.url,
-        audio_url: audioResult?.url,
-        total_size_bytes: totalSize,
-        duration_ms: videoResult.durationMs,
+        message: 'Lambda compression pipeline started',
+        status: 'processing',
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      {
+        status: 202,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
     );
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('[Upload] Error:', error);
 
     // Try to update recording status to failed with retry tracking
     try {
-      const { recording_id } = await req.json();
+      const body = await req.clone().json();
+      const recording_id = body?.recording_id;
       if (recording_id) {
         const supabase = createClient(
           Deno.env.get('SUPABASE_URL') ?? '',
@@ -209,7 +226,7 @@ serve(async (req) => {
         console.log(`[Upload] Marked as failed, retry count: ${retryCount}`);
       }
     } catch (updateError) {
-      console.error('Failed to update recording status:', updateError);
+      console.error('[Upload] Failed to update recording status:', updateError);
     }
 
     return new Response(
