@@ -417,9 +417,21 @@ function QuickAddComponent({
   };
 
   const handleActionSelect = (actionId: string) => {
-    if (actionId === 'meeting' || actionId === 'proposal' || actionId === 'sale') {
+    if (actionId === 'meeting' || actionId === 'proposal') {
       setSelectedAction(actionId);
-      // Don't force contact search - contact is optional
+      // Contact is required — show contact search first
+      setShowContactSearch(true);
+      if (variant === 'v2') {
+        setShowQuickActionsV2(false);
+        setChatMessages(prev => [
+          ...prev,
+          { type: 'user', content: `Add ${actionId}` },
+          { type: 'ai', content: `Let's find a contact for your ${actionId}.` }
+        ]);
+      }
+    } else if (actionId === 'sale') {
+      setSelectedAction(actionId);
+      // Contact is optional for sales
       if (variant === 'v2') {
         setShowQuickActionsV2(false);
         setChatMessages(prev => [
@@ -593,8 +605,13 @@ function QuickAddComponent({
       }
     }
     
-    // Contact is optional for all activity types - skip validation if not selected
-    
+    // Contact is required for meeting and proposal
+    if ((selectedAction === 'meeting' || selectedAction === 'proposal') && !selectedContact) {
+      toast.error('Please select a contact for this activity');
+      setShowContactSearch(true);
+      return;
+    }
+
     // Validation for meeting/proposal/sale - require company name OR website
     if ((selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale')) {
       if ((!formData.client_name || formData.client_name.trim() === '') && 

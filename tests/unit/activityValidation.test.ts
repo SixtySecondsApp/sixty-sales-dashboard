@@ -1,12 +1,11 @@
 /**
  * Activity Tracker Validation Tests
  *
- * Verifies that the QuickAdd validation hook correctly validates all activity
- * types and that contact selection is optional for all types.
+ * Verifies that the QuickAdd validation hook correctly validates all activity types.
  *
- * Bug fixes verified:
- * - Contact is optional for outbound (was previously required)
- * - Contact is optional for meeting, proposal, sale (was previously required)
+ * Contact rules:
+ * - Contact is REQUIRED for meeting and proposal
+ * - Contact is optional for outbound and sale
  * - Company name or website required for meeting/proposal/sale
  * - Meeting type required for meetings
  */
@@ -75,27 +74,28 @@ describe('Activity Tracker Validation', () => {
   // ─── MEETING ────────────────────────────────────────────────
 
   describe('Meeting', () => {
-    it('passes without a contact when company name is provided', () => {
-      const validate = getValidate();
-      const result = validate('meeting', makeFormData({ client_name: 'Acme Inc', details: 'Discovery' }), null);
-      expect(result.isValid).toBe(true);
-    });
-
-    it('passes without a contact when website is provided', () => {
-      const validate = getValidate();
-      const result = validate('meeting', makeFormData({ company_website: 'www.acme.com', details: 'Demo' }), null);
-      expect(result.isValid).toBe(true);
-    });
-
     it('passes with contact and company name', () => {
       const validate = getValidate();
       const result = validate('meeting', makeFormData({ client_name: 'Acme Inc', details: 'Follow-up' }), mockContact);
       expect(result.isValid).toBe(true);
     });
 
+    it('passes with contact and website', () => {
+      const validate = getValidate();
+      const result = validate('meeting', makeFormData({ company_website: 'www.acme.com', details: 'Demo' }), mockContact);
+      expect(result.isValid).toBe(true);
+    });
+
+    it('fails without a contact', () => {
+      const validate = getValidate();
+      const result = validate('meeting', makeFormData({ client_name: 'Acme Inc', details: 'Discovery' }), null);
+      expect(result.isValid).toBe(false);
+      expect(result.errors.contact).toBeDefined();
+    });
+
     it('fails when neither company name nor website is provided', () => {
       const validate = getValidate();
-      const result = validate('meeting', makeFormData({ details: 'Discovery' }), null);
+      const result = validate('meeting', makeFormData({ details: 'Discovery' }), mockContact);
       expect(result.isValid).toBe(false);
       expect(result.errors.client_name).toBeDefined();
     });
@@ -107,38 +107,39 @@ describe('Activity Tracker Validation', () => {
       expect(result.errors.details).toBeDefined();
     });
 
-    it('fails when both company and meeting type are missing', () => {
+    it('fails when contact, company, and meeting type are all missing', () => {
       const validate = getValidate();
       const result = validate('meeting', makeFormData({}), null);
       expect(result.isValid).toBe(false);
-      expect(Object.keys(result.errors).length).toBeGreaterThanOrEqual(2);
+      expect(Object.keys(result.errors).length).toBeGreaterThanOrEqual(3);
     });
   });
 
   // ─── PROPOSAL ───────────────────────────────────────────────
 
   describe('Proposal', () => {
-    it('passes without a contact when company name is provided', () => {
-      const validate = getValidate();
-      const result = validate('proposal', makeFormData({ client_name: 'BigCorp' }), null);
-      expect(result.isValid).toBe(true);
-    });
-
     it('passes with contact and company', () => {
       const validate = getValidate();
       const result = validate('proposal', makeFormData({ client_name: 'BigCorp' }), mockContact);
       expect(result.isValid).toBe(true);
     });
 
-    it('passes with website instead of company name', () => {
+    it('passes with contact and website', () => {
       const validate = getValidate();
-      const result = validate('proposal', makeFormData({ company_website: 'www.bigcorp.com' }), null);
+      const result = validate('proposal', makeFormData({ company_website: 'www.bigcorp.com' }), mockContact);
       expect(result.isValid).toBe(true);
+    });
+
+    it('fails without a contact', () => {
+      const validate = getValidate();
+      const result = validate('proposal', makeFormData({ client_name: 'BigCorp' }), null);
+      expect(result.isValid).toBe(false);
+      expect(result.errors.contact).toBeDefined();
     });
 
     it('fails when neither company name nor website is provided', () => {
       const validate = getValidate();
-      const result = validate('proposal', makeFormData({}), null);
+      const result = validate('proposal', makeFormData({}), mockContact);
       expect(result.isValid).toBe(false);
       expect(result.errors.client_name).toBeDefined();
     });
@@ -232,12 +233,12 @@ describe('Activity Tracker Validation', () => {
     });
   });
 
-  // ─── CONTACT OPTIONAL FOR ALL TYPES ─────────────────────────
+  // ─── CONTACT OPTIONAL FOR OUTBOUND & SALE ───────────────────
 
-  describe('Contact is optional for all activity types', () => {
-    const activityTypes = ['outbound', 'meeting', 'proposal', 'sale'];
+  describe('Contact is optional for outbound and sale', () => {
+    const optionalContactTypes = ['outbound', 'sale'];
 
-    activityTypes.forEach((type) => {
+    optionalContactTypes.forEach((type) => {
       it(`${type}: validation does not require contact`, () => {
         const validate = getValidate();
         const formData = makeFormData({
@@ -247,6 +248,34 @@ describe('Activity Tracker Validation', () => {
           outboundCount: '1',
         });
         const result = validate(type, formData, null); // null contact
+        expect(result.errors.contact).toBeUndefined();
+      });
+    });
+  });
+
+  // ─── CONTACT REQUIRED FOR MEETING & PROPOSAL ──────────────
+
+  describe('Contact is required for meeting and proposal', () => {
+    const requiredContactTypes = ['meeting', 'proposal'];
+
+    requiredContactTypes.forEach((type) => {
+      it(`${type}: validation requires contact`, () => {
+        const validate = getValidate();
+        const formData = makeFormData({
+          client_name: 'Test Company',
+          details: type === 'meeting' ? 'Discovery' : 'Test details',
+        });
+        const result = validate(type, formData, null); // null contact
+        expect(result.errors.contact).toBeDefined();
+      });
+
+      it(`${type}: passes with contact provided`, () => {
+        const validate = getValidate();
+        const formData = makeFormData({
+          client_name: 'Test Company',
+          details: type === 'meeting' ? 'Discovery' : 'Test details',
+        });
+        const result = validate(type, formData, mockContact);
         expect(result.errors.contact).toBeUndefined();
       });
     });
