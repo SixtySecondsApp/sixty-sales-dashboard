@@ -691,7 +691,8 @@ SELECT * FROM generate_gdpr_compliance_report(org_id);
 
 ## Supabase Project References
 
-| Environment | Project Ref | Usage |
-|-------------|-------------|-------|
-| **Production** | `ygdpgliavpxeugaajgrb` | app.use60.com |
-| **Staging** | `caerqjzvuerejfrdtygb` | Testing |
+| Environment | Project Ref | Git Branch | npm Script | Usage |
+|-------------|-------------|------------|------------|-------|
+| **Production** | `ygdpgliavpxeugaajgrb` | `main` | `npm run dev:production` | app.use60.com |
+| **Staging** | `caerqjzvuerejfrdtygb` | `staging` | `npm run dev:staging` | Pre-production testing |
+| **Development** | `wbgmnyekgqklggilgqag` | `development` | `npm run dev` | Local development |

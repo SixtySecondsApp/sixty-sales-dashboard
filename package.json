@@ -7,8 +7,9 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --mode development",
     "dev:staging": "vite --mode staging",
+    "dev:production": "vite --mode production",
     "dev:api": "node server/api.js",
     "dev:api-optimized": "node server/api-optimized.js",
     "dev:api-production": "node server/api-production.js",
