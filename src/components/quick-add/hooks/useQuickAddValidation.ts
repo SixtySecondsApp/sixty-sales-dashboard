@@ -28,9 +28,7 @@ export const useQuickAddValidation = () => {
     }
     
     if (selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale') {
-      if (!selectedContact) {
-        errors.contact = 'Please select a contact';
-      }
+      // Contact is optional - no validation for selectedContact
       // Company name is required only if no website is provided
       if (!formData.client_name?.trim() && !formData.company_website?.trim()) {
         errors.client_name = 'Either company name or website is required';
