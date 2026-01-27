@@ -88,13 +88,21 @@ export function ActivityForms({
         </button>
         {getActionIcon()}
         <span className="text-sm font-medium text-gray-300">{getActionTitle()}</span>
-        <span className="text-gray-600">•</span>
-        <span className="text-xs text-emerald-400 truncate max-w-[150px]">
-          {selectedContact.full_name || selectedContact.first_name || selectedContact.email}
-        </span>
-        <button type="button" onClick={onChangeContact} className="text-[10px] text-gray-500 hover:text-gray-300 ml-auto">
-          Change
-        </button>
+        {selectedContact ? (
+          <>
+            <span className="text-gray-600">•</span>
+            <span className="text-xs text-emerald-400 truncate max-w-[150px]">
+              {selectedContact.full_name || selectedContact.first_name || selectedContact.email}
+            </span>
+            <button type="button" onClick={onChangeContact} className="text-[10px] text-gray-500 hover:text-gray-300 ml-auto">
+              Change
+            </button>
+          </>
+        ) : (
+          <button type="button" onClick={onChangeContact} className="text-[10px] text-sky-400 hover:text-sky-300 ml-auto">
+            + Add Contact
+          </button>
+        )}
       </div>
 
       {/* Compact form */}
@@ -430,12 +438,12 @@ export function OutboundForm({
         </button>
         <button
           type="submit"
-          disabled={isSubmitting || !selectedContact}
+          disabled={isSubmitting}
           className={cn(
             "flex-1 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all",
             submitStatus === 'success'
               ? "bg-emerald-600 text-white"
-              : isSubmitting || !selectedContact
+              : isSubmitting
                 ? "bg-gray-700 text-gray-400 cursor-not-allowed"
                 : "bg-sky-600 text-white hover:bg-sky-500"
           )}
