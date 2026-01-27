@@ -1,0 +1,42 @@
+{
+  "projectIds": ["f63f1dad-3bd7-45d9-b767-e3f8b6bbbbee", "e70f484d-81c3-47c5-838f-ef76bc47c612", "6b8619f9-39a6-408e-98da-28897befd5ca", "6058f664-fc8c-4ebe-87dd-253f8d7c6150", "3ef5b9c5-6e24-4da2-bf4b-af61900c1a14", "7232c546-6ff8-49c0-959f-eb56dacc4626", "2feb2d1a-e0ab-43ae-93b4-0a81eb97b472", "7bcfec54-0a7e-48f7-8c7d-082cae5e2aba", "081215a7-149b-4287-adec-39e0628b2a44", "6797ea56-7cf2-4eac-8209-06420cc60669", "c5cb25f9-6dfb-4c72-a65c-34572b929185", "7ce329c7-b3f8-4dad-a962-6c1919ed6cbf", "9a35ff7d-62e8-43e4-b298-7676c51b2461", "51e89631-25b9-41e7-999a-1dc6c9c312e7", "486bd39a-892a-41b4-9dbe-2a46010c3467", "98c99c33-52f8-4984-9a24-0d03211b3021", "6d9360e0-d181-43ce-834b-9b4cff0678bb", "974c23c4-8236-43a3-8d11-24b51c033889", "f807a710-0e4a-4196-820b-f76d98db66cb", "0f302544-b054-4240-ae8d-8794a6a91b6b"],
+  "projectName": "Use 60 (multi-project)",
+  "intervalMinutes": 10,
+  "workMode": "automationJob",
+  "job": {
+    "selectionStrategy": "priority",
+    "autoStatusTransition": true,
+    "syncTaskStatus": true
+  },
+  "repository": {
+    "owner": "SixtySecondsApp",
+    "name": "sixty-sales-dashboard",
+    "defaultBranch": "main",
+    "remote": "origin"
+  },
+  "git": {
+    "branchPrefix": "auto/ticket-",
+    "commitMessageTemplate": "feat: {title}\n\n{description}\n\nCloses #{ticketCode}",
+    "authorName": "AI Dev Hub Bot",
+    "authorEmail": "bot@ai-dev-hub.com"
+  },
+  "cli": {
+    "model": "auto",
+    "timeout": 300,
+    "maxRetries": 3,
+    "outputFormat": "json"
+  },
+  "logging": {
+    "level": "info",
+    "maxLogFiles": 30,
+    "logToConsole": true
+  },
+  "notifications": {
+    "enabled": false,
+    "webhookUrl": "",
+    "onError": true,
+    "onSuccess": false
+  }
+}
+
+

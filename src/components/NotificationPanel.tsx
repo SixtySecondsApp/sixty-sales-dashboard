@@ -11,7 +11,9 @@ import {
   AlertTriangle,
   Loader2,
   BellOff,
-  ExternalLink
+  ExternalLink,
+  Circle,
+  Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNotifications } from '@/lib/hooks/useNotifications';
@@ -31,6 +33,8 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     isLoading,
     error,
     markAsRead,
+    markAsUnread,
+    toggleRead,
     markAllAsRead,
     deleteNotification,
     clearAll,
@@ -222,16 +226,33 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                           </div>
                         </div>
 
-                        {/* Delete button */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteNotification(notification.id);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 dark:text-gray-500 hover:text-red-400 transition-all"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Action buttons */}
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleRead(notification.id, notification.read);
+                            }}
+                            className="p-1 text-gray-400 dark:text-gray-500 hover:text-blue-400 transition-all"
+                            title={notification.read ? "Mark as unread" : "Mark as read"}
+                          >
+                            {notification.read ? (
+                              <Circle className="w-3.5 h-3.5" />
+                            ) : (
+                              <Check className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteNotification(notification.id);
+                            }}
+                            className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-400 transition-all"
+                            title="Delete notification"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>

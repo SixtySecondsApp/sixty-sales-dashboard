@@ -1,0 +1,41 @@
+{
+  "projectId": "YOUR_PROJECT_ID_HERE",
+  "projectName": "Your Project Name",
+  "intervalMinutes": 60,
+  "workMode": "automationJob",
+  "job": {
+    "selectionStrategy": "priority",
+    "autoStatusTransition": true,
+    "syncTaskStatus": true
+  },
+  "repository": {
+    "owner": "YOUR_GITHUB_ORG",
+    "name": "your-repo-name",
+    "defaultBranch": "main",
+    "remote": "origin"
+  },
+  "git": {
+    "branchPrefix": "auto/ticket-",
+    "commitMessageTemplate": "feat: {title}\n\n{description}\n\nCloses #{ticketCode}",
+    "authorName": "AI Dev Hub Bot",
+    "authorEmail": "bot@ai-dev-hub.com"
+  },
+  "cli": {
+    "model": "auto",
+    "timeout": 300,
+    "maxRetries": 3,
+    "outputFormat": "json"
+  },
+  "logging": {
+    "level": "info",
+    "maxLogFiles": 30,
+    "logToConsole": true
+  },
+  "notifications": {
+    "enabled": false,
+    "webhookUrl": "",
+    "onError": true,
+    "onSuccess": false
+  }
+}
+

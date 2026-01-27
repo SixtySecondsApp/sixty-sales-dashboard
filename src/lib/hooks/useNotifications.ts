@@ -70,6 +70,32 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     return success;
   }, []);
 
+  // Mark notification as unread
+  const markAsUnread = useCallback(async (notificationId: string) => {
+    const success = await notificationService.markAsUnread(notificationId);
+    if (success) {
+      setNotifications(prev =>
+        prev.map(n =>
+          n.id === notificationId
+            ? { ...n, read: false, read_at: undefined }
+            : n
+        )
+      );
+      setUnreadCount(prev => prev + 1);
+    }
+    return success;
+  }, []);
+
+  // Toggle notification read/unread state
+  // Requires currentlyRead parameter to avoid stale closure issues
+  const toggleRead = useCallback(async (notificationId: string, currentlyRead: boolean) => {
+    if (currentlyRead) {
+      return markAsUnread(notificationId);
+    } else {
+      return markAsRead(notificationId);
+    }
+  }, [markAsRead, markAsUnread]);
+
   // Mark all as read
   const markAllAsRead = useCallback(async () => {
     const success = await notificationService.markAllAsRead();
@@ -204,6 +230,8 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     isLoading,
     error,
     markAsRead,
+    markAsUnread,
+    toggleRead,
     markAllAsRead,
     deleteNotification,
     clearAll,

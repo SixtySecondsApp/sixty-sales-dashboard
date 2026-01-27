@@ -220,11 +220,48 @@ class NotificationService {
         return false;
       }
 
+      // Invalidate cache to force refresh
+      this.unreadCountCache = null;
       // Update unread count
       this.updateUnreadCount();
       return true;
     } catch (error) {
       return false;
+    }
+  }
+
+  /**
+   * Mark notification as unread
+   */
+  async markAsUnread(notificationId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: false, read_at: null })
+        .eq('id', notificationId);
+
+      if (error) {
+        return false;
+      }
+
+      // Invalidate cache to force refresh
+      this.unreadCountCache = null;
+      // Update unread count
+      this.updateUnreadCount();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Toggle notification read/unread state
+   */
+  async toggleRead(notificationId: string, currentlyRead: boolean): Promise<boolean> {
+    if (currentlyRead) {
+      return this.markAsUnread(notificationId);
+    } else {
+      return this.markAsRead(notificationId);
     }
   }
 

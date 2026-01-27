@@ -86,7 +86,7 @@ import {
   AccountSettings, AppearanceSettings, AIPersonalizationPage, AIIntelligencePage, SalesCoachingPage,
   APIKeysPage, EmailSyncPage, TaskSyncPage, MeetingSyncPage, TeamMembersPage,
   CallTypeSettings, PipelineAutomationSettings, FollowUpSettings, OrganizationSettingsPage,
-  LogoSettings, SlackSettings, JustCallSettings, HubSpotSettings, BullhornSettings, OrgBranding, OrgBilling,
+  LogoSettings, SlackSettings, JustCallSettings, HubSpotSettings, BullhornSettings, NotificationsSettings, OrgBranding, OrgBilling,
   // Insights
   Insights, Heatmap, SalesFunnel, TeamAnalytics, ContentTopics,
   // Misc
@@ -531,6 +531,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/settings/follow-ups" element={<AppLayout><FollowUpSettings /></AppLayout>} />
                 <Route path="/settings/proposal-workflows" element={<Navigate to="/settings/follow-ups" replace />} />
                 <Route path="/settings/coaching" element={<AppLayout><CoachingPreferences /></AppLayout>} />
+                <Route path="/settings/notifications" element={<AppLayout><NotificationsSettings /></AppLayout>} />
                 <Route path="/insights/team" element={<AppLayout><TeamAnalytics /></AppLayout>} />
                 <Route path="/insights/content-topics" element={<AppLayout><ContentTopics /></AppLayout>} />
                 <Route path="/roadmap" element={<AppLayout><Roadmap /></AppLayout>} />
