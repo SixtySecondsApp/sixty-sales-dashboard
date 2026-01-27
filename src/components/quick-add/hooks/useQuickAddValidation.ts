@@ -27,14 +27,23 @@ export const useQuickAddValidation = () => {
       }
     }
     
-    if (selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale') {
-      // Contact is optional - no validation for selectedContact
-      // Company name is required only if no website is provided
+    if (selectedAction === 'meeting' || selectedAction === 'proposal') {
+      // Contact is required for meetings and proposals
+      if (!selectedContact) {
+        errors.contact = 'Please select a contact';
+      }
       if (!formData.client_name?.trim() && !formData.company_website?.trim()) {
         errors.client_name = 'Either company name or website is required';
       }
       if (selectedAction === 'meeting' && !formData.details) {
         errors.details = 'Meeting type is required';
+      }
+    }
+
+    if (selectedAction === 'sale') {
+      // Contact is optional for sales
+      if (!formData.client_name?.trim() && !formData.company_website?.trim()) {
+        errors.client_name = 'Either company name or website is required';
       }
     }
     
