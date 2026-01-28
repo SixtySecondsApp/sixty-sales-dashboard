@@ -699,11 +699,11 @@ async function processRecording(
     const internalDomain = recording.organizations?.company_domain || null;
 
     // Step 1: Determine media URL for transcription
-    // Priority: 1) Already uploaded S3 URL, 2) Passed video/audio URL, 3) Fallback to MeetingBaaS API
+    // Priority: 1) Already uploaded S3 URL, 2) Compress-callback S3 URL, 3) Passed video/audio URL, 4) Fallback to MeetingBaaS API
     let mediaUrlForTranscription: string | null = null;
     let uploadResult: UploadRecordingResult = { success: false };
 
-    // Check if S3 upload already done by webhook handler
+    // Check if S3 upload already done by webhook handler (legacy field)
     if (recording.recording_s3_url) {
       console.log('[ProcessRecording] Step 1: Using existing S3 URL for transcription');
       mediaUrlForTranscription = recording.recording_s3_url;
@@ -711,6 +711,16 @@ async function processRecording(
         success: true,
         storageUrl: recording.recording_s3_url,
         storagePath: recording.recording_s3_key,
+      };
+    } else if (recording.s3_video_url || recording.s3_audio_url) {
+      // Use S3 URLs from compress-callback (permanent storage)
+      const s3Url = recording.s3_audio_url || recording.s3_video_url;
+      console.log('[ProcessRecording] Step 1: Using S3 URL from compress-callback for transcription');
+      mediaUrlForTranscription = s3Url!;
+      uploadResult = {
+        success: true,
+        storageUrl: recording.s3_video_url || null,
+        storagePath: null,
       };
     } else if (videoUrl || audioUrl) {
       // Use URLs passed from webhook
@@ -913,7 +923,7 @@ async function processRecording(
     // Add enhanced AI analysis fields if available
     if (enhancedAnalysis) {
       recordingUpdate.sentiment_score = enhancedAnalysis.sentiment.score;
-      recordingUpdate.coach_rating = enhancedAnalysis.coaching.rating * 10; // Convert 1-10 to 0-100 scale
+      recordingUpdate.coach_rating = enhancedAnalysis.coaching.rating; // 1-10 scale (matches frontend display)
       recordingUpdate.coach_summary = enhancedAnalysis.coaching.summary;
       recordingUpdate.talk_time_rep_pct = enhancedAnalysis.talkTime.repPct;
       recordingUpdate.talk_time_customer_pct = enhancedAnalysis.talkTime.customerPct;
@@ -943,7 +953,7 @@ async function processRecording(
     // Add enhanced AI analysis fields to meeting
     if (enhancedAnalysis) {
       meetingUpdate.sentiment_score = enhancedAnalysis.sentiment.score;
-      meetingUpdate.coach_rating = enhancedAnalysis.coaching.rating * 10; // Convert 1-10 to 0-100 scale
+      meetingUpdate.coach_rating = enhancedAnalysis.coaching.rating; // 1-10 scale (matches frontend display)
       meetingUpdate.coach_summary = enhancedAnalysis.coaching.summary;
       meetingUpdate.talk_time_rep_pct = enhancedAnalysis.talkTime.repPct;
       meetingUpdate.talk_time_customer_pct = enhancedAnalysis.talkTime.customerPct;
